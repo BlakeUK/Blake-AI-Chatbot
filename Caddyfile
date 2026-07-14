@@ -1,0 +1,17 @@
+chat.blake-uk.com {
+    root * /var/www/chat/public
+    php_fastcgi unix//run/php/php8.2-fpm.sock
+
+    # Block direct access to sensitive paths
+    @blocked path /config/* /data/* /uploads/* /logs/* /scripts/*
+    respond @blocked 403
+
+    file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        X-Frame-Options SAMEORIGIN
+    }
+}

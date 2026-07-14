@@ -1,0 +1,170 @@
+<?php
+// public/api/chat/send.php — POST: main chat endpoint
+
+require dirname(__DIR__, 3) . '/src/bootstrap.php';
+cors();
+rate_limit('chat', CFG['rate_limit_chat']);
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    json_err('Method not allowed', 405);
+}
+
+$body       = json_body();
+$session_id = $body['session_id'] ?? '';
+$message    = trim($body['message'] ?? '');
+
+if (!$session_id || !$message) {
+    json_err('session_id and message required');
+}
+
+$pdo = db();
+
+// Verify session
+$sess = $pdo->prepare('SELECT * FROM chat_sessions WHERE id = ?');
+$sess->execute([$session_id]);
+$session = $sess->fetch();
+if (!$session) {
+    json_err('Invalid session', 404);
+}
+
+// Save user message
+$pdo->prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)')
+    ->execute([$session_id, 'user', $message]);
+$user_msg_id = $pdo->lastInsertId();
+
+// ── Retrieve context ──────────────────────────────────────────────────────────
+
+$knowledge_hits = \Knowledge\Search::query($message, 5);
+$product_hits   = \Knowledge\Search::products($message, 3);
+
+// ── Build Gemini prompt ───────────────────────────────────────────────────────
+
+$context_parts = [];
+
+if ($knowledge_hits) {
+    $context_parts[] = "KNOWLEDGE BASE:\n" . implode("\n---\n", array_map(
+        fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
+        $knowledge_hits
+    ));
+}
+
+if ($product_hits) {
+    $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(function ($p) {
+        $bullets = json_decode($p['summary_bullets'] ?? '[]', true);
+        $line    = "Product: {$p['name']} (Code: {$p['product_code']})";
+        if ($p['price_inc_vat']) {
+            $line .= " — £{$p['price_inc_vat']} inc VAT";
+        }
+        $line .= "\nURL: {$p['url']}";
+        if ($bullets) {
+            $line .= "\n• " . implode("\n• ", $bullets);
+        }
+        return $line;
+    }, $product_hits));
+}
+
+$page_ctx = '';
+if ($session['page_url']) {
+    $page_ctx = "Customer is viewing: {$session['page_url']}\n";
+    if ($session['product_code']) {
+        $page_ctx .= "Current product code: {$session['product_code']}\n";
+    }
+}
+
+$system = <<<PROMPT
+You are the Blake UK customer support assistant. Blake UK sells aerials, IRS, CCTV, networking, fibre, satellite and installation products.
+
+RULES:
+- Answer ONLY using the context provided below. Do not invent products, prices or specifications.
+- Keep answers concise and helpful.
+- Always include direct Blake UK URLs when recommending products or support pages.
+- If you cannot answer from the context, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
+- Never make up product codes, prices or specifications.
+
+{$page_ctx}
+PROMPT;
+
+$context_block = implode("\n\n", $context_parts);
+$full_prompt   = $context_block ? $system . "\n\n" . $context_block : $system;
+
+// Load previous messages (last 6)
+$hist = $pdo->prepare('
+    SELECT role, content FROM chat_messages
+    WHERE session_id = ? AND role IN (\'user\',\'assistant\')
+    ORDER BY created_at DESC LIMIT 6
+');
+$hist->execute([$session_id]);
+$history = array_reverse($hist->fetchAll());
+// Remove current message from history (it's the last user entry)
+$history = array_filter($history, fn($m) => !($m['role'] === 'user' && $m['content'] === $message));
+
+// ── Call Gemini ───────────────────────────────────────────────────────────────
+
+$api_key = getApiKey('gemini');
+if (!$api_key) {
+    json_err('Gemini API key not configured', 503);
+}
+
+$gemini   = new \Gemini\Client($api_key);
+$messages = array_values(array_map(
+    fn($m) => ['role' => $m['role'] === 'assistant' ? 'model' : 'user', 'content' => $m['content']],
+    $history
+));
+$messages[] = ['role' => 'user', 'content' => $message];
+
+try {
+    $answer = $gemini->chat(CFG['gemini_flash'], $messages, $full_prompt);
+} catch (\Throwable $e) {
+    error_log('Gemini error: ' . $e->getMessage());
+    json_err('AI service unavailable', 503);
+}
+
+// ── Confidence heuristic ──────────────────────────────────────────────────────
+// Simple: if context was found, confidence is higher
+$confidence = count($knowledge_hits) + count($product_hits) > 0 ? 0.75 : 0.3;
+$escalate   = $confidence < CFG['escalate_threshold'];
+
+// Save assistant message
+$pdo->prepare('INSERT INTO chat_messages (session_id, role, content, confidence, escalated) VALUES (?, ?, ?, ?, ?)')
+    ->execute([$session_id, 'assistant', $answer, $confidence, (int)$escalate]);
+$bot_msg_id = $pdo->lastInsertId();
+
+// Save sources
+foreach ($knowledge_hits as $h) {
+    $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
+        ->execute([$bot_msg_id, $h['source_type'], $h['source_id'], $h['url'], substr($h['chunk_text'], 0, 200)]);
+}
+foreach ($product_hits as $p) {
+    $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url) VALUES (?,?,?,?)')
+        ->execute([$bot_msg_id, 'product', null, $p['url']]);
+}
+
+// Update session timestamp
+$pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time(), $session_id]);
+
+json_out([
+    'answer'    => $answer,
+    'escalate'  => $escalate,
+    'confidence'=> $confidence,
+    'products'  => array_map(fn($p) => [
+        'code'  => $p['product_code'],
+        'name'  => $p['name'],
+        'url'   => $p['url'],
+        'price' => $p['price_inc_vat'],
+        'image' => $p['image_url'],
+    ], $product_hits),
+]);
+
+// ── Helper: decrypt API key from DB ──────────────────────────────────────────
+function getApiKey(string $service): ?string
+{
+    $row = db()->prepare('SELECT key_enc, iv, tag FROM api_keys WHERE service = ?');
+    $row->execute([$service]);
+    $r = $row->fetch();
+    if (!$r) return null;
+
+    $key = hex2bin(CFG['encrypt_key']);
+    $dec = openssl_decrypt(hex2bin($r['key_enc']), 'aes-256-gcm', $key,
+        OPENSSL_RAW_DATA, hex2bin($r['iv']), hex2bin($r['tag']));
+    return $dec ?: null;
+}
