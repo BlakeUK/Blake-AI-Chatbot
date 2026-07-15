@@ -9,7 +9,7 @@
 
 ### 1. Clone repo to server
 ```bash
-git clone https://github.com/2E0LXY/Blake_Support_Chatbot.git /var/www/chat
+git clone https://github.com/BlakeUK/ChatBot.git /var/www/chat
 ```
 
 ### 2. Run setup script

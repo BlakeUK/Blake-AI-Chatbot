@@ -190,13 +190,13 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 On a **fresh Debian 12 VPS** as root, with DNS for `chat.blake-uk.com` pointing to the server:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/2E0LXY/Blake_Support_Chatbot/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/ChatBot/main/install.sh)
 ```
 
 Custom domain:
 
 ```bash
-DOMAIN=chat.example.com bash <(curl -fsSL https://raw.githubusercontent.com/2E0LXY/Blake_Support_Chatbot/main/install.sh)
+DOMAIN=chat.example.com bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/ChatBot/main/install.sh)
 ```
 
 **What the installer does:**
@@ -222,7 +222,7 @@ DOMAIN=chat.example.com bash <(curl -fsSL https://raw.githubusercontent.com/2E0L
 
 ### Step 1 — Clone
 ```bash
-git clone https://github.com/2E0LXY/Blake_Support_Chatbot.git /var/www/chat
+git clone https://github.com/BlakeUK/ChatBot.git /var/www/chat
 ```
 
 ### Step 2 — Install dependencies
