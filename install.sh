@@ -1,6 +1,6 @@
 #!/bin/bash
 # install.sh — Blake UK Chatbot one-line VPS installer
-# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/ChatBot/main/install.sh)
+# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/Blake-AI-Chatbot/main/install.sh)
 # Requires: Debian 12, root access, chat.blake-uk.com DNS pointing to this server.
 
 set -euo pipefail
@@ -14,7 +14,7 @@ die()     { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 DOMAIN="${DOMAIN:-chat.blake-uk.com}"
 WEBROOT="/var/www/chat"
-REPO="https://github.com/BlakeUK/ChatBot.git"
+REPO="https://github.com/BlakeUK/Blake-AI-Chatbot.git"
 
 info "Blake UK AI Chatbot — VPS Installer"
 info "Domain : $DOMAIN"
