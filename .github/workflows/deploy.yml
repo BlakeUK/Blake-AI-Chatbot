@@ -1,0 +1,39 @@
+name: Deploy to VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Domain or IP to configure Caddy for"
+        required: false
+        default: "195.22.157.38"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Strip .git metadata before copying to server
+        run: rm -rf .git
+
+      - name: Copy code to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "."
+          target: "/var/www/chat"
+          overwrite: true
+
+      - name: Run remote deploy script
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            chmod +x /var/www/chat/scripts/deploy_remote.sh
+            DOMAIN="${{ github.event.inputs.domain }}" bash /var/www/chat/scripts/deploy_remote.sh

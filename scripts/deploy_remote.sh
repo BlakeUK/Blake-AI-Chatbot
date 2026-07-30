@@ -1,7 +1,9 @@
 #!/bin/bash
-# install.sh — Blake UK Chatbot one-line VPS installer
-# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/Blake-AI-Chatbot/main/install.sh)
-# Requires: Debian 12, root access, chat.blake-uk.com DNS pointing to this server.
+# scripts/deploy_remote.sh — runs ON THE VPS after code has been copied to $WEBROOT.
+# Used by .github/workflows/deploy.yml — do not run this against a checkout that
+# hasn't already been placed at $WEBROOT (it does not clone or pull anything).
+#
+# Usage: DOMAIN=chat.blake-uk.com bash scripts/deploy_remote.sh
 
 set -euo pipefail
 
@@ -14,51 +16,44 @@ die()     { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 DOMAIN="${DOMAIN:-chat.blake-uk.com}"
 WEBROOT="/var/www/chat"
-REPO="https://github.com/BlakeUK/Blake-AI-Chatbot.git"
 
-info "Blake UK AI Chatbot — VPS Installer"
+info "Blake UK AI Chatbot — Remote Deploy"
 info "Domain : $DOMAIN"
 info "Webroot: $WEBROOT"
 echo ""
 
-# ── System update ─────────────────────────────────────────────────────────────
-info "Updating system packages..."
-apt-get update -qq
-apt-get upgrade -y -qq
+[ -d "$WEBROOT/src" ] || die "$WEBROOT/src not found — code must be copied to $WEBROOT before running this script"
 
 # ── PHP 8.2 ──────────────────────────────────────────────────────────────────
-info "Installing PHP 8.2..."
-apt-get install -y -qq \
-    php8.2-fpm php8.2-sqlite3 php8.2-curl php8.2-mbstring \
-    php8.2-xml php8.2-intl php8.2-fileinfo
+if ! command -v php >/dev/null 2>&1; then
+    info "Installing PHP 8.2..."
+    apt-get update -qq
+    apt-get install -y -qq \
+        php8.2-fpm php8.2-sqlite3 php8.2-curl php8.2-mbstring \
+        php8.2-xml php8.2-intl php8.2-fileinfo
+else
+    info "PHP already installed — skipping."
+fi
 
 # ── SQLite ────────────────────────────────────────────────────────────────────
-apt-get install -y -qq sqlite3
+command -v sqlite3 >/dev/null 2>&1 || apt-get install -y -qq sqlite3
 
 # ── Caddy ────────────────────────────────────────────────────────────────────
-info "Installing Caddy..."
-apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-    | tee /etc/apt/sources.list.d/caddy-stable.list
-apt-get update -qq
-apt-get install -y -qq caddy
-
-# ── Git ───────────────────────────────────────────────────────────────────────
-apt-get install -y -qq git
-
-# ── Clone repo ────────────────────────────────────────────────────────────────
-info "Cloning repository to $WEBROOT..."
-if [ -d "$WEBROOT/.git" ]; then
-    warn "Repo already exists — pulling latest..."
-    git -C "$WEBROOT" pull --quiet
+if ! command -v caddy >/dev/null 2>&1; then
+    info "Installing Caddy..."
+    apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+        | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+        | tee /etc/apt/sources.list.d/caddy-stable.list
+    apt-get update -qq
+    apt-get install -y -qq caddy
 else
-    git clone "$REPO" "$WEBROOT" --quiet
+    info "Caddy already installed — skipping."
 fi
 
 # ── Directory structure ───────────────────────────────────────────────────────
-info "Creating directories..."
+info "Setting up directories..."
 mkdir -p "$WEBROOT"/{data,uploads,logs,config}
 chown -R www-data:www-data "$WEBROOT"
 chmod 750 "$WEBROOT/config"
@@ -92,7 +87,31 @@ fi
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
 info "Configuring Caddy..."
-sed "s/chat\.blake-uk\.com/$DOMAIN/g" "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
+if [[ "$DOMAIN" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+    warn "DOMAIN ($DOMAIN) is an IP address — Let's Encrypt can't issue a cert for it, serving plain HTTP instead."
+    PROTO="http"
+    cat > /etc/caddy/Caddyfile <<CADDYEOF
+http://$DOMAIN {
+    root * /var/www/chat/public
+    php_fastcgi unix//run/php/php8.2-fpm.sock
+
+    @blocked path /config/* /data/* /uploads/* /logs/* /scripts/*
+    respond @blocked 403
+
+    file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        X-Frame-Options SAMEORIGIN
+    }
+}
+CADDYEOF
+else
+    PROTO="https"
+    sed "s/chat\.blake-uk\.com/$DOMAIN/g" "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
+fi
 systemctl enable caddy --quiet
 systemctl restart caddy
 info "Caddy started."
@@ -105,20 +124,17 @@ info "PHP-FPM started."
 # ── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN} Installation complete!${NC}"
+echo -e "${GREEN} Deploy complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Next steps:"
-echo "  1. Create admin user:"
+echo "  1. Create admin user (if not already done):"
 echo "     php $WEBROOT/scripts/create_admin.php admin 'YourStrongPassword'"
 echo ""
-echo "  2. Visit https://$DOMAIN/admin/"
-echo "     → API Keys → paste your Gemini API key"
-echo "     → Model Settings → refresh → select models"
+echo "  2. Visit $PROTO://$DOMAIN/admin/"
+echo "     -> API Keys -> paste your Gemini API key"
+echo "     -> Model Settings -> refresh -> select models"
 echo ""
-echo "  3. Embed widget on blake-uk.com:"
-echo "     <script src=\"https://$DOMAIN/widget/chat.js\" defer></script>"
-echo ""
-echo "  4. Log path: $WEBROOT/logs/"
-echo "  5. DB path:  $WEBROOT/data/chatbot.db"
+echo "  3. Log path: $WEBROOT/logs/"
+echo "  4. DB path:  $WEBROOT/data/chatbot.db"
 echo ""
