@@ -87,7 +87,31 @@ fi
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
 info "Configuring Caddy..."
-sed "s/chat\.blake-uk\.com/$DOMAIN/g" "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
+if [[ "$DOMAIN" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+    warn "DOMAIN ($DOMAIN) is an IP address — Let's Encrypt can't issue a cert for it, serving plain HTTP instead."
+    PROTO="http"
+    cat > /etc/caddy/Caddyfile <<CADDYEOF
+http://$DOMAIN {
+    root * /var/www/chat/public
+    php_fastcgi unix//run/php/php8.2-fpm.sock
+
+    @blocked path /config/* /data/* /uploads/* /logs/* /scripts/*
+    respond @blocked 403
+
+    file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        X-Frame-Options SAMEORIGIN
+    }
+}
+CADDYEOF
+else
+    PROTO="https"
+    sed "s/chat\.blake-uk\.com/$DOMAIN/g" "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
+fi
 systemctl enable caddy --quiet
 systemctl restart caddy
 info "Caddy started."
@@ -107,7 +131,7 @@ echo "Next steps:"
 echo "  1. Create admin user (if not already done):"
 echo "     php $WEBROOT/scripts/create_admin.php admin 'YourStrongPassword'"
 echo ""
-echo "  2. Visit https://$DOMAIN/admin/"
+echo "  2. Visit $PROTO://$DOMAIN/admin/"
 echo "     -> API Keys -> paste your Gemini API key"
 echo "     -> Model Settings -> refresh -> select models"
 echo ""

@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       domain:
-        description: "Domain to configure Caddy for"
+        description: "Domain or IP to configure Caddy for"
         required: false
-        default: "chat.blake-uk.com"
+        default: "195.22.157.38"
 
 jobs:
   deploy:
