@@ -1,0 +1,142 @@
+/* Blake UK Chat Widget Styles */
+
+#buk-chat-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9998;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #e30613;
+  color: #fff;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#buk-chat-panel {
+  display: none;
+  flex-direction: column;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  height: 520px;
+  max-height: calc(100vh - 48px);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+}
+
+#buk-chat-header {
+  background: #e30613;
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+#buk-chat-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+#buk-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8f8f8;
+}
+
+.buk-msg { display: flex; flex-direction: column; gap: 6px; max-width: 90%; }
+.buk-msg-user { align-self: flex-end; align-items: flex-end; }
+.buk-msg-assistant { align-self: flex-start; align-items: flex-start; }
+
+.buk-bubble {
+  padding: 8px 12px;
+  border-radius: 16px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.buk-msg-user .buk-bubble    { background: #e30613; color: #fff; border-bottom-right-radius: 4px; }
+.buk-msg-assistant .buk-bubble { background: #fff; color: #222; border: 1px solid #e0e0e0; border-bottom-left-radius: 4px; }
+
+.buk-product-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 13px;
+}
+.buk-product-card:hover { border-color: #e30613; }
+.buk-product-card img { width: 48px; height: 48px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+.buk-product-info { display: flex; flex-direction: column; gap: 2px; }
+.buk-product-code { color: #888; font-size: 11px; }
+.buk-product-price { color: #e30613; font-weight: 600; }
+
+.buk-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
+.buk-typing span {
+  width: 7px; height: 7px; border-radius: 50%; background: #aaa;
+  animation: buk-bounce 1s infinite;
+}
+.buk-typing span:nth-child(2) { animation-delay: .15s; }
+.buk-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes buk-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+#buk-chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #e0e0e0;
+  background: #fff;
+}
+
+#buk-chat-input {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 14px;
+  outline: none;
+}
+#buk-chat-input:focus { border-color: #e30613; }
+
+#buk-chat-send {
+  background: #e30613;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+#buk-chat-send:disabled { opacity: .5; cursor: default; }

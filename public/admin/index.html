@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blake UK Chatbot Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f4f4;color:#222}
+header{background:#e30613;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:17px;font-weight:700}
+#logout-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:13px}
+nav{background:#fff;border-bottom:2px solid #e30613;display:flex;overflow-x:auto}
+nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
+nav button.active{border-bottom-color:#e30613;color:#e30613}
+nav button:hover{background:#fafafa}
+main{padding:20px;max-width:1200px;margin:0 auto}
+.tab{display:none}.tab.active{display:block}
+.card{background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee}
+label{display:block;margin-bottom:4px;font-weight:500;font-size:13px}
+input[type=text],input[type=password],select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#e30613}
+textarea{resize:vertical;min-height:80px}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.row>*{flex:1;min-width:140px}
+.row>.btn{flex:0 0 auto}
+.btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600}
+.btn-primary{background:#e30613;color:#fff}.btn-primary:hover{background:#c00510}
+.btn-secondary{background:#555;color:#fff}
+.btn-danger{background:#c0392b;color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee}
+th{background:#f8f8f8;font-weight:600}tr:hover td{background:#fafafa}
+td .btn{padding:4px 10px;font-size:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-ok,.badge-indexed,.badge-active{background:#d4edda;color:#155724}
+.badge-error,.badge-revoked{background:#f8d7da;color:#721c24}
+.badge-pending{background:#fff3cd;color:#856404}
+.alert{padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:13px}
+.alert-ok{background:#d4edda;color:#155724;border:1px solid #c3e6cb}
+.alert-err{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
+.alert-warn{background:#fff3cd;color:#856404;border:1px solid #ffc107}
+.alert-info{background:#d1ecf1;color:#0c5460;border:1px solid #bee5eb}
+.upload-zone{border:2px dashed #ccc;border-radius:6px;padding:24px;text-align:center;color:#888;cursor:pointer;transition:border .2s}
+.upload-zone.drag{border-color:#e30613;background:#fff8f8}
+.upload-zone input{display:none}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid #ddd;border-radius:6px;padding:14px;text-align:center}
+.stat .n{font-size:28px;font-weight:800;color:#e30613}
+.stat .l{font-size:12px;color:#888;margin-top:2px}
+code{font-family:monospace;font-size:12px}
+#login-overlay{position:fixed;inset:0;background:#f4f4f4;display:flex;align-items:center;justify-content:center;z-index:1000}
+#login-box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:32px;width:320px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
+#login-box h2{margin-bottom:20px;color:#e30613;font-size:18px}
+#login-box label{margin-top:10px}
+#login-box .btn{width:100%;margin-top:18px;padding:10px}
+.import-result{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.ir-box{border-radius:6px;padding:12px;text-align:center;font-weight:600}
+.ir-box .n{font-size:24px;margin-bottom:2px}
+.ir-box .l{font-size:11px;font-weight:400}
+</style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>Blake UK — Admin</h2>
+    <div id="login-alert"></div>
+    <label>Username</label><input type="text" id="login-user" autocomplete="username">
+    <label>Password</label><input type="password" id="login-pass" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="doLogin()">Log in</button>
+  </div>
+</div>
+
+<header>
+  <h1>🤖 Blake UK Chatbot Admin</h1>
+  <button id="logout-btn" onclick="doLogout()">Log out</button>
+</header>
+
+<nav id="nav-bar">
+  <button class="active" onclick="switchTab('dashboard',this)">Dashboard</button>
+  <button onclick="switchTab('knowledge',this)">Knowledge</button>
+  <button onclick="switchTab('files',this)">Files / RAG</button>
+  <button onclick="switchTab('products',this)">Products</button>
+  <button onclick="switchTab('apikeys',this)">API Keys</button>
+  <button onclick="switchTab('models',this)">Model Settings</button>
+  <button onclick="switchTab('clients',this)">Widget Clients</button>
+  <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
+</nav>
+
+<main>
+  <div id="msg"></div>
+
+  <!-- ── DASHBOARD ── -->
+  <div id="tab-dashboard" class="tab active">
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="s-knowledge">—</div><div class="l">Knowledge Entries</div></div>
+      <div class="stat"><div class="n" id="s-files">—</div><div class="l">Indexed Files</div></div>
+      <div class="stat"><div class="n" id="s-products">—</div><div class="l">Products</div></div>
+      <div class="stat"><div class="n" id="s-chats">—</div><div class="l">Chat Sessions</div></div>
+    </div>
+    <div class="card">
+      <h2>Recent Chat Sessions</h2>
+      <table id="dash-logs-table">
+        <thead><tr><th>Session</th><th>Page</th><th>Messages</th><th>Last active</th></tr></thead>
+        <tbody><tr><td colspan="4" style="color:#888">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── KNOWLEDGE ── -->
+  <div id="tab-knowledge" class="tab">
+    <div class="card">
+      <h2>Add Knowledge Entry</h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div><label>Title</label><input type="text" id="k-title" placeholder="e.g. Warranty Policy"></div>
+        <div><label>Content</label><textarea id="k-body" rows="5" placeholder="Paste or type knowledge content here..."></textarea></div>
+        <div class="row">
+          <div><label>Category (optional)</label><input type="text" id="k-cat"></div>
+          <div><label>URL (optional)</label><input type="text" id="k-url"></div>
+          <div><label>Product Codes (optional)</label><input type="text" id="k-codes" placeholder="comma-separated"></div>
+          <button class="btn btn-primary" onclick="saveKnowledge()">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Knowledge Entries</h2>
+      <table id="knowledge-table">
+        <thead><tr><th>Title</th><th>Category</th><th>URL</th><th>Active</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── FILES / RAG ── -->
+  <div id="tab-files" class="tab">
+    <div class="card">
+      <h2>Upload Knowledge Files</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.csv,.json,.xml,.jpg,.jpeg,.png,.webp" onchange="uploadFiles(this.files)">
+        <div style="font-size:32px;margin-bottom:8px">📁</div>
+        <div>Drag &amp; drop files here, or click to browse</div>
+      </div>
+      <div id="upload-progress" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Indexed Files</h2>
+      <table id="files-table">
+        <thead><tr><th>Filename</th><th>Type</th><th>Status</th><th>Uploaded</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── PRODUCTS ── -->
+  <div id="tab-products" class="tab">
+    <div class="card">
+      <h2>Import Product Feed</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px">Upload a JSON or XML product feed (max 50 MB). Products are upserted — existing records are updated, new ones created.</p>
+      <div class="upload-zone" id="feed-drop-zone" onclick="document.getElementById('feed-input').click()">
+        <input type="file" id="feed-input" accept=".json,.xml" onchange="importFeed(this.files[0])">
+        <div style="font-size:32px;margin-bottom:8px">📦</div>
+        <div>Drag &amp; drop JSON or XML product feed here, or click to browse</div>
+      </div>
+      <div id="import-result" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h2>Products in Database</h2>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input type="text" id="product-search" placeholder="Search by name, code or category..." style="flex:1" oninput="searchProducts()">
+      </div>
+      <table id="products-table">
+        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Price (inc VAT)</th><th>Stock</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── API KEYS ── -->
+  <div id="tab-apikeys" class="tab">
+    <div class="card">
+      <h2>Gemini API Key</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px">Stored encrypted (AES-256-GCM). Never returned to the browser after saving.</p>
+      <div class="row">
+        <div><label>API Key</label><input type="password" id="gemini-key-input" placeholder="Paste Gemini API key here" autocomplete="off"></div>
+        <button class="btn btn-primary" onclick="saveApiKey('gemini')">Save</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Carrier API Keys</h2>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="row"><div><label>Royal Mail / Post Office</label><input type="password" id="key-royalmail" autocomplete="off"></div><button class="btn btn-secondary" onclick="saveApiKey('royalmail')">Save</button></div>
+        <div class="row"><div><label>DPD</label><input type="password" id="key-dpd" autocomplete="off"></div><button class="btn btn-secondary" onclick="saveApiKey('dpd')">Save</button></div>
+        <div class="row"><div><label>DX</label><input type="password" id="key-dx" autocomplete="off"></div><button class="btn btn-secondary" onclick="saveApiKey('dx')">Save</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Stored Services</h2>
+      <table id="keys-table">
+        <thead><tr><th>Service</th><th>Last Updated</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── MODEL SETTINGS ── -->
+  <div id="tab-models" class="tab">
+    <div class="card">
+      <h2>Gemini Model Selection</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px">Models fetched live from Google API using your stored key. Save Gemini key first, then click Refresh.</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div><label>Chat Model (used for answering customer questions)</label><select id="chat-model-select"><option>— save Gemini key first, then refresh —</option></select></div>
+        <div><label>Extraction Model (PDF / image / document indexing)</label><select id="extract-model-select"><option>— save Gemini key first, then refresh —</option></select></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-secondary" onclick="fetchModels()">↺ Refresh model list</button>
+          <button class="btn btn-primary" onclick="saveModelSettings()">Save model selection</button>
+        </div>
+        <div id="models-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WIDGET CLIENTS ── -->
+  <div id="tab-clients" class="tab">
+    <div class="card">
+      <h2>Create External Widget Client</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px">Each client gets a unique API key. Access can be locked to specific server IP addresses and/or origin domains.</p>
+      <div class="row">
+        <div><label>Client Name</label><input type="text" id="c-name" placeholder="e.g. Partner Site A"></div>
+        <div><label>Allowed IPs (comma or newline — empty = allow all)</label><input type="text" id="c-ips" placeholder="81.174.22.10, 81.174.22.11"></div>
+        <div><label>Allowed Origins (empty = allow all)</label><input type="text" id="c-origins" placeholder="https://www.partnersite.co.uk"></div>
+        <button class="btn btn-primary" onclick="createClient()">Create</button>
+      </div>
+      <div id="client-created" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h2>Widget Clients</h2>
+      <table id="clients-table">
+        <thead><tr><th>Name</th><th>API Key</th><th>Allowed IPs</th><th>Origins</th><th>Requests</th><th>Last Seen</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card" style="background:#f0f8ff;border-color:#b8daff">
+      <h2>Integration Example</h2>
+      <pre style="font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto;line-height:1.6"><code>&lt;!-- On the external site, before &lt;/body&gt; --&gt;
+&lt;script&gt;
+window.BlakeUKWidget = {
+  apiKey: 'buk_yourkey',
+  endpoint: 'https://chat.blake-uk.com'
+};
+&lt;/script&gt;
+&lt;script src="https://chat.blake-uk.com/widget/chat.js" defer&gt;&lt;/script&gt;</code></pre>
+    </div>
+  </div>
+
+  <!-- ── CHAT LOGS ── -->
+  <div id="tab-chatlogs" class="tab">
+    <div class="card">
+      <h2>Recent Chat Sessions</h2>
+      <table id="logs-table">
+        <thead><tr><th>Session</th><th>Page</th><th>Product Code</th><th>Messages</th><th>Last active</th></tr></thead>
+        <tbody><tr><td colspan="5" style="color:#888">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API='/api/admin'; let csrf='';
+
+// ── Auth ───────────────────────────────────────────────────────────────────────
+async function doLogin(){
+  const u=val('login-user'),p=document.getElementById('login-pass').value;
+  const r=await post(API+'/login.php',{username:u,password:p},false);
+  if(r.ok){csrf=r.csrf;document.getElementById('login-overlay').style.display='none';init();}
+  else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Login failed')+'</div>';
+}
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+async function doLogout(){await fetch(API+'/login.php',{method:'DELETE'});location.reload();}
+
+function init(){loadDashboard();loadKnowledge();loadFiles();loadApiKeys();loadChatLogs();fetchModels();loadModelSettings();loadClients();loadProducts();}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function switchTab(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────────
+async function loadDashboard(){
+  try{
+    const [kRows,fRows,pRows,lRows]=await Promise.all([get(API+'/knowledge.php'),get(API+'/files.php'),get(API+'/products.php'),get(API+'/chats.php')]);
+    document.getElementById('s-knowledge').textContent=Array.isArray(kRows)?kRows.length:'—';
+    document.getElementById('s-files').textContent=Array.isArray(fRows)?fRows.filter(r=>r.status==='indexed').length:'—';
+    document.getElementById('s-products').textContent=Array.isArray(pRows)?pRows.total||pRows.length:'—';
+    document.getElementById('s-chats').textContent=Array.isArray(lRows)?lRows.length:'—';
+    renderLogTable(lRows,'dash-logs-table',4);
+  }catch(_){}
+}
+
+// ── Knowledge ──────────────────────────────────────────────────────────────────
+async function loadKnowledge(){
+  const rows=await get(API+'/knowledge.php');
+  const tb=document.querySelector('#knowledge-table tbody');
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.title)}</td><td>${esc(r.category||'')}</td><td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td><td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td><td><button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No entries yet.</td></tr>';
+}
+async function saveKnowledge(){
+  const body={csrf,title:val('k-title'),body:val('k-body'),category:val('k-cat'),url:val('k-url'),product_codes:val('k-codes')};
+  if(!body.title||!body.body)return flash('Title and content required',true);
+  const r=await post(API+'/knowledge.php',body);
+  if(!r.error){flash('Knowledge entry saved');['k-title','k-body','k-cat','k-url','k-codes'].forEach(id=>document.getElementById(id).value='');loadKnowledge();loadDashboard();}
+  else flash(r.error,true);
+}
+async function deleteKnowledge(id){
+  if(!confirm('Delete this entry?'))return;
+  const r=await del(API+'/knowledge.php',{csrf,id});
+  if(!r.error){flash('Deleted');loadKnowledge();}else flash(r.error,true);
+}
+
+// ── Files ──────────────────────────────────────────────────────────────────────
+async function loadFiles(){
+  const rows=await get(API+'/files.php');
+  const tb=document.querySelector('#files-table tbody');
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#c00">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td><button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No files uploaded yet.</td></tr>';
+}
+async function uploadFiles(files){
+  const prog=document.getElementById('upload-progress');
+  for(const f of files){
+    const sid='up_'+Math.random().toString(36).slice(2);
+    prog.innerHTML+=`<div id="${sid}" class="alert alert-warn" style="margin-bottom:6px">Uploading ${esc(f.name)}...</div>`;
+    const fd=new FormData();fd.append('file',f);
+    try{
+      const r=await fetch(API+'/files.php',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd});
+      const d=await r.json();const el=document.getElementById(sid);
+      if(d.error){if(el){el.className='alert alert-err';el.textContent=f.name+': '+d.error;}}
+      else{if(el){el.className='alert alert-ok';el.textContent=f.name+': '+(d.status==='indexed'?'Indexed ✓':'Error');}}
+    }catch(e){prog.innerHTML+=`<div class="alert alert-err">${esc(f.name)}: upload failed</div>`;}
+  }
+  loadFiles();loadDashboard();
+}
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');uploadFiles(e.dataTransfer.files);});
+async function deleteFile(id){
+  if(!confirm('Delete this file and remove from knowledge base?'))return;
+  const r=await del(API+'/files.php',{csrf,id});
+  if(!r.error){flash('File deleted');loadFiles();}else flash(r.error,true);
+}
+
+// ── Products ───────────────────────────────────────────────────────────────────
+let productSearch='';
+async function loadProducts(){
+  const r=await get(API+'/products.php?q='+encodeURIComponent(productSearch)+'&limit=50');
+  const rows=Array.isArray(r)?r:[];
+  const tb=document.querySelector('#products-table tbody');
+  tb.innerHTML=rows.length?rows.map(p=>{
+    const cat=JSON.parse(p.category_path||'[]').join(' › ')||'';
+    return `<tr><td><code>${esc(p.product_code)}</code></td><td>${esc(p.name)}</td><td>${esc(cat)}</td><td>${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2):'—'}</td><td><span class="badge ${p.stock_status==='in_stock'?'badge-ok':'badge-pending'}">${esc(p.stock_status||'unknown')}</span></td></tr>`;
+  }).join(''):'<tr><td colspan="5" style="color:#888">No products imported yet.</td></tr>';
+}
+function searchProducts(){productSearch=document.getElementById('product-search').value;clearTimeout(window._psTimer);window._psTimer=setTimeout(loadProducts,300);}
+
+async function importFeed(file){
+  if(!file)return;
+  const ir=document.getElementById('import-result');
+  ir.innerHTML='<div class="alert alert-warn">Importing '+esc(file.name)+'...</div>';
+  const fd=new FormData();fd.append('feed',file);
+  try{
+    const r=await fetch(API+'/import.php',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd});
+    const d=await r.json();
+    if(d.error){ir.innerHTML='<div class="alert alert-err">'+esc(d.error)+'</div>';}
+    else{
+      ir.innerHTML=`<div class="alert alert-ok">Import complete — ${d.total} products processed</div>
+      <div class="import-result">
+        <div class="ir-box" style="background:#d4edda;color:#155724"><div class="n">${d.created}</div><div class="l">Created</div></div>
+        <div class="ir-box" style="background:#d1ecf1;color:#0c5460"><div class="n">${d.updated}</div><div class="l">Updated</div></div>
+        <div class="ir-box" style="background:#fff3cd;color:#856404"><div class="n">${d.skipped}</div><div class="l">Skipped</div></div>
+        <div class="ir-box" style="background:#f8d7da;color:#721c24"><div class="n">${d.errors.length}</div><div class="l">Errors</div></div>
+      </div>${d.errors.length?'<div class="alert alert-err" style="margin-top:8px;font-size:12px">'+d.errors.map(e=>esc(e)).join('<br>')+'</div>':''}`;
+      loadProducts();loadDashboard();
+    }
+  }catch(e){ir.innerHTML='<div class="alert alert-err">Upload failed</div>';}
+}
+const fdz=document.getElementById('feed-drop-zone');
+fdz.addEventListener('dragover',e=>{e.preventDefault();fdz.classList.add('drag');});
+fdz.addEventListener('dragleave',()=>fdz.classList.remove('drag'));
+fdz.addEventListener('drop',e=>{e.preventDefault();fdz.classList.remove('drag');importFeed(e.dataTransfer.files[0]);});
+
+// ── API Keys ───────────────────────────────────────────────────────────────────
+async function loadApiKeys(){
+  const rows=await get(API+'/apikeys.php');
+  const tb=document.querySelector('#keys-table tbody');
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td><code>${esc(r.service)}</code></td><td>${fmtDate(r.updated_at)}</td><td><button class="btn btn-danger" onclick="deleteApiKey('${esc(r.service)}')">Delete</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:#888">No keys stored.</td></tr>';
+}
+async function saveApiKey(service){
+  const inputId=service==='gemini'?'gemini-key-input':'key-'+service;
+  const value=document.getElementById(inputId)?.value?.trim();
+  if(!value)return flash('Enter a key value',true);
+  const r=await post(API+'/apikeys.php',{csrf,service,value});
+  if(!r.error){flash('Key saved for '+service);document.getElementById(inputId).value='';loadApiKeys();if(service==='gemini')fetchModels();}
+  else flash(r.error,true);
+}
+async function deleteApiKey(service){
+  if(!confirm('Remove key for '+service+'?'))return;
+  const r=await del(API+'/apikeys.php',{csrf,service});
+  if(!r.error){flash('Key removed');loadApiKeys();}else flash(r.error,true);
+}
+
+// ── Models ─────────────────────────────────────────────────────────────────────
+async function fetchModels(){
+  const st=document.getElementById('models-status');
+  st.innerHTML='<span style="color:#888">Fetching models from Google API...</span>';
+  try{
+    const models=await get(API+'/models.php');
+    ['chat-model-select','extract-model-select'].forEach(id=>{
+      const sel=document.getElementById(id);
+      sel.innerHTML=models.map(m=>`<option value="${esc(m.id)}">${esc(m.displayName)} (${esc(m.id)})</option>`).join('');
+    });
+    await loadModelSettings();
+    st.innerHTML=`<span style="color:#155724">${models.length} models loaded ✓</span>`;
+  }catch(e){st.innerHTML='<span style="color:#c00">Failed — save Gemini key first, then refresh</span>';}
+}
+async function loadModelSettings(){
+  try{const s=await get(API+'/settings.php');setSelectValue('chat-model-select',s.gemini_chat_model);setSelectValue('extract-model-select',s.gemini_extract_model);}catch(_){}
+}
+async function saveModelSettings(){
+  const r=await post(API+'/settings.php',{csrf,gemini_chat_model:document.getElementById('chat-model-select').value,gemini_extract_model:document.getElementById('extract-model-select').value});
+  if(!r.error)flash('Model settings saved');else flash(r.error,true);
+}
+
+// ── Widget Clients ─────────────────────────────────────────────────────────────
+async function loadClients(){
+  const rows=await get(API+'/clients.php');
+  const tb=document.querySelector('#clients-table tbody');
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="8" style="color:#888">Unable to load.</td></tr>';return;}
+  tb.innerHTML=rows.length?rows.map(r=>`<tr>
+    <td><strong>${esc(r.name)}</strong></td>
+    <td><code style="font-size:11px">${esc(r.api_key_masked||'—')}</code></td>
+    <td style="font-size:11px">${JSON.parse(r.allowed_ips||'[]').join('<br>')||'<em style="color:#aaa">Any</em>'}</td>
+    <td style="font-size:11px">${JSON.parse(r.allowed_origins||'[]').join('<br>')||'<em style="color:#aaa">Any</em>'}</td>
+    <td>${esc(r.total_requests||0)}</td>
+    <td style="font-size:11px;color:#888">${r.last_seen?fmtDate(r.last_seen):'—'}</td>
+    <td><span class="badge ${r.active?'badge-active':'badge-revoked'}">${r.active?'Active':'Revoked'}</span></td>
+    <td>${r.active?`<button class="btn btn-danger" onclick="revokeClient(${r.id})">Revoke</button>`:''}</td>
+  </tr>`).join(''):'<tr><td colspan="8" style="color:#888">No clients configured.</td></tr>';
+}
+async function createClient(){
+  const name=val('c-name');if(!name)return flash('Client name required',true);
+  const r=await post(API+'/clients.php',{csrf,name,allowed_ips:val('c-ips'),allowed_origins:val('c-origins')});
+  if(r.error)return flash(r.error,true);
+  document.getElementById('client-created').innerHTML=`
+    <div class="alert alert-ok">✓ Client <strong>${esc(r.name)}</strong> created.<br>
+    API Key (shown once): <code style="font-size:13px;font-weight:700;user-select:all">${esc(r.api_key)}</code><br>
+    <small>Copy this now — it will not be shown again.</small></div>`;
+  ['c-name','c-ips','c-origins'].forEach(id=>document.getElementById(id).value='');
+  loadClients();
+}
+async function revokeClient(id){
+  if(!confirm('Revoke this client? Their API key will stop working immediately.'))return;
+  const r=await del(API+'/clients.php',{csrf,id});
+  if(!r.error){flash('Client revoked');loadClients();}else flash(r.error,true);
+}
+
+// ── Chat Logs ──────────────────────────────────────────────────────────────────
+async function loadChatLogs(){
+  const rows=await get(API+'/chats.php');
+  renderLogTable(rows,'logs-table',5);
+}
+function renderLogTable(rows,tableId,cols){
+  const tb=document.querySelector('#'+tableId+' tbody');
+  if(!Array.isArray(rows)){tb.innerHTML=`<tr><td colspan="${cols}" style="color:#888">Unable to load.</td></tr>`;return;}
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="${cols}" style="color:#888">No sessions yet.</td></tr>`;return;}
+  if(cols===4){
+    tb.innerHTML=rows.slice(0,10).map(r=>`<tr><td><code style="font-size:11px">${esc(r.id.slice(0,12))}…</code></td><td style="font-size:11px">${esc(r.page_url||'')}</td><td>${esc(r.msg_count||0)}</td><td>${fmtDate(r.updated_at)}</td></tr>`).join('');
+  } else {
+    tb.innerHTML=rows.map(r=>`<tr><td><code style="font-size:11px">${esc(r.id.slice(0,12))}…</code></td><td style="font-size:11px">${esc(r.page_url||'')}</td><td style="font-size:11px">${esc(r.product_code||'')}</td><td>${esc(r.msg_count||0)}</td><td>${fmtDate(r.updated_at)}</td></tr>`).join('');
+  }
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
+async function get(url){const r=await fetch(url,{credentials:'same-origin'});return r.json();}
+async function post(url,body,withCred=true){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:withCred?'same-origin':'omit',body:JSON.stringify(body)});return r.json();}
+async function del(url,body){const r=await fetch(url,{method:'DELETE',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
+function val(id){return document.getElementById(id)?.value?.trim()||'';}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtDate(ts){return ts?new Date(ts*1000).toLocaleString('en-GB'):'';}
+function setSelectValue(id,v){const el=document.getElementById(id);if(el&&v){const o=[...el.options].find(o=>o.value===v);if(o)el.value=v;}}
+function flash(msg,err=false){const el=document.getElementById('msg');el.innerHTML=`<div class="alert ${err?'alert-err':'alert-ok'}">${esc(msg)}</div>`;setTimeout(()=>el.innerHTML='',4000);}
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+PROPRIETARY SOFTWARE LICENCE
+
+Copyright (c) 2026 Blake UK Ltd. All rights reserved.
+
+IMPORTANT — READ CAREFULLY BEFORE USING THIS SOFTWARE
+
+This software and all associated source code, documentation, configuration files,
+database schemas, scripts, and supporting materials (collectively, the "Software")
+are the exclusive property of Blake UK Ltd ("the Owner").
+
+1. GRANT OF LICENCE
+   The Owner grants no licence, right, or permission to any third party to use,
+   copy, modify, merge, publish, distribute, sublicence, sell, or transfer the
+   Software, or any portion thereof, without the prior explicit written consent
+   of the Owner.
+
+2. RESTRICTIONS
+   Without the prior written permission of the Owner, you may NOT:
+   a) Copy, reproduce, or duplicate the Software in whole or in part;
+   b) Modify, adapt, translate, reverse-engineer, decompile, or disassemble
+      the Software;
+   c) Create derivative works based on the Software;
+   d) Distribute, sell, sublicence, rent, lease, or transfer the Software
+      or any rights in the Software to any third party;
+   e) Remove or alter any proprietary notices, labels, or marks on the Software;
+   f) Use the Software for any purpose other than as expressly authorised
+      in writing by the Owner.
+
+3. INTELLECTUAL PROPERTY
+   All intellectual property rights in and to the Software, including but not
+   limited to patents, copyrights, trademarks, and trade secrets, are and shall
+   remain the exclusive property of the Owner. This Licence does not transfer
+   any ownership interest in the Software.
+
+4. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED. THE OWNER DISCLAIMS ALL WARRANTIES INCLUDING, BUT NOT LIMITED TO,
+   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NON-INFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE OWNER BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+   WITH THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+6. GDPR (UK) COMPLIANCE
+   The Software is designed to assist Blake UK Ltd in operating a customer
+   support service and includes technical measures to support compliance with
+   the UK General Data Protection Regulation (UK GDPR) and the Data Protection
+   Act 2018. These measures include:
+
+   a) DATA MINIMISATION
+      The chat widget collects only data strictly necessary for session
+      continuity and support purposes: a hashed IP address, the page URL
+      visited, and the content of customer chat messages.
+
+   b) LAWFUL BASIS
+      Personal data is processed on the basis of legitimate interests
+      (Article 6(1)(f) UK GDPR) to enable customer support, and on the
+      basis of consent where the customer voluntarily initiates a chat.
+
+   c) DATA RETENTION
+      Chat session data and message logs are subject to retention controls
+      configurable by the Data Controller (Blake UK Ltd). Tracking query
+      data and personal data are deleted in accordance with the Controller's
+      retention policy.
+
+   d) SECURITY
+      API keys are stored encrypted (AES-256-GCM). Admin access is
+      protected by bcrypt-hashed passwords, CSRF tokens, rate limiting,
+      and secure session cookies (HttpOnly, Secure, SameSite=Strict).
+      IP addresses stored in the system are hashed using SHA-256.
+
+   e) DATA SUBJECT RIGHTS
+      Blake UK Ltd, as Data Controller, is responsible for handling
+      data subject requests (access, erasure, rectification, objection)
+      under UK GDPR Articles 15-22. The Software does not automatically
+      process such requests; they must be handled by the Controller.
+
+   f) DATA PROCESSOR
+      If this Software is deployed by a third party on behalf of
+      Blake UK Ltd, that third party acts as a Data Processor and must
+      enter into a Data Processing Agreement with Blake UK Ltd as
+      required by UK GDPR Article 28.
+
+   g) INTERNATIONAL TRANSFERS
+      The Software uses the Google Gemini API (Google LLC, USA). Blake
+      UK Ltd is responsible for ensuring an appropriate transfer mechanism
+      (such as Standard Contractual Clauses or the UK-US Data Bridge)
+      is in place before processing personal data through this service.
+
+   h) COOKIES AND TRACKING
+      The chat widget uses sessionStorage (not persistent cookies) to
+      maintain session continuity. No third-party tracking or analytics
+      are built into the Software. The Data Controller is responsible
+      for ensuring any cookie consent requirements on the host website
+      are satisfied before the widget script is loaded.
+
+   i) PRIVACY NOTICE
+      Blake UK Ltd must maintain a Privacy Notice that describes the
+      processing activities enabled by this Software, accessible to
+      customers prior to or at the point of data collection.
+
+   j) DATA PROTECTION OFFICER
+      Blake UK Ltd should assess whether appointment of a DPO is required
+      under UK GDPR Article 37 based on the nature and scale of processing.
+
+7. GOVERNING LAW
+   This Licence shall be governed by and construed in accordance with the
+   laws of England and Wales. Any disputes shall be subject to the exclusive
+   jurisdiction of the courts of England and Wales.
+
+8. CONTACT
+   For licensing enquiries or permissions:
+   Blake UK Ltd
+   https://www.blake-uk.com/contact-us.html
+
+All rights reserved. Unauthorised use, copying, or distribution of this
+Software is strictly prohibited and may result in civil and/or criminal
+penalties.
