@@ -8,7 +8,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #e30613;
+  background: #3d5a99;
   color: #fff;
   border: none;
   font-size: 24px;
@@ -39,7 +39,7 @@
 }
 
 #buk-chat-header {
-  background: #e30613;
+  background: #3d5a99;
   color: #fff;
   padding: 12px 16px;
   display: flex;
@@ -47,6 +47,17 @@
   justify-content: space-between;
   font-weight: 600;
   font-size: 15px;
+}
+
+#buk-chat-header span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#buk-chat-logo {
+  height: 20px;
+  width: auto;
 }
 
 #buk-chat-close {
@@ -81,7 +92,7 @@
   word-break: break-word;
 }
 
-.buk-msg-user .buk-bubble    { background: #e30613; color: #fff; border-bottom-right-radius: 4px; }
+.buk-msg-user .buk-bubble    { background: #3d5a99; color: #fff; border-bottom-right-radius: 4px; }
 .buk-msg-assistant .buk-bubble { background: #fff; color: #222; border: 1px solid #e0e0e0; border-bottom-left-radius: 4px; }
 
 .buk-product-card {
@@ -96,11 +107,11 @@
   color: inherit;
   font-size: 13px;
 }
-.buk-product-card:hover { border-color: #e30613; }
+.buk-product-card:hover { border-color: #3d5a99; }
 .buk-product-card img { width: 48px; height: 48px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
 .buk-product-info { display: flex; flex-direction: column; gap: 2px; }
 .buk-product-code { color: #888; font-size: 11px; }
-.buk-product-price { color: #e30613; font-weight: 600; }
+.buk-product-price { color: #3d5a99; font-weight: 600; }
 
 .buk-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
 .buk-typing span {
@@ -127,10 +138,10 @@
   font-size: 14px;
   outline: none;
 }
-#buk-chat-input:focus { border-color: #e30613; }
+#buk-chat-input:focus { border-color: #3d5a99; }
 
 #buk-chat-send {
-  background: #e30613;
+  background: #3d5a99;
   color: #fff;
   border: none;
   border-radius: 20px;

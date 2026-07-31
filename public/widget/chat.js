@@ -28,7 +28,7 @@
   panel.setAttribute('aria-live', 'polite');
   panel.innerHTML = `
     <div id="buk-chat-header">
-      <span>Blake UK Support</span>
+      <span><img src="/assets/blake-uk-logo.png" alt="Blake UK" id="buk-chat-logo">Support</span>
       <button id="buk-chat-close" aria-label="Close chat">✕</button>
     </div>
     <div id="buk-chat-messages"></div>
