@@ -3,6 +3,9 @@ name: Build Android APKs
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,14 +37,34 @@ jobs:
           flutter pub get
           flutter build apk --release
 
+      - name: Rename APKs for release
+        run: |
+          mkdir -p release-apks
+          cp mobile/customer_app/build/app/outputs/flutter-apk/app-release.apk release-apks/blake-uk-customer-app.apk
+          cp mobile/admin_app/build/app/outputs/flutter-apk/app-release.apk release-apks/blake-uk-admin-app.apk
+
       - name: Upload customer app APK
         uses: actions/upload-artifact@v4
         with:
           name: blake-uk-customer-app
-          path: mobile/customer_app/build/app/outputs/flutter-apk/app-release.apk
+          path: release-apks/blake-uk-customer-app.apk
 
       - name: Upload admin app APK
         uses: actions/upload-artifact@v4
         with:
           name: blake-uk-admin-app
-          path: mobile/admin_app/build/app/outputs/flutter-apk/app-release.apk
+          path: release-apks/blake-uk-admin-app.apk
+
+      - name: Publish/update "latest" release with both APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Latest Android APKs
+          body: |
+            Auto-built from `${{ github.sha }}` on ${{ github.event.repository.updated_at }}.
+            This release is updated in place on every build - download links below always
+            point to the most recent APKs.
+          prerelease: true
+          files: |
+            release-apks/blake-uk-customer-app.apk
+            release-apks/blake-uk-admin-app.apk
