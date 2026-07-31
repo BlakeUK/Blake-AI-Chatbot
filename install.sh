@@ -26,11 +26,15 @@ info "Updating system packages..."
 apt-get update -qq
 apt-get upgrade -y -qq
 
-# ── PHP 8.2 ──────────────────────────────────────────────────────────────────
-info "Installing PHP 8.2..."
+# ── PHP ───────────────────────────────────────────────────────────────────────
+# Package names are versioned and differ by distro release, so install the
+# generic/default-version meta-packages and detect the actual version after.
+info "Installing PHP..."
 apt-get install -y -qq \
-    php8.2-fpm php8.2-sqlite3 php8.2-curl php8.2-mbstring \
-    php8.2-xml php8.2-intl php8.2-fileinfo
+    php-fpm php-sqlite3 php-curl php-mbstring php-xml php-intl
+
+PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+info "Using PHP $PHP_VERSION"
 
 # ── SQLite ────────────────────────────────────────────────────────────────────
 apt-get install -y -qq sqlite3
@@ -92,14 +96,15 @@ fi
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
 info "Configuring Caddy..."
-sed "s/chat\.blake-uk\.com/$DOMAIN/g" "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
+sed -e "s/chat\.blake-uk\.com/$DOMAIN/g" -e "s/php8\.2-fpm/php${PHP_VERSION}-fpm/g" \
+    "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
 systemctl enable caddy --quiet
 systemctl restart caddy
 info "Caddy started."
 
 # ── PHP-FPM ──────────────────────────────────────────────────────────────────
-systemctl enable php8.2-fpm --quiet
-systemctl restart php8.2-fpm
+systemctl enable "php${PHP_VERSION}-fpm" --quiet
+systemctl restart "php${PHP_VERSION}-fpm"
 info "PHP-FPM started."
 
 # ── Done ─────────────────────────────────────────────────────────────────────

@@ -7,10 +7,15 @@ set -e
 
 echo "=== Blake UK Chatbot — Server Setup ==="
 
-# ── PHP 8.2 + extensions ─────────────────────────────────────────────────────
+# ── PHP + extensions ──────────────────────────────────────────────────────────
+# Package names are versioned and differ by distro release, so install the
+# generic/default-version meta-packages and detect the actual version after.
 apt-get update -qq
-apt-get install -y php8.2-fpm php8.2-sqlite3 php8.2-curl php8.2-mbstring \
-                   php8.2-xml php8.2-intl sqlite3 curl unzip git
+apt-get install -y php-fpm php-sqlite3 php-curl php-mbstring \
+                   php-xml php-intl sqlite3 curl unzip git
+
+PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+echo "Using PHP $PHP_VERSION"
 
 # ── Caddy ─────────────────────────────────────────────────────────────────────
 apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
@@ -35,7 +40,9 @@ ENC_KEY=$(php -r "echo bin2hex(random_bytes(32));")
 echo "ENCRYPTION KEY (add to config/config.php): $ENC_KEY"
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
-cp /var/www/chat/Caddyfile /etc/caddy/Caddyfile
+sed "s/php8\.2-fpm/php${PHP_VERSION}-fpm/g" /var/www/chat/Caddyfile > /etc/caddy/Caddyfile
+systemctl enable "php${PHP_VERSION}-fpm" --quiet
+systemctl restart "php${PHP_VERSION}-fpm"
 systemctl reload caddy
 
 echo "=== Done. Copy config/config.example.php to config/config.php and fill in values. ==="
