@@ -44,10 +44,28 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
     });
     if (r['error'] != null) {
       if (mounted) flash(context, r['error'].toString(), error: true);
-    } else {
-      _controllers[service]!.clear();
-      if (mounted) flash(context, '$service key saved');
-      _load();
+      return;
+    }
+    _controllers[service]!.clear();
+    _load();
+    if (service == 'gemini') {
+      // Same behaviour as the web admin panel: saving the Gemini key
+      // immediately pulls the available models so they're ready to pick
+      // from in Model Settings, rather than requiring a separate visit
+      // there and a manual refresh.
+      ApiClient.modelsRefreshTick.value++;
+      final models = await ApiClient.get('/models.php');
+      if (mounted) {
+        if (models['error'] != null) {
+          flash(context, 'Gemini key saved, but fetching models failed: ${models['error']}',
+              error: true);
+        } else {
+          final count = (models['_list'] as List? ?? []).length;
+          flash(context, 'Gemini key saved — $count models now available in Model Settings');
+        }
+      }
+    } else if (mounted) {
+      flash(context, '$service key saved');
     }
   }
 

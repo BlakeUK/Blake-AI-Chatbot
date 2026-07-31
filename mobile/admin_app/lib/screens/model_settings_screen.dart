@@ -22,6 +22,17 @@ class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    // This screen is mounted (and its initState run) once, up front, by the
+    // IndexedStack in HomeShell — so if the Gemini key gets saved later from
+    // the API Keys tab, this screen needs an explicit nudge to refresh
+    // rather than relying on a fresh initState call.
+    ApiClient.modelsRefreshTick.addListener(_refreshModels);
+  }
+
+  @override
+  void dispose() {
+    ApiClient.modelsRefreshTick.removeListener(_refreshModels);
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {

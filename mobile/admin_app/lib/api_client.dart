@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,11 @@ class ApiClient {
   static String role = 'user';
 
   static String? get cookieHeader => _cookie;
+
+  /// Bumped whenever the Gemini API key is saved, so the Model Settings
+  /// screen (a separate, already-mounted tab) can refresh its model list
+  /// without the admin needing to switch tabs and hit refresh themselves.
+  static final modelsRefreshTick = ValueNotifier<int>(0);
 
   static Future<void> restoreCookie() async {
     final prefs = await SharedPreferences.getInstance();
