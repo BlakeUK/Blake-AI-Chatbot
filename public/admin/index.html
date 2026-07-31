@@ -6,12 +6,12 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f4f4;color:#222}
-header{background:#e30613;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+header{background:#3d5a99;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
 header h1{font-size:17px;font-weight:700}
 #logout-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:13px}
-nav{background:#fff;border-bottom:2px solid #e30613;display:flex;overflow-x:auto}
+nav{background:#fff;border-bottom:2px solid #3d5a99;display:flex;overflow-x:auto}
 nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
-nav button.active{border-bottom-color:#e30613;color:#e30613}
+nav button.active{border-bottom-color:#3d5a99;color:#3d5a99}
 nav button:hover{background:#fafafa}
 main{padding:20px;max-width:1200px;margin:0 auto}
 .tab{display:none}.tab.active{display:block}
@@ -19,13 +19,13 @@ main{padding:20px;max-width:1200px;margin:0 auto}
 .card h2{font-size:15px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee}
 label{display:block;margin-bottom:4px;font-weight:500;font-size:13px}
 input[type=text],input[type=password],select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-family:inherit}
-input:focus,select:focus,textarea:focus{outline:none;border-color:#e30613}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#3d5a99}
 textarea{resize:vertical;min-height:80px}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
 .row>*{flex:1;min-width:140px}
 .row>.btn{flex:0 0 auto}
 .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600}
-.btn-primary{background:#e30613;color:#fff}.btn-primary:hover{background:#c00510}
+.btn-primary{background:#3d5a99;color:#fff}.btn-primary:hover{background:#2f4677}
 .btn-secondary{background:#555;color:#fff}
 .btn-danger{background:#c0392b;color:#fff}
 .btn:disabled{opacity:.5;cursor:default}
@@ -43,16 +43,16 @@ td .btn{padding:4px 10px;font-size:12px}
 .alert-warn{background:#fff3cd;color:#856404;border:1px solid #ffc107}
 .alert-info{background:#d1ecf1;color:#0c5460;border:1px solid #bee5eb}
 .upload-zone{border:2px dashed #ccc;border-radius:6px;padding:24px;text-align:center;color:#888;cursor:pointer;transition:border .2s}
-.upload-zone.drag{border-color:#e30613;background:#fff8f8}
+.upload-zone.drag{border-color:#3d5a99;background:#fff8f8}
 .upload-zone input{display:none}
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 .stat{background:#fff;border:1px solid #ddd;border-radius:6px;padding:14px;text-align:center}
-.stat .n{font-size:28px;font-weight:800;color:#e30613}
+.stat .n{font-size:28px;font-weight:800;color:#3d5a99}
 .stat .l{font-size:12px;color:#888;margin-top:2px}
 code{font-family:monospace;font-size:12px}
 #login-overlay{position:fixed;inset:0;background:#f4f4f4;display:flex;align-items:center;justify-content:center;z-index:1000}
 #login-box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:32px;width:320px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
-#login-box h2{margin-bottom:20px;color:#e30613;font-size:18px}
+#login-box h2{margin-bottom:20px;color:#3d5a99;font-size:18px}
 #login-box label{margin-top:10px}
 #login-box .btn{width:100%;margin-top:18px;padding:10px}
 .import-result{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
@@ -74,7 +74,10 @@ code{font-family:monospace;font-size:12px}
 </div>
 
 <header>
-  <h1>🤖 Blake UK Chatbot Admin</h1>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/assets/blake-uk-logo.png" alt="Blake UK" style="height:28px;width:auto">
+    <h1>Chatbot Admin</h1>
+  </div>
   <button id="logout-btn" onclick="doLogout()">Log out</button>
 </header>
 
