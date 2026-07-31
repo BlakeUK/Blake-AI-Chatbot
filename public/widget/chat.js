@@ -106,6 +106,7 @@
           showTrackingForm(d.tracking_no, d.carrier);
         } else if (d.escalate) {
           addMessage('assistant', 'Would you like me to raise a support ticket? A member of the team will get back to you.');
+          showEscalateForm();
         }
       }
     } catch (e) {
@@ -158,6 +159,42 @@
     } catch (e) {
       formWrap.remove();
       addMessage('assistant', 'Unable to reach the tracking service. Please try again shortly.');
+    }
+  }
+
+  // ── Escalation ───────────────────────────────────────────────────────────────
+  function showEscalateForm() {
+    const wrap = document.createElement('div');
+    wrap.className = 'buk-msg buk-msg-assistant';
+    wrap.innerHTML = `
+      <div class="buk-bubble buk-tracking-form">
+        <input type="email" class="buk-escalate-email" placeholder="Your email (optional)">
+        <button class="buk-track-submit buk-escalate-submit">Raise Ticket</button>
+      </div>
+    `;
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+    wrap.querySelector('.buk-escalate-submit').addEventListener('click', () => submitEscalate(wrap));
+  }
+
+  async function submitEscalate(formWrap) {
+    const email = formWrap.querySelector('.buk-escalate-email').value.trim();
+    const btn = formWrap.querySelector('.buk-escalate-submit');
+    btn.disabled = true;
+    btn.textContent = 'Raising...';
+
+    try {
+      const r = await fetch(API + '/escalate.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, email }),
+      });
+      const d = await r.json();
+      formWrap.remove();
+      addMessage('assistant', d.message || 'Your query has been passed to our support team.');
+    } catch (e) {
+      formWrap.remove();
+      addMessage('assistant', 'Unable to reach the server. Please try again shortly.');
     }
   }
 

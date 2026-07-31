@@ -102,6 +102,7 @@ code{font-family:monospace;font-size:12px}
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
+  <button onclick="switchTab('tickets',this)">Support Tickets</button>
   <button onclick="switchTab('account',this)">My Account</button>
 </nav>
 
@@ -300,12 +301,44 @@ window.BlakeUKWidget = {
 
   <!-- ── CHAT LOGS ── -->
   <div id="tab-chatlogs" class="tab">
-    <div class="card">
+    <div class="card" id="chatlogs-list-card">
       <h2>Recent Chat Sessions</h2>
       <table id="logs-table">
-        <thead><tr><th>Session</th><th>Page</th><th>Product Code</th><th>Messages</th><th>Last active</th></tr></thead>
-        <tbody><tr><td colspan="5" style="color:#888">Loading...</td></tr></tbody>
+        <thead><tr><th>Session</th><th>Page</th><th>Product Code</th><th>Messages</th><th>Last active</th><th></th></tr></thead>
+        <tbody><tr><td colspan="6" style="color:#888">Loading...</td></tr></tbody>
       </table>
+    </div>
+    <div class="card" id="chatlogs-detail-card" style="display:none">
+      <button class="btn btn-secondary" onclick="closeSessionDetail()">← Back to list</button>
+      <h2 style="margin-top:12px">Conversation</h2>
+      <div id="chatlogs-detail-content">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ── SUPPORT TICKETS ── -->
+  <div id="tab-tickets" class="tab">
+    <div class="card" id="tickets-list-card">
+      <h2>Support Tickets</h2>
+      <div class="row" style="margin-bottom:12px">
+        <div style="max-width:200px">
+          <label>Filter by status</label>
+          <select id="ticket-status-filter" onchange="loadTickets()">
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="pending">Pending</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+      </div>
+      <table id="tickets-table">
+        <thead><tr><th>Subject</th><th>Email</th><th>Status</th><th>Messages</th><th>Created</th><th></th></tr></thead>
+        <tbody><tr><td colspan="6" style="color:#888">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <div class="card" id="ticket-detail-card" style="display:none">
+      <button class="btn btn-secondary" onclick="closeTicketDetail()">← Back to list</button>
+      <h2 style="margin-top:12px" id="ticket-detail-subject"></h2>
+      <div id="ticket-detail-content">Loading...</div>
     </div>
   </div>
 
@@ -377,7 +410,7 @@ function applyRoleUI(){
 }
 
 function init(){
-  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadTfaStatus();
+  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadTfaStatus();loadTickets();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();}
 }
 
@@ -717,8 +750,119 @@ function renderLogTable(rows,tableId,cols){
   if(cols===4){
     tb.innerHTML=rows.slice(0,10).map(r=>`<tr><td><code style="font-size:11px">${esc(r.id.slice(0,12))}…</code></td><td style="font-size:11px">${esc(r.page_url||'')}</td><td>${esc(r.msg_count||0)}</td><td>${fmtDate(r.updated_at)}</td></tr>`).join('');
   } else {
-    tb.innerHTML=rows.map(r=>`<tr><td><code style="font-size:11px">${esc(r.id.slice(0,12))}…</code></td><td style="font-size:11px">${esc(r.page_url||'')}</td><td style="font-size:11px">${esc(r.product_code||'')}</td><td>${esc(r.msg_count||0)}</td><td>${fmtDate(r.updated_at)}</td></tr>`).join('');
+    tb.innerHTML=rows.map(r=>`<tr><td><code style="font-size:11px">${esc(r.id.slice(0,12))}…</code></td><td style="font-size:11px">${esc(r.page_url||'')}</td><td style="font-size:11px">${esc(r.product_code||'')}</td><td>${esc(r.msg_count||0)}</td><td>${fmtDate(r.updated_at)}</td><td><button class="btn btn-secondary" onclick="viewSession('${esc(r.id)}')">View</button></td></tr>`).join('');
   }
+}
+async function viewSession(id){
+  document.getElementById('chatlogs-list-card').style.display='none';
+  const card=document.getElementById('chatlogs-detail-card');
+  card.style.display='block';
+  const content=document.getElementById('chatlogs-detail-content');
+  content.innerHTML='Loading...';
+  const rows=await get(API+'/chats.php?session_id='+encodeURIComponent(id));
+  if(!Array.isArray(rows)){content.innerHTML='<p style="color:#c00">Unable to load conversation.</p>';return;}
+  content.innerHTML=rows.map(m=>{
+    const isUser=m.role==='user';
+    const sources=(m.sources||[]).filter(s=>s.url).map(s=>`<a href="${esc(s.url)}" target="_blank" style="font-size:11px;display:block">${esc(s.url)}</a>`).join('');
+    const lowConf=!isUser&&m.confidence!=null&&m.confidence<0.6;
+    return `<div style="margin-bottom:14px;padding:10px 14px;border-radius:6px;background:${isUser?'#eef1f8':'#f8f8f8'};max-width:80%;${isUser?'margin-left:auto':''}">
+      <div style="font-size:11px;color:#888;margin-bottom:4px">${isUser?'Customer':'Assistant'} · ${fmtDate(m.created_at)}${m.escalated?' · <span style="color:#c0392b">Escalated</span>':''}</div>
+      <div>${esc(m.content)}</div>
+      ${sources}
+      ${!isUser&&canEdit()?`<div style="margin-top:8px"><button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="showCorrectionForm(${m.id},this)">${lowConf?'⚠ ':''}Correct this answer</button></div>
+      <div id="correction-form-${m.id}"></div>`:''}
+    </div>`;
+  }).join('')||'<p style="color:#888">No messages in this session.</p>';
+}
+function closeSessionDetail(){
+  document.getElementById('chatlogs-detail-card').style.display='none';
+  document.getElementById('chatlogs-list-card').style.display='block';
+}
+function showCorrectionForm(messageId,btn){
+  const el=document.getElementById('correction-form-'+messageId);
+  if(el.innerHTML){el.innerHTML='';return;}
+  el.innerHTML=`
+    <div style="margin-top:8px;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px">
+      <textarea id="correction-text-${messageId}" placeholder="Corrected answer" style="width:100%;min-height:70px"></textarea>
+      <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-weight:400">
+        <input type="checkbox" id="correction-promote-${messageId}"> Add to knowledge base
+      </label>
+      <button class="btn btn-primary" style="padding:4px 12px;font-size:12px" onclick="submitCorrection(${messageId})">Save Correction</button>
+    </div>`;
+}
+async function submitCorrection(messageId){
+  const corrected=document.getElementById('correction-text-'+messageId).value.trim();
+  const promote=document.getElementById('correction-promote-'+messageId).checked;
+  if(!corrected)return flash('Enter a corrected answer',true);
+  const r=await post(API+'/corrections.php',{csrf,message_id:messageId,corrected,promote});
+  if(r.error)return flash(r.error,true);
+  flash(promote?'Correction saved and added to knowledge base':'Correction saved');
+  document.getElementById('correction-form-'+messageId).innerHTML='';
+}
+
+// ── Support Tickets ────────────────────────────────────────────────────────────
+async function loadTickets(){
+  const status=document.getElementById('ticket-status-filter')?.value||'';
+  const rows=await get(API+'/tickets.php'+(status?'?status='+encodeURIComponent(status):''));
+  const tb=document.querySelector('#tickets-table tbody');
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#888">Unable to load.</td></tr>';return;}
+  tb.innerHTML=rows.length?rows.map(t=>`<tr>
+    <td>${esc(t.subject||'—')}</td>
+    <td style="font-size:12px">${esc(t.customer_email||'—')}</td>
+    <td><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='pending'?'badge-pending':'badge-active'}">${esc(t.status)}</span></td>
+    <td>${esc(t.message_count||0)}</td>
+    <td style="font-size:12px">${fmtDate(t.created_at)}</td>
+    <td><button class="btn btn-secondary" onclick="viewTicket(${t.id})">View</button></td>
+  </tr>`).join(''):'<tr><td colspan="6" style="color:#888">No tickets.</td></tr>';
+}
+async function viewTicket(id){
+  document.getElementById('tickets-list-card').style.display='none';
+  const card=document.getElementById('ticket-detail-card');
+  card.style.display='block';
+  const status=document.getElementById('ticket-status-filter')?.value||'';
+  const rows=await get(API+'/tickets.php'+(status?'?status='+encodeURIComponent(status):''));
+  const t=(Array.isArray(rows)?rows:[]).find(x=>x.id===id);
+  if(!t){document.getElementById('ticket-detail-content').innerHTML='<p style="color:#c00">Ticket not found.</p>';return;}
+  document.getElementById('ticket-detail-subject').textContent=t.subject||'Support ticket';
+  document.getElementById('ticket-detail-content').innerHTML=`
+    <p style="margin-bottom:8px;font-size:13px;color:#555">Customer: ${esc(t.customer_email||'—')} · Created ${fmtDate(t.created_at)}</p>
+    ${canEdit()?`<div class="row" style="max-width:300px;margin-bottom:16px">
+      <div>
+        <label>Status</label>
+        <select id="ticket-status-${t.id}">
+          <option value="open" ${t.status==='open'?'selected':''}>Open</option>
+          <option value="pending" ${t.status==='pending'?'selected':''}>Pending</option>
+          <option value="closed" ${t.status==='closed'?'selected':''}>Closed</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="updateTicketStatus(${t.id})">Update</button>
+    </div>`:`<p style="margin-bottom:16px"><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='pending'?'badge-pending':'badge-active'}">${esc(t.status)}</span></p>`}
+    <h3 style="font-size:14px;margin-bottom:6px">Notes</h3>
+    <pre style="white-space:pre-wrap;background:#f8f8f8;padding:10px;border-radius:6px;font-family:inherit;font-size:13px;margin-bottom:10px">${esc(t.notes||'No notes yet.')}</pre>
+    ${canEdit()?`<textarea id="ticket-note-${t.id}" placeholder="Add a note" style="width:100%;min-height:60px;max-width:400px"></textarea><br>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="addTicketNote(${t.id})">Add Note</button>`:''}
+    ${t.session_id?`<p style="margin-top:16px"><button class="btn btn-secondary" onclick="switchTab('chatlogs',document.querySelector('nav button[onclick*=chatlogs]'));viewSession('${esc(t.session_id)}')">View conversation</button></p>`:''}
+  `;
+}
+function closeTicketDetail(){
+  document.getElementById('ticket-detail-card').style.display='none';
+  document.getElementById('tickets-list-card').style.display='block';
+}
+async function updateTicketStatus(id){
+  const status=document.getElementById('ticket-status-'+id).value;
+  const r=await put(API+'/tickets.php',{csrf,id,status});
+  if(r.error)return flash(r.error,true);
+  flash('Ticket status updated');
+  loadTickets();
+  viewTicket(id);
+}
+async function addTicketNote(id){
+  const note=document.getElementById('ticket-note-'+id).value.trim();
+  if(!note)return flash('Enter a note',true);
+  const r=await post(API+'/tickets.php',{csrf,id,note});
+  if(r.error)return flash(r.error,true);
+  flash('Note added');
+  viewTicket(id);
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
