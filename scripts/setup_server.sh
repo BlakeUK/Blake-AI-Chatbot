@@ -33,6 +33,9 @@ sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema.sql
 sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_widget.sql
 sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_append.sql
 sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_fts_triggers.sql
+if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(admin_users);" | grep -q "totp_enabled"; then
+    sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_2fa.sql
+fi
 chown www-data:www-data /var/www/chat/data/chatbot.db
 
 # ── Generate encryption key ───────────────────────────────────────────────────

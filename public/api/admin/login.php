@@ -18,6 +18,16 @@ if ($method !== 'POST') {
 rate_limit('admin_login', 5); // strict: 5/min
 
 $body = json_body();
+
+// Step 2: completing login with a pending 2FA challenge
+if (!empty($body['code'])) {
+    if (\Auth\Admin::verifyTwoFactor(trim((string)$body['code']))) {
+        json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
+    }
+    json_err('Invalid or expired code', 401);
+}
+
+// Step 1: username + password
 $user = trim($body['username'] ?? '');
 $pass = $body['password'] ?? '';
 
@@ -27,8 +37,11 @@ if (!$user || !$pass) {
 
 \Auth\Admin::session();
 
-if (\Auth\Admin::login($user, $pass)) {
+$result = \Auth\Admin::login($user, $pass);
+if ($result === 'ok') {
     json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
+} elseif ($result === 'requires_2fa') {
+    json_out(['ok' => false, 'requires_2fa' => true]);
 } else {
     json_err('Invalid credentials', 401);
 }

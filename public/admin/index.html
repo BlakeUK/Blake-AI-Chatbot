@@ -67,9 +67,16 @@ code{font-family:monospace;font-size:12px}
   <div id="login-box">
     <h2>Blake UK — Admin</h2>
     <div id="login-alert"></div>
-    <label>Username</label><input type="text" id="login-user" autocomplete="username">
-    <label>Password</label><input type="password" id="login-pass" autocomplete="current-password">
-    <button class="btn btn-primary" onclick="doLogin()">Log in</button>
+    <div id="login-step-password">
+      <label>Username</label><input type="text" id="login-user" autocomplete="username">
+      <label>Password</label><input type="password" id="login-pass" autocomplete="current-password">
+      <button class="btn btn-primary" onclick="doLogin()">Log in</button>
+    </div>
+    <div id="login-step-2fa" style="display:none">
+      <label>Authenticator Code</label>
+      <input type="text" id="login-2fa-code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code or backup code">
+      <button class="btn btn-primary" onclick="doVerify2fa()">Verify</button>
+    </div>
   </div>
 </div>
 
@@ -281,7 +288,7 @@ window.BlakeUKWidget = {
       <h2>Users</h2>
       <p style="margin-bottom:12px;color:#555;font-size:13px"><b>Admin:</b> full access. <b>Editor:</b> manage knowledge, files and products. <b>User:</b> view-only.</p>
       <table id="users-table">
-        <thead><tr><th>Username</th><th>Role</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+        <thead><tr><th>Username</th><th>Role</th><th>2FA</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -308,6 +315,10 @@ window.BlakeUKWidget = {
         <button class="btn btn-primary" onclick="changeMyPassword()">Update Password</button>
       </div>
     </div>
+    <div class="card" style="max-width:500px">
+      <h2>Two-Factor Authentication</h2>
+      <div id="tfa-content">Loading...</div>
+    </div>
   </div>
 
 </main>
@@ -320,9 +331,23 @@ async function doLogin(){
   const u=val('login-user'),p=document.getElementById('login-pass').value;
   const r=await post(API+'/login.php',{username:u,password:p},false);
   if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
+  else if(r.requires_2fa){
+    document.getElementById('login-step-password').style.display='none';
+    document.getElementById('login-step-2fa').style.display='block';
+    document.getElementById('login-alert').innerHTML='';
+    document.getElementById('login-2fa-code').focus();
+  }
   else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Login failed')+'</div>';
 }
 document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+async function doVerify2fa(){
+  const code=val('login-2fa-code');
+  if(!code)return;
+  const r=await post(API+'/login.php',{code},false);
+  if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
+  else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Invalid code')+'</div>';
+}
+document.getElementById('login-2fa-code').addEventListener('keydown',e=>{if(e.key==='Enter')doVerify2fa();});
 async function doLogout(){await fetch(API+'/login.php',{method:'DELETE'});location.reload();}
 
 // ── Roles ──────────────────────────────────────────────────────────────────────
@@ -334,7 +359,7 @@ function applyRoleUI(){
 }
 
 function init(){
-  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();
+  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadTfaStatus();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();}
 }
 
@@ -526,14 +551,19 @@ async function revokeClient(id){
 async function loadUsers(){
   const rows=await get(API+'/users.php');
   const tb=document.querySelector('#users-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="5" style="color:#888">Unable to load.</td></tr>';return;}
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#888">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.username)}</td><td>
     <select onchange="updateUserRole(${r.id},this.value)">
       <option value="admin" ${r.role==='admin'?'selected':''}>Admin</option>
       <option value="editor" ${r.role==='editor'?'selected':''}>Editor</option>
       <option value="user" ${r.role==='user'?'selected':''}>User</option>
     </select>
-    </td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No users yet.</td></tr>';
+    </td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="6" style="color:#888">No users yet.</td></tr>';
+}
+async function resetUser2fa(id){
+  if(!confirm('Reset 2FA for this user? They will need to set it up again.'))return;
+  const r=await put(API+'/users.php',{csrf,id,reset_2fa:true});
+  if(!r.error){flash('2FA reset');loadUsers();}else flash(r.error,true);
 }
 async function createUser(){
   const username=val('u-username'),password=document.getElementById('u-password').value,role=document.getElementById('u-role').value;
@@ -560,6 +590,63 @@ async function changeMyPassword(){
   if(newPass.length<8)return flash('New password must be at least 8 characters',true);
   const r=await post(API+'/account.php',{csrf,current_password:current,new_password:newPass});
   if(!r.error){flash('Password updated');document.getElementById('acc-current').value='';document.getElementById('acc-new').value='';}
+  else flash(r.error,true);
+}
+
+// ── Two-Factor Authentication ────────────────────────────────────────────────
+async function loadTfaStatus(){
+  const r=await get(API+'/twofactor.php');
+  renderTfaStatus(!!r.enabled);
+}
+function renderTfaStatus(enabled){
+  const el=document.getElementById('tfa-content');
+  if(enabled){
+    el.innerHTML=`
+      <p style="margin-bottom:12px;color:#155724"><b>2FA is currently ON.</b> You'll need an authenticator code to log in.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:320px">
+        <div><label>Current Password</label><input type="password" id="tfa-disable-password" autocomplete="current-password"></div>
+        <div><label>Authenticator Code</label><input type="text" id="tfa-disable-code" inputmode="numeric" placeholder="6-digit code or backup code"></div>
+        <button class="btn btn-danger" onclick="disableTfa()">Disable 2FA</button>
+      </div>
+    `;
+  } else {
+    el.innerHTML=`
+      <p style="margin-bottom:12px;color:#555">2FA is currently off. Enabling it requires an authenticator app (Google Authenticator, Authy, etc.) on your phone.</p>
+      <button class="btn btn-primary" onclick="startTfaEnroll()">Enable 2FA</button>
+    `;
+  }
+}
+async function startTfaEnroll(){
+  const r=await post(API+'/twofactor.php',{csrf});
+  if(r.error)return flash(r.error,true);
+  const el=document.getElementById('tfa-content');
+  el.innerHTML=`
+    <p style="margin-bottom:8px;color:#555">Scan this into your authenticator app, or enter the key manually:</p>
+    <p style="margin-bottom:12px"><code style="background:#f8f8f8;padding:6px 10px;border-radius:4px;display:inline-block;word-break:break-all">${esc(r.secret)}</code></p>
+    <p style="margin-bottom:12px;font-size:12px;word-break:break-all"><a href="${esc(r.otpauth_uri)}" target="_blank">${esc(r.otpauth_uri)}</a></p>
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:280px">
+      <div><label>Enter the 6-digit code from your app to confirm</label><input type="text" id="tfa-confirm-code" inputmode="numeric" maxlength="6"></div>
+      <button class="btn btn-primary" onclick="confirmTfaEnroll()">Confirm</button>
+    </div>
+  `;
+}
+async function confirmTfaEnroll(){
+  const code=val('tfa-confirm-code');
+  if(!code)return flash('Code required',true);
+  const r=await put(API+'/twofactor.php',{csrf,code});
+  if(r.error)return flash(r.error,true);
+  const el=document.getElementById('tfa-content');
+  el.innerHTML=`
+    <div class="alert alert-warn" style="margin-bottom:12px">2FA is now ON. Save these backup codes somewhere safe — each can be used once if you lose access to your authenticator app. They will not be shown again.</div>
+    <div style="font-family:monospace;background:#f8f8f8;padding:12px;border-radius:6px;line-height:1.8;margin-bottom:12px">${r.backup_codes.map(esc).join('<br>')}</div>
+    <button class="btn btn-secondary" onclick="loadTfaStatus()">Done</button>
+  `;
+}
+async function disableTfa(){
+  const password=document.getElementById('tfa-disable-password').value,code=val('tfa-disable-code');
+  if(!password||!code)return flash('Password and code required',true);
+  const r=await del(API+'/twofactor.php',{csrf,password,code});
+  if(!r.error){flash('2FA disabled');loadTfaStatus();}
   else flash(r.error,true);
 }
 
