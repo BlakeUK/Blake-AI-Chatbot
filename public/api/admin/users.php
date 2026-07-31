@@ -29,6 +29,13 @@ if ($method === 'POST') {
     if (!in_array($role, \Auth\Admin::ROLES, true)) json_err('Invalid role');
     if (strlen($password) < 8) json_err('Password must be at least 8 characters');
 
+    // Login matches usernames case-insensitively, so a case-variant of an
+    // existing username (e.g. "John" vs "john") must be rejected here too -
+    // otherwise it'd create an ambiguous duplicate that ties at login.
+    $clash = $pdo->prepare('SELECT 1 FROM admin_users WHERE username = ? COLLATE NOCASE');
+    $clash->execute([$username]);
+    if ($clash->fetch()) json_err('Username already exists', 409);
+
     $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
     try {
         $pdo->prepare('INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)')
