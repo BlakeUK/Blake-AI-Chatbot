@@ -86,9 +86,10 @@ code{font-family:monospace;font-size:12px}
   <button onclick="switchTab('knowledge',this)">Knowledge</button>
   <button onclick="switchTab('files',this)">Files / RAG</button>
   <button onclick="switchTab('products',this)">Products</button>
-  <button onclick="switchTab('apikeys',this)">API Keys</button>
-  <button onclick="switchTab('models',this)">Model Settings</button>
-  <button onclick="switchTab('clients',this)">Widget Clients</button>
+  <button data-role="admin" onclick="switchTab('apikeys',this)">API Keys</button>
+  <button data-role="admin" onclick="switchTab('models',this)">Model Settings</button>
+  <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
+  <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
 </nav>
 
@@ -114,7 +115,7 @@ code{font-family:monospace;font-size:12px}
 
   <!-- ── KNOWLEDGE ── -->
   <div id="tab-knowledge" class="tab">
-    <div class="card">
+    <div class="card" data-role="editor">
       <h2>Add Knowledge Entry</h2>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div><label>Title</label><input type="text" id="k-title" placeholder="e.g. Warranty Policy"></div>
@@ -138,7 +139,7 @@ code{font-family:monospace;font-size:12px}
 
   <!-- ── FILES / RAG ── -->
   <div id="tab-files" class="tab">
-    <div class="card">
+    <div class="card" data-role="editor">
       <h2>Upload Knowledge Files</h2>
       <p style="margin-bottom:12px;color:#555;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
@@ -159,7 +160,7 @@ code{font-family:monospace;font-size:12px}
 
   <!-- ── PRODUCTS ── -->
   <div id="tab-products" class="tab">
-    <div class="card">
+    <div class="card" data-role="editor">
       <h2>Import Product Feed</h2>
       <p style="margin-bottom:12px;color:#555;font-size:13px">Upload a JSON or XML product feed (max 50 MB). Products are upserted — existing records are updated, new ones created.</p>
       <div class="upload-zone" id="feed-drop-zone" onclick="document.getElementById('feed-input').click()">
@@ -258,6 +259,33 @@ window.BlakeUKWidget = {
     </div>
   </div>
 
+  <!-- ── USERS ── -->
+  <div id="tab-users" class="tab">
+    <div class="card">
+      <h2>Add User</h2>
+      <div class="row">
+        <div><label>Username</label><input type="text" id="u-username" autocomplete="off"></div>
+        <div><label>Password</label><input type="password" id="u-password" autocomplete="new-password"></div>
+        <div><label>Role</label>
+          <select id="u-role">
+            <option value="admin">Admin</option>
+            <option value="editor" selected>Editor</option>
+            <option value="user">User</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="createUser()">Create</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Users</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px"><b>Admin:</b> full access. <b>Editor:</b> manage knowledge, files and products. <b>User:</b> view-only.</p>
+      <table id="users-table">
+        <thead><tr><th>Username</th><th>Role</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- ── CHAT LOGS ── -->
   <div id="tab-chatlogs" class="tab">
     <div class="card">
@@ -272,19 +300,30 @@ window.BlakeUKWidget = {
 </main>
 
 <script>
-const API='/api/admin'; let csrf='';
+const API='/api/admin'; let csrf=''; let role='user';
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 async function doLogin(){
   const u=val('login-user'),p=document.getElementById('login-pass').value;
   const r=await post(API+'/login.php',{username:u,password:p},false);
-  if(r.ok){csrf=r.csrf;document.getElementById('login-overlay').style.display='none';init();}
+  if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Login failed')+'</div>';
 }
 document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 async function doLogout(){await fetch(API+'/login.php',{method:'DELETE'});location.reload();}
 
-function init(){loadDashboard();loadKnowledge();loadFiles();loadApiKeys();loadChatLogs();fetchModels();loadModelSettings();loadClients();loadProducts();}
+// ── Roles ──────────────────────────────────────────────────────────────────────
+function isAdmin(){return role==='admin';}
+function canEdit(){return role==='admin'||role==='editor';}
+function applyRoleUI(){
+  document.querySelectorAll('[data-role="admin"]').forEach(el=>{el.style.display=isAdmin()?'':'none';});
+  document.querySelectorAll('[data-role="editor"]').forEach(el=>{el.style.display=canEdit()?'':'none';});
+}
+
+function init(){
+  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();
+  if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();}
+}
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 function switchTab(name,el){
@@ -310,7 +349,7 @@ async function loadDashboard(){
 async function loadKnowledge(){
   const rows=await get(API+'/knowledge.php');
   const tb=document.querySelector('#knowledge-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.title)}</td><td>${esc(r.category||'')}</td><td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td><td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td><td><button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No entries yet.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.title)}</td><td>${esc(r.category||'')}</td><td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td><td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No entries yet.</td></tr>';
 }
 async function saveKnowledge(){
   const body={csrf,title:val('k-title'),body:val('k-body'),category:val('k-cat'),url:val('k-url'),product_codes:val('k-codes')};
@@ -329,7 +368,7 @@ async function deleteKnowledge(id){
 async function loadFiles(){
   const rows=await get(API+'/files.php');
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#c00">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td><button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No files uploaded yet.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#c00">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No files uploaded yet.</td></tr>';
 }
 async function uploadFiles(files){
   const prog=document.getElementById('upload-progress');
@@ -470,6 +509,37 @@ async function revokeClient(id){
   if(!r.error){flash('Client revoked');loadClients();}else flash(r.error,true);
 }
 
+// ── Users ──────────────────────────────────────────────────────────────────────
+async function loadUsers(){
+  const rows=await get(API+'/users.php');
+  const tb=document.querySelector('#users-table tbody');
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="5" style="color:#888">Unable to load.</td></tr>';return;}
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.username)}</td><td>
+    <select onchange="updateUserRole(${r.id},this.value)">
+      <option value="admin" ${r.role==='admin'?'selected':''}>Admin</option>
+      <option value="editor" ${r.role==='editor'?'selected':''}>Editor</option>
+      <option value="user" ${r.role==='user'?'selected':''}>User</option>
+    </select>
+    </td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No users yet.</td></tr>';
+}
+async function createUser(){
+  const username=val('u-username'),password=document.getElementById('u-password').value,role=document.getElementById('u-role').value;
+  if(!username||!password)return flash('Username and password required',true);
+  if(password.length<8)return flash('Password must be at least 8 characters',true);
+  const r=await post(API+'/users.php',{csrf,username,password,role});
+  if(!r.error){flash('User created');document.getElementById('u-username').value='';document.getElementById('u-password').value='';loadUsers();}
+  else flash(r.error,true);
+}
+async function updateUserRole(id,newRole){
+  const r=await put(API+'/users.php',{csrf,id,role:newRole});
+  if(!r.error){flash('Role updated');}else{flash(r.error,true);loadUsers();}
+}
+async function deleteUser(id){
+  if(!confirm('Delete this user? This cannot be undone.'))return;
+  const r=await del(API+'/users.php',{csrf,id});
+  if(!r.error){flash('User deleted');loadUsers();}else flash(r.error,true);
+}
+
 // ── Chat Logs ──────────────────────────────────────────────────────────────────
 async function loadChatLogs(){
   const rows=await get(API+'/chats.php');
@@ -490,6 +560,7 @@ function renderLogTable(rows,tableId,cols){
 async function get(url){const r=await fetch(url,{credentials:'same-origin'});return r.json();}
 async function post(url,body,withCred=true){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:withCred?'same-origin':'omit',body:JSON.stringify(body)});return r.json();}
 async function del(url,body){const r=await fetch(url,{method:'DELETE',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
+async function put(url,body){const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
 function val(id){return document.getElementById(id)?.value?.trim()||'';}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtDate(ts){return ts?new Date(ts*1000).toLocaleString('en-GB'):'';}

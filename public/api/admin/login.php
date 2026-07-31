@@ -28,7 +28,7 @@ if (!$user || !$pass) {
 \Auth\Admin::session();
 
 if (\Auth\Admin::login($user, $pass)) {
-    json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf()]);
+    json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
 } else {
     json_err('Invalid credentials', 401);
 }
