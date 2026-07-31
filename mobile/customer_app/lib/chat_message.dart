@@ -22,7 +22,7 @@ class Product {
       );
 }
 
-enum MessageKind { text, trackingForm, trackingResult }
+enum MessageKind { text, trackingForm, trackingResult, escalateForm }
 
 class ChatMessage {
   final String role; // 'user' | 'assistant'
