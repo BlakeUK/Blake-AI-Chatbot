@@ -113,6 +113,28 @@
 .buk-product-code { color: #888; font-size: 11px; }
 .buk-product-price { color: #3d5a99; font-weight: 600; }
 
+.buk-tracking-form { display: flex; flex-direction: column; gap: 8px; min-width: 220px; }
+.buk-tracking-form input {
+  padding: 7px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.buk-tracking-form input:focus { outline: none; border-color: #3d5a99; }
+.buk-track-submit {
+  background: #3d5a99;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.buk-track-submit:disabled { opacity: .6; cursor: default; }
+.buk-track-submit:hover:not(:disabled) { background: #2f4677; }
+
 .buk-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
 .buk-typing span {
   width: 7px; height: 7px; border-radius: 50%; background: #aaa;

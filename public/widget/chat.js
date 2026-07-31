@@ -102,7 +102,9 @@
         addMessage('assistant', 'Sorry, something went wrong. Please try again.');
       } else {
         addMessage('assistant', d.answer, d.products || []);
-        if (d.escalate) {
+        if (d.action === 'show_tracking_form') {
+          showTrackingForm(d.tracking_no, d.carrier);
+        } else if (d.escalate) {
           addMessage('assistant', 'Would you like me to raise a support ticket? A member of the team will get back to you.');
         }
       }
@@ -110,6 +112,52 @@
       addMessage('assistant', 'Unable to reach the server. Please check your connection.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ── Tracking ─────────────────────────────────────────────────────────────────
+  function showTrackingForm(trackingNo, carrier) {
+    const wrap = document.createElement('div');
+    wrap.className = 'buk-msg buk-msg-assistant';
+    wrap.innerHTML = `
+      <div class="buk-bubble buk-tracking-form">
+        <input type="text" class="buk-track-no" placeholder="Tracking number" value="${trackingNo ? esc(trackingNo) : ''}">
+        <input type="text" class="buk-track-postcode" placeholder="Delivery postcode">
+        <button class="buk-track-submit">Track</button>
+      </div>
+    `;
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+    wrap.querySelector('.buk-track-submit').addEventListener('click', () => submitTracking(wrap, carrier));
+  }
+
+  async function submitTracking(formWrap, carrier) {
+    const trackingNo = formWrap.querySelector('.buk-track-no').value.trim();
+    const postcode    = formWrap.querySelector('.buk-track-postcode').value.trim();
+    if (!trackingNo || !postcode) return;
+
+    const btn = formWrap.querySelector('.buk-track-submit');
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
+
+    try {
+      const r = await fetch(API + '/track.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, tracking_no: trackingNo, postcode, carrier: carrier || '' }),
+      });
+      const d = await r.json();
+      formWrap.remove();
+
+      if (d.status === 'found') {
+        const eventLines = (d.events || []).map(e => `• ${e.date || ''} ${e.description || ''}`.trim()).join('\n');
+        addMessage('assistant', `${d.carrier} tracking ${d.tracking}: ${d.current}` + (eventLines ? '\n' + eventLines : ''));
+      } else {
+        addMessage('assistant', d.message || 'Unable to retrieve tracking information.');
+      }
+    } catch (e) {
+      formWrap.remove();
+      addMessage('assistant', 'Unable to reach the tracking service. Please try again shortly.');
     }
   }
 
