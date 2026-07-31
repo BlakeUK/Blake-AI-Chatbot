@@ -57,7 +57,11 @@ class Admin
     // or 'invalid' (bad username/password).
     public static function login(string $username, string $password): string
     {
-        $stmt = db()->prepare('SELECT id, password, role, totp_enabled FROM admin_users WHERE username = ?');
+        // Usernames are matched case-insensitively at login: different people
+        // on different machines naturally type their own username with their
+        // own casing, which won't always match whatever case an admin typed
+        // when creating the account.
+        $stmt = db()->prepare('SELECT id, password, role, totp_enabled FROM admin_users WHERE username = ? COLLATE NOCASE');
         $stmt->execute([$username]);
         $row = $stmt->fetch();
 
