@@ -91,6 +91,7 @@ code{font-family:monospace;font-size:12px}
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
+  <button onclick="switchTab('account',this)">My Account</button>
 </nav>
 
 <main>
@@ -294,6 +295,18 @@ window.BlakeUKWidget = {
         <thead><tr><th>Session</th><th>Page</th><th>Product Code</th><th>Messages</th><th>Last active</th></tr></thead>
         <tbody><tr><td colspan="5" style="color:#888">Loading...</td></tr></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ── MY ACCOUNT ── -->
+  <div id="tab-account" class="tab">
+    <div class="card" style="max-width:400px">
+      <h2>Change Password</h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div><label>Current Password</label><input type="password" id="acc-current" autocomplete="current-password"></div>
+        <div><label>New Password</label><input type="password" id="acc-new" autocomplete="new-password"></div>
+        <button class="btn btn-primary" onclick="changeMyPassword()">Update Password</button>
+      </div>
     </div>
   </div>
 
@@ -538,6 +551,16 @@ async function deleteUser(id){
   if(!confirm('Delete this user? This cannot be undone.'))return;
   const r=await del(API+'/users.php',{csrf,id});
   if(!r.error){flash('User deleted');loadUsers();}else flash(r.error,true);
+}
+
+// ── My Account ─────────────────────────────────────────────────────────────────
+async function changeMyPassword(){
+  const current=document.getElementById('acc-current').value,newPass=document.getElementById('acc-new').value;
+  if(!current||!newPass)return flash('Current and new password required',true);
+  if(newPass.length<8)return flash('New password must be at least 8 characters',true);
+  const r=await post(API+'/account.php',{csrf,current_password:current,new_password:newPass});
+  if(!r.error){flash('Password updated');document.getElementById('acc-current').value='';document.getElementById('acc-new').value='';}
+  else flash(r.error,true);
 }
 
 // ── Chat Logs ──────────────────────────────────────────────────────────────────
