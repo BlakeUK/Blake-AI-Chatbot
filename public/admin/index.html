@@ -162,6 +162,28 @@ code{font-family:monospace;font-size:12px}
       </div>
       <div id="upload-progress" style="margin-top:10px"></div>
     </div>
+    <div class="card" data-role="editor">
+      <h2>Import from URL</h2>
+      <p style="margin-bottom:12px;color:#555;font-size:13px">Paste a page or sitemap.xml URL to discover PDF links on the website, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" id="discover-url" placeholder="https://www.blake-uk.com/leaflets or /sitemap.xml" style="flex:1;min-width:240px">
+        <button class="btn btn-secondary" onclick="discoverUrls()">Discover PDF Links</button>
+      </div>
+      <div id="discover-status" style="font-size:13px;color:#888;margin-bottom:10px"></div>
+      <div id="discover-results" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-select-all" checked onchange="toggleAllDiscovered(this.checked)"> Select all</label>
+          <button class="btn btn-primary" onclick="importSelectedUrls()">Import Selected</button>
+        </div>
+        <div id="discover-list" style="max-height:240px;overflow-y:auto;border:1px solid #eee;border-radius:4px;padding:8px;font-size:13px"></div>
+      </div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee">
+        <label>Or paste PDF URLs directly (one per line)</label>
+        <textarea id="direct-urls" placeholder="https://www.blake-uk.com/leaflets/product-a.pdf"></textarea>
+        <button class="btn btn-secondary" style="margin-top:8px" onclick="importDirectUrls()">Import These URLs</button>
+      </div>
+      <div id="url-import-progress" style="margin-top:10px"></div>
+    </div>
     <div class="card">
       <h2>Indexed Files</h2>
       <table id="files-table">
@@ -478,6 +500,62 @@ const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');uploadFiles(e.dataTransfer.files);});
+
+// ── URL import ────────────────────────────────────────────────────────────────
+let discoveredUrls=[];
+async function discoverUrls(){
+  const url=val('discover-url');
+  if(!url)return flash('Enter a page or sitemap URL',true);
+  const status=document.getElementById('discover-status');
+  status.textContent='Discovering...';
+  document.getElementById('discover-results').style.display='none';
+  try{
+    const r=await get(API+'/discover_urls.php?url='+encodeURIComponent(url));
+    if(r.error){status.textContent='';return flash(r.error,true);}
+    discoveredUrls=r.links||[];
+    if(!discoveredUrls.length){status.textContent='No PDF links found on that page.';return;}
+    status.textContent=`Found ${discoveredUrls.length} PDF link(s) (out of ${r.total_links_found} total links on the page).`;
+    document.getElementById('discover-list').innerHTML=discoveredUrls.map((u,i)=>`
+      <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-cb" data-i="${i}" checked> ${esc(u)}</label>
+    `).join('');
+    document.getElementById('discover-select-all').checked=true;
+    document.getElementById('discover-results').style.display='block';
+  }catch(e){status.textContent='';flash('Could not reach the server',true);}
+}
+function toggleAllDiscovered(checked){
+  document.querySelectorAll('.discover-cb').forEach(cb=>cb.checked=checked);
+}
+function importSelectedUrls(){
+  const selected=[...document.querySelectorAll('.discover-cb')].filter(cb=>cb.checked).map(cb=>discoveredUrls[+cb.dataset.i]);
+  if(!selected.length)return flash('Select at least one link',true);
+  importUrlsBatched(selected);
+}
+function importDirectUrls(){
+  const lines=val('direct-urls').split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length)return flash('Paste at least one URL',true);
+  importUrlsBatched(lines);
+}
+async function importUrlsBatched(urls){
+  const prog=document.getElementById('url-import-progress');
+  prog.innerHTML='';
+  const BATCH=15;
+  for(let i=0;i<urls.length;i+=BATCH){
+    const batch=urls.slice(i,i+BATCH);
+    prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Importing ${i+1}–${Math.min(i+BATCH,urls.length)} of ${urls.length}...</div>`;
+    try{
+      const r=await post(API+'/import_urls.php',{csrf,urls:batch});
+      if(r.error){prog.innerHTML+=`<div class="alert alert-err">${esc(r.error)}</div>`;continue;}
+      (r.results||[]).forEach(res=>{
+        const label=res.filename||res.url;
+        const cls=res.status==='indexed'?'alert-ok':'alert-err';
+        const msg=res.status==='indexed'?'Indexed ✓':(res.error||'Error');
+        prog.innerHTML+=`<div class="alert ${cls}" style="margin-bottom:4px;font-size:12px;word-break:break-all">${esc(label)}: ${esc(msg)}</div>`;
+      });
+    }catch(e){prog.innerHTML+=`<div class="alert alert-err">Batch failed: could not reach the server</div>`;}
+  }
+  loadFiles();loadDashboard();
+}
+
 async function deleteFile(id){
   if(!confirm('Delete this file and remove from knowledge base?'))return;
   const r=await del(API+'/files.php',{csrf,id});
