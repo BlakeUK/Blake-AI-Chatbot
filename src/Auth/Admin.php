@@ -10,10 +10,17 @@ class Admin
     public static function session(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            // Browsers only accept "Secure" cookies over an actual HTTPS connection
+            // (localhost/127.0.0.1 get an exception, but not other plain-HTTP hosts —
+            // e.g. an IP address before a domain + TLS cert are set up). Forcing
+            // secure=true unconditionally would silently break every session on
+            // such a deployment: the cookie gets set but the browser never stores it.
+            $https = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? 'off') !== 'off')
+                || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
             session_set_cookie_params([
                 'lifetime' => CFG['session_lifetime'],
                 'path'     => '/',
-                'secure'   => true,
+                'secure'   => $https,
                 'httponly' => true,
                 'samesite' => 'Strict',
             ]);
