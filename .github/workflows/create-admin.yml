@@ -23,8 +23,18 @@ jobs:
             $cfg = require ROOT . "/config/config.php";
             define("CFG", $cfg);
             require ROOT . "/src/bootstrap.php";
-            $username = getenv("ADMIN_USERNAME");
-            $password = getenv("ADMIN_PASSWORD");
+            $usernameRaw = getenv("ADMIN_USERNAME");
+            $passwordRaw = getenv("ADMIN_PASSWORD");
+            $username = trim($usernameRaw);
+            $password = trim($passwordRaw);
+            // A copy-pasted GitHub secret can silently pick up a trailing
+            // newline/space, which would make the stored hash never match
+            // what someone actually types at the login form. Trim both
+            // values and report (lengths only, never the values) whether
+            // trimming changed anything, so a future "still invalid" report
+            // can be diagnosed from the run log without exposing secrets.
+            echo "Username length: raw=" . strlen($usernameRaw) . " trimmed=" . strlen($username) . PHP_EOL;
+            echo "Password length: raw=" . strlen($passwordRaw) . " trimmed=" . strlen($password) . PHP_EOL;
             $pdo = db();
             $existing = $pdo->prepare("SELECT id, role, totp_enabled FROM admin_users WHERE username = ?");
             $existing->execute([$username]);
