@@ -10,7 +10,8 @@ body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f4f4;color:#2
 header{background:#2f343b;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
 header h1{font-size:17px;font-weight:700}
 #logout-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:13px}
-nav{background:#fff;border-bottom:2px solid #3d5a99;display:flex;overflow-x:auto}
+nav{background:#fff;border-bottom:2px solid #3d5a99;display:flex;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
 nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
 nav button.active{border-bottom-color:#3d5a99;color:#3d5a99}
 nav button:hover{background:#fafafa}
@@ -243,7 +244,7 @@ code{font-family:monospace;font-size:12px}
       <h2>Create External Widget Client</h2>
       <p style="margin-bottom:12px;color:#555;font-size:13px">Each client gets a unique API key. Access can be locked to specific server IP addresses and/or origin domains.</p>
       <div class="row">
-        <div><label>Client Name</label><input type="text" id="c-name" placeholder="e.g. Partner Site A"></div>
+        <div><label>Client Name</label><input type="text" id="c-name" placeholder="e.g. Partner Site A or partnersite.co.uk"></div>
         <div><label>Allowed IPs (comma or newline — empty = allow all)</label><input type="text" id="c-ips" placeholder="81.174.22.10, 81.174.22.11"></div>
         <div><label>Allowed Origins (empty = allow all)</label><input type="text" id="c-origins" placeholder="https://www.partnersite.co.uk"></div>
         <button class="btn btn-primary" onclick="createClient()">Create</button>
@@ -547,6 +548,21 @@ async function loadClients(){
     <td>${r.active?`<button class="btn btn-danger" onclick="revokeClient(${r.id})">Revoke</button>`:''}</td>
   </tr>`).join(''):'<tr><td colspan="8" style="color:#888">No clients configured.</td></tr>';
 }
+function looksLikeDomain(s){
+  return /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/i.test(s);
+}
+async function autoFillFromClientName(){
+  const raw=val('c-name');
+  const domain=raw.replace(/^https?:\/\//i,'').split('/')[0];
+  if(!looksLikeDomain(domain))return;
+  const ipsEl=document.getElementById('c-ips'),originsEl=document.getElementById('c-origins');
+  const r=await get(API+'/resolve.php?domain='+encodeURIComponent(domain));
+  if(r.ip){
+    if(!ipsEl.value.trim())ipsEl.value=r.ip;
+    if(!originsEl.value.trim())originsEl.value='https://'+domain;
+  }
+}
+document.getElementById('c-name').addEventListener('blur',autoFillFromClientName);
 async function createClient(){
   const name=val('c-name');if(!name)return flash('Client name required',true);
   const r=await post(API+'/clients.php',{csrf,name,allowed_ips:val('c-ips'),allowed_origins:val('c-origins')});
