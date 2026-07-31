@@ -7,11 +7,36 @@ jobs:
   create-admin:
     runs-on: ubuntu-latest
     steps:
-      - name: Create admin user on VPS
+      - name: Create or reset admin user on VPS
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
+          envs: ADMIN_USERNAME,ADMIN_PASSWORD
           script: |
-            php /var/www/chat/scripts/create_admin.php "${{ secrets.ADMIN_USERNAME }}" "${{ secrets.ADMIN_PASSWORD }}" admin
+            php -r '
+            define("ROOT", "/var/www/chat");
+            $cfg = require ROOT . "/config/config.php";
+            define("CFG", $cfg);
+            require ROOT . "/src/bootstrap.php";
+            $username = getenv("ADMIN_USERNAME");
+            $password = getenv("ADMIN_PASSWORD");
+            $pdo = db();
+            $existing = $pdo->prepare("SELECT id, role, totp_enabled FROM admin_users WHERE username = ?");
+            $existing->execute([$username]);
+            $row = $existing->fetch();
+            echo "Before: " . ($row ? json_encode($row) : "no such user") . PHP_EOL;
+            $hash = password_hash($password, PASSWORD_BCRYPT, ["cost" => 12]);
+            if ($row) {
+                $pdo->prepare("UPDATE admin_users SET password=?, role=\"admin\", totp_enabled=0, totp_secret_enc=NULL, totp_secret_iv=NULL, totp_secret_tag=NULL, backup_codes=NULL WHERE id=?")
+                    ->execute([$hash, $row["id"]]);
+                echo "Fixed existing user id={$row["id"]}: password reset, role=admin, 2FA cleared." . PHP_EOL;
+            } else {
+                $pdo->prepare("INSERT INTO admin_users (username, password, role) VALUES (?, ?, \"admin\")")->execute([$username, $hash]);
+                echo "Created new admin user." . PHP_EOL;
+            }
+            '
