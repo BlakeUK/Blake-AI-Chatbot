@@ -1,0 +1,17 @@
+name: Create Admin User
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create admin user on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            php /var/www/chat/scripts/create_admin.php "${{ secrets.ADMIN_USERNAME }}" "${{ secrets.ADMIN_PASSWORD }}" admin
