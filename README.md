@@ -17,6 +17,7 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 - [One-Line Install](#one-line-install)
 - [Manual Setup](#manual-setup)
 - [Admin Interface](#admin-interface)
+- [Mobile Apps (Android)](#mobile-apps-android)
 - [Embedding the Widget](#embedding-the-widget)
 - [External Widget API](#external-widget-api)
 - [Product Feed Import](#product-feed-import)
@@ -290,7 +291,10 @@ Visit `https://chat.blake-uk.com/admin/` and log in.
 | **API Keys** | Store Gemini and carrier keys (AES-256-GCM encrypted, never shown after save). |
 | **Model Settings** | Fetch live Gemini model list from Google API. Set chat and extraction models. |
 | **Widget Clients** | Create external API clients. Lock to IP addresses and/or origin domains. |
-| **Chat Logs** | Browse all customer sessions with message counts and page context. |
+| **Users** | Add staff accounts, assign admin/editor/user roles, reset a user's 2FA. |
+| **Chat Logs** | Browse all customer sessions; tap into any conversation to review it and correct bad bot answers. |
+| **Support Tickets** | Escalated conversations customers asked to raise a ticket for — filter by status, add notes, mark resolved. |
+| **My Account** | Change your own password; enable/disable 2FA with a scannable QR code and backup codes. |
 
 ### First-run checklist
 
@@ -300,6 +304,28 @@ Visit `https://chat.blake-uk.com/admin/` and log in.
 - [ ] **Knowledge** → add your first entry (e.g. delivery policy)
 - [ ] **Files / RAG** → upload product PDFs, datasheets, manuals
 - [ ] **Products** → upload your JSON/XML product feed
+
+---
+
+## Mobile Apps (Android)
+
+Two native Android apps (Flutter, not a WebView wrapper) talk to the same backend as the web admin panel and widget — no separate setup required.
+
+| App | What it's for |
+|---|---|
+| **Blake UK Admin** | The full admin panel on your phone — login with 2FA, dashboard, knowledge base, files, products, API keys, model settings, widget clients, users, chat logs, support tickets, my account. |
+| **Blake UK Support** | The customer-facing chat widget as a standalone app — chat, product cards, order tracking, support ticket escalation. |
+
+**Download the latest build:**
+
+- 📱 [Blake UK Admin (`.apk`)](https://github.com/BlakeUK/Blake-AI-Chatbot/releases/download/apk-latest/blake-uk-admin-app.apk)
+- 📱 [Blake UK Support (`.apk`)](https://github.com/BlakeUK/Blake-AI-Chatbot/releases/download/apk-latest/blake-uk-customer-app.apk)
+
+These links always point to the most recently built APKs — see the [`apk-latest` release](https://github.com/BlakeUK/Blake-AI-Chatbot/releases/tag/apk-latest) for build details. Since these aren't distributed via the Play Store, Android will ask you to allow "install from unknown sources" the first time.
+
+Rebuilding: run the **Build Android APKs** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-apk.yml) — it compiles both apps and updates the release above in place.
+
+Source: [`mobile/admin_app`](mobile/admin_app) and [`mobile/customer_app`](mobile/customer_app).
 
 ---
 
