@@ -6,7 +6,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f4f4;color:#222}
-header{background:#3d5a99;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+header{background:#2f343b;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
 header h1{font-size:17px;font-weight:700}
 #logout-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:13px}
 nav{background:#fff;border-bottom:2px solid #3d5a99;display:flex;overflow-x:auto}
@@ -50,9 +50,10 @@ td .btn{padding:4px 10px;font-size:12px}
 .stat .n{font-size:28px;font-weight:800;color:#3d5a99}
 .stat .l{font-size:12px;color:#888;margin-top:2px}
 code{font-family:monospace;font-size:12px}
-#login-overlay{position:fixed;inset:0;background:#f4f4f4;display:flex;align-items:center;justify-content:center;z-index:1000}
+#login-overlay{position:fixed;inset:0;background:#2f343b;display:flex;align-items:center;justify-content:center;z-index:1000}
 #login-box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:32px;width:320px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
-#login-box h2{margin-bottom:20px;color:#3d5a99;font-size:18px}
+#login-box img{display:block;height:36px;width:auto;margin:0 auto 20px}
+#login-box h2{margin-bottom:20px;color:#3d5a99;font-size:18px;text-align:center}
 #login-box label{margin-top:10px}
 #login-box .btn{width:100%;margin-top:18px;padding:10px}
 .import-result{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
@@ -65,7 +66,8 @@ code{font-family:monospace;font-size:12px}
 
 <div id="login-overlay">
   <div id="login-box">
-    <h2>Blake UK — Admin</h2>
+    <img src="/assets/blake-uk-logo.png" alt="Blake UK">
+    <h2>Admin</h2>
     <div id="login-alert"></div>
     <div id="login-step-password">
       <label>Username</label><input type="text" id="login-user" autocomplete="username">
@@ -350,6 +352,19 @@ async function doVerify2fa(){
 }
 document.getElementById('login-2fa-code').addEventListener('keydown',e=>{if(e.key==='Enter')doVerify2fa();});
 async function doLogout(){await fetch(API+'/login.php',{method:'DELETE'});location.reload();}
+
+// A page refresh resets all the JS state above, but the PHP session cookie
+// (and CSRF token) can still be valid — without this check every refresh
+// would force a fresh login even though the server still considers the
+// browser logged in.
+(async function restoreSession(){
+  const r=await get(API+'/session.php');
+  if(r.ok){
+    csrf=r.csrf;role=r.role||'user';
+    document.getElementById('login-overlay').style.display='none';
+    applyRoleUI();init();
+  }
+})();
 
 // ── Roles ──────────────────────────────────────────────────────────────────────
 function isAdmin(){return role==='admin';}
