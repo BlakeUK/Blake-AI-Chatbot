@@ -32,6 +32,26 @@ $pdo->prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, 
     ->execute([$session_id, 'user', $message]);
 $user_msg_id = $pdo->lastInsertId();
 
+// ── Tracking intent ────────────────────────────────────────────────────────────
+// Short-circuit before calling Gemini — hand off to the tracking form/API instead.
+$tracking = \Tracking\Detector::analyse($message);
+if ($tracking['is_tracking']) {
+    $answer = 'I can help track that. Please confirm your tracking number and delivery postcode below.';
+    $pdo->prepare('INSERT INTO chat_messages (session_id, role, content, confidence) VALUES (?, ?, ?, ?)')
+        ->execute([$session_id, 'assistant', $answer, 1.0]);
+    $pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time(), $session_id]);
+
+    json_out([
+        'answer'      => $answer,
+        'escalate'    => false,
+        'confidence'  => 1.0,
+        'products'    => [],
+        'action'      => 'show_tracking_form',
+        'tracking_no' => $tracking['tracking_no'],
+        'carrier'     => $tracking['carrier'],
+    ]);
+}
+
 // ── Retrieve context ──────────────────────────────────────────────────────────
 
 $knowledge_hits = \Knowledge\Search::query($message, 5);
