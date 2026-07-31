@@ -13,6 +13,7 @@ if ($method === 'GET') {
     json_out($stmt->fetchAll());
 }
 
+\Auth\Admin::requireRole('admin', 'editor');
 $body = json_body();
 \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
 

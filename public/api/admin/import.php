@@ -3,7 +3,7 @@
 // POST multipart: upload JSON or XML product feed and import into DB
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-\Auth\Admin::check();
+\Auth\Admin::requireRole('admin', 'editor');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_err('Method not allowed', 405);

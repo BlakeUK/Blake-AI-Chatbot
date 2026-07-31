@@ -4,7 +4,7 @@
 // FTS sync handled automatically by DB triggers.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-\Auth\Admin::check();
+\Auth\Admin::requireRole('admin', 'editor');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_err('Method not allowed', 405);

@@ -15,6 +15,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    \Auth\Admin::requireRole('admin', 'editor');
     $csrf = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
     \Auth\Admin::verifyCsrf($csrf);
 
@@ -65,6 +66,7 @@ if ($method === 'POST') {
 }
 
 if ($method === 'DELETE') {
+    \Auth\Admin::requireRole('admin', 'editor');
     $body = json_body();
     \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
     $id = (int)($body['id'] ?? 0);

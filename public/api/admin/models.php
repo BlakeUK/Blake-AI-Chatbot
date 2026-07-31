@@ -4,7 +4,7 @@
 // Requires Gemini API key already stored in DB.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-\Auth\Admin::check();
+\Auth\Admin::requireRole('admin');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_err('Method not allowed', 405);

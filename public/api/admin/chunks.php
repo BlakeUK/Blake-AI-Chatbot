@@ -31,6 +31,7 @@ if ($method === 'GET') {
     json_out($chunks);
 }
 
+\Auth\Admin::requireRole('admin', 'editor');
 $body = json_body();
 \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
 

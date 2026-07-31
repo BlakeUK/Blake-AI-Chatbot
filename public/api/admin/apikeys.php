@@ -2,7 +2,7 @@
 // public/api/admin/apikeys.php — GET/POST for encrypted API key storage
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-\Auth\Admin::check();
+\Auth\Admin::requireRole('admin');
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();

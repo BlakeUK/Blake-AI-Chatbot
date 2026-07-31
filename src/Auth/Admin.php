@@ -21,6 +21,8 @@ class Admin
         }
     }
 
+    public const ROLES = ['admin', 'editor', 'user'];
+
     public static function check(): void
     {
         self::session();
@@ -29,16 +31,32 @@ class Admin
         }
     }
 
+    public static function role(): string
+    {
+        self::session();
+        return $_SESSION['admin_role'] ?? 'user';
+    }
+
+    // Require the logged-in admin to hold one of the given roles.
+    public static function requireRole(string ...$allowed): void
+    {
+        self::check();
+        if (!in_array(self::role(), $allowed, true)) {
+            json_err('Forbidden', 403);
+        }
+    }
+
     public static function login(string $username, string $password): bool
     {
-        $stmt = db()->prepare('SELECT id, password FROM admin_users WHERE username = ?');
+        $stmt = db()->prepare('SELECT id, password, role FROM admin_users WHERE username = ?');
         $stmt->execute([$username]);
         $row = $stmt->fetch();
 
         if ($row && password_verify($password, $row['password'])) {
             self::session();
             session_regenerate_id(true);
-            $_SESSION['admin_id'] = $row['id'];
+            $_SESSION['admin_id']   = $row['id'];
+            $_SESSION['admin_role'] = $row['role'];
             db()->prepare('UPDATE admin_users SET last_login=? WHERE id=?')
                  ->execute([time(), $row['id']]);
             return true;
