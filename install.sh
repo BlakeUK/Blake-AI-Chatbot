@@ -81,6 +81,14 @@ else
     warn "Database already exists — skipping creation."
 fi
 
+# ── Migrations (idempotent, run against new and existing DBs alike) ──────────
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(admin_users);" | grep -q "totp_enabled"; then
+    info "Applying 2FA schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_2fa.sql"
+else
+    warn "2FA schema already applied — skipping."
+fi
+
 # ── Config ────────────────────────────────────────────────────────────────────
 if [ ! -f "$WEBROOT/config/config.php" ]; then
     info "Generating config..."

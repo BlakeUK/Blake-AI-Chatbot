@@ -10,7 +10,7 @@ $pdo    = db();
 
 if ($method === 'GET') {
     $rows = $pdo->query('
-        SELECT id, username, role, created_at, last_login
+        SELECT id, username, role, created_at, last_login, totp_enabled
         FROM admin_users
         ORDER BY created_at ASC
     ')->fetchAll();
@@ -52,6 +52,17 @@ if ($method === 'PUT') {
     $target->execute([$id]);
     $target = $target->fetch();
     if (!$target) json_err('User not found', 404);
+
+    if (!empty($body['reset_2fa'])) {
+        $pdo->prepare('
+            UPDATE admin_users
+            SET totp_secret_enc=NULL, totp_secret_iv=NULL, totp_secret_tag=NULL, totp_enabled=0, backup_codes=NULL
+            WHERE id=?
+        ')->execute([$id]);
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')
+            ->execute([$_SESSION['admin_id'], '2fa_reset_by_admin', $id]);
+        json_out(['ok' => true]);
+    }
 
     $role = $body['role'] ?? $target['role'];
     if (!in_array($role, \Auth\Admin::ROLES, true)) json_err('Invalid role');
