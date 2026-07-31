@@ -111,11 +111,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 carrier: r['carrier']?.toString(),
               )));
         } else if (r['escalate'] == true) {
-          setState(() => _messages.add(ChatMessage(
-                role: 'assistant',
-                text:
-                    'Would you like me to raise a support ticket? A member of the team will get back to you.',
-              )));
+          setState(() {
+            _messages.add(ChatMessage(
+              role: 'assistant',
+              text:
+                  'Would you like me to raise a support ticket? A member of the team will get back to you.',
+            ));
+            _messages.add(ChatMessage(
+              role: 'assistant',
+              text: '',
+              kind: MessageKind.escalateForm,
+            ));
+          });
         }
       }
     } catch (_) {
@@ -158,6 +165,27 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() => _messages.add(ChatMessage(
             role: 'assistant',
             text: 'Unable to reach the tracking service. Please try again shortly.',
+          )));
+    }
+    _scrollToEnd();
+  }
+
+  Future<void> _submitEscalate(String email) async {
+    setState(() {
+      _messages.removeWhere((m) => m.kind == MessageKind.escalateForm);
+    });
+    try {
+      final r = await ApiClient.post('/api/chat/escalate.php', {
+        'session_id': _sessionId,
+        'email': email,
+      });
+      final text = r['message']?.toString() ??
+          'Your query has been passed to our support team.';
+      setState(() => _messages.add(ChatMessage(role: 'assistant', text: text)));
+    } catch (_) {
+      setState(() => _messages.add(ChatMessage(
+            role: 'assistant',
+            text: 'Unable to reach the server. Please try again shortly.',
           )));
     }
     _scrollToEnd();
@@ -248,6 +276,9 @@ class _ChatScreenState extends State<ChatScreen> {
         carrier: m.carrier,
         onSubmit: _submitTracking,
       );
+    }
+    if (m.kind == MessageKind.escalateForm) {
+      return _EscalateFormBubble(onSubmit: _submitEscalate);
     }
 
     final isUser = m.role == 'user';
@@ -396,6 +427,62 @@ class _TrackingFormBubbleState extends State<_TrackingFormBubble> {
                       await widget.onSubmit(no, pc, widget.carrier);
                     },
               child: Text(_submitting ? 'Checking...' : 'Track'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EscalateFormBubble extends StatefulWidget {
+  final Future<void> Function(String email) onSubmit;
+  const _EscalateFormBubble({required this.onSubmit});
+
+  @override
+  State<_EscalateFormBubble> createState() => _EscalateFormBubbleState();
+}
+
+class _EscalateFormBubbleState extends State<_EscalateFormBubble> {
+  final _emailCtrl = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(12),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Your email (optional)',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _kBrandBlue),
+              onPressed: _submitting
+                  ? null
+                  : () async {
+                      setState(() => _submitting = true);
+                      await widget.onSubmit(_emailCtrl.text.trim());
+                    },
+              child: Text(_submitting ? 'Raising...' : 'Raise Ticket'),
             ),
           ],
         ),

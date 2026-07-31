@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api_client.dart';
 import '../widgets.dart';
+import 'chat_session_detail_screen.dart';
 
 class ChatLogsScreen extends StatefulWidget {
   const ChatLogsScreen({super.key});
@@ -59,6 +60,9 @@ class _ChatLogsScreenState extends State<ChatLogsScreen> {
                     subtitle: Text(
                         '${r['product_code'] != null ? 'Product ${r['product_code']} · ' : ''}${r['msg_count']} messages'),
                     trailing: Text(fmtDate(r['updated_at']), style: const TextStyle(fontSize: 12)),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ChatSessionDetailScreen(sessionId: id),
+                    )),
                   ),
                 );
               },
