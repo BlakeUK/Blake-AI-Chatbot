@@ -323,13 +323,14 @@ window.BlakeUKWidget = {
 
 </main>
 
+<script src="vendor/qrcode.js"></script>
 <script>
 const API='/api/admin'; let csrf=''; let role='user';
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 async function doLogin(){
   const u=val('login-user'),p=document.getElementById('login-pass').value;
-  const r=await post(API+'/login.php',{username:u,password:p},false);
+  const r=await post(API+'/login.php',{username:u,password:p});
   if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else if(r.requires_2fa){
     document.getElementById('login-step-password').style.display='none';
@@ -343,7 +344,7 @@ document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key===
 async function doVerify2fa(){
   const code=val('login-2fa-code');
   if(!code)return;
-  const r=await post(API+'/login.php',{code},false);
+  const r=await post(API+'/login.php',{code});
   if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Invalid code')+'</div>';
 }
@@ -621,14 +622,36 @@ async function startTfaEnroll(){
   if(r.error)return flash(r.error,true);
   const el=document.getElementById('tfa-content');
   el.innerHTML=`
-    <p style="margin-bottom:8px;color:#555">Scan this into your authenticator app, or enter the key manually:</p>
+    <p style="margin-bottom:8px;color:#555">Scan this QR code into your authenticator app:</p>
+    <div id="tfa-qr" style="margin-bottom:12px"></div>
+    <p style="margin-bottom:8px;color:#555;font-size:12px">Or enter this key manually:</p>
     <p style="margin-bottom:12px"><code style="background:#f8f8f8;padding:6px 10px;border-radius:4px;display:inline-block;word-break:break-all">${esc(r.secret)}</code></p>
-    <p style="margin-bottom:12px;font-size:12px;word-break:break-all"><a href="${esc(r.otpauth_uri)}" target="_blank">${esc(r.otpauth_uri)}</a></p>
     <div style="display:flex;flex-direction:column;gap:10px;max-width:280px">
       <div><label>Enter the 6-digit code from your app to confirm</label><input type="text" id="tfa-confirm-code" inputmode="numeric" maxlength="6"></div>
       <button class="btn btn-primary" onclick="confirmTfaEnroll()">Confirm</button>
     </div>
   `;
+  renderTfaQr(r.otpauth_uri);
+}
+function renderTfaQr(otpauthUri){
+  const qr=qrcode(0,'M');
+  qr.addData(otpauthUri);
+  qr.make();
+  const size=qr.getModuleCount(),scale=6,margin=2;
+  const canvas=document.createElement('canvas');
+  canvas.width=(size+margin*2)*scale;
+  canvas.height=(size+margin*2)*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#000';
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(qr.isDark(r,c))ctx.fillRect((c+margin)*scale,(r+margin)*scale,scale,scale);
+    }
+  }
+  document.getElementById('tfa-qr').appendChild(canvas);
 }
 async function confirmTfaEnroll(){
   const code=val('tfa-confirm-code');
