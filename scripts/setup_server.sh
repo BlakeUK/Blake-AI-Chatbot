@@ -41,6 +41,9 @@ fi
 if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(knowledge_files);" | grep -q "source_url"; then
     sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_import_queue.sql
 fi
+if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(products);" | grep -q "related_product_codes"; then
+    sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_related_products.sql
+fi
 chown www-data:www-data /var/www/chat/data/chatbot.db
 
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─

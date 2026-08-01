@@ -39,7 +39,7 @@ class Search
         $stmt = db()->prepare('
             SELECT p.product_code, p.name, p.title, p.url,
                    p.price_inc_vat, p.price_exc_vat, p.image_url,
-                   p.summary_bullets, p.description, p.tech_specs, p.stock_status,
+                   p.summary_bullets, p.description, p.tech_specs, p.stock_status, p.related_product_codes,
                    rank
             FROM products_fts
             JOIN products p ON p.id = products_fts.rowid
@@ -61,13 +61,59 @@ class Search
         $stmt = db()->prepare('
             SELECT product_code, name, title, url,
                    price_inc_vat, price_exc_vat, image_url,
-                   summary_bullets, description, tech_specs, stock_status
+                   summary_bullets, description, tech_specs, stock_status, related_product_codes
             FROM products
             WHERE product_code = ? AND active = 1
         ');
         $stmt->execute([$code]);
         $row = $stmt->fetch();
         return $row ?: null;
+    }
+
+    // Batch lookup for a set of product codes, e.g. a product's
+    // related_product_codes. Preserves the order $codes was given in (SQL's
+    // IN() doesn't), skips codes that don't exist or aren't active, and caps
+    // the result so a feed with dozens of related codes can't balloon the
+    // prompt.
+    public static function byCodes(array $codes, int $limit = 3): array
+    {
+        $codes = array_slice(array_values(array_unique(array_filter($codes))), 0, $limit);
+        if (!$codes) return [];
+
+        $placeholders = implode(',', array_fill(0, count($codes), '?'));
+        $stmt = db()->prepare("
+            SELECT product_code, name, title, url,
+                   price_inc_vat, price_exc_vat, image_url,
+                   summary_bullets, description, tech_specs, stock_status, related_product_codes
+            FROM products
+            WHERE product_code IN ($placeholders) AND active = 1
+        ");
+        $stmt->execute($codes);
+
+        $byCode = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $byCode[$row['product_code']] = $row;
+        }
+        $ordered = [];
+        foreach ($codes as $c) {
+            if (isset($byCode[$c])) $ordered[] = $byCode[$c];
+        }
+        return $ordered;
+    }
+
+    // Appends products not already present (by product_code) to a context
+    // list - used to layer related/cross-sell products in after the current
+    // product and organic search hits, without duplicating either.
+    public static function addRelated(array $hits, array $related): array
+    {
+        $codes = array_column($hits, 'product_code');
+        foreach ($related as $r) {
+            if (!in_array($r['product_code'], $codes, true)) {
+                $hits[]  = $r;
+                $codes[] = $r['product_code'];
+            }
+        }
+        return $hits;
     }
 
     // Ensures the customer's current product (if any) is listed first among
@@ -105,15 +151,20 @@ class Search
     }
 
     // Formats a single product row into the text block used in the Gemini
-    // prompt, tagging it when it's the one the customer is currently viewing.
-    public static function formatForPrompt(array $p, ?string $currentCode): string
+    // prompt, tagging it as either the one the customer is currently
+    // viewing, or a related/cross-sell suggestion for it.
+    public static function formatForPrompt(array $p, ?string $currentCode, array $relatedCodes = []): string
     {
         $bullets  = json_decode($p['summary_bullets'] ?? '[]', true) ?: [];
         $specs    = json_decode($p['tech_specs'] ?? '{}', true) ?: [];
         $isViewed = $currentCode && $p['product_code'] === $currentCode;
+        $isRelated = !$isViewed && in_array($p['product_code'], $relatedCodes, true);
 
-        $line = ($isViewed ? '[Customer is currently viewing this product] ' : '')
-            . "Product: {$p['name']} (Code: {$p['product_code']})";
+        $tag = $isViewed
+            ? '[Customer is currently viewing this product] '
+            : ($isRelated ? '[Related product — a cross-sell/accessory suggestion, mention only if relevant] ' : '');
+
+        $line = $tag . "Product: {$p['name']} (Code: {$p['product_code']})";
         if (!empty($p['price_inc_vat'])) {
             $line .= " — £{$p['price_inc_vat']} inc VAT";
         }

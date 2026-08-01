@@ -35,7 +35,7 @@ class Importer
                             name=?, title=?, url=?, category_path=?, summary_bullets=?,
                             description=?, tech_specs=?, price_inc_vat=?, price_exc_vat=?,
                             stock_status=?, image_url=?, image_alt=?, search_terms=?,
-                            active=1, updated_at=?
+                            related_product_codes=?, active=1, updated_at=?
                         WHERE product_code=?
                     ')->execute([
                         $p['name'], $p['title'], $p['url'],
@@ -43,7 +43,8 @@ class Importer
                         $p['description'], $p['tech_specs'],
                         $p['price_inc_vat'], $p['price_exc_vat'],
                         $p['stock_status'], $p['image_url'], $p['image_alt'],
-                        $p['search_terms'], time(), $p['product_code'],
+                        $p['search_terms'], $p['related_product_codes'],
+                        time(), $p['product_code'],
                     ]);
                     $productId = (int)$row['id'];
                     $updated++;
@@ -52,14 +53,15 @@ class Importer
                         INSERT INTO products (
                             product_code, name, title, url, category_path, summary_bullets,
                             description, tech_specs, price_inc_vat, price_exc_vat,
-                            stock_status, image_url, image_alt, search_terms, active, updated_at
-                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+                            stock_status, image_url, image_alt, search_terms,
+                            related_product_codes, active, updated_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
                     ')->execute([
                         $p['product_code'], $p['name'], $p['title'], $p['url'],
                         $p['category_path'], $p['summary_bullets'], $p['description'],
                         $p['tech_specs'], $p['price_inc_vat'], $p['price_exc_vat'],
                         $p['stock_status'], $p['image_url'], $p['image_alt'],
-                        $p['search_terms'], time(),
+                        $p['search_terms'], $p['related_product_codes'], time(),
                     ]);
                     $productId = (int)$pdo->lastInsertId();
                     $created++;
@@ -282,6 +284,17 @@ class Importer
         $termsList = self::asList(self::unwrap($r['search_terms'] ?? $r['searchTerms'] ?? [], 'term'));
         $terms     = implode(' ', array_filter(array_map('strval', $termsList)));
 
+        // Related products — cross-sell/accessory codes. XML uses
+        // <relatedProductCodes><code>X</code></relatedProductCodes>; JSON uses
+        // a flat array. Codes are just strings, not attribute-bearing
+        // elements, so unlike category/bullets this never needs flattenAttrs.
+        $relatedRaw  = $r['related_product_codes'] ?? $r['relatedProductCodes'] ?? [];
+        $relatedList = self::asList(self::unwrap($relatedRaw, 'code'));
+        $related     = array_values(array_filter(array_map(
+            fn($c) => is_array($c) ? ($c['#text'] ?? '') : trim((string)$c),
+            $relatedList
+        )));
+
         return [
             'product_code'   => $code,
             'name'           => $name,
@@ -297,6 +310,7 @@ class Importer
             'image_url'      => $img_url,
             'image_alt'      => $img_alt,
             'search_terms'   => $terms,
+            'related_product_codes' => json_encode($related),
             'variants'       => $variants,
             'documents'      => $documents,
         ];

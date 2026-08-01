@@ -81,6 +81,15 @@ $current_product = $session['product_code'] ? \Knowledge\Search::byCode($session
 // actually answerable from that product's data.
 $context_products = \Knowledge\Search::withCurrentFirst($product_hits, $current_product);
 
+// Cross-sell: if the current product lists related codes, pull them in too
+// (also not a confidence signal - same reasoning as above).
+$related_codes = [];
+if ($current_product) {
+    $related_codes = json_decode($current_product['related_product_codes'] ?? '[]', true) ?: [];
+    $related       = \Knowledge\Search::byCodes($related_codes, 3);
+    $context_products = \Knowledge\Search::addRelated($context_products, $related);
+}
+
 // ── Build Gemini prompt ───────────────────────────────────────────────────────
 
 $context_parts = [];
@@ -94,7 +103,7 @@ if ($knowledge_hits) {
 
 if ($context_products) {
     $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(
-        fn($p) => \Knowledge\Search::formatForPrompt($p, $session['product_code']),
+        fn($p) => \Knowledge\Search::formatForPrompt($p, $session['product_code'], $related_codes),
         $context_products
     ));
 }
@@ -108,6 +117,7 @@ RULES:
 - Answer ONLY using the context provided below. Do not invent products, prices or specifications.
 - Keep answers concise and helpful.
 - Always include direct Blake UK URLs when recommending products or support pages.
+- Products tagged [Related product] are cross-sell/accessory suggestions for what the customer is viewing — mention one only if it's naturally relevant to their question, don't force it into every reply.
 - If you cannot answer from the context, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
 - Never make up product codes, prices or specifications.
 
