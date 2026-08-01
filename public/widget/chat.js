@@ -95,7 +95,13 @@
       const r = await fetch(API + '/send.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, message: text }),
+        body: JSON.stringify({
+          session_id: sessionId,
+          message: text,
+          page_url: window.location.href,
+          product_code: document.querySelector('[data-product-code]')?.dataset.productCode || null,
+          category: document.querySelector('[data-category]')?.dataset.category || null,
+        }),
       });
       const d = await r.json();
       if (d.error) {

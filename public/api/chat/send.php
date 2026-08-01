@@ -27,6 +27,22 @@ if (!$session) {
     json_err('Invalid session', 404);
 }
 
+// Refresh page context if the widget sent updated values — the customer may
+// have navigated to a different product page without starting a new session.
+// Only touches fields the caller actually sent, so callers that omit them
+// (e.g. the mobile app) don't accidentally wipe out existing context.
+$ctx_changed = false;
+foreach (['page_url', 'product_code', 'category'] as $f) {
+    if (array_key_exists($f, $body) && $body[$f] !== $session[$f]) {
+        $session[$f] = $body[$f];
+        $ctx_changed = true;
+    }
+}
+if ($ctx_changed) {
+    $pdo->prepare('UPDATE chat_sessions SET page_url=?, product_code=?, category=? WHERE id=?')
+        ->execute([$session['page_url'], $session['product_code'], $session['category'], $session_id]);
+}
+
 // Save user message
 $pdo->prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)')
     ->execute([$session_id, 'user', $message]);
@@ -54,8 +70,16 @@ if ($tracking['is_tracking']) {
 
 // ── Retrieve context ──────────────────────────────────────────────────────────
 
-$knowledge_hits = \Knowledge\Search::query($message, 5);
-$product_hits   = \Knowledge\Search::products($message, 3);
+$knowledge_hits  = \Knowledge\Search::query($message, 5);
+$product_hits    = \Knowledge\Search::products($message, 3);
+$current_product = $session['product_code'] ? \Knowledge\Search::byCode($session['product_code']) : null;
+
+// The product the customer is currently on gets included in context/cards
+// even if their message text doesn't happen to match it via FTS — but it
+// does NOT by itself count toward confidence below, since being on a product
+// page doesn't mean an unrelated question ("what are your hours?") is
+// actually answerable from that product's data.
+$context_products = \Knowledge\Search::withCurrentFirst($product_hits, $current_product);
 
 // ── Build Gemini prompt ───────────────────────────────────────────────────────
 
@@ -68,28 +92,34 @@ if ($knowledge_hits) {
     ));
 }
 
-if ($product_hits) {
-    $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(function ($p) {
-        $bullets = json_decode($p['summary_bullets'] ?? '[]', true);
-        $line    = "Product: {$p['name']} (Code: {$p['product_code']})";
-        if ($p['price_inc_vat']) {
+if ($context_products) {
+    $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(function ($p) use ($session) {
+        $bullets  = json_decode($p['summary_bullets'] ?? '[]', true) ?: [];
+        $specs    = json_decode($p['tech_specs'] ?? '{}', true) ?: [];
+        $isViewed = $session['product_code'] && $p['product_code'] === $session['product_code'];
+
+        $line = ($isViewed ? '[Customer is currently viewing this product] ' : '')
+            . "Product: {$p['name']} (Code: {$p['product_code']})";
+        if (!empty($p['price_inc_vat'])) {
             $line .= " — £{$p['price_inc_vat']} inc VAT";
+        }
+        if (!empty($p['stock_status'])) {
+            $line .= " — Stock: {$p['stock_status']}";
         }
         $line .= "\nURL: {$p['url']}";
         if ($bullets) {
             $line .= "\n• " . implode("\n• ", $bullets);
         }
+        if ($specs) {
+            $line .= "\nSpecs: " . implode(', ', array_map(
+                fn($k, $v) => "$k: $v", array_keys($specs), array_values($specs)
+            ));
+        }
         return $line;
-    }, $product_hits));
+    }, $context_products));
 }
 
-$page_ctx = '';
-if ($session['page_url']) {
-    $page_ctx = "Customer is viewing: {$session['page_url']}\n";
-    if ($session['product_code']) {
-        $page_ctx .= "Current product code: {$session['product_code']}\n";
-    }
-}
+$page_ctx = $session['page_url'] ? "Customer is viewing: {$session['page_url']}\n" : '';
 
 $system = <<<PROMPT
 You are the Blake UK customer support assistant. Blake UK sells aerials, IRS, CCTV, networking, fibre, satellite and installation products.
@@ -140,7 +170,9 @@ try {
 }
 
 // ── Confidence heuristic ──────────────────────────────────────────────────────
-// Simple: if context was found, confidence is higher
+// Simple: if context was found, confidence is higher. Deliberately based on
+// $product_hits (organic matches for this message), not $context_products
+// (which always includes the current product regardless of relevance).
 $confidence = count($knowledge_hits) + count($product_hits) > 0 ? 0.75 : 0.3;
 $escalate   = $confidence < CFG['escalate_threshold'];
 
@@ -154,7 +186,7 @@ foreach ($knowledge_hits as $h) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
         ->execute([$bot_msg_id, $h['source_type'], $h['source_id'], $h['url'], substr($h['chunk_text'], 0, 200)]);
 }
-foreach ($product_hits as $p) {
+foreach ($context_products as $p) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url) VALUES (?,?,?,?)')
         ->execute([$bot_msg_id, 'product', null, $p['url']]);
 }
@@ -172,7 +204,7 @@ json_out([
         'url'   => $p['url'],
         'price' => $p['price_inc_vat'],
         'image' => $p['image_url'],
-    ], $product_hits),
+    ], $context_products),
 ]);
 
 // ── Helper: decrypt API key from DB ──────────────────────────────────────────
