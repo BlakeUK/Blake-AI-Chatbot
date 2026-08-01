@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api_client.dart';
 import 'home_shell.dart';
 import 'login_screen.dart';
+import 'widgets.dart';
 
 void main() {
   runApp(const BlakeUkAdminApp());
@@ -16,8 +17,43 @@ class BlakeUkAdminApp extends StatelessWidget {
     return MaterialApp(
       title: 'Blake UK Admin',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3D5A99)),
         useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: kBgDark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: kBrandBlue,
+          brightness: Brightness.dark,
+        ).copyWith(
+          surface: kBgDark,
+          onSurface: kTextDark,
+          surfaceContainerHighest: kSurfaceDark,
+          primary: kAccentTextDark,
+          onPrimary: kBgDark,
+          outline: kBorderStrongDark,
+          outlineVariant: kBorderSubtleDark,
+        ),
+        textTheme: ThemeData(brightness: Brightness.dark).textTheme.apply(
+              bodyColor: kTextDark,
+              displayColor: kTextDark,
+            ),
+        cardTheme: const CardThemeData(
+          color: kSurfaceDark,
+          surfaceTintColor: Colors.transparent,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: kBgDark,
+          foregroundColor: Colors.white,
+        ),
+        dividerColor: kBorderSubtleDark,
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: kRecessedDark,
+          border: OutlineInputBorder(borderSide: BorderSide(color: kBorderStrongDark)),
+          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: kBorderStrongDark)),
+          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: kAccentTextDark)),
+          hintStyle: TextStyle(color: kMutedDark),
+          labelStyle: TextStyle(color: kMutedDark),
+        ),
       ),
       home: const _SessionGate(),
     );
@@ -61,7 +97,7 @@ class _SessionGateState extends State<_SessionGate> {
   Widget build(BuildContext context) {
     if (_checking) {
       return const Scaffold(
-        backgroundColor: Color(0xFF2F343B),
+        backgroundColor: kBgDark,
         body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }

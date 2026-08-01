@@ -170,7 +170,7 @@ class _MyAccountScreenState extends State<MyAccountScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text('Or enter this key manually:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const Text('Or enter this key manually:', style: TextStyle(fontSize: 12, color: Color(0xFFADB4BA))),
           SelectableText(_pendingSecret!,
               style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),

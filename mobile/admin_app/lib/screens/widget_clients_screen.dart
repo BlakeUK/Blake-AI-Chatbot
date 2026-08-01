@@ -97,7 +97,7 @@ class _WidgetClientsScreenState extends State<WidgetClientsScreen> {
           const SizedBox(height: 4),
           const Text(
               'Each client gets a unique API key. Access can be locked to specific server IP addresses and/or origin domains.',
-              style: TextStyle(color: Colors.grey, fontSize: 12)),
+              style: TextStyle(color: Color(0xFFADB4BA), fontSize: 12)),
           const SizedBox(height: 12),
           TextField(
             controller: _nameCtrl,
@@ -146,7 +146,7 @@ class _WidgetClientsScreenState extends State<WidgetClientsScreen> {
                   SelectableText(_createdKey!,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
                   const Text('Copy this now — it will not be shown again.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      style: TextStyle(fontSize: 11, color: Color(0xFFADB4BA))),
                 ],
               ),
             ),
@@ -156,7 +156,7 @@ class _WidgetClientsScreenState extends State<WidgetClientsScreen> {
           if (_rows.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No clients configured.', style: TextStyle(color: Colors.grey)),
+              child: Text('No clients configured.', style: TextStyle(color: Color(0xFFADB4BA))),
             )
           else
             ..._rows.map((r) {
@@ -171,7 +171,7 @@ class _WidgetClientsScreenState extends State<WidgetClientsScreen> {
                       StatusBadge(text: active ? 'Active' : 'Revoked', ok: active),
                       if (active)
                         IconButton(
-                          icon: const Icon(Icons.block, color: Colors.red),
+                          icon: const Icon(Icons.block, color: Color(0xFFF5A3A3)),
                           onPressed: () => _revoke(r['id'] as int),
                         ),
                     ],

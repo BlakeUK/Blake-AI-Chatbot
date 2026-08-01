@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'api_client.dart';
 import 'chat_message.dart';
+import 'theme.dart';
 
 const _kBrandDark = Color(0xFF2F343B);
 const _kBrandBlue = Color(0xFF3D5A99);
@@ -194,7 +195,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F4),
+      backgroundColor: kBgDark,
       appBar: AppBar(
         backgroundColor: _kBrandDark,
         foregroundColor: Colors.white,
@@ -239,8 +240,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+        color: kBgDark,
+        border: Border(top: BorderSide(color: const Color(0xFF454C54))),
       ),
       child: Row(
         children: [
@@ -294,18 +295,18 @@ class _ChatScreenState extends State<ChatScreen> {
             constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.75),
             decoration: BoxDecoration(
-              color: isUser ? _kBrandBlue : Colors.white,
+              color: isUser ? _kBrandBlue : const Color(0xFF3A4048),
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(12),
                 topRight: const Radius.circular(12),
                 bottomLeft: Radius.circular(isUser ? 12 : 4),
                 bottomRight: Radius.circular(isUser ? 4 : 12),
               ),
-              border: isUser ? null : Border.all(color: Colors.grey.shade300),
+              border: isUser ? null : Border.all(color: const Color(0xFF454C54)),
             ),
             child: Text(
               m.text,
-              style: TextStyle(color: isUser ? Colors.white : Colors.black87),
+              style: TextStyle(color: isUser ? Colors.white : const Color(0xFFE8E8EA)),
             ),
           ),
           ...m.products.map((p) => _ProductCard(product: p)),
@@ -347,7 +348,7 @@ class _ProductCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                     if (product.price != null)
                       Text('£${product.price} inc VAT',
-                          style: const TextStyle(color: _kBrandBlue)),
+                          style: const TextStyle(color: Color(0xFF8FB0EC))),
                   ],
                 ),
               ),
@@ -390,8 +391,8 @@ class _TrackingFormBubbleState extends State<_TrackingFormBubble> {
         constraints:
             BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.grey.shade300),
+          color: const Color(0xFF3A4048),
+          border: Border.all(color: const Color(0xFF454C54)),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -457,8 +458,8 @@ class _EscalateFormBubbleState extends State<_EscalateFormBubble> {
         constraints:
             BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.grey.shade300),
+          color: const Color(0xFF3A4048),
+          border: Border.all(color: const Color(0xFF454C54)),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(

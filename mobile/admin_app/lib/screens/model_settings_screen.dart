@@ -87,7 +87,7 @@ class _ModelSettingsScreenState extends State<ModelSettingsScreen> {
             const Expanded(
               child: Text(
                 'Choose which Gemini model handles chat replies and which handles document extraction.',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: Color(0xFFADB4BA), fontSize: 13),
               ),
             ),
             IconButton(

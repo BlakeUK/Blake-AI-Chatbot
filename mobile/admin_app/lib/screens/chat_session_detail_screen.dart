@@ -48,7 +48,7 @@ class _ChatSessionDetailScreenState extends State<ChatSessionDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _messages.isEmpty
-              ? const Center(child: Text('No messages in this session.', style: TextStyle(color: Colors.grey)))
+              ? const Center(child: Text('No messages in this session.', style: TextStyle(color: Color(0xFFADB4BA))))
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _messages.length,
@@ -68,7 +68,7 @@ class _ChatSessionDetailScreenState extends State<ChatSessionDetailScreen> {
                         padding: const EdgeInsets.all(10),
                         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
                         decoration: BoxDecoration(
-                          color: isUser ? const Color(0xFFEEF1F8) : const Color(0xFFF8F8F8),
+                          color: isUser ? const Color(0xFF2D3A52) : const Color(0xFF262B31),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Column(
@@ -77,7 +77,7 @@ class _ChatSessionDetailScreenState extends State<ChatSessionDetailScreen> {
                             Text(
                               '${isUser ? 'Customer' : 'Assistant'} · ${fmtDate(m['created_at'])}'
                               '${escalated ? ' · Escalated' : ''}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFFADB4BA)),
                             ),
                             const SizedBox(height: 4),
                             Text(m['content']?.toString() ?? ''),

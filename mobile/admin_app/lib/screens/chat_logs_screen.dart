@@ -39,7 +39,7 @@ class _ChatLogsScreenState extends State<ChatLogsScreen> {
           ? ListView(children: const [
               Padding(
                 padding: EdgeInsets.all(24),
-                child: Center(child: Text('No chat sessions yet.', style: TextStyle(color: Colors.grey))),
+                child: Center(child: Text('No chat sessions yet.', style: TextStyle(color: Color(0xFFADB4BA)))),
               )
             ])
           : ListView.builder(
