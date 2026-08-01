@@ -38,8 +38,10 @@ $links = [];
 if (str_contains($data, '<urlset') || str_contains($data, '<sitemapindex')) {
     // Sitemap XML — pull <loc> entries (covers both a urlset and a sitemap
     // index; index entries are just more URLs the admin can discover from).
+    // LIBXML_NONET blocks any network fetch a crafted DOCTYPE/entity in the
+    // fetched page might try to trigger while parsing.
     libxml_use_internal_errors(true);
-    $xml = simplexml_load_string($data);
+    $xml = simplexml_load_string($data, \SimpleXMLElement::class, LIBXML_NONET);
     if ($xml) {
         foreach ($xml->url ?? [] as $u) {
             $links[] = (string)$u->loc;

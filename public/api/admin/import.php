@@ -40,9 +40,10 @@ if ($ext === 'json' || str_contains($mime, 'json')) {
     if (!$data) json_err('Invalid JSON');
     $products = $data['products'] ?? $data;
 } else {
-    // XML
+    // XML — LIBXML_NONET blocks any network fetch a crafted DOCTYPE/entity
+    // might try to trigger while parsing an admin-supplied feed file.
     libxml_use_internal_errors(true);
-    $xml = simplexml_load_string($raw);
+    $xml = simplexml_load_string($raw, \SimpleXMLElement::class, LIBXML_NONET);
     if (!$xml) json_err('Invalid XML');
     $products = \Products\Importer::parseXml($xml);
 }

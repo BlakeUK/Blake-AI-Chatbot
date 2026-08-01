@@ -5,7 +5,15 @@
 (function () {
   'use strict';
 
-  const API = 'https://chat.blake-uk.com/api/chat';
+  // window.BlakeUKWidget = { apiKey: 'buk_...', endpoint: 'https://chat.blake-uk.com' }
+  // Set before this script loads to embed on a site other than blake-uk.com
+  // itself (see Admin → Widget Clients). Omit entirely for the first-party
+  // embed on blake-uk.com — it talks to chat.blake-uk.com with no API key.
+  const CONFIG   = window.BlakeUKWidget || {};
+  const ENDPOINT = (CONFIG.endpoint || 'https://chat.blake-uk.com').replace(/\/+$/, '');
+  const API_KEY  = CONFIG.apiKey || null;
+  const API        = ENDPOINT + '/api/chat';
+  const WIDGET_API = ENDPOINT + '/api/widget';
   const STORAGE_KEY = 'buk_session';
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -15,7 +23,7 @@
   // ── Build DOM ────────────────────────────────────────────────────────────────
   const style = document.createElement('link');
   style.rel = 'stylesheet';
-  style.href = 'https://chat.blake-uk.com/widget/chat.css';
+  style.href = ENDPOINT + '/widget/chat.css';
   document.head.appendChild(style);
 
   const btn = document.createElement('button');
@@ -28,7 +36,7 @@
   panel.setAttribute('aria-live', 'polite');
   panel.innerHTML = `
     <div id="buk-chat-header">
-      <span><img src="/assets/blake-uk-logo.png" alt="Blake UK" id="buk-chat-logo">Support</span>
+      <span><img src="${ENDPOINT}/assets/blake-uk-logo.png" alt="Blake UK" id="buk-chat-logo">Support</span>
       <button id="buk-chat-close" aria-label="Close chat">✕</button>
     </div>
     <div id="buk-chat-messages"></div>
@@ -66,12 +74,30 @@
     };
 
     try {
+      if (API_KEY) {
+        // External embed: exchange the client's API key for a short-lived,
+        // single-use session token (see Admin → Widget Clients).
+        const tokRes = await fetch(WIDGET_API + '/init.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: API_KEY }),
+        });
+        const tokData = await tokRes.json();
+        if (!tokRes.ok || !tokData.token) {
+          throw new Error(tokData.error || 'Widget authentication failed');
+        }
+        payload.token = tokData.token;
+      }
+
       const r = await fetch(API + '/session.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const d = await r.json();
+      if (!r.ok || !d.session_id) {
+        throw new Error(d.error || 'Unable to start session');
+      }
       sessionId = d.session_id;
       sessionStorage.setItem(STORAGE_KEY, sessionId);
       addMessage('assistant', 'Hello! How can I help you today?');

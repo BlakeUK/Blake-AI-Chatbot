@@ -16,6 +16,8 @@ git clone https://github.com/BlakeUK/Blake-AI-Chatbot.git /var/www/chat
 ```bash
 bash /var/www/chat/scripts/setup_server.sh
 ```
+This also initialises the SQLite database (all six `scripts/schema*.sql`
+files, in order) and installs the cron job that processes bulk URL imports.
 Note the encryption key printed at the end.
 
 ### 3. Create config
@@ -26,22 +28,17 @@ nano /var/www/chat/config/config.php
 - Set `encrypt_key` to the value from step 2
 - Verify paths are correct
 
-### 4. Initialise database
-```bash
-sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema.sql
-```
-
-### 5. Create admin user
+### 4. Create admin user
 ```bash
 php /var/www/chat/scripts/create_admin.php admin YourStrongPassword
 ```
 
-### 6. Store Gemini API key via admin UI
+### 5. Store Gemini API key via admin UI
 - Visit https://chat.blake-uk.com/admin/
 - Log in
 - Go to API Settings → add service `gemini` with your key
 
-### 7. Embed widget on blake-uk.com
+### 6. Embed widget on blake-uk.com
 Add before `</body>`:
 ```html
 <script src="https://chat.blake-uk.com/widget/chat.js" defer></script>

@@ -51,7 +51,7 @@ function json_body(): array {
 // ── CORS ──────────────────────────────────────────────────────────────────────
 function cors(): void {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if (in_array($origin, CFG['cors_origins'], true)) {
+    if ($origin !== '' && (in_array($origin, CFG['cors_origins'], true) || widget_origin_allowed($origin))) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
@@ -61,6 +61,21 @@ function cors(): void {
         http_response_code(204);
         exit;
     }
+}
+
+// Extends CORS to any origin an active widget client is configured to allow —
+// same allowlist widget/init.php already enforces before issuing a token, so
+// this doesn't widen access, it just lets the browser read the response once
+// a request has already earned a valid token under that same policy.
+function widget_origin_allowed(string $origin): bool {
+    $stmt = db()->query('SELECT allowed_origins FROM widget_clients WHERE active = 1');
+    foreach ($stmt->fetchAll() as $row) {
+        $list = json_decode($row['allowed_origins'] ?? '[]', true) ?: [];
+        if (empty($list) || in_array($origin, $list, true)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────

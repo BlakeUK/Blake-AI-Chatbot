@@ -120,53 +120,55 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 | Admin product browser | Searchable table of imported products |
 | Import result summary | Created / updated / skipped / error counts per import |
 
-### Phase 3 — Documents (Planned ⏳)
+### Phase 3 — Documents (Mostly Complete ✅)
 
 | Feature | Detail |
 |---|---|
-| Re-extraction on update | Re-index existing file without re-upload |
-| Chunk viewer | Admin UI to inspect and edit extracted chunks |
-| Manual chunk override | Correct bad Gemini extractions in admin |
-| Document tagging | Tag files to specific categories or product codes |
-| Scheduled re-indexing | CLI script to refresh all file extractions |
-| Datasheet matching | Auto-link product documents to product codes via filename |
+| Re-extraction on update | ✅ Re-index existing file without re-upload |
+| Chunk viewer | ✅ Admin UI to inspect and edit extracted chunks |
+| Manual chunk override | ✅ Correct bad Gemini extractions in admin |
+| Scheduled re-indexing | ✅ Cron-driven queue (`process_pending_files.php`) picks up any file left `pending`, including bulk URL imports |
+| Document tagging | ⏳ Not yet — tag files to specific categories or product codes |
+| Datasheet matching | ⏳ Not yet — auto-link product documents to product codes via filename |
 
-### Phase 4 — Carrier Tracking (Planned ⏳)
-
-| Feature | Detail |
-|---|---|
-| Royal Mail / Post Office | Tracking event lookup via Royal Mail API |
-| DPD | Parcel status, delivery window, driver location |
-| DX | Consignment status and events |
-| Carrier auto-detection | Detect carrier from tracking number format |
-| Verification gate | Request postcode or email before querying carrier |
-| Tracking intent detection | NLP classification of "where is my order" intent |
-| Tracking history log | Store all queries with result in `tracking_requests` table |
-
-### Phase 5 — Support Tickets (Planned ⏳)
+### Phase 4 — Carrier Tracking (Live ✅)
 
 | Feature | Detail |
 |---|---|
-| Escalation to ticket | Low-confidence or customer-requested escalation creates ticket |
-| Human takeover | Staff can join a chat session and respond directly |
-| Suggested replies | Gemini drafts reply for staff to approve and send |
-| Staff notes | Internal notes on tickets not visible to customer |
-| Customer email replies | SMTP/IMAP integration for email-based ticket replies |
-| Ticket status | Open / pending / closed with timestamps |
-| Correction workflow | Staff corrects bot answer; correction saved to knowledge base |
-| Admin ticket queue | Filtered by status, assigned agent, priority |
+| Carrier auto-detection | ✅ Detects tracking-intent messages and carrier format from the number itself |
+| Royal Mail / Post Office | ✅ Live via Royal Mail Tracking API |
+| DPD | ⚠️ Wired up, but the endpoint is an unverified placeholder — confirm against DPD's real REST API before relying on it |
+| DX | ⚠️ Wired up, but the endpoint is an unverified placeholder — confirm against DX's real API before relying on it |
+| Tracking intent detection | ✅ Keyword + pattern matching (not full NLP) short-circuits the chat flow into the tracking form |
+| Verification gate | ⚠️ Postcode is collected in the chat form but not yet validated against order data before querying the carrier |
+| Tracking history log | ✅ Every query and result stored in `tracking_requests` |
 
-### Phase 6 — Analytics (Planned ⏳)
+### Phase 5 — Support Tickets (In Progress 🔄)
 
 | Feature | Detail |
 |---|---|
-| Unanswered question report | Questions with low confidence or no RAG hits |
-| Top topics | Most common question categories |
-| Product click tracking | Which product cards customers click from chat |
-| Failed answer log | Answers flagged by customers or below threshold |
-| Knowledge gap detection | Cluster unanswered questions to suggest new entries |
-| Retention controls | Admin UI to delete old chat logs and tracking data |
-| Export | CSV export of chat logs, unanswered questions, clicks |
+| Escalation to ticket | ✅ Low-confidence or customer-requested escalation creates a ticket |
+| Staff notes | ✅ Internal notes on tickets, not visible to the customer |
+| Ticket status | ✅ Open / pending / closed with timestamps |
+| Correction workflow | ✅ Staff corrects a bot answer; correction can be promoted straight to the knowledge base |
+| Admin ticket queue | ✅ Filtered by status; assigned-agent/priority filtering not yet implemented |
+| Human takeover | ⏳ Not yet — staff cannot join a live chat session and respond directly |
+| Suggested replies | ⏳ Not yet — no Gemini-drafted reply for staff to approve |
+| Customer email replies | ⏳ Not yet — no SMTP/IMAP integration |
+
+### Phase 6 — Analytics (In Progress 🔄)
+
+| Feature | Detail |
+|---|---|
+| Dashboard metrics | ✅ Sessions, messages, escalations, answer rate, average confidence |
+| Daily session volume | ✅ Sessions per day over a configurable window |
+| Unanswered question report | ✅ Questions followed by a low-confidence bot answer |
+| Top pages | ✅ Pages customers were viewing when they opened chat |
+| Top topics | ⏳ Not yet — clustering questions into topics |
+| Product click tracking | ⏳ Not yet — which product cards customers click from chat |
+| Knowledge gap detection | ⏳ Not yet — cluster unanswered questions to suggest new entries |
+| Retention controls | ⏳ Not yet — admin UI to delete old chat logs and tracking data |
+| Export | ⏳ Not yet — CSV export of chat logs, unanswered questions, clicks |
 
 ---
 
@@ -246,10 +248,21 @@ apt-get update && apt-get install -y caddy
 mkdir -p /var/www/chat/{data,uploads,logs,config}
 sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema.sql
 sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_widget.sql
+sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_append.sql
+sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_fts_triggers.sql
+sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_2fa.sql
+sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_import_queue.sql
 chown -R www-data:www-data /var/www/chat
 chmod 750 /var/www/chat/config
 chmod 770 /var/www/chat/{data,uploads,logs}
 ```
+All six files must run, in this order — `schema_append.sql` adds the `settings`
+table (model selection breaks without it), `schema_fts_triggers.sql` keeps the
+full-text search index in sync (knowledge/product search returns nothing
+without it), and `schema_2fa.sql` adds the columns `login.php` queries on
+every login attempt (login breaks without it). `install.sh` and
+`scripts/setup_server.sh` already run all six automatically — this manual
+list only matters if you're initialising the database by hand.
 
 ### Step 4 — Configure
 ```bash
@@ -459,22 +472,23 @@ The importer tolerates alternative field naming conventions (`productCode`, `cat
 
 ## Carrier Tracking
 
-*(Phase 4 — coming soon)*
+The bot detects tracking intent from natural language ("where is my order", "has it shipped") or a recognised tracking-number format, and:
 
-The bot will detect tracking intent from natural language ("where is my order", "has it shipped") and:
+1. Shows a form asking for the tracking number and delivery postcode
+2. Auto-detects the carrier from the tracking number format if not already known
+3. Queries the appropriate carrier API (Royal Mail, DPD, DX)
+4. Returns delivery status and recent events in the chat
 
-1. Request verification (order number + postcode or email)
-2. Auto-detect carrier from tracking number format
-3. Query the appropriate carrier API (Royal Mail, DPD, DX)
-4. Return delivery status, last event, and estimated delivery
+The postcode is currently collected but not yet cross-checked against order
+data before the carrier is queried — see [Build Phases](#build-phases).
 
 ### Supported carriers
 
 | Carrier | API | Status |
 |---|---|---|
-| Royal Mail / Post Office | Royal Mail Tracking API | Phase 4 |
-| DPD | DPD Tracking API | Phase 4 |
-| DX | DX API | Phase 4 |
+| Royal Mail / Post Office | Royal Mail Tracking API | ✅ Live |
+| DPD | DPD Tracking API | ⚠️ Wired up on an unverified placeholder endpoint |
+| DX | DX API | ⚠️ Wired up on an unverified placeholder endpoint |
 
 API credentials stored encrypted in admin → API Keys.
 
@@ -482,15 +496,15 @@ API credentials stored encrypted in admin → API Keys.
 
 ## Support Tickets
 
-*(Phase 5 — coming soon)*
-
 When the bot cannot answer with sufficient confidence, or the customer asks to speak to a person, the conversation escalates to a support ticket:
 
 - Ticket created from the chat session with full conversation history
-- Staff notified and can respond directly in the admin ticket queue
-- Gemini drafts a suggested reply for staff to review and send
-- Customer replies (via email or chat) appended to the ticket thread
-- Staff can correct bot answers and promote corrections to the knowledge base
+- Appears in the admin ticket queue, filterable by status (open/pending/closed)
+- Staff can add internal notes and correct bot answers, optionally promoting the correction straight to the knowledge base
+
+Human takeover (staff replying to the customer directly), Gemini-drafted
+suggested replies, and email-based ticket replies are not built yet — see
+[Build Phases](#build-phases).
 
 ---
 
@@ -509,42 +523,71 @@ When the bot cannot answer with sufficient confidence, or the customer asks to s
 │   ├── img/                    Screenshots for README
 │   └── setup.md                Detailed setup guide
 ├── logs/                       Application logs (gitignored)
+├── mobile/                     Native Android apps (Flutter)
+│   ├── admin_app/               Full admin panel on your phone
+│   └── customer_app/            Standalone customer chat app
 ├── public/                     Caddy web root
 │   ├── admin/
-│   │   └── index.html          Admin single-page UI (8 tabs)
+│   │   ├── index.html           Admin single-page UI
+│   │   └── vendor/qrcode.js     2FA QR code rendering
 │   ├── api/
-│   │   ├── admin/              Admin API endpoints
-│   │   │   ├── apikeys.php     Encrypted key storage
-│   │   │   ├── chats.php       Chat session log
-│   │   │   ├── clients.php     Widget client management
-│   │   │   ├── files.php       File upload + delete
-│   │   │   ├── import.php      Product feed import
-│   │   │   ├── knowledge.php   Knowledge CRUD + FTS index
-│   │   │   ├── login.php       Admin auth
-│   │   │   ├── models.php      Live Gemini model list
-│   │   │   ├── products.php    Product search/list
-│   │   │   └── settings.php    Key-value settings (model selection)
-│   │   ├── chat/
-│   │   │   ├── send.php        Main RAG chat endpoint
-│   │   │   └── session.php     Session create/resume
+│   │   ├── admin/               Admin API endpoints (all require login; most require CSRF)
+│   │   │   ├── account.php       Change own password
+│   │   │   ├── analytics.php     Dashboard metrics, unanswered questions, top pages
+│   │   │   ├── apikeys.php       Encrypted key storage
+│   │   │   ├── chats.php         Chat session log + transcripts
+│   │   │   ├── chunks.php        View/edit/delete extracted knowledge chunks
+│   │   │   ├── clients.php       Widget client management
+│   │   │   ├── corrections.php   Correct a bot answer; optionally promote to knowledge base
+│   │   │   ├── discover_urls.php Find PDF links on a page/sitemap ahead of a bulk import
+│   │   │   ├── files.php         File upload + delete
+│   │   │   ├── import.php        Product feed import (JSON/XML)
+│   │   │   ├── import_urls.php   Bulk file import by URL (queued, extracted by cron)
+│   │   │   ├── knowledge.php     Knowledge CRUD + FTS index
+│   │   │   ├── login.php         Admin auth (+ 2FA challenge)
+│   │   │   ├── models.php        Live Gemini model list
+│   │   │   ├── products.php      Product search/list
+│   │   │   ├── reindex.php       Re-extract and re-index an existing file
+│   │   │   ├── resolve.php       Resolve a hostname to an IP (widget client form helper)
+│   │   │   ├── session.php       Check whether the browser already holds a login
+│   │   │   ├── settings.php      Key-value settings (model selection)
+│   │   │   ├── tickets.php       Support ticket queue, notes, status
+│   │   │   ├── twofactor.php     Self-service 2FA enrol/confirm/disable
+│   │   │   └── users.php         Manage admin panel users and roles
+│   │   ├── chat/                 Public customer-facing chat endpoints
+│   │   │   ├── escalate.php      Create a support ticket from a session
+│   │   │   ├── send.php          Main RAG chat endpoint
+│   │   │   ├── session.php       Session create/resume
+│   │   │   └── track.php         Query a carrier tracking API
 │   │   └── widget/
-│   │       └── init.php        External widget token issuance
+│   │       └── init.php          External widget token issuance
 │   └── widget/
 │       ├── chat.css            Widget styles
 │       └── chat.js             Embeddable widget JS
 ├── scripts/
 │   ├── create_admin.php        CLI: create admin user
-│   ├── schema.sql              Full SQLite schema
-│   ├── schema_widget.sql       Widget client tables
+│   ├── deploy_remote.sh        Runs on the VPS as part of the GitHub Actions deploy
+│   ├── process_pending_files.php  Cron: extract any file left in 'pending' status
+│   ├── schema.sql              Core SQLite schema
+│   ├── schema_2fa.sql          Migration: 2FA columns on admin_users
+│   ├── schema_append.sql       Migration: settings table
+│   ├── schema_fts_triggers.sql Migration: FTS5 sync triggers
+│   ├── schema_import_queue.sql Migration: source_url column for bulk URL imports
+│   ├── schema_widget.sql       Migration: widget client tables
 │   └── setup_server.sh         Manual server setup script
 ├── src/
-│   ├── Auth/Admin.php          Session, CSRF, bcrypt login
+│   ├── Auth/
+│   │   ├── Admin.php            Session, CSRF, bcrypt login, roles
+│   │   └── Totp.php             RFC 6238 TOTP (2FA), pure PHP
 │   ├── Gemini/Client.php       Gemini API (flash + pro)
 │   ├── Knowledge/
 │   │   ├── FileExtractor.php   Gemini multimodal file extraction
 │   │   └── Search.php          FTS5 search (knowledge + products)
 │   ├── Products/
 │   │   └── Importer.php        JSON/XML feed importer
+│   ├── Tracking/
+│   │   ├── Detector.php        Tracking intent + carrier detection from message text
+│   │   └── Dispatcher.php      Routes a tracking query to the right carrier API
 │   └── bootstrap.php           DB, autoload, CORS, rate limiting
 └── uploads/                    Uploaded knowledge files (gitignored)
 ```
@@ -591,12 +634,12 @@ See [LICENCE](./LICENCE) Section 6 for the complete compliance statement.
 
 | Phase | Status | Summary |
 |---|---|---|
-| **1 — Core** | ✅ Complete | Chat widget, Gemini RAG, admin UI (8 tabs), file upload, API key storage, model selection, external widget API with IP locking |
+| **1 — Core** | ✅ Complete | Chat widget, Gemini RAG, admin UI (11 tabs), file upload, API key storage, model selection, external widget API with IP locking |
 | **2 — Products** | 🔄 In progress | JSON/XML feed import, product-aware chat, inline product cards, variant handling, admin product browser |
-| **3 — Documents** | ⏳ Planned | Re-extraction, chunk viewer, manual overrides, document-to-product linking |
-| **4 — Tracking** | ⏳ Planned | Royal Mail, DPD, DX; carrier auto-detect; verification gate; tracking log |
-| **5 — Support** | ⏳ Planned | Ticket queue, human takeover, suggested replies, correction workflow, email integration |
-| **6 — Analytics** | ⏳ Planned | Unanswered questions, top topics, product click tracking, knowledge gap detection, CSV export |
+| **3 — Documents** | ✅ Mostly complete | Re-extraction, chunk viewer, manual overrides, scheduled queue processing. Not yet: document tagging, filename-based datasheet linking |
+| **4 — Tracking** | ✅ Live | Royal Mail, DPD*, DX*; carrier auto-detect; tracking log. *DPD/DX use unverified placeholder endpoints. Postcode is collected but not yet verified against order data |
+| **5 — Support** | 🔄 In progress | Ticket queue, correction workflow, staff notes, status tracking. Not yet: human takeover, suggested replies, email integration |
+| **6 — Analytics** | 🔄 In progress | Dashboard metrics, daily volume, unanswered questions, top pages. Not yet: top topics, product click tracking, knowledge gap detection, retention controls, CSV export |
 
 ---
 
