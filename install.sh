@@ -106,7 +106,7 @@ fi
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
     info "Installing pending-file processing cron job..."
-    ( crontab -u www-data -l 2>/dev/null; echo "$CRON_LINE" ) | crontab -u www-data -
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE" ) | crontab -u www-data -
 else
     warn "Pending-file processing cron job already installed — skipping."
 fi

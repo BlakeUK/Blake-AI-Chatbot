@@ -46,7 +46,7 @@ chown www-data:www-data /var/www/chat/data/chatbot.db
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php /var/www/chat/scripts/process_pending_files.php >> /var/www/chat/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
-    ( crontab -u www-data -l 2>/dev/null; echo "$CRON_LINE" ) | crontab -u www-data -
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE" ) | crontab -u www-data -
 fi
 
 # ── Generate encryption key ───────────────────────────────────────────────────
