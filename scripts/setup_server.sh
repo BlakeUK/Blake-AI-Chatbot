@@ -12,7 +12,9 @@ echo "=== Blake UK Chatbot — Server Setup ==="
 # generic/default-version meta-packages and detect the actual version after.
 apt-get update -qq
 apt-get install -y php-fpm php-sqlite3 php-curl php-mbstring \
-                   php-xml php-intl sqlite3 curl unzip git
+                   php-xml php-intl sqlite3 curl unzip git cron
+systemctl enable cron --quiet
+systemctl start cron
 
 PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
 echo "Using PHP $PHP_VERSION"
@@ -36,7 +38,16 @@ sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_fts_trigger
 if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(admin_users);" | grep -q "totp_enabled"; then
     sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_2fa.sql
 fi
+if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(knowledge_files);" | grep -q "source_url"; then
+    sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_import_queue.sql
+fi
 chown www-data:www-data /var/www/chat/data/chatbot.db
+
+# ── Pending-file processing cron (bulk URL imports extract in the background) ─
+CRON_LINE="* * * * * php /var/www/chat/scripts/process_pending_files.php >> /var/www/chat/logs/import_queue.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
+    ( crontab -u www-data -l 2>/dev/null; echo "$CRON_LINE" ) | crontab -u www-data -
+fi
 
 # ── Generate encryption key ───────────────────────────────────────────────────
 ENC_KEY=$(php -r "echo bin2hex(random_bytes(32));")

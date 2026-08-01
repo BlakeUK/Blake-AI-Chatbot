@@ -43,6 +43,16 @@ info "Using PHP $PHP_VERSION"
 # ── SQLite ────────────────────────────────────────────────────────────────────
 command -v sqlite3 >/dev/null 2>&1 || apt-get install -y -qq sqlite3
 
+# ── Cron ─────────────────────────────────────────────────────────────────────
+if ! command -v crontab >/dev/null 2>&1; then
+    info "Installing cron..."
+    apt-get install -y -qq cron
+    systemctl enable cron --quiet
+    systemctl start cron
+else
+    info "cron already installed — skipping."
+fi
+
 # ── Caddy ────────────────────────────────────────────────────────────────────
 if ! command -v caddy >/dev/null 2>&1; then
     info "Installing Caddy..."
@@ -83,6 +93,22 @@ if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(admin_users);" | grep
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_2fa.sql"
 else
     warn "2FA schema already applied — skipping."
+fi
+
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(knowledge_files);" | grep -q "source_url"; then
+    info "Applying bulk URL import schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_import_queue.sql"
+else
+    warn "Bulk URL import schema already applied — skipping."
+fi
+
+# ── Pending-file processing cron (bulk URL imports extract in the background) ─
+CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
+    info "Installing pending-file processing cron job..."
+    ( crontab -u www-data -l 2>/dev/null; echo "$CRON_LINE" ) | crontab -u www-data -
+else
+    warn "Pending-file processing cron job already installed — skipping."
 fi
 
 # ── Config ────────────────────────────────────────────────────────────────────

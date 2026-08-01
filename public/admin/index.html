@@ -538,22 +538,39 @@ function importDirectUrls(){
 async function importUrlsBatched(urls){
   const prog=document.getElementById('url-import-progress');
   prog.innerHTML='';
-  const BATCH=15;
+  const BATCH=50;
+  let queuedCount=0;
   for(let i=0;i<urls.length;i+=BATCH){
     const batch=urls.slice(i,i+BATCH);
-    prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Importing ${i+1}–${Math.min(i+BATCH,urls.length)} of ${urls.length}...</div>`;
+    prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Downloading ${i+1}–${Math.min(i+BATCH,urls.length)} of ${urls.length}...</div>`;
     try{
       const r=await post(API+'/import_urls.php',{csrf,urls:batch});
       if(r.error){prog.innerHTML+=`<div class="alert alert-err">${esc(r.error)}</div>`;continue;}
       (r.results||[]).forEach(res=>{
         const label=res.filename||res.url;
-        const cls=res.status==='indexed'?'alert-ok':'alert-err';
-        const msg=res.status==='indexed'?'Indexed ✓':(res.error||'Error');
+        const cls=res.status==='queued'?'alert-ok':'alert-err';
+        const msg=res.status==='queued'?'Queued ⏳':(res.error||'Error');
+        if(res.status==='queued')queuedCount++;
         prog.innerHTML+=`<div class="alert ${cls}" style="margin-bottom:4px;font-size:12px;word-break:break-all">${esc(label)}: ${esc(msg)}</div>`;
       });
     }catch(e){prog.innerHTML+=`<div class="alert alert-err">Batch failed: could not reach the server</div>`;}
   }
+  if(queuedCount>0){
+    prog.innerHTML+=`<div class="alert alert-info" style="margin-top:6px">${queuedCount} file(s) queued — text extraction runs in the background (about 1 file/minute). Check the Indexed Files table below for progress.</div>`;
+    pollPendingFiles();
+  }
   loadFiles();loadDashboard();
+}
+let pendingPollTimer=null;
+function pollPendingFiles(){
+  if(pendingPollTimer)clearInterval(pendingPollTimer);
+  let ticks=0;
+  pendingPollTimer=setInterval(async()=>{
+    ticks++;
+    await loadFiles();
+    const stillPending=document.querySelectorAll('#files-table .badge-pending').length;
+    if(stillPending===0||ticks>60){clearInterval(pendingPollTimer);pendingPollTimer=null;loadDashboard();}
+  },10000);
 }
 
 async function deleteFile(id){
