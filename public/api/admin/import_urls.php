@@ -1,8 +1,12 @@
 <?php
 // public/api/admin/import_urls.php — POST: bulk-import files by URL
-// Fetches each URL server-side and runs it through the same
-// FileExtractor pipeline as a manual upload, saving the round trip of
-// downloading a leaflet locally just to re-upload it.
+// Fetches each URL server-side, saving the round trip of downloading a
+// leaflet locally just to re-upload it. Only downloads and stores the
+// file here — Gemini extraction is NOT run inline (that used to cap
+// batches at 15 URLs to stay within request timeouts). Instead each
+// file is left in 'pending' status and picked up by
+// scripts/process_pending_files.php (run on a schedule), the same way
+// a crashed-mid-request regular upload would be retried.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
 \Auth\Admin::requireRole('admin', 'editor');
@@ -22,10 +26,10 @@ if (!$urls) {
     json_err('At least one URL required');
 }
 
-// Each URL runs a synchronous Gemini extraction (up to ~60s), so batches
-// are capped to keep the request within reasonable server/proxy timeouts.
-// Submit larger imports in multiple batches.
-const MAX_BATCH = 15;
+// No Gemini call happens in this request anymore, so the cap is just a
+// sanity/DoS guard rather than a timeout constraint - each URL is a
+// download of at most 20 MB.
+const MAX_BATCH = 200;
 if (count($urls) > MAX_BATCH) {
     json_err('Too many URLs in one batch (max ' . MAX_BATCH . ') — submit in smaller batches');
 }
@@ -101,18 +105,10 @@ foreach ($urls as $url) {
     }
     @unlink($tmp);
 
-    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status) VALUES (?,?,?,?)')
-        ->execute([$name, $mime, $destPath, 'pending']);
-    $fileId = (int)$pdo->lastInsertId();
+    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status, source_url) VALUES (?,?,?,?,?)')
+        ->execute([$name, $mime, $destPath, 'pending', $url]);
 
-    $extractErr = \Knowledge\FileExtractor::extract($fileId, $destPath, $mime);
-    if ($extractErr) {
-        $pdo->prepare('UPDATE knowledge_files SET status=?, error=? WHERE id=?')
-            ->execute(['error', $extractErr, $fileId]);
-        $results[] = $result + ['status' => 'error', 'error' => $extractErr, 'filename' => $name];
-    } else {
-        $results[] = $result + ['status' => 'indexed', 'filename' => $name];
-    }
+    $results[] = $result + ['status' => 'queued', 'filename' => $name];
 }
 
 $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
