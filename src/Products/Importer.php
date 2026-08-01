@@ -118,44 +118,111 @@ class Importer
     private static function xmlToArray(\SimpleXMLElement $el): array
     {
         $out = [];
-        foreach ($el as $key => $val) {
-            $children = $val->children();
-            if (count($children) > 0) {
-                $out[(string)$key] = self::xmlToArray($val);
-            } else {
-                $out[(string)$key] = (string)$val;
-            }
-        }
-        // Also handle attributes
+
+        // Element's own attributes, e.g. <price incVat="1.72" excVat="1.43" />
         foreach ($el->attributes() as $k => $v) {
             $out['@' . $k] = (string)$v;
         }
+
+        // Count each child tag name first, so repeated siblings (multiple
+        // <category> or <image> tags) become a list instead of the last one
+        // silently overwriting the rest.
+        $counts = [];
+        foreach ($el as $key => $val) {
+            $counts[(string)$key] = ($counts[(string)$key] ?? 0) + 1;
+        }
+
+        foreach ($el as $key => $val) {
+            $key         = (string)$key;
+            $hasChildren = count($val->children()) > 0;
+            $hasAttrs    = count($val->attributes()) > 0;
+
+            if ($hasChildren) {
+                $value = self::xmlToArray($val);
+            } elseif ($hasAttrs) {
+                // Leaf element that still carries attributes, e.g.
+                // <stock status="in_stock" /> or <attribute name="colour">Black</attribute>
+                $value = self::xmlToArray($val);
+                $text  = trim((string)$val);
+                if ($text !== '') {
+                    $value['#text'] = $text;
+                }
+            } else {
+                $value = (string)$val;
+            }
+
+            if ($counts[$key] > 1) {
+                $out[$key][] = $value;
+            } else {
+                $out[$key] = $value;
+            }
+        }
+
         return $out;
+    }
+
+    // Normalises a value that might be a single item, a list of items, or
+    // absent, into a plain numeric list — handles the XML ambiguity where one
+    // <foo> child parses to an assoc array but two or more parse to a list.
+    private static function asList($val): array
+    {
+        if ($val === null || $val === '') return [];
+        if (!is_array($val)) return [$val];
+        return array_is_list($val) ? $val : [$val];
+    }
+
+    // Unwraps the common XML "<plural><singular>...</singular></plural>"
+    // shape (categoryPath -> category, images -> image, etc.) down to
+    // whatever's inside the singular key, if present. JSON feeds that are
+    // already flat pass straight through untouched.
+    private static function unwrap($val, string $childKey)
+    {
+        if (is_array($val) && isset($val[$childKey])) return $val[$childKey];
+        return $val;
+    }
+
+    // Flattens the "<x name="foo">bar</x>" repeated-element pattern (tech
+    // specs, variant attributes) into a plain ["foo" => "bar"] map. Passes
+    // already-flat JSON-style maps straight through unchanged.
+    private static function flattenAttrs($val): array
+    {
+        $isAttrList = false;
+        $flat = [];
+        foreach (self::asList($val) as $item) {
+            if (is_array($item) && isset($item['@name'])) {
+                $flat[$item['@name']] = $item['#text'] ?? ($item[0] ?? '');
+                $isAttrList = true;
+            }
+        }
+        if ($isAttrList) return $flat;
+        return is_array($val) ? $val : [];
     }
 
     // ── Normalise any feed shape into our schema ──────────────────────────────
     private static function normalise(array $r): array
     {
-        $code = trim((string)($r['product_code'] ?? $r['productCode'] ?? $r['sku'] ?? $r['id'] ?? ''));
+        $code = trim((string)($r['product_code'] ?? $r['productCode'] ?? $r['sku'] ?? $r['id']
+            ?? $r['@id'] ?? $r['@code'] ?? $r['@sku'] ?? $r['@productCode'] ?? ''));
         $name = trim((string)($r['name'] ?? $r['title'] ?? ''));
 
         // Category path
         $cat = $r['category_path'] ?? $r['categoryPath'] ?? $r['category'] ?? [];
-        if (is_string($cat)) $cat = array_filter(array_map('trim', explode('>', $cat)));
+        if (is_string($cat)) {
+            $cat = array_filter(array_map('trim', explode('>', $cat)));
+        } else {
+            $cat = self::asList(self::unwrap($cat, 'category'));
+        }
 
         // Summary bullets
         $bullets = $r['summary_bullets'] ?? $r['summaryBullets'] ?? $r['bullets'] ?? [];
-        if (is_string($bullets)) $bullets = array_filter(array_map('trim', explode("\n", $bullets)));
-
-        // Tech specs — flatten if nested
-        $specs = $r['tech_specs'] ?? $r['techSpecs'] ?? $r['specifications'] ?? [];
-        if (isset($specs['spec'])) {
-            $flat = [];
-            foreach ((array)$specs['spec'] as $s) {
-                if (isset($s['@name'])) $flat[$s['@name']] = $s[0] ?? '';
-            }
-            $specs = $flat;
+        if (is_string($bullets)) {
+            $bullets = array_filter(array_map('trim', explode("\n", $bullets)));
+        } else {
+            $bullets = self::asList(self::unwrap($bullets, 'bullet'));
         }
+
+        // Tech specs — flatten "<spec name=X>Y</spec>" or pass through a JSON map
+        $specs = self::flattenAttrs(self::unwrap($r['tech_specs'] ?? $r['techSpecs'] ?? $r['specifications'] ?? [], 'spec'));
 
         // Price
         $price_data = $r['price'] ?? [];
@@ -166,34 +233,28 @@ class Importer
         $stock_data   = $r['stock'] ?? [];
         $stock_status = $r['stock_status'] ?? $stock_data['status'] ?? $stock_data['@status'] ?? null;
 
-        // Images
-        $images   = $r['images'] ?? [];
-        $img_url  = $r['image_url'] ?? null;
-        $img_alt  = $r['image_alt'] ?? null;
-        if (!$img_url && is_array($images)) {
-            $first   = is_array($images[0] ?? null) ? ($images[0]) : (array)($images['image'] ?? []);
-            $img_url = $first['url'] ?? $first['@url'] ?? null;
-            $img_alt = $first['alt'] ?? $first['@alt'] ?? null;
-        }
+        // Images — take the first only (used for the single chat-card thumbnail)
+        $imageList = self::asList(self::unwrap($r['images'] ?? [], 'image'));
+        $firstImg  = is_array($imageList[0] ?? null) ? $imageList[0] : [];
+        $img_url   = $r['image_url'] ?? ($firstImg['url'] ?? $firstImg['@url'] ?? null);
+        $img_alt   = $r['image_alt'] ?? ($firstImg['alt'] ?? $firstImg['@alt'] ?? null);
 
         // Variants
-        $variants_raw = $r['variants'] ?? [];
         $variants = [];
-        foreach ((array)($variants_raw['variant'] ?? $variants_raw) as $v) {
+        foreach (self::asList(self::unwrap($r['variants'] ?? [], 'variant')) as $v) {
             if (!is_array($v)) continue;
             $variants[] = [
-                'variant_code' => $v['product_code'] ?? $v['productCode'] ?? $v['@productCode'] ?? '',
-                'attributes'   => json_encode($v['attributes'] ?? $v['attribute'] ?? []),
-                'url'          => $v['url'] ?? null,
+                'variant_code'  => $v['product_code'] ?? $v['productCode'] ?? $v['@productCode'] ?? '',
+                'attributes'    => json_encode(self::flattenAttrs($v['attributes'] ?? $v['attribute'] ?? [])),
+                'url'           => $v['url'] ?? $v['@url'] ?? null,
                 'price_inc_vat' => (float)($v['price_inc_vat'] ?? 0),
                 'price_exc_vat' => (float)($v['price_exc_vat'] ?? 0),
             ];
         }
 
         // Documents
-        $docs_raw = $r['documents'] ?? [];
         $documents = [];
-        foreach ((array)($docs_raw['document'] ?? $docs_raw) as $d) {
+        foreach (self::asList(self::unwrap($r['documents'] ?? [], 'document')) as $d) {
             if (!is_array($d)) continue;
             $documents[] = [
                 'type'  => $d['type'] ?? $d['@type'] ?? 'doc',
@@ -203,19 +264,16 @@ class Importer
         }
 
         // Search terms
-        $terms = $r['search_terms'] ?? $r['searchTerms'] ?? [];
-        if (is_array($terms)) {
-            $terms_flat = array_values($terms['term'] ?? $terms);
-            $terms = implode(' ', array_filter(array_map('strval', $terms_flat)));
-        }
+        $termsList = self::asList(self::unwrap($r['search_terms'] ?? $r['searchTerms'] ?? [], 'term'));
+        $terms     = implode(' ', array_filter(array_map('strval', $termsList)));
 
         return [
             'product_code'   => $code,
             'name'           => $name,
             'title'          => $r['title'] ?? $name,
             'url'            => $r['url'] ?? null,
-            'category_path'  => json_encode(array_values((array)$cat)),
-            'summary_bullets'=> json_encode(array_values((array)$bullets)),
+            'category_path'  => json_encode(array_values($cat)),
+            'summary_bullets'=> json_encode(array_values($bullets)),
             'description'    => strip_tags((string)($r['description_html'] ?? $r['descriptionHtml'] ?? $r['description'] ?? '')),
             'tech_specs'     => json_encode($specs),
             'price_inc_vat'  => $price_inc ?: null,
