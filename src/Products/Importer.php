@@ -198,12 +198,23 @@ class Importer
         return is_array($val) ? $val : [];
     }
 
+    // Bounds a text field to a sane maximum length. Product names/titles are
+    // typically under 100 chars for anything real; this only ever bites on a
+    // pathological or corrupted feed value, but name/title aren't truncated
+    // anywhere downstream (unlike description), so an unbounded one would
+    // bloat the Gemini prompt and break the widget's product card layout.
+    private static function capLength(string $s, int $max = 300): string
+    {
+        return mb_strlen($s) > $max ? mb_substr($s, 0, $max) : $s;
+    }
+
     // ── Normalise any feed shape into our schema ──────────────────────────────
     private static function normalise(array $r): array
     {
         $code = trim((string)($r['product_code'] ?? $r['productCode'] ?? $r['sku'] ?? $r['id']
             ?? $r['@id'] ?? $r['@code'] ?? $r['@sku'] ?? $r['@productCode'] ?? ''));
-        $name = trim((string)($r['name'] ?? $r['title'] ?? ''));
+        $name  = self::capLength(trim((string)($r['name'] ?? $r['title'] ?? '')));
+        $title = self::capLength(trim((string)($r['title'] ?? $name)));
 
         // Category path
         $cat = $r['category_path'] ?? $r['categoryPath'] ?? $r['category'] ?? [];
@@ -224,10 +235,14 @@ class Importer
         // Tech specs — flatten "<spec name=X>Y</spec>" or pass through a JSON map
         $specs = self::flattenAttrs(self::unwrap($r['tech_specs'] ?? $r['techSpecs'] ?? $r['specifications'] ?? [], 'spec'));
 
-        // Price
+        // Price — negative values are never legitimate here and would look
+        // like a broken bot if quoted back to a customer, so treat as absent
+        // rather than storing/repeating a nonsense figure.
         $price_data = $r['price'] ?? [];
         $price_inc  = (float)($r['price_inc_vat'] ?? $price_data['inc_vat'] ?? $price_data['@incVat'] ?? 0);
         $price_exc  = (float)($r['price_exc_vat'] ?? $price_data['exc_vat'] ?? $price_data['@excVat'] ?? 0);
+        if ($price_inc < 0) $price_inc = 0.0;
+        if ($price_exc < 0) $price_exc = 0.0;
 
         // Stock
         $stock_data   = $r['stock'] ?? [];
@@ -270,7 +285,7 @@ class Importer
         return [
             'product_code'   => $code,
             'name'           => $name,
-            'title'          => $r['title'] ?? $name,
+            'title'          => $title,
             'url'            => $r['url'] ?? null,
             'category_path'  => json_encode(array_values($cat)),
             'summary_bullets'=> json_encode(array_values($bullets)),

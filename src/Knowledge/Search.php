@@ -84,13 +84,24 @@ class Search
         return $hits;
     }
 
-    // Escape special FTS5 chars to prevent query errors
+    // Escape special FTS5 chars to prevent query errors. Stripping symbols
+    // isn't enough on its own: FTS5 reserved words (AND/OR/NOT/NEAR) and a
+    // trailing/standalone "-" are still valid ASCII letters/hyphens, so they
+    // survive the character filter and get parsed as query operators rather
+    // than literal search terms - "cable AND connector" or a message that
+    // happens to sanitise down to a trailing "--" both throw an uncaught
+    // FTS5 syntax error otherwise. Quoting each word individually makes
+    // every token literal regardless of content.
     private static function sanitiseFts(string $q): string
     {
         $q = trim($q);
         $q = preg_replace('/[^a-zA-Z0-9\s\-_]/', ' ', $q);
-        $q = preg_replace('/\s+/', ' ', $q);
-        return trim($q);
+        $words = preg_split('/\s+/', trim($q), -1, PREG_SPLIT_NO_EMPTY);
+        if (!$words) {
+            return '';
+        }
+        $quoted = array_map(fn($w) => '"' . str_replace('"', '""', $w) . '"', $words);
+        return implode(' ', $quoted);
     }
 
     // Formats a single product row into the text block used in the Gemini
