@@ -67,7 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (_recent.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No sessions yet.', style: TextStyle(color: Color(0xFFADB4BA))),
+              child: Text('No sessions yet.', style: TextStyle(color: Colors.grey)),
             )
           else
             ..._recent.map((r) => Card(

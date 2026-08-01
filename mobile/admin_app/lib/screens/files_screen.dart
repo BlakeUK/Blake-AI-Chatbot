@@ -108,9 +108,9 @@ class _FilesScreenState extends State<FilesScreen> {
                     margin: const EdgeInsets.all(12),
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF262B31),
+                      color: const Color(0xFFF8F8F8),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFF6B7480)),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
                     child: SingleChildScrollView(
                       child: Column(
@@ -119,7 +119,7 @@ class _FilesScreenState extends State<FilesScreen> {
                             .map((l) => Text(l,
                                 style: TextStyle(
                                     fontSize: 12,
-                                    color: l.contains('✓') ? Colors.green.shade300 : Colors.red.shade300)))
+                                    color: l.contains('✓') ? Colors.green.shade800 : Colors.red.shade800)))
                             .toList(),
                       ),
                     ),
@@ -132,7 +132,7 @@ class _FilesScreenState extends State<FilesScreen> {
                             Padding(
                               padding: EdgeInsets.all(24),
                               child: Center(
-                                  child: Text('No files yet.', style: TextStyle(color: Color(0xFFADB4BA)))),
+                                  child: Text('No files yet.', style: TextStyle(color: Colors.grey))),
                             )
                           ])
                         : ListView.builder(
@@ -146,7 +146,7 @@ class _FilesScreenState extends State<FilesScreen> {
                                   title: Text(r['filename']?.toString() ?? ''),
                                   subtitle: status == 'error'
                                       ? Text(r['error']?.toString() ?? 'Error',
-                                          style: const TextStyle(color: Color(0xFFF5A3A3)))
+                                          style: const TextStyle(color: Colors.red))
                                       : Text(r['mime_type']?.toString() ?? ''),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -154,7 +154,7 @@ class _FilesScreenState extends State<FilesScreen> {
                                       StatusBadge(text: status, ok: status == 'indexed'),
                                       if (_canEdit)
                                         IconButton(
-                                          icon: const Icon(Icons.delete, color: Color(0xFFF5A3A3)),
+                                          icon: const Icon(Icons.delete, color: Colors.red),
                                           onPressed: () => _delete(r['id'] as int),
                                         ),
                                     ],

@@ -75,7 +75,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                           Padding(
                             padding: EdgeInsets.all(24),
                             child: Center(
-                                child: Text('No tickets.', style: TextStyle(color: Color(0xFFADB4BA)))),
+                                child: Text('No tickets.', style: TextStyle(color: Colors.grey))),
                           )
                         ])
                       : ListView.builder(
@@ -166,7 +166,7 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text('Customer: ${t['customer_email'] ?? '—'} · Created ${fmtDate(t['created_at'])}',
-              style: const TextStyle(color: Color(0xFFADB4BA), fontSize: 13)),
+              style: const TextStyle(color: Colors.grey, fontSize: 13)),
           const SizedBox(height: 16),
           if (_canEdit)
             Row(
@@ -193,7 +193,7 @@ class _TicketDetailScreenState extends State<_TicketDetailScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFF262B31), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(6)),
             child: Text(_notes?.isNotEmpty == true ? _notes! : 'No notes yet.'),
           ),
           if (_canEdit) ...[

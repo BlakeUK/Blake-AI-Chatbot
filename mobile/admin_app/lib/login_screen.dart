@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                     Text(_needs2fa ? 'Verify' : 'Admin',
                         style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF8FB0EC))),
+                            fontSize: 20, fontWeight: FontWeight.bold, color: kBrandBlue)),
                     const SizedBox(height: 16),
                     if (_error != null)
                       Padding(

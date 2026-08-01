@@ -157,7 +157,7 @@ class _UsersScreenState extends State<UsersScreen> {
           if (_rows.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('No users yet.', style: TextStyle(color: Color(0xFFADB4BA))),
+              child: Text('No users yet.', style: TextStyle(color: Colors.grey)),
             )
           else
             ..._rows.map((r) {
@@ -176,7 +176,7 @@ class _UsersScreenState extends State<UsersScreen> {
                                 style: const TextStyle(fontWeight: FontWeight.bold)),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Color(0xFFF5A3A3)),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => _delete(id),
                           ),
                         ],
@@ -204,7 +204,7 @@ class _UsersScreenState extends State<UsersScreen> {
                       ),
                       Text(
                         'Created ${fmtDate(r['created_at'])} · Last login ${r['last_login'] != null ? fmtDate(r['last_login']) : 'Never'}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFFADB4BA)),
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                     ],
                   ),

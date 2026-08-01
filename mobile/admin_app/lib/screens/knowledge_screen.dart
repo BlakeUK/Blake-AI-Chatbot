@@ -68,7 +68,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                       Padding(
                         padding: EdgeInsets.all(24),
                         child: Center(
-                            child: Text('No entries yet.', style: TextStyle(color: Color(0xFFADB4BA)))),
+                            child: Text('No entries yet.', style: TextStyle(color: Colors.grey))),
                       )
                     ])
                   : ListView.builder(
@@ -86,7 +86,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                                 StatusBadge(text: r['active'] == 1 ? 'Active' : 'Inactive', ok: r['active'] == 1),
                                 if (_canEdit)
                                   IconButton(
-                                    icon: const Icon(Icons.delete, color: Color(0xFFF5A3A3)),
+                                    icon: const Icon(Icons.delete, color: Colors.red),
                                     onPressed: () => _delete(r['id'] as int),
                                   ),
                               ],

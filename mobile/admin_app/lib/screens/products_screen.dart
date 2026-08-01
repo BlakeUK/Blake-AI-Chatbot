@@ -60,7 +60,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _rows.isEmpty
-                  ? const Center(child: Text('No products found.', style: TextStyle(color: Color(0xFFADB4BA))))
+                  ? const Center(child: Text('No products found.', style: TextStyle(color: Colors.grey)))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       itemCount: _rows.length,

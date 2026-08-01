@@ -88,7 +88,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
         children: [
           const Text(
             'Store API keys for the Gemini AI model and carrier tracking services. Keys are encrypted at rest and never shown again once saved.',
-            style: TextStyle(color: Color(0xFFADB4BA), fontSize: 13),
+            style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 16),
           for (final service in _kKnownServices) ...[
@@ -130,7 +130,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                     ),
                     if (_configured(service))
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Color(0xFFF5A3A3)),
+                        icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () => _delete(service),
                       ),
                   ],
