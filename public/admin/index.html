@@ -6,34 +6,34 @@
 <link rel="icon" type="image/png" href="/assets/blake-uk-logo.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f4f4;color:#222}
-header{background:#2f343b;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+body{font-family:system-ui,sans-serif;font-size:14px;background:#2f343b;color:#e8e8ea}
+header{background:#2f343b;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #454c54}
 header h1{font-size:17px;font-weight:700}
 #logout-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:13px}
-nav{background:#fff;border-bottom:2px solid #3d5a99;display:flex;overflow-x:auto;scrollbar-width:none}
+nav{background:#2f343b;border-bottom:2px solid #8fb0ec;display:flex;overflow-x:auto;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
-nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
-nav button.active{border-bottom-color:#3d5a99;color:#3d5a99}
-nav button:hover{background:#fafafa}
+nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px;color:#adb4ba}
+nav button.active{border-bottom-color:#8fb0ec;color:#8fb0ec}
+nav button:hover{background:rgba(255,255,255,.06)}
 main{padding:20px;max-width:1200px;margin:0 auto}
 .tab{display:none}.tab.active{display:block}
-.card{background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px;margin-bottom:16px}
-.card h2{font-size:15px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee}
-label{display:block;margin-bottom:4px;font-weight:500;font-size:13px}
-input[type=text],input[type=password],select,textarea{width:100%;padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-family:inherit}
-input:focus,select:focus,textarea:focus{outline:none;border-color:#3d5a99}
+.card{background:#3a4048;border:1px solid #454c54;border-radius:6px;padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #454c54;color:#e8e8ea}
+label{display:block;margin-bottom:4px;font-weight:500;font-size:13px;color:#e8e8ea}
+input[type=text],input[type=password],select,textarea{width:100%;padding:7px 10px;border:1px solid #6b7480;border-radius:4px;font-size:13px;font-family:inherit;background:#262b31;color:#e8e8ea}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#8fb0ec}
 textarea{resize:vertical;min-height:80px}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
 .row>*{flex:1;min-width:140px}
 .row>.btn{flex:0 0 auto}
 .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600}
 .btn-primary{background:#3d5a99;color:#fff}.btn-primary:hover{background:#2f4677}
-.btn-secondary{background:#555;color:#fff}
+.btn-secondary{background:#5c636b;color:#fff}
 .btn-danger{background:#c0392b;color:#fff}
 .btn:disabled{opacity:.5;cursor:default}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee}
-th{background:#f8f8f8;font-weight:600}tr:hover td{background:#fafafa}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #454c54;color:#e8e8ea}
+th{background:#262b31;font-weight:600;color:#adb4ba}tr:hover td{background:rgba(255,255,255,.04)}
 td .btn{padding:4px 10px;font-size:12px}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
 .badge-ok,.badge-indexed,.badge-active{background:#d4edda;color:#155724}
@@ -44,18 +44,18 @@ td .btn{padding:4px 10px;font-size:12px}
 .alert-err{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
 .alert-warn{background:#fff3cd;color:#856404;border:1px solid #ffc107}
 .alert-info{background:#d1ecf1;color:#0c5460;border:1px solid #bee5eb}
-.upload-zone{border:2px dashed #ccc;border-radius:6px;padding:24px;text-align:center;color:#888;cursor:pointer;transition:border .2s}
-.upload-zone.drag{border-color:#3d5a99;background:#fff8f8}
+.upload-zone{border:2px dashed #6b7480;border-radius:6px;padding:24px;text-align:center;color:#adb4ba;cursor:pointer;transition:border .2s}
+.upload-zone.drag{border-color:#8fb0ec;background:rgba(143,176,236,.08)}
 .upload-zone input{display:none}
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
-.stat{background:#fff;border:1px solid #ddd;border-radius:6px;padding:14px;text-align:center}
-.stat .n{font-size:28px;font-weight:800;color:#3d5a99}
-.stat .l{font-size:12px;color:#888;margin-top:2px}
-code{font-family:monospace;font-size:12px}
+.stat{background:#3a4048;border:1px solid #454c54;border-radius:6px;padding:14px;text-align:center}
+.stat .n{font-size:28px;font-weight:800;color:#8fb0ec}
+.stat .l{font-size:12px;color:#adb4ba;margin-top:2px}
+code{font-family:monospace;font-size:12px;color:#e8e8ea}
 #login-overlay{position:fixed;inset:0;background:#2f343b;display:flex;align-items:center;justify-content:center;z-index:1000}
-#login-box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:32px;width:320px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
+#login-box{background:#3a4048;border:1px solid #454c54;border-radius:8px;padding:32px;width:320px;box-shadow:0 4px 24px rgba(0,0,0,.3)}
 #login-box img{display:block;height:36px;width:auto;margin:0 auto 20px}
-#login-box h2{margin-bottom:20px;color:#3d5a99;font-size:18px;text-align:center}
+#login-box h2{margin-bottom:20px;color:#8fb0ec;font-size:18px;text-align:center}
 #login-box label{margin-top:10px}
 #login-box .btn{width:100%;margin-top:18px;padding:10px}
 .import-result{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
@@ -121,7 +121,7 @@ code{font-family:monospace;font-size:12px}
       <h2>Recent Chat Sessions</h2>
       <table id="dash-logs-table">
         <thead><tr><th>Session</th><th>Page</th><th>Messages</th><th>Last active</th></tr></thead>
-        <tbody><tr><td colspan="4" style="color:#888">Loading...</td></tr></tbody>
+        <tbody><tr><td colspan="4" style="color:#adb4ba">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -154,7 +154,7 @@ code{font-family:monospace;font-size:12px}
   <div id="tab-files" class="tab">
     <div class="card" data-role="editor">
       <h2>Upload Knowledge Files</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
         <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.csv,.json,.xml,.jpg,.jpeg,.png,.webp" onchange="uploadFiles(this.files)">
         <div style="font-size:32px;margin-bottom:8px">📁</div>
@@ -164,20 +164,20 @@ code{font-family:monospace;font-size:12px}
     </div>
     <div class="card" data-role="editor">
       <h2>Import from URL</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px">Paste a page or sitemap.xml URL to discover PDF links on the website, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Paste a page or sitemap.xml URL to discover PDF links on the website, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input type="text" id="discover-url" placeholder="https://www.blake-uk.com/leaflets or /sitemap.xml" style="flex:1;min-width:240px">
         <button class="btn btn-secondary" onclick="discoverUrls()">Discover PDF Links</button>
       </div>
-      <div id="discover-status" style="font-size:13px;color:#888;margin-bottom:10px"></div>
+      <div id="discover-status" style="font-size:13px;color:#adb4ba;margin-bottom:10px"></div>
       <div id="discover-results" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-select-all" checked onchange="toggleAllDiscovered(this.checked)"> Select all</label>
           <button class="btn btn-primary" onclick="importSelectedUrls()">Import Selected</button>
         </div>
-        <div id="discover-list" style="max-height:240px;overflow-y:auto;border:1px solid #eee;border-radius:4px;padding:8px;font-size:13px"></div>
+        <div id="discover-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
       </div>
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee">
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #454c54">
         <label>Or paste PDF URLs directly (one per line)</label>
         <textarea id="direct-urls" placeholder="https://www.blake-uk.com/leaflets/product-a.pdf"></textarea>
         <button class="btn btn-secondary" style="margin-top:8px" onclick="importDirectUrls()">Import These URLs</button>
@@ -197,7 +197,7 @@ code{font-family:monospace;font-size:12px}
   <div id="tab-products" class="tab">
     <div class="card" data-role="editor">
       <h2>Import Product Feed</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px">Upload a JSON or XML product feed (max 50 MB). Products are upserted — existing records are updated, new ones created.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Upload a JSON or XML product feed (max 50 MB). Products are upserted — existing records are updated, new ones created.</p>
       <div class="upload-zone" id="feed-drop-zone" onclick="document.getElementById('feed-input').click()">
         <input type="file" id="feed-input" accept=".json,.xml" onchange="importFeed(this.files[0])">
         <div style="font-size:32px;margin-bottom:8px">📦</div>
@@ -225,7 +225,7 @@ code{font-family:monospace;font-size:12px}
   <div id="tab-apikeys" class="tab">
     <div class="card">
       <h2>Gemini API Key</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px">Stored encrypted (AES-256-GCM). Never returned to the browser after saving.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Stored encrypted (AES-256-GCM). Never returned to the browser after saving.</p>
       <div class="row">
         <div><label>API Key</label><input type="password" id="gemini-key-input" placeholder="Paste Gemini API key here" autocomplete="off"></div>
         <button class="btn btn-primary" onclick="saveApiKey('gemini')">Save</button>
@@ -252,7 +252,7 @@ code{font-family:monospace;font-size:12px}
   <div id="tab-models" class="tab">
     <div class="card">
       <h2>Gemini Model Selection</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px">Models fetched live from Google API using your stored key. Save Gemini key first, then click Refresh.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Models fetched live from Google API using your stored key. Save Gemini key first, then click Refresh.</p>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><label>Chat Model (used for answering customer questions)</label><select id="chat-model-select"><option>— save Gemini key first, then refresh —</option></select></div>
         <div><label>Extraction Model (PDF / image / document indexing)</label><select id="extract-model-select"><option>— save Gemini key first, then refresh —</option></select></div>
@@ -269,7 +269,7 @@ code{font-family:monospace;font-size:12px}
   <div id="tab-clients" class="tab">
     <div class="card">
       <h2>Create External Widget Client</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px">Each client gets a unique API key. Access can be locked to specific server IP addresses and/or origin domains.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Each client gets a unique API key. Access can be locked to specific server IP addresses and/or origin domains.</p>
       <div class="row">
         <div><label>Client Name</label><input type="text" id="c-name" placeholder="e.g. Partner Site A or partnersite.co.uk"></div>
         <div><label>Allowed IPs (comma or newline — empty = allow all)</label><input type="text" id="c-ips" placeholder="81.174.22.10, 81.174.22.11"></div>
@@ -285,7 +285,7 @@ code{font-family:monospace;font-size:12px}
         <tbody></tbody>
       </table>
     </div>
-    <div class="card" style="background:#f0f8ff;border-color:#b8daff">
+    <div class="card" style="background:#3a4048;border-color:#454c54">
       <h2>Integration Example</h2>
       <pre style="font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto;line-height:1.6"><code>&lt;!-- On the external site, before &lt;/body&gt; --&gt;
 &lt;script&gt;
@@ -317,7 +317,7 @@ window.BlakeUKWidget = {
     </div>
     <div class="card">
       <h2>Users</h2>
-      <p style="margin-bottom:12px;color:#555;font-size:13px"><b>Admin:</b> full access. <b>Editor:</b> manage knowledge, files and products. <b>User:</b> view-only.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px"><b>Admin:</b> full access. <b>Editor:</b> manage knowledge, files and products. <b>User:</b> view-only.</p>
       <table id="users-table">
         <thead><tr><th>Username</th><th>Role</th><th>2FA</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
         <tbody></tbody>
@@ -331,7 +331,7 @@ window.BlakeUKWidget = {
       <h2>Recent Chat Sessions</h2>
       <table id="logs-table">
         <thead><tr><th>Session</th><th>Page</th><th>Product Code</th><th>Messages</th><th>Last active</th><th></th></tr></thead>
-        <tbody><tr><td colspan="6" style="color:#888">Loading...</td></tr></tbody>
+        <tbody><tr><td colspan="6" style="color:#adb4ba">Loading...</td></tr></tbody>
       </table>
     </div>
     <div class="card" id="chatlogs-detail-card" style="display:none">
@@ -358,7 +358,7 @@ window.BlakeUKWidget = {
       </div>
       <table id="tickets-table">
         <thead><tr><th>Subject</th><th>Email</th><th>Status</th><th>Messages</th><th>Created</th><th></th></tr></thead>
-        <tbody><tr><td colspan="6" style="color:#888">Loading...</td></tr></tbody>
+        <tbody><tr><td colspan="6" style="color:#adb4ba">Loading...</td></tr></tbody>
       </table>
     </div>
     <div class="card" id="ticket-detail-card" style="display:none">
@@ -464,7 +464,7 @@ async function loadDashboard(){
 async function loadKnowledge(){
   const rows=await get(API+'/knowledge.php');
   const tb=document.querySelector('#knowledge-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.title)}</td><td>${esc(r.category||'')}</td><td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td><td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No entries yet.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.title)}</td><td>${esc(r.category||'')}</td><td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td><td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No entries yet.</td></tr>';
 }
 async function saveKnowledge(){
   const body={csrf,title:val('k-title'),body:val('k-body'),category:val('k-cat'),url:val('k-url'),product_codes:val('k-codes')};
@@ -483,7 +483,7 @@ async function deleteKnowledge(id){
 async function loadFiles(){
   const rows=await get(API+'/files.php');
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#c00">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#888">No files uploaded yet.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No files uploaded yet.</td></tr>';
 }
 async function uploadFiles(files){
   const prog=document.getElementById('upload-progress');
@@ -592,7 +592,7 @@ async function loadProducts(){
   tb.innerHTML=rows.length?rows.map(p=>{
     const cat=JSON.parse(p.category_path||'[]').join(' › ')||'';
     return `<tr><td><code>${esc(p.product_code)}</code></td><td>${esc(p.name)}</td><td>${esc(cat)}</td><td>${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2):'—'}</td><td><span class="badge ${p.stock_status==='in_stock'?'badge-ok':'badge-pending'}">${esc(p.stock_status||'unknown')}</span></td><td><span class="badge ${p.active?'badge-ok':'badge-error'}">${p.active?'Yes':'No'}</span></td><td><button class="btn btn-secondary" data-code="${esc(p.product_code)}" onclick="viewProductDetail(this.dataset.code)">View</button></td></tr>`;
-  }).join(''):'<tr><td colspan="7" style="color:#888">No products imported yet.</td></tr>';
+  }).join(''):'<tr><td colspan="7" style="color:#adb4ba">No products imported yet.</td></tr>';
 }
 function searchProducts(){productSearch=document.getElementById('product-search').value;clearTimeout(window._psTimer);window._psTimer=setTimeout(loadProducts,300);}
 
@@ -603,30 +603,30 @@ async function viewProductDetail(code){
   const content=document.getElementById('products-detail-content');
   content.innerHTML='Loading...';
   const d=await get(API+'/product_detail.php?code='+encodeURIComponent(code));
-  if(!d||d.error){content.innerHTML='<p style="color:#c00">'+esc(d&&d.error?d.error:'Unable to load product')+'</p>';return;}
+  if(!d||d.error){content.innerHTML='<p style="color:#f5a3a3">'+esc(d&&d.error?d.error:'Unable to load product')+'</p>';return;}
   const p=d.product;
   const cat=JSON.parse(p.category_path||'[]').join(' › ')||'—';
   const bullets=JSON.parse(p.summary_bullets||'[]');
   const specs=JSON.parse(p.tech_specs||'{}');
-  const specRows=Object.keys(specs).map(k=>`<tr><td style="color:#888">${esc(k)}</td><td>${esc(String(specs[k]))}</td></tr>`).join('');
+  const specRows=Object.keys(specs).map(k=>`<tr><td style="color:#adb4ba">${esc(k)}</td><td>${esc(String(specs[k]))}</td></tr>`).join('');
   content.innerHTML=`
     <div style="display:flex;gap:16px;flex-wrap:wrap">
-      ${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.image_alt||'')}" style="width:120px;height:120px;object-fit:contain;border:1px solid #eee;border-radius:6px">`:''}
+      ${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.image_alt||'')}" style="width:120px;height:120px;object-fit:contain;border:1px solid #454c54;border-radius:6px">`:''}
       <div style="flex:1;min-width:240px">
         <h2 style="margin-bottom:4px">${esc(p.name)}</h2>
-        <p style="color:#888;font-size:13px">${esc(p.title||'')}</p>
+        <p style="color:#adb4ba;font-size:13px">${esc(p.title||'')}</p>
         <p style="margin-top:8px"><code>${esc(p.product_code)}</code> · ${esc(cat)} · <span class="badge ${p.active?'badge-ok':'badge-error'}">${p.active?'Active':'Inactive'}</span></p>
-        <p style="margin-top:8px;font-size:18px;font-weight:700">${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2)+' inc VAT':'No price set'}${p.price_exc_vat?` <span style="font-size:13px;font-weight:400;color:#888">(£${parseFloat(p.price_exc_vat).toFixed(2)} exc VAT)</span>`:''}</p>
+        <p style="margin-top:8px;font-size:18px;font-weight:700">${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2)+' inc VAT':'No price set'}${p.price_exc_vat?` <span style="font-size:13px;font-weight:400;color:#adb4ba">(£${parseFloat(p.price_exc_vat).toFixed(2)} exc VAT)</span>`:''}</p>
         <p><span class="badge ${p.stock_status==='in_stock'?'badge-ok':'badge-pending'}">${esc(p.stock_status||'unknown')}</span></p>
         ${p.url?`<p style="margin-top:8px"><a href="${esc(p.url)}" target="_blank" style="font-size:13px">${esc(p.url)}</a></p>`:''}
       </div>
     </div>
     ${bullets.length?`<ul style="margin-top:16px">${bullets.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`:''}
-    ${p.description?`<p style="margin-top:12px;color:#555">${esc(p.description)}</p>`:''}
+    ${p.description?`<p style="margin-top:12px;color:#adb4ba">${esc(p.description)}</p>`:''}
     ${specRows?`<h3 style="margin-top:20px">Tech specs</h3><table>${specRows}</table>`:''}
     ${d.variants.length?`<h3 style="margin-top:20px">Variants (${d.variants.length})</h3><table><thead><tr><th>Code</th><th>Attributes</th><th>Price</th></tr></thead><tbody>${d.variants.map(v=>`<tr><td><code>${esc(v.variant_code)}</code></td><td>${esc(Object.entries(JSON.parse(v.attributes||'{}')).map(([k,val])=>k+': '+val).join(', '))}</td><td>${v.price_inc_vat?'£'+parseFloat(v.price_inc_vat).toFixed(2):'—'}</td></tr>`).join('')}</tbody></table>`:''}
     ${d.documents.length?`<h3 style="margin-top:20px">Documents</h3><ul>${d.documents.map(doc=>`<li><a href="${esc(doc.url)}" target="_blank">${esc(doc.title||doc.doc_type||'Document')}</a></li>`).join('')}</ul>`:''}
-    ${d.related.length?`<h3 style="margin-top:20px">Related products (${d.related.length})</h3><div style="display:flex;gap:10px;flex-wrap:wrap">${d.related.map(rp=>`<div style="border:1px solid #eee;border-radius:6px;padding:10px;width:180px;cursor:pointer" data-code="${esc(rp.product_code)}" onclick="viewProductDetail(this.dataset.code)"><strong style="font-size:13px">${esc(rp.name)}</strong><br><span style="font-size:12px;color:#888">${esc(rp.product_code)}</span>${rp.price_inc_vat?`<br><span style="font-size:13px">£${parseFloat(rp.price_inc_vat).toFixed(2)}</span>`:''}</div>`).join('')}</div>`:''}
+    ${d.related.length?`<h3 style="margin-top:20px">Related products (${d.related.length})</h3><div style="display:flex;gap:10px;flex-wrap:wrap">${d.related.map(rp=>`<div style="border:1px solid #454c54;border-radius:6px;padding:10px;width:180px;cursor:pointer" data-code="${esc(rp.product_code)}" onclick="viewProductDetail(this.dataset.code)"><strong style="font-size:13px">${esc(rp.name)}</strong><br><span style="font-size:12px;color:#adb4ba">${esc(rp.product_code)}</span>${rp.price_inc_vat?`<br><span style="font-size:13px">£${parseFloat(rp.price_inc_vat).toFixed(2)}</span>`:''}</div>`).join('')}</div>`:''}
   `;
 }
 function closeProductDetail(){
@@ -664,7 +664,7 @@ fdz.addEventListener('drop',e=>{e.preventDefault();fdz.classList.remove('drag');
 async function loadApiKeys(){
   const rows=await get(API+'/apikeys.php');
   const tb=document.querySelector('#keys-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td><code>${esc(r.service)}</code></td><td>${fmtDate(r.updated_at)}</td><td><button class="btn btn-danger" onclick="deleteApiKey('${esc(r.service)}')">Delete</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:#888">No keys stored.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td><code>${esc(r.service)}</code></td><td>${fmtDate(r.updated_at)}</td><td><button class="btn btn-danger" onclick="deleteApiKey('${esc(r.service)}')">Delete</button></td></tr>`).join(''):'<tr><td colspan="3" style="color:#adb4ba">No keys stored.</td></tr>';
 }
 async function saveApiKey(service){
   const inputId=service==='gemini'?'gemini-key-input':'key-'+service;
@@ -683,7 +683,7 @@ async function deleteApiKey(service){
 // ── Models ─────────────────────────────────────────────────────────────────────
 async function fetchModels(){
   const st=document.getElementById('models-status');
-  st.innerHTML='<span style="color:#888">Fetching models from Google API...</span>';
+  st.innerHTML='<span style="color:#adb4ba">Fetching models from Google API...</span>';
   try{
     const models=await get(API+'/models.php');
     ['chat-model-select','extract-model-select'].forEach(id=>{
@@ -692,7 +692,7 @@ async function fetchModels(){
     });
     await loadModelSettings();
     st.innerHTML=`<span style="color:#155724">${models.length} models loaded ✓</span>`;
-  }catch(e){st.innerHTML='<span style="color:#c00">Failed — save Gemini key first, then refresh</span>';}
+  }catch(e){st.innerHTML='<span style="color:#f5a3a3">Failed — save Gemini key first, then refresh</span>';}
 }
 async function loadModelSettings(){
   try{const s=await get(API+'/settings.php');setSelectValue('chat-model-select',s.gemini_chat_model);setSelectValue('extract-model-select',s.gemini_extract_model);}catch(_){}
@@ -706,17 +706,17 @@ async function saveModelSettings(){
 async function loadClients(){
   const rows=await get(API+'/clients.php');
   const tb=document.querySelector('#clients-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="8" style="color:#888">Unable to load.</td></tr>';return;}
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="8" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(r=>`<tr>
     <td><strong>${esc(r.name)}</strong></td>
     <td><code style="font-size:11px">${esc(r.api_key_masked||'—')}</code></td>
-    <td style="font-size:11px">${JSON.parse(r.allowed_ips||'[]').join('<br>')||'<em style="color:#aaa">Any</em>'}</td>
-    <td style="font-size:11px">${JSON.parse(r.allowed_origins||'[]').join('<br>')||'<em style="color:#aaa">Any</em>'}</td>
+    <td style="font-size:11px">${JSON.parse(r.allowed_ips||'[]').join('<br>')||'<em style="color:#adb4ba">Any</em>'}</td>
+    <td style="font-size:11px">${JSON.parse(r.allowed_origins||'[]').join('<br>')||'<em style="color:#adb4ba">Any</em>'}</td>
     <td>${esc(r.total_requests||0)}</td>
-    <td style="font-size:11px;color:#888">${r.last_seen?fmtDate(r.last_seen):'—'}</td>
+    <td style="font-size:11px;color:#adb4ba">${r.last_seen?fmtDate(r.last_seen):'—'}</td>
     <td><span class="badge ${r.active?'badge-active':'badge-revoked'}">${r.active?'Active':'Revoked'}</span></td>
     <td>${r.active?`<button class="btn btn-danger" onclick="revokeClient(${r.id})">Revoke</button>`:''}</td>
-  </tr>`).join(''):'<tr><td colspan="8" style="color:#888">No clients configured.</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="8" style="color:#adb4ba">No clients configured.</td></tr>';
 }
 function looksLikeDomain(s){
   return /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/i.test(s);
@@ -754,14 +754,14 @@ async function revokeClient(id){
 async function loadUsers(){
   const rows=await get(API+'/users.php');
   const tb=document.querySelector('#users-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#888">Unable to load.</td></tr>';return;}
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.username)}</td><td>
     <select onchange="updateUserRole(${r.id},this.value)">
       <option value="admin" ${r.role==='admin'?'selected':''}>Admin</option>
       <option value="editor" ${r.role==='editor'?'selected':''}>Editor</option>
       <option value="user" ${r.role==='user'?'selected':''}>User</option>
     </select>
-    </td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="6" style="color:#888">No users yet.</td></tr>';
+    </td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No users yet.</td></tr>';
 }
 async function resetUser2fa(id){
   if(!confirm('Reset 2FA for this user? They will need to set it up again.'))return;
@@ -814,7 +814,7 @@ function renderTfaStatus(enabled){
     `;
   } else {
     el.innerHTML=`
-      <p style="margin-bottom:12px;color:#555">2FA is currently off. Enabling it requires an authenticator app (Google Authenticator, Authy, etc.) on your phone.</p>
+      <p style="margin-bottom:12px;color:#adb4ba">2FA is currently off. Enabling it requires an authenticator app (Google Authenticator, Authy, etc.) on your phone.</p>
       <button class="btn btn-primary" onclick="startTfaEnroll()">Enable 2FA</button>
     `;
   }
@@ -824,10 +824,10 @@ async function startTfaEnroll(){
   if(r.error)return flash(r.error,true);
   const el=document.getElementById('tfa-content');
   el.innerHTML=`
-    <p style="margin-bottom:8px;color:#555">Scan this QR code into your authenticator app:</p>
+    <p style="margin-bottom:8px;color:#adb4ba">Scan this QR code into your authenticator app:</p>
     <div id="tfa-qr" style="margin-bottom:12px"></div>
-    <p style="margin-bottom:8px;color:#555;font-size:12px">Or enter this key manually:</p>
-    <p style="margin-bottom:12px"><code style="background:#f8f8f8;padding:6px 10px;border-radius:4px;display:inline-block;word-break:break-all">${esc(r.secret)}</code></p>
+    <p style="margin-bottom:8px;color:#adb4ba;font-size:12px">Or enter this key manually:</p>
+    <p style="margin-bottom:12px"><code style="background:#262b31;padding:6px 10px;border-radius:4px;display:inline-block;word-break:break-all">${esc(r.secret)}</code></p>
     <div style="display:flex;flex-direction:column;gap:10px;max-width:280px">
       <div><label>Enter the 6-digit code from your app to confirm</label><input type="text" id="tfa-confirm-code" inputmode="numeric" maxlength="6"></div>
       <button class="btn btn-primary" onclick="confirmTfaEnroll()">Confirm</button>
@@ -863,7 +863,7 @@ async function confirmTfaEnroll(){
   const el=document.getElementById('tfa-content');
   el.innerHTML=`
     <div class="alert alert-warn" style="margin-bottom:12px">2FA is now ON. Save these backup codes somewhere safe — each can be used once if you lose access to your authenticator app. They will not be shown again.</div>
-    <div style="font-family:monospace;background:#f8f8f8;padding:12px;border-radius:6px;line-height:1.8;margin-bottom:12px">${r.backup_codes.map(esc).join('<br>')}</div>
+    <div style="font-family:monospace;background:#262b31;padding:12px;border-radius:6px;line-height:1.8;margin-bottom:12px">${r.backup_codes.map(esc).join('<br>')}</div>
     <button class="btn btn-secondary" onclick="loadTfaStatus()">Done</button>
   `;
 }
@@ -882,8 +882,8 @@ async function loadChatLogs(){
 }
 function renderLogTable(rows,tableId,cols){
   const tb=document.querySelector('#'+tableId+' tbody');
-  if(!Array.isArray(rows)){tb.innerHTML=`<tr><td colspan="${cols}" style="color:#888">Unable to load.</td></tr>`;return;}
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="${cols}" style="color:#888">No sessions yet.</td></tr>`;return;}
+  if(!Array.isArray(rows)){tb.innerHTML=`<tr><td colspan="${cols}" style="color:#adb4ba">Unable to load.</td></tr>`;return;}
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="${cols}" style="color:#adb4ba">No sessions yet.</td></tr>`;return;}
   if(cols===4){
     tb.innerHTML=rows.slice(0,10).map(r=>`<tr><td><code style="font-size:11px">${esc(r.id.slice(0,12))}…</code></td><td style="font-size:11px">${esc(r.page_url||'')}</td><td>${esc(r.msg_count||0)}</td><td>${fmtDate(r.updated_at)}</td></tr>`).join('');
   } else {
@@ -897,19 +897,19 @@ async function viewSession(id){
   const content=document.getElementById('chatlogs-detail-content');
   content.innerHTML='Loading...';
   const rows=await get(API+'/chats.php?session_id='+encodeURIComponent(id));
-  if(!Array.isArray(rows)){content.innerHTML='<p style="color:#c00">Unable to load conversation.</p>';return;}
+  if(!Array.isArray(rows)){content.innerHTML='<p style="color:#f5a3a3">Unable to load conversation.</p>';return;}
   content.innerHTML=rows.map(m=>{
     const isUser=m.role==='user';
     const sources=(m.sources||[]).filter(s=>s.url).map(s=>`<a href="${esc(s.url)}" target="_blank" style="font-size:11px;display:block">${esc(s.url)}</a>`).join('');
     const lowConf=!isUser&&m.confidence!=null&&m.confidence<0.6;
-    return `<div style="margin-bottom:14px;padding:10px 14px;border-radius:6px;background:${isUser?'#eef1f8':'#f8f8f8'};max-width:80%;${isUser?'margin-left:auto':''}">
-      <div style="font-size:11px;color:#888;margin-bottom:4px">${isUser?'Customer':'Assistant'} · ${fmtDate(m.created_at)}${m.escalated?' · <span style="color:#c0392b">Escalated</span>':''}</div>
+    return `<div style="margin-bottom:14px;padding:10px 14px;border-radius:6px;background:${isUser?'#2d3a52':'#262b31'};max-width:80%;${isUser?'margin-left:auto':''}">
+      <div style="font-size:11px;color:#adb4ba;margin-bottom:4px">${isUser?'Customer':'Assistant'} · ${fmtDate(m.created_at)}${m.escalated?' · <span style="color:#c0392b">Escalated</span>':''}</div>
       <div>${esc(m.content)}</div>
       ${sources}
       ${!isUser&&canEdit()?`<div style="margin-top:8px"><button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="showCorrectionForm(${m.id},this)">${lowConf?'⚠ ':''}Correct this answer</button></div>
       <div id="correction-form-${m.id}"></div>`:''}
     </div>`;
-  }).join('')||'<p style="color:#888">No messages in this session.</p>';
+  }).join('')||'<p style="color:#adb4ba">No messages in this session.</p>';
 }
 function closeSessionDetail(){
   document.getElementById('chatlogs-detail-card').style.display='none';
@@ -919,7 +919,7 @@ function showCorrectionForm(messageId,btn){
   const el=document.getElementById('correction-form-'+messageId);
   if(el.innerHTML){el.innerHTML='';return;}
   el.innerHTML=`
-    <div style="margin-top:8px;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px">
+    <div style="margin-top:8px;padding:10px;background:#3a4048;border:1px solid #454c54;border-radius:6px">
       <textarea id="correction-text-${messageId}" placeholder="Corrected answer" style="width:100%;min-height:70px"></textarea>
       <label style="display:flex;align-items:center;gap:6px;margin:8px 0;font-weight:400">
         <input type="checkbox" id="correction-promote-${messageId}"> Add to knowledge base
@@ -942,7 +942,7 @@ async function loadTickets(){
   const status=document.getElementById('ticket-status-filter')?.value||'';
   const rows=await get(API+'/tickets.php'+(status?'?status='+encodeURIComponent(status):''));
   const tb=document.querySelector('#tickets-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#888">Unable to load.</td></tr>';return;}
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(t=>`<tr>
     <td>${esc(t.subject||'—')}</td>
     <td style="font-size:12px">${esc(t.customer_email||'—')}</td>
@@ -950,7 +950,7 @@ async function loadTickets(){
     <td>${esc(t.message_count||0)}</td>
     <td style="font-size:12px">${fmtDate(t.created_at)}</td>
     <td><button class="btn btn-secondary" onclick="viewTicket(${t.id})">View</button></td>
-  </tr>`).join(''):'<tr><td colspan="6" style="color:#888">No tickets.</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No tickets.</td></tr>';
 }
 async function viewTicket(id){
   document.getElementById('tickets-list-card').style.display='none';
@@ -959,10 +959,10 @@ async function viewTicket(id){
   const status=document.getElementById('ticket-status-filter')?.value||'';
   const rows=await get(API+'/tickets.php'+(status?'?status='+encodeURIComponent(status):''));
   const t=(Array.isArray(rows)?rows:[]).find(x=>x.id===id);
-  if(!t){document.getElementById('ticket-detail-content').innerHTML='<p style="color:#c00">Ticket not found.</p>';return;}
+  if(!t){document.getElementById('ticket-detail-content').innerHTML='<p style="color:#f5a3a3">Ticket not found.</p>';return;}
   document.getElementById('ticket-detail-subject').textContent=t.subject||'Support ticket';
   document.getElementById('ticket-detail-content').innerHTML=`
-    <p style="margin-bottom:8px;font-size:13px;color:#555">Customer: ${esc(t.customer_email||'—')} · Created ${fmtDate(t.created_at)}</p>
+    <p style="margin-bottom:8px;font-size:13px;color:#adb4ba">Customer: ${esc(t.customer_email||'—')} · Created ${fmtDate(t.created_at)}</p>
     ${canEdit()?`<div class="row" style="max-width:300px;margin-bottom:16px">
       <div>
         <label>Status</label>
@@ -975,7 +975,7 @@ async function viewTicket(id){
       <button class="btn btn-primary" onclick="updateTicketStatus(${t.id})">Update</button>
     </div>`:`<p style="margin-bottom:16px"><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='pending'?'badge-pending':'badge-active'}">${esc(t.status)}</span></p>`}
     <h3 style="font-size:14px;margin-bottom:6px">Notes</h3>
-    <pre style="white-space:pre-wrap;background:#f8f8f8;padding:10px;border-radius:6px;font-family:inherit;font-size:13px;margin-bottom:10px">${esc(t.notes||'No notes yet.')}</pre>
+    <pre style="white-space:pre-wrap;background:#262b31;padding:10px;border-radius:6px;font-family:inherit;font-size:13px;margin-bottom:10px">${esc(t.notes||'No notes yet.')}</pre>
     ${canEdit()?`<textarea id="ticket-note-${t.id}" placeholder="Add a note" style="width:100%;min-height:60px;max-width:400px"></textarea><br>
     <button class="btn btn-secondary" style="margin-top:8px" onclick="addTicketNote(${t.id})">Add Note</button>`:''}
     ${t.session_id?`<p style="margin-top:16px"><button class="btn btn-secondary" onclick="switchTab('chatlogs',document.querySelector('nav button[onclick*=chatlogs]'));viewSession('${esc(t.session_id)}')">View conversation</button></p>`:''}

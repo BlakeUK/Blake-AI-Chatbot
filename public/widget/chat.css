@@ -30,9 +30,9 @@
   max-width: calc(100vw - 48px);
   height: 520px;
   max-height: calc(100vh - 48px);
-  background: #fff;
+  background: #2f343b;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
   overflow: hidden;
   font-family: system-ui, sans-serif;
   font-size: 14px;
@@ -47,6 +47,7 @@
   justify-content: space-between;
   font-weight: 600;
   font-size: 15px;
+  border-bottom: 1px solid #454c54;
 }
 
 #buk-chat-header span {
@@ -77,7 +78,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #f8f8f8;
+  background: #262b31;
 }
 
 .buk-msg { display: flex; flex-direction: column; gap: 6px; max-width: 90%; }
@@ -93,35 +94,37 @@
 }
 
 .buk-msg-user .buk-bubble    { background: #3d5a99; color: #fff; border-bottom-right-radius: 4px; }
-.buk-msg-assistant .buk-bubble { background: #fff; color: #222; border: 1px solid #e0e0e0; border-bottom-left-radius: 4px; }
+.buk-msg-assistant .buk-bubble { background: #3a4048; color: #e8e8ea; border: 1px solid #454c54; border-bottom-left-radius: 4px; }
 
 .buk-product-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: #3a4048;
+  border: 1px solid #454c54;
   border-radius: 8px;
   padding: 8px;
   text-decoration: none;
   color: inherit;
   font-size: 13px;
 }
-.buk-product-card:hover { border-color: #3d5a99; }
-.buk-product-card img { width: 48px; height: 48px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
+.buk-product-card:hover { border-color: #8fb0ec; }
+.buk-product-card img { width: 48px; height: 48px; object-fit: contain; border-radius: 4px; flex-shrink: 0; background: #fff; }
 .buk-product-info { display: flex; flex-direction: column; gap: 2px; }
-.buk-product-code { color: #888; font-size: 11px; }
-.buk-product-price { color: #3d5a99; font-weight: 600; }
+.buk-product-code { color: #adb4ba; font-size: 11px; }
+.buk-product-price { color: #8fb0ec; font-weight: 600; }
 
 .buk-tracking-form { display: flex; flex-direction: column; gap: 8px; min-width: 220px; }
 .buk-tracking-form input {
   padding: 7px 10px;
-  border: 1px solid #ccc;
+  border: 1px solid #6b7480;
   border-radius: 6px;
   font-size: 13px;
   font-family: inherit;
+  background: #262b31;
+  color: #e8e8ea;
 }
-.buk-tracking-form input:focus { outline: none; border-color: #3d5a99; }
+.buk-tracking-form input:focus { outline: none; border-color: #8fb0ec; }
 .buk-track-submit {
   background: #3d5a99;
   color: #fff;
@@ -137,7 +140,7 @@
 
 .buk-typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; }
 .buk-typing span {
-  width: 7px; height: 7px; border-radius: 50%; background: #aaa;
+  width: 7px; height: 7px; border-radius: 50%; background: #6b7480;
   animation: buk-bounce 1s infinite;
 }
 .buk-typing span:nth-child(2) { animation-delay: .15s; }
@@ -148,19 +151,21 @@
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  border-top: 1px solid #e0e0e0;
-  background: #fff;
+  border-top: 1px solid #454c54;
+  background: #2f343b;
 }
 
 #buk-chat-input {
   flex: 1;
-  border: 1px solid #ccc;
+  border: 1px solid #6b7480;
   border-radius: 20px;
   padding: 8px 14px;
   font-size: 14px;
   outline: none;
+  background: #262b31;
+  color: #e8e8ea;
 }
-#buk-chat-input:focus { border-color: #3d5a99; }
+#buk-chat-input:focus { border-color: #8fb0ec; }
 
 #buk-chat-send {
   background: #3d5a99;
