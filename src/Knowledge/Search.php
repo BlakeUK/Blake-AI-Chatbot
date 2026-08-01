@@ -137,8 +137,9 @@ class Search
     // than literal search terms - "cable AND connector" or a message that
     // happens to sanitise down to a trailing "--" both throw an uncaught
     // FTS5 syntax error otherwise. Quoting each word individually makes
-    // every token literal regardless of content.
-    private static function sanitiseFts(string $q): string
+    // every token literal regardless of content. Public: also used directly
+    // by admin/products.php, which builds its own FTS5 query.
+    public static function sanitiseFts(string $q): string
     {
         $q = trim($q);
         $q = preg_replace('/[^a-zA-Z0-9\s\-_]/', ' ', $q);

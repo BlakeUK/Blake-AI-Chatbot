@@ -13,9 +13,10 @@ $limit = min((int)($_GET['limit'] ?? 50), 200);
 $pdo   = db();
 
 if ($q) {
-    // FTS search
-    $clean = preg_replace('/[^a-zA-Z0-9\s\-_]/', ' ', $q);
-    $clean = trim(preg_replace('/\s+/', ' ', $clean));
+    // Same sanitiser the chat endpoint uses - stripping symbols alone isn't
+    // enough to make arbitrary text safe as an FTS5 query (see Search.php),
+    // so this reuses the fixed version instead of keeping its own copy.
+    $clean = \Knowledge\Search::sanitiseFts($q);
     if ($clean) {
         $stmt = $pdo->prepare('
             SELECT p.product_code, p.name, p.category_path, p.price_inc_vat,

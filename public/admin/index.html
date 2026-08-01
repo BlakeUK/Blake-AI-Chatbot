@@ -205,15 +205,19 @@ code{font-family:monospace;font-size:12px}
       </div>
       <div id="import-result" style="margin-top:12px"></div>
     </div>
-    <div class="card">
+    <div class="card" id="products-list-card">
       <h2>Products in Database</h2>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <input type="text" id="product-search" placeholder="Search by name, code or category..." style="flex:1" oninput="searchProducts()">
       </div>
       <table id="products-table">
-        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Price (inc VAT)</th><th>Stock</th></tr></thead>
+        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Price (inc VAT)</th><th>Stock</th><th>Active</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+    <div class="card" id="products-detail-card" style="display:none">
+      <button class="btn btn-secondary" onclick="closeProductDetail()">← Back to list</button>
+      <div id="products-detail-content" style="margin-top:12px"></div>
     </div>
   </div>
 
@@ -587,10 +591,48 @@ async function loadProducts(){
   const tb=document.querySelector('#products-table tbody');
   tb.innerHTML=rows.length?rows.map(p=>{
     const cat=JSON.parse(p.category_path||'[]').join(' › ')||'';
-    return `<tr><td><code>${esc(p.product_code)}</code></td><td>${esc(p.name)}</td><td>${esc(cat)}</td><td>${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2):'—'}</td><td><span class="badge ${p.stock_status==='in_stock'?'badge-ok':'badge-pending'}">${esc(p.stock_status||'unknown')}</span></td></tr>`;
-  }).join(''):'<tr><td colspan="5" style="color:#888">No products imported yet.</td></tr>';
+    return `<tr><td><code>${esc(p.product_code)}</code></td><td>${esc(p.name)}</td><td>${esc(cat)}</td><td>${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2):'—'}</td><td><span class="badge ${p.stock_status==='in_stock'?'badge-ok':'badge-pending'}">${esc(p.stock_status||'unknown')}</span></td><td><span class="badge ${p.active?'badge-ok':'badge-error'}">${p.active?'Yes':'No'}</span></td><td><button class="btn btn-secondary" data-code="${esc(p.product_code)}" onclick="viewProductDetail(this.dataset.code)">View</button></td></tr>`;
+  }).join(''):'<tr><td colspan="7" style="color:#888">No products imported yet.</td></tr>';
 }
 function searchProducts(){productSearch=document.getElementById('product-search').value;clearTimeout(window._psTimer);window._psTimer=setTimeout(loadProducts,300);}
+
+async function viewProductDetail(code){
+  document.getElementById('products-list-card').style.display='none';
+  const card=document.getElementById('products-detail-card');
+  card.style.display='block';
+  const content=document.getElementById('products-detail-content');
+  content.innerHTML='Loading...';
+  const d=await get(API+'/product_detail.php?code='+encodeURIComponent(code));
+  if(!d||d.error){content.innerHTML='<p style="color:#c00">'+esc(d&&d.error?d.error:'Unable to load product')+'</p>';return;}
+  const p=d.product;
+  const cat=JSON.parse(p.category_path||'[]').join(' › ')||'—';
+  const bullets=JSON.parse(p.summary_bullets||'[]');
+  const specs=JSON.parse(p.tech_specs||'{}');
+  const specRows=Object.keys(specs).map(k=>`<tr><td style="color:#888">${esc(k)}</td><td>${esc(String(specs[k]))}</td></tr>`).join('');
+  content.innerHTML=`
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      ${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.image_alt||'')}" style="width:120px;height:120px;object-fit:contain;border:1px solid #eee;border-radius:6px">`:''}
+      <div style="flex:1;min-width:240px">
+        <h2 style="margin-bottom:4px">${esc(p.name)}</h2>
+        <p style="color:#888;font-size:13px">${esc(p.title||'')}</p>
+        <p style="margin-top:8px"><code>${esc(p.product_code)}</code> · ${esc(cat)} · <span class="badge ${p.active?'badge-ok':'badge-error'}">${p.active?'Active':'Inactive'}</span></p>
+        <p style="margin-top:8px;font-size:18px;font-weight:700">${p.price_inc_vat?'£'+parseFloat(p.price_inc_vat).toFixed(2)+' inc VAT':'No price set'}${p.price_exc_vat?` <span style="font-size:13px;font-weight:400;color:#888">(£${parseFloat(p.price_exc_vat).toFixed(2)} exc VAT)</span>`:''}</p>
+        <p><span class="badge ${p.stock_status==='in_stock'?'badge-ok':'badge-pending'}">${esc(p.stock_status||'unknown')}</span></p>
+        ${p.url?`<p style="margin-top:8px"><a href="${esc(p.url)}" target="_blank" style="font-size:13px">${esc(p.url)}</a></p>`:''}
+      </div>
+    </div>
+    ${bullets.length?`<ul style="margin-top:16px">${bullets.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`:''}
+    ${p.description?`<p style="margin-top:12px;color:#555">${esc(p.description)}</p>`:''}
+    ${specRows?`<h3 style="margin-top:20px">Tech specs</h3><table>${specRows}</table>`:''}
+    ${d.variants.length?`<h3 style="margin-top:20px">Variants (${d.variants.length})</h3><table><thead><tr><th>Code</th><th>Attributes</th><th>Price</th></tr></thead><tbody>${d.variants.map(v=>`<tr><td><code>${esc(v.variant_code)}</code></td><td>${esc(Object.entries(JSON.parse(v.attributes||'{}')).map(([k,val])=>k+': '+val).join(', '))}</td><td>${v.price_inc_vat?'£'+parseFloat(v.price_inc_vat).toFixed(2):'—'}</td></tr>`).join('')}</tbody></table>`:''}
+    ${d.documents.length?`<h3 style="margin-top:20px">Documents</h3><ul>${d.documents.map(doc=>`<li><a href="${esc(doc.url)}" target="_blank">${esc(doc.title||doc.doc_type||'Document')}</a></li>`).join('')}</ul>`:''}
+    ${d.related.length?`<h3 style="margin-top:20px">Related products (${d.related.length})</h3><div style="display:flex;gap:10px;flex-wrap:wrap">${d.related.map(rp=>`<div style="border:1px solid #eee;border-radius:6px;padding:10px;width:180px;cursor:pointer" data-code="${esc(rp.product_code)}" onclick="viewProductDetail(this.dataset.code)"><strong style="font-size:13px">${esc(rp.name)}</strong><br><span style="font-size:12px;color:#888">${esc(rp.product_code)}</span>${rp.price_inc_vat?`<br><span style="font-size:13px">£${parseFloat(rp.price_inc_vat).toFixed(2)}</span>`:''}</div>`).join('')}</div>`:''}
+  `;
+}
+function closeProductDetail(){
+  document.getElementById('products-detail-card').style.display='none';
+  document.getElementById('products-list-card').style.display='block';
+}
 
 async function importFeed(file){
   if(!file)return;
