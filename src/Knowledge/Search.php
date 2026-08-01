@@ -70,15 +70,16 @@ class Search
         return $row ?: null;
     }
 
-    // Ensures the customer's current product (if any) is included and listed
-    // first among a set of search hits, without duplicating it if the search
-    // already found it on its own merits.
+    // Ensures the customer's current product (if any) is listed first among
+    // a set of search hits, replacing any organic duplicate rather than
+    // leaving it wherever the search happened to rank it.
     public static function withCurrentFirst(array $hits, ?array $current): array
     {
         if (!$current) return $hits;
-        if (in_array($current['product_code'], array_column($hits, 'product_code'), true)) {
-            return $hits;
-        }
+        $hits = array_values(array_filter(
+            $hits,
+            fn($h) => $h['product_code'] !== $current['product_code']
+        ));
         array_unshift($hits, $current);
         return $hits;
     }
@@ -90,5 +91,39 @@ class Search
         $q = preg_replace('/[^a-zA-Z0-9\s\-_]/', ' ', $q);
         $q = preg_replace('/\s+/', ' ', $q);
         return trim($q);
+    }
+
+    // Formats a single product row into the text block used in the Gemini
+    // prompt, tagging it when it's the one the customer is currently viewing.
+    public static function formatForPrompt(array $p, ?string $currentCode): string
+    {
+        $bullets  = json_decode($p['summary_bullets'] ?? '[]', true) ?: [];
+        $specs    = json_decode($p['tech_specs'] ?? '{}', true) ?: [];
+        $isViewed = $currentCode && $p['product_code'] === $currentCode;
+
+        $line = ($isViewed ? '[Customer is currently viewing this product] ' : '')
+            . "Product: {$p['name']} (Code: {$p['product_code']})";
+        if (!empty($p['price_inc_vat'])) {
+            $line .= " — £{$p['price_inc_vat']} inc VAT";
+        }
+        if (!empty($p['stock_status'])) {
+            $line .= " — Stock: {$p['stock_status']}";
+        }
+        $line .= "\nURL: {$p['url']}";
+        if (!empty($p['description'])) {
+            $desc = mb_strlen($p['description']) > 200
+                ? mb_substr($p['description'], 0, 200) . '…'
+                : $p['description'];
+            $line .= "\n" . $desc;
+        }
+        if ($bullets) {
+            $line .= "\n• " . implode("\n• ", $bullets);
+        }
+        if ($specs) {
+            $line .= "\nSpecs: " . implode(', ', array_map(
+                fn($k, $v) => "$k: $v", array_keys($specs), array_values($specs)
+            ));
+        }
+        return $line;
     }
 }

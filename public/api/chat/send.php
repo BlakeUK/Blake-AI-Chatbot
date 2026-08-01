@@ -93,30 +93,10 @@ if ($knowledge_hits) {
 }
 
 if ($context_products) {
-    $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(function ($p) use ($session) {
-        $bullets  = json_decode($p['summary_bullets'] ?? '[]', true) ?: [];
-        $specs    = json_decode($p['tech_specs'] ?? '{}', true) ?: [];
-        $isViewed = $session['product_code'] && $p['product_code'] === $session['product_code'];
-
-        $line = ($isViewed ? '[Customer is currently viewing this product] ' : '')
-            . "Product: {$p['name']} (Code: {$p['product_code']})";
-        if (!empty($p['price_inc_vat'])) {
-            $line .= " — £{$p['price_inc_vat']} inc VAT";
-        }
-        if (!empty($p['stock_status'])) {
-            $line .= " — Stock: {$p['stock_status']}";
-        }
-        $line .= "\nURL: {$p['url']}";
-        if ($bullets) {
-            $line .= "\n• " . implode("\n• ", $bullets);
-        }
-        if ($specs) {
-            $line .= "\nSpecs: " . implode(', ', array_map(
-                fn($k, $v) => "$k: $v", array_keys($specs), array_values($specs)
-            ));
-        }
-        return $line;
-    }, $context_products));
+    $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(
+        fn($p) => \Knowledge\Search::formatForPrompt($p, $session['product_code']),
+        $context_products
+    ));
 }
 
 $page_ctx = $session['page_url'] ? "Customer is viewing: {$session['page_url']}\n" : '';
