@@ -1,6 +1,7 @@
 <?php
-// public/api/admin/import_page_links.php — POST: import selected non-PDF
-// links (from discover_urls.php's other_links) as knowledge entries.
+// public/api/admin/import_page_links.php — POST: import/re-index selected
+// non-PDF links (from discover_urls.php's other_links, or pasted directly)
+// as knowledge entries.
 //
 // Deliberately not routed through import_urls.php/knowledge_files: these
 // are live HTML pages, not downloadable documents, and text/html isn't in
@@ -11,6 +12,10 @@
 // (cheap, no Gemini call needed), and store that as a knowledge entry
 // carrying the URL - enough for the bot to know the page exists and link
 // to it, e.g. "browse our CCTV range: https://www.blake-uk.com/cctv.html".
+//
+// Upserts by URL: running this again on an already-indexed page (because
+// its title/description changed) updates the existing entry rather than
+// creating a duplicate.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
 \Auth\Admin::requireRole('admin', 'editor');
@@ -75,20 +80,37 @@ foreach ($urls as $url) {
     $desc  = _extract_meta_description($data);
     $body_text = trim($title . ($desc ? "\n\n{$desc}" : ''));
 
-    $pdo->prepare('
-        INSERT INTO knowledge_entries (title, body, category, product_codes, url, active)
-        VALUES (?, ?, NULL, NULL, ?, 1)
-    ')->execute([$title, $body_text, $url]);
-    $id = (int)$pdo->lastInsertId();
+    // Upsert by URL rather than always inserting - re-scanning a page that's
+    // already been indexed (because its content changed) should refresh the
+    // existing entry, not pile up duplicates every time it's re-run.
+    $existing = $pdo->prepare('SELECT id FROM knowledge_entries WHERE url = ?');
+    $existing->execute([$url]);
+    $existingId = $existing->fetchColumn();
+
+    if ($existingId) {
+        $id = (int)$existingId;
+        $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, updated_at=unixepoch() WHERE id=?')
+            ->execute([$title, $body_text, $id]);
+        $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type=? AND source_id=?')
+            ->execute(['manual', $id]);
+        $status = 'updated';
+    } else {
+        $pdo->prepare('
+            INSERT INTO knowledge_entries (title, body, category, product_codes, url, active)
+            VALUES (?, ?, NULL, NULL, ?, 1)
+        ')->execute([$title, $body_text, $url]);
+        $id = (int)$pdo->lastInsertId();
+        $status = 'imported';
+    }
 
     $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url) VALUES (?,?,?,?)')
         ->execute(['manual', $id, $title . ' ' . $body_text, $url]);
 
-    $results[] = $result + ['status' => 'imported', 'title' => $title];
+    $results[] = $result + ['status' => $status, 'title' => $title];
 }
 
 $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
-    ->execute([$_SESSION['admin_id'], 'page_links_imported', null, count(array_filter($results, fn($r) => $r['status'] === 'imported')) . ' of ' . count($urls)]);
+    ->execute([$_SESSION['admin_id'], 'page_links_imported', null, count(array_filter($results, fn($r) => in_array($r['status'], ['imported', 'updated'], true))) . ' of ' . count($urls)]);
 
 json_out(['results' => $results]);
 

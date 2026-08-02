@@ -15,6 +15,9 @@ nav::-webkit-scrollbar{display:none}
 nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px;color:#adb4ba}
 nav button.active{border-bottom-color:#8fb0ec;color:#8fb0ec}
 nav button:hover{background:rgba(255,255,255,.06)}
+.subtab-btn{padding:7px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:#adb4ba}
+.subtab-btn.active{border-bottom-color:#8fb0ec;color:#8fb0ec}
+.subtab-btn:hover{color:#e8e8ea}
 main{padding:20px;max-width:1200px;margin:0 auto}
 .tab{display:none}.tab.active{display:block}
 .card{background:#3a4048;border:1px solid #454c54;border-radius:6px;padding:16px;margin-bottom:16px}
@@ -164,38 +167,59 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     </div>
     <div class="card" data-role="editor">
       <h2>Import from URL</h2>
-      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Paste a page or sitemap.xml URL to discover PDF and other links on the website, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <input type="text" id="discover-url" placeholder="https://www.blake-uk.com/leaflets or /sitemap.xml" style="flex:1;min-width:240px">
-        <button class="btn btn-secondary" onclick="discoverUrls()">Discover Links</button>
+      <div style="display:flex;gap:4px;border-bottom:2px solid #454c54;margin-bottom:14px">
+        <button class="subtab-btn active" id="subtab-btn-pdf" onclick="switchImportSubtab('pdf')">PDFs</button>
+        <button class="subtab-btn" id="subtab-btn-pages" onclick="switchImportSubtab('pages')">Pages</button>
       </div>
-      <div id="discover-status" style="font-size:13px;color:#adb4ba;margin-bottom:10px"></div>
-      <div id="discover-results" style="display:none">
-        <h3 style="font-size:14px;margin-bottom:6px">PDF links</h3>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-select-all" checked onchange="toggleAllDiscovered(this.checked)"> Select all</label>
-          <button class="btn btn-primary" onclick="importSelectedUrls()">Import Selected as Files</button>
+
+      <div id="subtab-pdf" class="import-subtab">
+        <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Paste a page or sitemap.xml URL to scan for PDF links, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <input type="text" id="discover-url" placeholder="https://www.blake-uk.com/leaflets or /sitemap.xml" style="flex:1;min-width:240px">
+          <button class="btn btn-secondary" onclick="discoverUrls()">Scan for PDFs</button>
         </div>
-        <div id="discover-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
-      </div>
-      <div id="discover-other-results" style="display:none;margin-top:16px">
-        <h3 style="font-size:14px;margin-bottom:6px">Other links (categories, support pages, etc.)</h3>
-        <p style="font-size:12px;color:#adb4ba;margin-bottom:8px">Imported as knowledge entries — page title + meta description, tagged with the URL so the bot can link to it. Not full page content.</p>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <input type="text" id="discover-other-filter" placeholder="Filter, e.g. 'category' or 'cctv'" style="flex:1" oninput="filterOtherLinks()">
+        <div id="discover-status" style="font-size:13px;color:#adb4ba;margin-bottom:10px"></div>
+        <div id="discover-results" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-select-all" checked onchange="toggleAllDiscovered(this.checked)"> Select all</label>
+            <button class="btn btn-primary" onclick="importSelectedUrls()">Import Selected</button>
+          </div>
+          <div id="discover-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-other-select-all" onchange="toggleAllOtherDiscovered(this.checked)"> Select all visible</label>
-          <button class="btn btn-primary" onclick="importSelectedPageLinks()">Import Selected as Knowledge</button>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #454c54">
+          <label>Or paste PDF URLs directly (one per line)</label>
+          <textarea id="direct-urls" placeholder="https://www.blake-uk.com/leaflets/product-a.pdf"></textarea>
+          <button class="btn btn-secondary" style="margin-top:8px" onclick="importDirectUrls()">Import These URLs</button>
         </div>
-        <div id="discover-other-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
+        <div id="url-import-progress" style="margin-top:10px"></div>
+        <div id="url-import-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelUrlImport()">Cancel remaining batches</button></div>
       </div>
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #454c54">
-        <label>Or paste PDF URLs directly (one per line)</label>
-        <textarea id="direct-urls" placeholder="https://www.blake-uk.com/leaflets/product-a.pdf"></textarea>
-        <button class="btn btn-secondary" style="margin-top:8px" onclick="importDirectUrls()">Import These URLs</button>
+
+      <div id="subtab-pages" class="import-subtab" style="display:none">
+        <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Paste a page or sitemap.xml URL to scan for category/support pages, or paste page URLs directly to index just those — no need to re-scan the whole site to add one new page, or to refresh one that's changed. Stores the page title + meta description, tagged with the URL, so the bot can link to it — not the full page content.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <input type="text" id="discover-pages-url" placeholder="https://www.blake-uk.com or /sitemap.xml" style="flex:1;min-width:240px">
+          <button class="btn btn-secondary" onclick="discoverPageLinks()">Scan for Pages</button>
+        </div>
+        <div id="discover-pages-status" style="font-size:13px;color:#adb4ba;margin-bottom:10px"></div>
+        <div id="discover-other-results" style="display:none">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input type="text" id="discover-other-filter" placeholder="Filter, e.g. 'category' or 'cctv'" style="flex:1" oninput="filterOtherLinks()">
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-other-select-all" onchange="toggleAllOtherDiscovered(this.checked)"> Select all visible</label>
+            <button class="btn btn-primary" onclick="importSelectedPageLinks()">Index Selected</button>
+          </div>
+          <div id="discover-other-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #454c54">
+          <label>Or paste page URLs directly (one per line) — indexes immediately; re-indexing a URL already in Knowledge updates it in place rather than duplicating it</label>
+          <textarea id="direct-page-urls" placeholder="https://www.blake-uk.com/category/cctv.html"></textarea>
+          <button class="btn btn-secondary" style="margin-top:8px" onclick="importDirectPageUrls()">Index These Pages</button>
+        </div>
+        <div id="page-import-progress" style="margin-top:10px"></div>
+        <div id="page-import-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelPageImport()">Cancel remaining batches</button></div>
       </div>
-      <div id="url-import-progress" style="margin-top:10px"></div>
     </div>
     <div class="card">
       <h2>Indexed Files</h2>
@@ -460,6 +484,12 @@ function switchTab(name,el){
   document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
 }
+function switchImportSubtab(name){
+  document.querySelectorAll('.import-subtab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('.subtab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('subtab-'+name).style.display='block';
+  document.getElementById('subtab-btn-'+name).classList.add('active');
+}
 
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 async function loadDashboard(){
@@ -518,94 +548,52 @@ dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');}
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');uploadFiles(e.dataTransfer.files);});
 
-// ── URL import ────────────────────────────────────────────────────────────────
+// ── URL import: PDFs ─────────────────────────────────────────────────────────
 let discoveredUrls=[];
-let discoveredOtherUrls=[];
 async function discoverUrls(){
   const url=val('discover-url');
   if(!url)return flash('Enter a page or sitemap URL',true);
   const status=document.getElementById('discover-status');
-  status.textContent='Discovering...';
+  status.textContent='Scanning...';
   document.getElementById('discover-results').style.display='none';
-  document.getElementById('discover-other-results').style.display='none';
   try{
     const r=await get(API+'/discover_urls.php?url='+encodeURIComponent(url));
     if(r.error){status.textContent='';return flash(r.error,true);}
     discoveredUrls=r.links||[];
-    discoveredOtherUrls=r.other_links||[];
-    if(!discoveredUrls.length && !discoveredOtherUrls.length){status.textContent='No links found on that page.';return;}
-    status.textContent=`Found ${discoveredUrls.length} PDF link(s) and ${discoveredOtherUrls.length} other link(s), out of ${r.total_links_found} total.`;
-    if(discoveredUrls.length){
-      document.getElementById('discover-list').innerHTML=discoveredUrls.map((u,i)=>`
-        <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-cb" data-i="${i}" checked> ${esc(u)}</label>
-      `).join('');
-      document.getElementById('discover-select-all').checked=true;
-      document.getElementById('discover-results').style.display='block';
-    }
-    if(discoveredOtherUrls.length){
-      document.getElementById('discover-other-filter').value='';
-      renderOtherLinks();
-      document.getElementById('discover-other-select-all').checked=false;
-      document.getElementById('discover-other-results').style.display='block';
-    }
+    if(!discoveredUrls.length){status.textContent=`No PDF links found (${r.total_links_found} total links on that page/sitemap).`;return;}
+    status.textContent=`Found ${discoveredUrls.length} PDF link(s), out of ${r.total_links_found} total.`;
+    document.getElementById('discover-list').innerHTML=discoveredUrls.map((u,i)=>`
+      <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-cb" data-i="${i}" checked> ${esc(u)}</label>
+    `).join('');
+    document.getElementById('discover-select-all').checked=true;
+    document.getElementById('discover-results').style.display='block';
   }catch(e){status.textContent='';flash('Could not reach the server',true);}
 }
-function renderOtherLinks(){
-  const filter=val('discover-other-filter').toLowerCase();
-  const list=document.getElementById('discover-other-list');
-  const visible=discoveredOtherUrls.map((u,i)=>({u,i})).filter(({u})=>!filter||u.toLowerCase().includes(filter));
-  list.innerHTML=visible.length?visible.map(({u,i})=>`
-    <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-other-cb" data-i="${i}" checked> ${esc(u)}</label>
-  `).join(''):'<div style="color:#adb4ba">No links match that filter.</div>';
-}
-function filterOtherLinks(){renderOtherLinks();document.getElementById('discover-other-select-all').checked=false;}
 function toggleAllDiscovered(checked){
   document.querySelectorAll('.discover-cb').forEach(cb=>cb.checked=checked);
-}
-function toggleAllOtherDiscovered(checked){
-  document.querySelectorAll('.discover-other-cb').forEach(cb=>cb.checked=checked);
 }
 function importSelectedUrls(){
   const selected=[...document.querySelectorAll('.discover-cb')].filter(cb=>cb.checked).map(cb=>discoveredUrls[+cb.dataset.i]);
   if(!selected.length)return flash('Select at least one link',true);
   importUrlsBatched(selected);
 }
-async function importSelectedPageLinks(){
-  const selected=[...document.querySelectorAll('.discover-other-cb')].filter(cb=>cb.checked).map(cb=>discoveredOtherUrls[+cb.dataset.i]);
-  if(!selected.length)return flash('Select at least one link',true);
-  const prog=document.getElementById('url-import-progress');
-  prog.innerHTML='';
-  const BATCH=50; // matches import_page_links.php's own MAX_BATCH
-  let importedCount=0;
-  for(let i=0;i<selected.length;i+=BATCH){
-    const batch=selected.slice(i,i+BATCH);
-    prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Importing ${i+1}–${Math.min(i+BATCH,selected.length)} of ${selected.length}...</div>`;
-    try{
-      const r=await post(API+'/import_page_links.php',{csrf,urls:batch});
-      if(r.error){prog.innerHTML+=`<div class="alert alert-err">${esc(r.error)}</div>`;continue;}
-      (r.results||[]).forEach(res=>{
-        const label=res.title||res.url;
-        const cls=res.status==='imported'?'alert-ok':'alert-err';
-        const msg=res.status==='imported'?`Imported: ${label}`:`${res.url}: ${res.error||'failed'}`;
-        if(res.status==='imported')importedCount++;
-        prog.innerHTML+=`<div class="alert ${cls}" style="margin-bottom:4px;font-size:12px;word-break:break-all">${esc(msg)}</div>`;
-      });
-    }catch(e){prog.innerHTML+=`<div class="alert alert-err">Batch failed: could not reach the server</div>`;}
-  }
-  flash(`Page link import finished: ${importedCount} of ${selected.length} imported`);
-  loadKnowledge();
-}
 function importDirectUrls(){
   const lines=val('direct-urls').split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
   if(!lines.length)return flash('Paste at least one URL',true);
   importUrlsBatched(lines);
 }
+let urlImportCancelled=false;
+function cancelUrlImport(){urlImportCancelled=true;}
 async function importUrlsBatched(urls){
   const prog=document.getElementById('url-import-progress');
+  const cancelRow=document.getElementById('url-import-cancel-row');
   prog.innerHTML='';
+  urlImportCancelled=false;
+  cancelRow.style.display=urls.length>50?'block':'none';
   const BATCH=50;
   let queuedCount=0;
   for(let i=0;i<urls.length;i+=BATCH){
+    if(urlImportCancelled){prog.innerHTML+=`<div class="alert alert-warn">Cancelled — ${i} of ${urls.length} submitted before stopping.</div>`;break;}
     const batch=urls.slice(i,i+BATCH);
     prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Downloading ${i+1}–${Math.min(i+BATCH,urls.length)} of ${urls.length}...</div>`;
     try{
@@ -620,11 +608,90 @@ async function importUrlsBatched(urls){
       });
     }catch(e){prog.innerHTML+=`<div class="alert alert-err">Batch failed: could not reach the server</div>`;}
   }
+  cancelRow.style.display='none';
   if(queuedCount>0){
     prog.innerHTML+=`<div class="alert alert-info" style="margin-top:6px">${queuedCount} file(s) queued — text extraction runs in the background (about 1 file/minute). Check the Indexed Files table below for progress.</div>`;
     pollPendingFiles();
   }
   loadFiles();loadDashboard();
+}
+
+// ── URL import: Pages ────────────────────────────────────────────────────────
+let discoveredOtherUrls=[];
+async function discoverPageLinks(){
+  const url=val('discover-pages-url');
+  if(!url)return flash('Enter a page or sitemap URL',true);
+  const status=document.getElementById('discover-pages-status');
+  status.textContent='Scanning...';
+  document.getElementById('discover-other-results').style.display='none';
+  try{
+    const r=await get(API+'/discover_urls.php?url='+encodeURIComponent(url));
+    if(r.error){status.textContent='';return flash(r.error,true);}
+    discoveredOtherUrls=r.other_links||[];
+    if(!discoveredOtherUrls.length){status.textContent=`No non-PDF links found (${r.total_links_found} total links on that page/sitemap).`;return;}
+    status.textContent=`Found ${discoveredOtherUrls.length} link(s), out of ${r.total_links_found} total.`;
+    document.getElementById('discover-other-filter').value='';
+    renderOtherLinks();
+    document.getElementById('discover-other-select-all').checked=false;
+    document.getElementById('discover-other-results').style.display='block';
+  }catch(e){status.textContent='';flash('Could not reach the server',true);}
+}
+function renderOtherLinks(){
+  const filter=val('discover-other-filter').toLowerCase();
+  const list=document.getElementById('discover-other-list');
+  const visible=discoveredOtherUrls.map((u,i)=>({u,i})).filter(({u})=>!filter||u.toLowerCase().includes(filter));
+  list.innerHTML=visible.length?visible.map(({u,i})=>`
+    <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-other-cb" data-i="${i}" checked> ${esc(u)}</label>
+  `).join(''):'<div style="color:#adb4ba">No links match that filter.</div>';
+}
+function filterOtherLinks(){renderOtherLinks();document.getElementById('discover-other-select-all').checked=false;}
+function toggleAllOtherDiscovered(checked){
+  const cbs=[...document.querySelectorAll('.discover-other-cb')];
+  if(checked && cbs.length>50 && !confirm(`Select all ${cbs.length} visible links? Each one becomes its own knowledge entry — for a big list, a quick pass through the filter box first usually gives better results than importing everything.`)){
+    document.getElementById('discover-other-select-all').checked=false;
+    return;
+  }
+  cbs.forEach(cb=>cb.checked=checked);
+}
+async function importSelectedPageLinks(){
+  const selected=[...document.querySelectorAll('.discover-other-cb')].filter(cb=>cb.checked).map(cb=>discoveredOtherUrls[+cb.dataset.i]);
+  if(!selected.length)return flash('Select at least one link',true);
+  importPageLinksBatched(selected);
+}
+function importDirectPageUrls(){
+  const lines=val('direct-page-urls').split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length)return flash('Paste at least one URL',true);
+  importPageLinksBatched(lines);
+}
+let pageImportCancelled=false;
+function cancelPageImport(){pageImportCancelled=true;}
+async function importPageLinksBatched(urls){
+  const prog=document.getElementById('page-import-progress');
+  const cancelRow=document.getElementById('page-import-cancel-row');
+  prog.innerHTML='';
+  pageImportCancelled=false;
+  cancelRow.style.display=urls.length>50?'block':'none';
+  const BATCH=50; // matches import_page_links.php's own MAX_BATCH
+  let doneCount=0;
+  for(let i=0;i<urls.length;i+=BATCH){
+    if(pageImportCancelled){prog.innerHTML+=`<div class="alert alert-warn">Cancelled — ${i} of ${urls.length} submitted before stopping.</div>`;break;}
+    const batch=urls.slice(i,i+BATCH);
+    prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Indexing ${i+1}–${Math.min(i+BATCH,urls.length)} of ${urls.length}...</div>`;
+    try{
+      const r=await post(API+'/import_page_links.php',{csrf,urls:batch});
+      if(r.error){prog.innerHTML+=`<div class="alert alert-err">${esc(r.error)}</div>`;continue;}
+      (r.results||[]).forEach(res=>{
+        const label=res.title||res.url;
+        const cls=(res.status==='imported'||res.status==='updated')?'alert-ok':'alert-err';
+        const msg=res.status==='imported'?`Indexed: ${label}`:res.status==='updated'?`Refreshed: ${label}`:`${res.url}: ${res.error||'failed'}`;
+        if(res.status==='imported'||res.status==='updated')doneCount++;
+        prog.innerHTML+=`<div class="alert ${cls}" style="margin-bottom:4px;font-size:12px;word-break:break-all">${esc(msg)}</div>`;
+      });
+    }catch(e){prog.innerHTML+=`<div class="alert alert-err">Batch failed: could not reach the server</div>`;}
+  }
+  cancelRow.style.display='none';
+  flash(`Page import finished: ${doneCount} of ${urls.length} indexed`);
+  loadKnowledge();
 }
 let pendingPollTimer=null;
 function pollPendingFiles(){
