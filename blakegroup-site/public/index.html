@@ -181,6 +181,20 @@
 
 </x-dc>
 
+<!-- PERMANENT - do not remove with the debug scaffolding below.
+     The autoplay attribute alone doesn't reliably start the background
+     video: confirmed via the debug readout that it loads and decodes fine
+     (readyState 4, correct videoWidth/height, no error) but sits paused at
+     currentTime 0. Root cause is almost certainly the same body-wide
+     rewrite this page's runtime does while booting (proven separately by
+     the debug script below needing the identical workaround) - a video
+     element that materializes that way doesn't get the browser's automatic
+     "this was present at initial parse, start it" treatment the same way,
+     even though from the HTML source it looks identical to any other
+     autoplay video. Explicitly calling play() after that settles works
+     regardless of why the attribute alone doesn't. -->
+<img src="data:," alt="" style="display:none" onerror="setTimeout(function(){var v=document.querySelector('.bg-video');if(!v)return;var tryPlay=function(){if(v.paused){v.play().catch(function(){});}};tryPlay();setTimeout(tryPlay,1500);},4000);">
+
 <!-- TEMPORARY DEBUG READOUT script - lives outside <x-dc> AND uses an
      onerror handler attribute instead of a <script> tag. Root cause found:
      the page's own runtime clearly passes the whole <body> through an
