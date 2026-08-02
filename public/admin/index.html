@@ -222,7 +222,10 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-other-select-all" onchange="toggleAllOtherDiscovered(this.checked)"> Select all visible</label>
-            <button class="btn btn-primary" onclick="importSelectedPageLinks()">Index Selected</button>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="importSelectedPageLinks()">Index Selected</button>
+              <button class="btn btn-secondary" onclick="queueSelectedForProductExtraction()">Extract as Products</button>
+            </div>
           </div>
           <div id="discover-other-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
         </div>
@@ -273,6 +276,13 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
         <textarea id="template-preview-json" rows="10" style="font-family:monospace;font-size:12px"></textarea>
       </div>
       <div id="template-current-status" style="font-size:12px;color:#adb4ba;margin-top:10px"></div>
+    </div>
+    <div class="card" id="product-extraction-progress-card" style="display:none">
+      <h2>Bulk Extraction Progress</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Pages queued from the "Extract as Products" button on the Pages import tab, applying the confirmed template above in the background.</p>
+      <div id="extraction-progress-summary" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div id="extraction-errors-list" style="max-height:200px;overflow-y:auto;font-size:12px"></div>
+      <button class="btn btn-secondary" style="margin-top:10px" onclick="loadExtractionProgress()">Refresh</button>
     </div>
     <div class="card" id="products-list-card">
       <h2>Products in Database</h2>
@@ -505,7 +515,7 @@ function applyRoleUI(){
 }
 
 function init(){
-  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadTfaStatus();loadTickets();
+  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();}
 }
 
@@ -732,6 +742,13 @@ async function importSelectedPageLinks(){
   if(!selected.length)return flash('Select at least one link',true);
   importPageLinksBatched(selected);
 }
+async function queueSelectedForProductExtraction(){
+  const selected=[...document.querySelectorAll('.discover-other-cb')].filter(cb=>cb.checked).map(cb=>discoveredOtherUrls[+cb.dataset.i]);
+  if(!selected.length)return flash('Select at least one link',true);
+  const r=await post(API+'/product_page_queue.php',{csrf,urls:selected});
+  if(!r.error){flash(`Queued ${r.queued} page(s) for background extraction — check progress under Products`);}
+  else flash(r.error,true);
+}
 function importDirectPageUrls(){
   const lines=val('direct-page-urls').split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
   if(!lines.length)return flash('Paste at least one URL',true);
@@ -796,6 +813,25 @@ const DEFAULT_TEMPLATE_SHAPE={
   summary_bullets:["Key feature 1","Key feature 2"],
   tech_specs:{}
 };
+async function loadExtractionProgress(){
+  const r=await get(API+'/product_page_progress.php');
+  if(!r||!r.counts)return;
+  const card=document.getElementById('product-extraction-progress-card');
+  if(r.total===0){card.style.display='none';return;}
+  card.style.display='block';
+  const c=r.counts;
+  document.getElementById('extraction-progress-summary').innerHTML=`
+    <div><span class="badge badge-pending">${c.pending}</span> pending</div>
+    <div><span class="badge badge-ok">${c.product}</span> imported as products</div>
+    <div><span class="badge badge-ok">${c.not_a_product}</span> indexed as knowledge</div>
+    <div><span class="badge badge-error">${c.error}</span> errors</div>
+  `;
+  const errList=document.getElementById('extraction-errors-list');
+  errList.innerHTML=(r.recent_errors||[]).length?'<b>Recent errors:</b>'+r.recent_errors.map(e=>
+    `<div style="padding:2px 0;word-break:break-all">${esc(e.url)}: ${esc(e.error||'')}</div>`
+  ).join(''):'';
+  if(c.pending>0)setTimeout(loadExtractionProgress,10000); // auto-refresh while work remains, same idea as the pending-files poller
+}
 async function loadProductTemplate(){
   const r=await get(API+'/product_template.php');
   const statusEl=document.getElementById('template-current-status');

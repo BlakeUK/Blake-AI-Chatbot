@@ -142,6 +142,13 @@ else
     warn "Knowledge-source schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='product_page_extractions';" | grep -q "product_page_extractions"; then
+    info "Applying product-page-extractions schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_product_page_extractions.sql"
+else
+    warn "Product-page-extractions schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
@@ -149,6 +156,15 @@ if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php")
     ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE" ) | crontab -u www-data -
 else
     warn "Pending-file processing cron job already installed — skipping."
+fi
+
+# ── Product-page extraction cron (bulk template application, background) ──────
+CRON_LINE_PP="* * * * * php $WEBROOT/scripts/process_product_pages.php >> $WEBROOT/logs/product_extract_queue.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_product_pages.php"); then
+    info "Installing product-page extraction cron job..."
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_PP" ) | crontab -u www-data -
+else
+    warn "Product-page extraction cron job already installed — skipping."
 fi
 
 # ── Config ────────────────────────────────────────────────────────────────────

@@ -53,6 +53,9 @@ fi
 if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(knowledge_entries);" | grep -q "source"; then
     sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_knowledge_source.sql
 fi
+if ! sqlite3 /var/www/chat/data/chatbot.db "SELECT name FROM sqlite_master WHERE type='table' AND name='product_page_extractions';" | grep -q "product_page_extractions"; then
+    sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_product_page_extractions.sql
+fi
 chown www-data:www-data /var/www/chat/data/chatbot.db
 
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─

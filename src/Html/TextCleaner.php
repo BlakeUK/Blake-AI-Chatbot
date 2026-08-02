@@ -32,4 +32,21 @@ class TextCleaner
 
         return $text;
     }
+
+    public static function extractTitle(string $html): ?string
+    {
+        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) {
+            return trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
+        }
+        return null;
+    }
+
+    public static function extractMetaDescription(string $html): ?string
+    {
+        if (preg_match('/<meta\s+[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/is', $html, $m)
+            || preg_match('/<meta\s+[^>]*content=["\']([^"\']*)["\'][^>]*name=["\']description["\'][^>]*>/is', $html, $m)) {
+            return trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5));
+        }
+        return null;
+    }
 }

@@ -76,8 +76,8 @@ foreach ($urls as $url) {
         continue;
     }
 
-    $title = _extract_title($data) ?: $url;
-    $desc  = _extract_meta_description($data);
+    $title = \Html\TextCleaner::extractTitle($data) ?: $url;
+    $desc  = \Html\TextCleaner::extractMetaDescription($data);
     $body_text = trim($title . ($desc ? "\n\n{$desc}" : ''));
 
     // Upsert by URL rather than always inserting - re-scanning a page that's
@@ -113,20 +113,3 @@ $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (
     ->execute([$_SESSION['admin_id'], 'page_links_imported', null, count(array_filter($results, fn($r) => in_array($r['status'], ['imported', 'updated'], true))) . ' of ' . count($urls)]);
 
 json_out(['results' => $results]);
-
-function _extract_title(string $html): ?string
-{
-    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) {
-        return trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
-    }
-    return null;
-}
-
-function _extract_meta_description(string $html): ?string
-{
-    if (preg_match('/<meta\s+[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\'][^>]*>/is', $html, $m)
-        || preg_match('/<meta\s+[^>]*content=["\']([^"\']*)["\'][^>]*name=["\']description["\'][^>]*>/is', $html, $m)) {
-        return trim(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5));
-    }
-    return null;
-}
