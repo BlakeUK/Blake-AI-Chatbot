@@ -53,7 +53,7 @@ foreach ($urls as $url) {
     $result = ['url' => $url];
 
     if (!preg_match('#^https?://#i', $url)) {
-        $results[] = $result + ['status' => 'error', 'error' => 'Not a valid http(s) URL'];
+        $results[] = $result + ['status' => 'error', 'error' => 'Not a valid http(s) URL', 'http_code' => null];
         continue;
     }
 
@@ -72,7 +72,13 @@ foreach ($urls as $url) {
     curl_close($ch);
 
     if ($data === false || $code !== 200) {
-        $results[] = $result + ['status' => 'error', 'error' => $err ?: "HTTP {$code}"];
+        // http_code is 0 when no HTTP response was ever received at all -
+        // timeout, DNS failure, connection reset. That, vs. an actual 404
+        // response, is exactly the line the frontend needs: 404 means the
+        // page is confirmed gone (safe to drop from a cleaned sitemap),
+        // anything else just means the check didn't complete (retry-worthy,
+        // not delete-worthy - a timeout is not evidence a page is dead).
+        $results[] = $result + ['status' => 'error', 'error' => $err ?: "HTTP {$code}", 'http_code' => $code];
         continue;
     }
 
@@ -106,7 +112,7 @@ foreach ($urls as $url) {
     $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url) VALUES (?,?,?,?)')
         ->execute(['manual', $id, $title . ' ' . $body_text, $url]);
 
-    $results[] = $result + ['status' => $status, 'title' => $title];
+    $results[] = $result + ['status' => $status, 'title' => $title, 'http_code' => $code];
 }
 
 $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
