@@ -1,4 +1,7 @@
-chat.blake-uk.com {
+# Shared config for the PHP chatbot app - used by chat.blake-uk.com and by
+# blakegroup.uk's admin./chat. subdomains, which serve the same backend
+# under a different hostname rather than duplicating this block three times.
+(chat_app) {
     root * /var/www/chat/public
     php_fastcgi unix//run/php/php8.2-fpm.sock
 
@@ -16,13 +19,37 @@ chat.blake-uk.com {
     }
 }
 
-# blakegroup.uk's A/AAAA records point at this VPS (added 1 Aug 2026) so the
-# domain isn't a dead end, but email (MX/SPF/DKIM, via Cloudflare Email
-# Routing) is the only thing actually configured for it so far - no content
-# of its own to serve yet. Redirects to the main site, preserving path and
-# query, rather than just the homepage, so it's graceful if the domain ends
-# up referenced anywhere specific. Swap this block for a real site later if
-# blakegroup.uk ends up hosting its own content instead.
+chat.blake-uk.com {
+    import chat_app
+}
+
+# blakegroup.uk: standalone intro site at the apex, not connected to
+# blake-uk.com in any way (deliberately - nothing here should redirect
+# there). admin./chat. are separate subdomains pointing at the same app
+# that's already running for chat.blake-uk.com, so there's one shared
+# backend/database rather than a second copy of it.
+
 blakegroup.uk, www.blakegroup.uk {
-    redir https://www.blake-uk.com{uri} permanent
+    root * /var/www/blakegroup/public
+    file_server
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        X-Frame-Options SAMEORIGIN
+    }
+}
+
+admin.blakegroup.uk {
+    redir / /admin/
+    import chat_app
+}
+
+# No content at /chat yet - this just makes the routing exist ahead of it,
+# so dropping an index.html at /var/www/chat/public/chat/ later is all
+# that's needed. 404s until then.
+chat.blakegroup.uk {
+    redir / /chat/
+    import chat_app
 }

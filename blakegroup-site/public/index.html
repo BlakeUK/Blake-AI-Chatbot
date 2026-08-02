@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/nocturne-d7fb9455-6d08-45a3-951b-00c78020b93f/styles.css">
+  <script src="_ds/nocturne-d7fb9455-6d08-45a3-951b-00c78020b93f/_ds_bundle.js"></script>
+  <script src="./image-slot.js"></script>
+  <style>
+    body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+    a { color: var(--color-accent-300); text-decoration: none; }
+    a:hover { color: var(--color-accent); text-decoration: underline; }
+  </style>
+</helmet>
+
+<div style="max-width: 1180px; margin: 0 auto; padding: 0 40px;">
+
+  <!-- Nav -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 28px 0; border-bottom: 1px solid var(--color-neutral-800);">
+    <div style="font-family: var(--font-heading); font-weight: 500; font-size: 20px; letter-spacing: 0.02em;">Blake Group</div>
+    <div style="display: flex; gap: 32px; font-size: 14px; color: var(--color-neutral-300);">
+      <a href="#brands">Our companies</a>
+      <a href="#strengths">What connects us</a>
+      <a href="#contact">Get in touch</a>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div style="padding: 120px 0 80px; max-width: 760px;">
+    <div style="font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent-300); margin-bottom: 20px;">Manufacturing since 1971 &middot; Sheffield, UK</div>
+    <h1 style="font-family: var(--font-heading); font-weight: 500; font-size: 56px; line-height: 1.08; margin: 0 0 28px;">Three brands. One standard of engineering.</h1>
+    <p style="font-size: 19px; line-height: 1.6; color: var(--color-neutral-200); margin: 0 0 12px; max-width: 620px;">The Blake Group designs and manufactures the equipment that keeps people connected — at home, on the road, and everywhere in between. Under one roof in Sheffield, our companies serve professional installers, caravanners, and the businesses that need reliable connectivity.</p>
+  </div>
+
+  <!-- Brands -->
+  <div id="brands" style="padding: 40px 0 20px;">
+    <h2 style="font-family: var(--font-heading); font-weight: 500; font-size: 28px; margin: 0 0 12px;">Our companies</h2>
+    <p style="color: var(--color-neutral-300); font-size: 16px; margin: 0 0 40px; max-width: 560px;">Each brand focuses on a distinct market, backed by the same manufacturing and testing standards.</p>
+
+    <div style="display: grid; grid-template-columns: repeat({{ gridCols }}, 1fr); gap: 24px; margin-bottom: 80px;">
+
+      <div class="card elev-sm" style="padding: 32px; display: flex; flex-direction: column; gap: 16px;">
+        <sc-if value="{{ showLogos }}" hint-placeholder-val="{{ true }}">
+          <image-slot id="logo-blake-uk" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Blake UK logo"></image-slot>
+        </sc-if>
+        <div class="tag tag-accent" style="align-self: flex-start;">Est. 1971</div>
+        <h3 class="card-title" style="font-size: 22px; margin: 0;">Blake UK</h3>
+        <p class="card-body" style="font-size: 15px; line-height: 1.6; margin: 0; flex: 1;">The UK's only TV aerial manufacturer, and one of the country's leading suppliers of TV, Wi-Fi, networking and home security products to professional installers. Home to the PROception range and a privately operated anechoic chamber.</p>
+        <a href="https://www.blake-uk.com" target="_blank" rel="noopener" class="btn btn-secondary btn-block">Visit blake-uk.com</a>
+      </div>
+
+      <div class="card elev-sm" style="padding: 32px; display: flex; flex-direction: column; gap: 16px;">
+        <sc-if value="{{ showLogos }}" hint-placeholder-val="{{ true }}">
+          <image-slot id="logo-visionplus" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Vision Plus logo"></image-slot>
+        </sc-if>
+        <div class="tag tag-accent-2" style="align-self: flex-start;">Leisure</div>
+        <h3 class="card-title" style="font-size: 22px; margin: 0;">Vision Plus</h3>
+        <p class="card-body" style="font-size: 15px; line-height: 1.6; margin: 0; flex: 1;">Antennas, amplifiers, Smart TVs and reversing camera systems built for caravans, motorhomes and boats — trusted by installers and the leisure trade across the UK.</p>
+        <a href="https://visionplus.co.uk/" target="_blank" rel="noopener" class="btn btn-secondary btn-block">Visit visionplus.co.uk</a>
+      </div>
+
+      <div class="card elev-sm" style="padding: 32px; display: flex; flex-direction: column; gap: 16px;">
+        <sc-if value="{{ showLogos }}" hint-placeholder-val="{{ true }}">
+          <image-slot id="logo-solwise" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Solwise logo"></image-slot>
+        </sc-if>
+        <div class="tag tag-neutral" style="align-self: flex-start;">Connectivity</div>
+        <h3 class="card-title" style="font-size: 22px; margin: 0;">Solwise</h3>
+        <p class="card-body" style="font-size: 15px; line-height: 1.6; margin: 0; flex: 1;">Specialists in 4G/5G routers, Wi-Fi bridging, fibre and IoT networking — connecting homes, boats, hotels and businesses wherever a cable can't reach.</p>
+        <a href="https://www.solwise.co.uk/" target="_blank" rel="noopener" class="btn btn-secondary btn-block">Visit solwise.co.uk</a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Strengths -->
+  <sc-if value="{{ showStrengths }}" hint-placeholder-val="{{ true }}">
+  <div id="strengths" style="padding: 40px 0 100px; border-top: 1px solid var(--color-neutral-800);">
+    <h2 style="font-family: var(--font-heading); font-weight: 500; font-size: 28px; margin: 40px 0 12px;">What connects us</h2>
+    <p style="color: var(--color-neutral-300); font-size: 16px; margin: 0 0 40px; max-width: 560px;">Whichever brand you buy from, you're buying into the same engineering discipline.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;">
+      <div>
+        <div style="font-family: var(--font-heading); font-size: 32px; color: var(--color-accent-300); margin-bottom: 12px;">55+</div>
+        <div style="font-size: 15px; line-height: 1.5; color: var(--color-neutral-200);">Years manufacturing in Sheffield, since Ronald Blake founded the business in 1971</div>
+      </div>
+      <div>
+        <div style="font-family: var(--font-heading); font-size: 32px; color: var(--color-accent-300); margin-bottom: 12px;">1</div>
+        <div style="font-size: 15px; line-height: 1.5; color: var(--color-neutral-200);">Privately operated anechoic chamber — the only one of its kind in the UK — for rigorous product testing</div>
+      </div>
+      <div>
+        <div style="font-family: var(--font-heading); font-size: 32px; color: var(--color-accent-300); margin-bottom: 12px;">1,000+</div>
+        <div style="font-size: 15px; line-height: 1.5; color: var(--color-neutral-200);">Products across the group, from aerials and CCTV to fibre and 4G/5G routers</div>
+      </div>
+      <div>
+        <div style="font-family: var(--font-heading); font-size: 32px; color: var(--color-accent-300); margin-bottom: 12px;">3</div>
+        <div style="font-size: 15px; line-height: 1.5; color: var(--color-neutral-200);">Distinct markets served — professional installers, leisure & caravanning, and connectivity specialists</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- Contact / footer -->
+  <div id="contact" style="padding: 48px 0 64px; border-top: 1px solid var(--color-neutral-800); display: flex; align-items: flex-end; justify-content: space-between; gap: 40px;">
+    <div>
+      <div style="font-family: var(--font-heading); font-weight: 500; font-size: 20px; margin-bottom: 8px;">Blake Group</div>
+      <div style="font-size: 14px; color: var(--color-neutral-400); line-height: 1.6;">177&ndash;187 Rutland Road, Sheffield, S3 9PT</div>
+    </div>
+    <div style="display: flex; gap: 16px;">
+      <a href="https://www.blake-uk.com" target="_blank" rel="noopener" class="btn btn-ghost">Blake UK</a>
+      <a href="https://visionplus.co.uk/" target="_blank" rel="noopener" class="btn btn-ghost">Vision Plus</a>
+      <a href="https://www.solwise.co.uk/" target="_blank" rel="noopener" class="btn btn-ghost">Solwise</a>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;cardLayout&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;grid&quot;, &quot;options&quot;: [&quot;grid&quot;, &quot;stacked&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Layout&quot;}, &quot;showLogos&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Layout&quot;}, &quot;showStrengths&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Layout&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const layout = this.props.cardLayout ?? 'grid';
+    return {
+      gridCols: layout === 'stacked' ? 1 : 3,
+      showLogos: this.props.showLogos ?? true,
+      showStrengths: this.props.showStrengths ?? true
+    };
+  }
+}
+</script>
+</body>
+</html>

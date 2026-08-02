@@ -74,6 +74,16 @@ chown -R www-data:www-data "$WEBROOT"
 chmod 750 "$WEBROOT/config"
 chmod 770 "$WEBROOT"/{data,uploads,logs}
 
+# ── blakegroup.uk static site ──────────────────────────────────────────────────
+# Lives in the same repo (blakegroup-site/public) so it ships via the same
+# checkout/copy step as everything else, then gets synced to its own webroot
+# here rather than served out of $WEBROOT directly - keeps it a fully
+# separate site from the chatbot, matching the Caddy config.
+info "Syncing blakegroup.uk site..."
+mkdir -p /var/www/blakegroup/public
+cp -r "$WEBROOT"/blakegroup-site/public/. /var/www/blakegroup/public/
+chown -R www-data:www-data /var/www/blakegroup
+
 # ── Database ──────────────────────────────────────────────────────────────────
 info "Initialising SQLite database..."
 if [ ! -f "$WEBROOT/data/chatbot.db" ]; then
