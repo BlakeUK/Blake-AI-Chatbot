@@ -13,6 +13,14 @@ tauri = { version = "1", features = ["notification-all", "system-tray", "shell-o
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[features]
+# This feature is used for production builds or when a dev server is not
+# specified, DO NOT REMOVE - required by `cargo tauri build`, which enables
+# it automatically and needs the app's own Cargo.toml to declare and forward
+# it to the tauri crate. Missing this is exactly what "the package
+# 'operator-console' does not contain this feature: custom-protocol" means.
+custom-protocol = ["tauri/custom-protocol"]
+
 [[bin]]
 name = "operator-console"
 path = "src/main.rs"
