@@ -237,6 +237,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
         <div id="page-import-progress" style="margin-top:10px"></div>
         <div id="page-import-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelPageImport()">Cancel remaining batches</button></div>
         <div id="page-import-summary-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
+        <div id="page-import-summary-status" style="font-size:12px;color:#adb4ba;margin-top:6px"></div>
       </div>
     </div>
     <div class="card">
@@ -721,6 +722,7 @@ async function importUrlsBatched(urls){
 
 // ── URL import: Pages ────────────────────────────────────────────────────────
 let discoveredOtherUrls=[];
+let lastScannedPagesUrl='';
 async function discoverPageLinks(){
   const url=val('discover-pages-url');
   if(!url)return flash('Enter a page or sitemap URL',true);
@@ -730,6 +732,7 @@ async function discoverPageLinks(){
   try{
     const r=await get(API+'/discover_urls.php?url='+encodeURIComponent(url));
     if(r.error){status.textContent='';return flash(r.error,true);}
+    lastScannedPagesUrl=url;
     discoveredOtherUrls=r.other_links||[];
     if(!discoveredOtherUrls.length){status.textContent=`No non-PDF links found (${r.total_links_found} total links on that page/sitemap).`;return;}
     status.textContent=`Found ${discoveredOtherUrls.length} link(s), out of ${r.total_links_found} total.`;
@@ -780,8 +783,10 @@ async function importPageLinksBatched(urls){
   const prog=document.getElementById('page-import-progress');
   const cancelRow=document.getElementById('page-import-cancel-row');
   const summaryBox=document.getElementById('page-import-summary-actions');
+  const summaryStatus=document.getElementById('page-import-summary-status');
   prog.innerHTML='';
   summaryBox.innerHTML='';
+  summaryStatus.innerHTML='';
   pageImportCancelled=false;
   lastPageImportResults=[];
   cancelRow.style.display=urls.length>50?'block':'none';
@@ -827,10 +832,41 @@ function renderPageImportSummaryActions(){
   }
   box.innerHTML=html;
 }
-function downloadCleanedSitemap(){
-  const urls=lastPageImportResults.filter(r=>r.http_code!==404).map(r=>r.url);
-  const body=urls.map(u=>`  <url><loc>${esc(u)}</loc></url>`).join('\n');
-  const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+// Replica, not a rebuild: this downloads the admin's actual sitemap with
+// only the confirmed-404 <url> entries removed - lastmod/priority/comments/
+// formatting on everything else stay exactly as they were, and entries
+// never even checked are left in untouched. Falls back to a synthetic
+// minimal sitemap only when there's no original XML to replicate at all -
+// i.e. pasted URLs with no scan, or the scanned source was an HTML page
+// rather than a sitemap.
+async function downloadCleanedSitemap(){
+  const statusEl=document.getElementById('page-import-summary-status');
+  const keepUrls=()=>lastPageImportResults.filter(r=>r.http_code!==404).map(r=>r.url);
+  function fallbackDownload(note){
+    const urls=keepUrls();
+    const bodyXml=urls.map(u=>`  <url><loc>${esc(u)}</loc></url>`).join('\n');
+    const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${bodyXml}\n</urlset>\n`;
+    triggerXmlDownload(xml);
+    statusEl.textContent=note;
+  }
+  if(!lastScannedPagesUrl){
+    fallbackDownload("These pages weren't scanned from a sitemap URL, so this is a fresh sitemap built from the checked URLs instead.");
+    return;
+  }
+  const notFoundUrls=lastPageImportResults.filter(r=>r.http_code===404).map(r=>r.url);
+  statusEl.textContent='Re-fetching the original sitemap...';
+  try{
+    const r=await post(API+'/download_cleaned_sitemap.php',{csrf,sitemap_url:lastScannedPagesUrl,exclude_urls:notFoundUrls});
+    if(r.error){statusEl.innerHTML=`<span style="color:#f5a3a3">${esc(r.error)}</span>`;return;}
+    if(r.is_xml){
+      triggerXmlDownload(r.xml);
+      statusEl.textContent=`Done — ${r.removed} dead link${r.removed===1?'':'s'} removed from the original sitemap.`;
+    }else{
+      fallbackDownload("The scanned source wasn't a sitemap XML file, so this is a fresh sitemap built from the checked URLs instead.");
+    }
+  }catch(e){statusEl.innerHTML='<span style="color:#f5a3a3">Could not reach the server</span>';}
+}
+function triggerXmlDownload(xml){
   const blob=new Blob([xml],{type:'application/xml'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
