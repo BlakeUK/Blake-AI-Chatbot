@@ -28,20 +28,26 @@ if (!$product) {
 $variants = $pdo->prepare('SELECT variant_code, attributes, url, price_inc_vat, price_exc_vat FROM product_variants WHERE parent_code = ?');
 $variants->execute([$code]);
 
-$documents = $pdo->prepare('SELECT doc_type, title, url FROM product_documents WHERE product_code = ?');
+$documents = $pdo->prepare('SELECT doc_type, title, url, file_size FROM product_documents WHERE product_code = ?');
 $documents->execute([$code]);
 
-// Resolve related codes to full rows too, not just the bare codes - staff
-// verifying an import want to see what's actually linked, same as the bot
-// does, not decode JSON themselves. No cap here (unlike the chat context,
-// which caps at 3 to keep the Gemini prompt bounded) - this is a review
-// screen, show everything that's actually set.
-$related_codes = json_decode($product['related_product_codes'] ?? '[]', true) ?: [];
+// Resolve related/alternative/comparison codes to full rows too, not just
+// the bare codes - staff verifying an import want to see what's actually
+// linked, same as the bot does, not decode JSON themselves. No cap here
+// (unlike the chat context, which caps at 3 to keep the Gemini prompt
+// bounded) - this is a review screen, show everything that's actually set.
+$related_codes     = json_decode($product['related_product_codes'] ?? '[]', true) ?: [];
+$alternative_codes = json_decode($product['alternative_product_codes'] ?? '[]', true) ?: [];
+$comparison_codes  = json_decode($product['comparison_product_codes'] ?? '[]', true) ?: [];
 $related       = \Knowledge\Search::byCodes($related_codes, max(count($related_codes), 1));
+$alternatives  = \Knowledge\Search::byCodes($alternative_codes, max(count($alternative_codes), 1));
+$comparisons   = \Knowledge\Search::byCodes($comparison_codes, max(count($comparison_codes), 1));
 
 json_out([
-    'product'   => $product,
-    'variants'  => $variants->fetchAll(),
-    'documents' => $documents->fetchAll(),
-    'related'   => $related,
+    'product'      => $product,
+    'variants'     => $variants->fetchAll(),
+    'documents'    => $documents->fetchAll(),
+    'related'      => $related,
+    'alternatives' => $alternatives,
+    'comparisons'  => $comparisons,
 ]);

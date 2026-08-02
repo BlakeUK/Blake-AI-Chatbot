@@ -39,7 +39,8 @@ class Search
         $stmt = db()->prepare('
             SELECT p.product_code, p.name, p.title, p.url,
                    p.price_inc_vat, p.price_exc_vat, p.image_url,
-                   p.summary_bullets, p.description, p.tech_specs, p.stock_status, p.related_product_codes,
+                   p.summary_bullets, p.description, p.tech_specs, p.stock_status,
+                   p.related_product_codes, p.alternative_product_codes, p.brand,
                    rank
             FROM products_fts
             JOIN products p ON p.id = products_fts.rowid
@@ -61,7 +62,8 @@ class Search
         $stmt = db()->prepare('
             SELECT product_code, name, title, url,
                    price_inc_vat, price_exc_vat, image_url,
-                   summary_bullets, description, tech_specs, stock_status, related_product_codes
+                   summary_bullets, description, tech_specs, stock_status,
+                   related_product_codes, alternative_product_codes, brand
             FROM products
             WHERE product_code = ? AND active = 1
         ');
@@ -84,7 +86,8 @@ class Search
         $stmt = db()->prepare("
             SELECT product_code, name, title, url,
                    price_inc_vat, price_exc_vat, image_url,
-                   summary_bullets, description, tech_specs, stock_status, related_product_codes
+                   summary_bullets, description, tech_specs, stock_status,
+                   related_product_codes, alternative_product_codes, brand
             FROM products
             WHERE product_code IN ($placeholders) AND active = 1
         ");
@@ -152,20 +155,31 @@ class Search
     }
 
     // Formats a single product row into the text block used in the Gemini
-    // prompt, tagging it as either the one the customer is currently
-    // viewing, or a related/cross-sell suggestion for it.
-    public static function formatForPrompt(array $p, ?string $currentCode, array $relatedCodes = []): string
-    {
+    // prompt, tagging it as the one the customer is currently viewing, a
+    // related (cross-sell) suggestion, or an alternative (substitute) for it.
+    public static function formatForPrompt(
+        array $p,
+        ?string $currentCode,
+        array $relatedCodes = [],
+        array $alternativeCodes = []
+    ): string {
         $bullets  = json_decode($p['summary_bullets'] ?? '[]', true) ?: [];
         $specs    = json_decode($p['tech_specs'] ?? '{}', true) ?: [];
+        $brand    = json_decode($p['brand'] ?? 'null', true);
         $isViewed = $currentCode && $p['product_code'] === $currentCode;
-        $isRelated = !$isViewed && in_array($p['product_code'], $relatedCodes, true);
+        $isAlt    = !$isViewed && in_array($p['product_code'], $alternativeCodes, true);
+        $isRelated = !$isViewed && !$isAlt && in_array($p['product_code'], $relatedCodes, true);
 
         $tag = $isViewed
             ? '[Customer is currently viewing this product] '
-            : ($isRelated ? '[Related product — a cross-sell/accessory suggestion, mention only if relevant] ' : '');
+            : ($isAlt
+                ? '[Alternative product — a substitute for the one being viewed, mention only if relevant] '
+                : ($isRelated ? '[Related product — a cross-sell/accessory suggestion, mention only if relevant] ' : ''));
 
         $line = $tag . "Product: {$p['name']} (Code: {$p['product_code']})";
+        if (!empty($brand['name'])) {
+            $line .= " — Brand: {$brand['name']}";
+        }
         if (!empty($p['price_inc_vat'])) {
             $line .= " — £{$p['price_inc_vat']} inc VAT";
         }

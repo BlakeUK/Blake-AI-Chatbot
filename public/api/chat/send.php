@@ -84,10 +84,15 @@ $context_products = \Knowledge\Search::withCurrentFirst($product_hits, $current_
 // Cross-sell: if the current product lists related codes, pull them in too
 // (also not a confidence signal - same reasoning as above).
 $related_codes = [];
+$alternative_codes = [];
 if ($current_product) {
     $related_codes = json_decode($current_product['related_product_codes'] ?? '[]', true) ?: [];
     $related       = \Knowledge\Search::byCodes($related_codes, 3);
     $context_products = \Knowledge\Search::addRelated($context_products, $related);
+
+    $alternative_codes = json_decode($current_product['alternative_product_codes'] ?? '[]', true) ?: [];
+    $alternatives      = \Knowledge\Search::byCodes($alternative_codes, 3);
+    $context_products  = \Knowledge\Search::addRelated($context_products, $alternatives);
 }
 
 // ── Build Gemini prompt ───────────────────────────────────────────────────────
@@ -103,7 +108,7 @@ if ($knowledge_hits) {
 
 if ($context_products) {
     $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(
-        fn($p) => \Knowledge\Search::formatForPrompt($p, $session['product_code'], $related_codes),
+        fn($p) => \Knowledge\Search::formatForPrompt($p, $session['product_code'], $related_codes, $alternative_codes),
         $context_products
     ));
 }
@@ -118,6 +123,7 @@ RULES:
 - Keep answers concise and helpful.
 - Always include direct Blake UK URLs when recommending products or support pages.
 - Products tagged [Related product] are cross-sell/accessory suggestions for what the customer is viewing — mention one only if it's naturally relevant to their question, don't force it into every reply.
+- Products tagged [Alternative product] are substitutes for what the customer is viewing (e.g. if it's out of stock or they want a different spec) — mention one if the customer asks about alternatives, other options, or if the current product is out of stock.
 - If you cannot answer from the context, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
 - Never make up product codes, prices or specifications.
 

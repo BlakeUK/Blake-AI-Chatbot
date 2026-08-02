@@ -109,6 +109,13 @@ else
     warn "Related-products schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(products);" | grep -q "brand"; then
+    info "Applying site-feed fields schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_site_feed_fields.sql"
+else
+    warn "Site-feed fields schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

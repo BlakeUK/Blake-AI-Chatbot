@@ -20,7 +20,7 @@ if ($q) {
     if ($clean) {
         $stmt = $pdo->prepare('
             SELECT p.product_code, p.name, p.category_path, p.price_inc_vat,
-                   p.stock_status, p.image_url, p.active
+                   p.stock_status, p.image_url, p.active, p.brand
             FROM products_fts
             JOIN products p ON p.id = products_fts.rowid
             WHERE products_fts MATCH ?
@@ -29,11 +29,11 @@ if ($q) {
         ');
         $stmt->execute([$clean, $limit]);
     } else {
-        $stmt = $pdo->prepare('SELECT product_code, name, category_path, price_inc_vat, stock_status, image_url, active FROM products ORDER BY name LIMIT ?');
+        $stmt = $pdo->prepare('SELECT product_code, name, category_path, price_inc_vat, stock_status, image_url, active, brand FROM products ORDER BY name LIMIT ?');
         $stmt->execute([$limit]);
     }
 } else {
-    $stmt = $pdo->prepare('SELECT product_code, name, category_path, price_inc_vat, stock_status, image_url, active FROM products ORDER BY name LIMIT ?');
+    $stmt = $pdo->prepare('SELECT product_code, name, category_path, price_inc_vat, stock_status, image_url, active, brand FROM products ORDER BY name LIMIT ?');
     $stmt->execute([$limit]);
 }
 

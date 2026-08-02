@@ -35,7 +35,8 @@ class Importer
                             name=?, title=?, url=?, category_path=?, summary_bullets=?,
                             description=?, tech_specs=?, price_inc_vat=?, price_exc_vat=?,
                             stock_status=?, image_url=?, image_alt=?, search_terms=?,
-                            related_product_codes=?, active=1, updated_at=?
+                            related_product_codes=?, alternative_product_codes=?, comparison_product_codes=?,
+                            slug=?, brand=?, currency=?, active=1, updated_at=?
                         WHERE product_code=?
                     ')->execute([
                         $p['name'], $p['title'], $p['url'],
@@ -44,6 +45,8 @@ class Importer
                         $p['price_inc_vat'], $p['price_exc_vat'],
                         $p['stock_status'], $p['image_url'], $p['image_alt'],
                         $p['search_terms'], $p['related_product_codes'],
+                        $p['alternative_product_codes'], $p['comparison_product_codes'],
+                        $p['slug'], $p['brand'], $p['currency'],
                         time(), $p['product_code'],
                     ]);
                     $productId = (int)$row['id'];
@@ -54,14 +57,17 @@ class Importer
                             product_code, name, title, url, category_path, summary_bullets,
                             description, tech_specs, price_inc_vat, price_exc_vat,
                             stock_status, image_url, image_alt, search_terms,
-                            related_product_codes, active, updated_at
-                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+                            related_product_codes, alternative_product_codes, comparison_product_codes,
+                            slug, brand, currency, active, updated_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)
                     ')->execute([
                         $p['product_code'], $p['name'], $p['title'], $p['url'],
                         $p['category_path'], $p['summary_bullets'], $p['description'],
                         $p['tech_specs'], $p['price_inc_vat'], $p['price_exc_vat'],
                         $p['stock_status'], $p['image_url'], $p['image_alt'],
-                        $p['search_terms'], $p['related_product_codes'], time(),
+                        $p['search_terms'], $p['related_product_codes'],
+                        $p['alternative_product_codes'], $p['comparison_product_codes'],
+                        $p['slug'], $p['brand'], $p['currency'], time(),
                     ]);
                     $productId = (int)$pdo->lastInsertId();
                     $created++;
@@ -88,8 +94,8 @@ class Importer
                 // Documents
                 $pdo->prepare('DELETE FROM product_documents WHERE product_code=?')->execute([$p['product_code']]);
                 foreach ($p['documents'] as $d) {
-                    $pdo->prepare('INSERT INTO product_documents (product_code, doc_type, title, url) VALUES (?,?,?,?)')
-                        ->execute([$p['product_code'], $d['type'], $d['title'], $d['url']]);
+                    $pdo->prepare('INSERT INTO product_documents (product_code, doc_type, title, url, file_size) VALUES (?,?,?,?,?)')
+                        ->execute([$p['product_code'], $d['type'], $d['title'], $d['url'], $d['size']]);
                 }
 
             } catch (\Throwable $e) {
@@ -210,6 +216,24 @@ class Importer
         return mb_strlen($s) > $max ? mb_substr($s, 0, $max) : $s;
     }
 
+    // Parses a "list of product codes, however shaped" field into a plain
+    // array of code strings. Handles a flat string array, the XML
+    // <wrapper><code>X</code></wrapper> pattern, and an array of objects
+    // carrying the code under product_code/code (the real site feed's
+    // related_products/alternative_products/comparison_products don't show
+    // their item shape in an empty example, so this covers both
+    // possibilities rather than assuming one).
+    private static function parseCodeList($raw, string $xmlChildKey = 'code'): array
+    {
+        $list = self::asList(self::unwrap($raw, $xmlChildKey));
+        return array_values(array_filter(array_map(function ($c) {
+            if (is_array($c)) {
+                return trim((string)($c['#text'] ?? $c['product_code'] ?? $c['code'] ?? $c['@code'] ?? ''));
+            }
+            return trim((string)$c);
+        }, $list)));
+    }
+
     // ── Normalise any feed shape into our schema ──────────────────────────────
     private static function normalise(array $r): array
     {
@@ -227,15 +251,24 @@ class Importer
         }
 
         // Summary bullets
-        $bullets = $r['summary_bullets'] ?? $r['summaryBullets'] ?? $r['bullets'] ?? [];
+        $bullets = $r['summary_bullets'] ?? $r['summaryBullets'] ?? $r['bullets'] ?? $r['bullet_points'] ?? [];
         if (is_string($bullets)) {
             $bullets = array_filter(array_map('trim', explode("\n", $bullets)));
         } else {
             $bullets = self::asList(self::unwrap($bullets, 'bullet'));
         }
 
-        // Tech specs — flatten "<spec name=X>Y</spec>" or pass through a JSON map
-        $specs = self::flattenAttrs(self::unwrap($r['tech_specs'] ?? $r['techSpecs'] ?? $r['specifications'] ?? [], 'spec'));
+        // Tech specs — flatten "<spec name=X>Y</spec>" or pass through a JSON map.
+        // The real site feed splits this across two separate keys (tech_spec
+        // and technical_information); merge both rather than picking one,
+        // since a feed could plausibly use either or both. tech_spec wins on
+        // a key collision, since technical_information reads more like
+        // supplementary/marketing detail than the canonical spec sheet.
+        $specsPrimary = self::flattenAttrs(self::unwrap(
+            $r['tech_specs'] ?? $r['techSpecs'] ?? $r['specifications'] ?? $r['tech_spec'] ?? [], 'spec'
+        ));
+        $specsExtra = self::flattenAttrs(self::unwrap($r['technical_information'] ?? [], 'spec'));
+        $specs = array_merge($specsExtra, $specsPrimary);
 
         // Price — negative values are never legitimate here and would look
         // like a broken bot if quoted back to a customer, so treat as absent
@@ -250,8 +283,15 @@ class Importer
         $stock_data   = $r['stock'] ?? [];
         $stock_status = $r['stock_status'] ?? $stock_data['status'] ?? $stock_data['@status'] ?? null;
 
-        // Images — take the first only (used for the single chat-card thumbnail)
+        // Images — take the first only (used for the single chat-card thumbnail).
+        // Sort by sort_order when present, since the real feed orders images
+        // explicitly rather than relying on array position.
         $imageList = self::asList(self::unwrap($r['images'] ?? [], 'image'));
+        usort($imageList, function ($a, $b) {
+            $sa = is_array($a) ? (int)($a['sort_order'] ?? $a['@sort_order'] ?? PHP_INT_MAX) : PHP_INT_MAX;
+            $sb = is_array($b) ? (int)($b['sort_order'] ?? $b['@sort_order'] ?? PHP_INT_MAX) : PHP_INT_MAX;
+            return $sa <=> $sb;
+        });
         $firstImg  = is_array($imageList[0] ?? null) ? $imageList[0] : [];
         $img_url   = $r['image_url'] ?? ($firstImg['url'] ?? $firstImg['@url'] ?? null);
         $img_alt   = $r['image_alt'] ?? ($firstImg['alt'] ?? $firstImg['@alt'] ?? null);
@@ -269,14 +309,16 @@ class Importer
             ];
         }
 
-        // Documents
+        // Documents — the real feed calls this "downloads" and uses "label"
+        // instead of "title", plus an extra "size" field.
         $documents = [];
-        foreach (self::asList(self::unwrap($r['documents'] ?? [], 'document')) as $d) {
+        foreach (self::asList(self::unwrap($r['documents'] ?? $r['downloads'] ?? [], 'document')) as $d) {
             if (!is_array($d)) continue;
             $documents[] = [
                 'type'  => $d['type'] ?? $d['@type'] ?? 'doc',
-                'title' => $d['title'] ?? $d['@title'] ?? '',
+                'title' => $d['title'] ?? $d['@title'] ?? $d['label'] ?? $d['@label'] ?? '',
                 'url'   => $d['url'] ?? $d['@url'] ?? '',
+                'size'  => $d['size'] ?? $d['@size'] ?? null,
             ];
         }
 
@@ -284,16 +326,24 @@ class Importer
         $termsList = self::asList(self::unwrap($r['search_terms'] ?? $r['searchTerms'] ?? [], 'term'));
         $terms     = implode(' ', array_filter(array_map('strval', $termsList)));
 
-        // Related products — cross-sell/accessory codes. XML uses
-        // <relatedProductCodes><code>X</code></relatedProductCodes>; JSON uses
-        // a flat array. Codes are just strings, not attribute-bearing
-        // elements, so unlike category/bullets this never needs flattenAttrs.
-        $relatedRaw  = $r['related_product_codes'] ?? $r['relatedProductCodes'] ?? [];
-        $relatedList = self::asList(self::unwrap($relatedRaw, 'code'));
-        $related     = array_values(array_filter(array_map(
-            fn($c) => is_array($c) ? ($c['#text'] ?? '') : trim((string)$c),
-            $relatedList
-        )));
+        // Related/alternative/comparison products - three distinct
+        // relationship categories in the real feed, not just one.
+        $related     = self::parseCodeList($r['related_product_codes'] ?? $r['relatedProductCodes'] ?? $r['related_products'] ?? []);
+        $alternative = self::parseCodeList($r['alternative_product_codes'] ?? $r['alternative_products'] ?? []);
+        $comparison  = self::parseCodeList($r['comparison_product_codes'] ?? $r['comparison_products'] ?? []);
+
+        $slug = trim((string)($r['slug'] ?? ''));
+
+        $brandRaw = $r['brand'] ?? [];
+        $brand = is_array($brandRaw)
+            ? [
+                'name' => trim((string)($brandRaw['name'] ?? $brandRaw['@name'] ?? '')),
+                'slug' => trim((string)($brandRaw['slug'] ?? $brandRaw['@slug'] ?? '')),
+                'url'  => trim((string)($brandRaw['url'] ?? $brandRaw['@url'] ?? '')),
+            ]
+            : ['name' => trim((string)$brandRaw), 'slug' => '', 'url' => ''];
+
+        $currency = trim((string)($r['currency'] ?? $price_data['currency'] ?? $price_data['@currency'] ?? '')) ?: null;
 
         return [
             'product_code'   => $code,
@@ -310,7 +360,12 @@ class Importer
             'image_url'      => $img_url,
             'image_alt'      => $img_alt,
             'search_terms'   => $terms,
-            'related_product_codes' => json_encode($related),
+            'related_product_codes'     => json_encode($related),
+            'alternative_product_codes' => json_encode($alternative),
+            'comparison_product_codes'  => json_encode($comparison),
+            'slug'           => $slug ?: null,
+            'brand'          => ($brand['name'] || $brand['url']) ? json_encode($brand) : null,
+            'currency'       => $currency,
             'variants'       => $variants,
             'documents'      => $documents,
         ];
