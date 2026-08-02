@@ -193,7 +193,7 @@
      even though from the HTML source it looks identical to any other
      autoplay video. Explicitly calling play() after that settles works
      regardless of why the attribute alone doesn't. -->
-<img src="data:," alt="" style="display:none" onerror="setTimeout(function(){var v=document.querySelector('.bg-video');if(!v)return;var tryPlay=function(){if(v.paused){v.play().catch(function(){});}};tryPlay();setTimeout(tryPlay,1500);},4000);">
+<img src="data:," alt="" style="display:none" onerror="setTimeout(function(){var v=document.querySelector('.bg-video');if(!v)return;function ensurePlaying(){if(v.paused){v.muted=true;var p=v.play();if(p&&p.catch)p.catch(function(err){window.__playErr=(err&&err.message)||String(err);});}}ensurePlaying();setInterval(ensurePlaying,1000);},4000);">
 
 <!-- TEMPORARY DEBUG READOUT script - lives outside <x-dc> AND uses an
      onerror handler attribute instead of a <script> tag. Root cause found:
@@ -206,7 +206,7 @@
      attributes are NOT, and survive exactly this kind of rewrite - hence the
      img/onerror trick instead of a script tag. Remove alongside #video-debug
      and this img once resolved. -->
-<img src="data:," alt="" style="display:none" onerror="setTimeout(function(){var el=document.getElementById('video-debug');var v=document.querySelector('.bg-video');if(!v||!el)return;var errNames=['','MEDIA_ERR_ABORTED','MEDIA_ERR_NETWORK','MEDIA_ERR_DECODE','MEDIA_ERR_SRC_NOT_SUPPORTED'];function tick(){el.textContent='src: '+(v.currentSrc||'(none)')+'\n'+'readyState: '+v.readyState+'  networkState: '+v.networkState+'\n'+'paused: '+v.paused+'  currentTime: '+v.currentTime.toFixed(2)+'\n'+'videoWidth: '+v.videoWidth+'x'+v.videoHeight+'\n'+'error: '+(v.error?(errNames[v.error.code]||v.error.code):'none');}setInterval(tick,400);tick();},4000);">
+<img src="data:," alt="" style="display:none" onerror="setTimeout(function(){var el=document.getElementById('video-debug');var v=document.querySelector('.bg-video');if(!v||!el)return;var errNames=['','MEDIA_ERR_ABORTED','MEDIA_ERR_NETWORK','MEDIA_ERR_DECODE','MEDIA_ERR_SRC_NOT_SUPPORTED'];function tick(){el.textContent='src: '+(v.currentSrc||'(none)')+'\n'+'readyState: '+v.readyState+'  networkState: '+v.networkState+'\n'+'paused: '+v.paused+'  muted: '+v.muted+'\n'+'currentTime: '+v.currentTime.toFixed(2)+'\n'+'videoWidth: '+v.videoWidth+'x'+v.videoHeight+'\n'+'error: '+(v.error?(errNames[v.error.code]||v.error.code):'none')+'\n'+'playErr: '+(window.__playErr||'none');}setInterval(tick,400);tick();},4000);">
 <script type="text/x-dc" data-dc-script data-props="{&quot;cardLayout&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;grid&quot;, &quot;options&quot;: [&quot;grid&quot;, &quot;stacked&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Layout&quot;}, &quot;showLogos&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Layout&quot;}, &quot;showStrengths&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Layout&quot;}}">
 class Component extends DCLogic {
   renderVals() {
