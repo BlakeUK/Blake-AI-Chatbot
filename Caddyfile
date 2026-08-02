@@ -15,3 +15,14 @@ chat.blake-uk.com {
         X-Frame-Options SAMEORIGIN
     }
 }
+
+# blakegroup.uk's A/AAAA records point at this VPS (added 1 Aug 2026) so the
+# domain isn't a dead end, but email (MX/SPF/DKIM, via Cloudflare Email
+# Routing) is the only thing actually configured for it so far - no content
+# of its own to serve yet. Redirects to the main site, preserving path and
+# query, rather than just the homepage, so it's graceful if the domain ends
+# up referenced anywhere specific. Swap this block for a real site later if
+# blakegroup.uk ends up hosting its own content instead.
+blakegroup.uk, www.blakegroup.uk {
+    redir https://www.blake-uk.com{uri} permanent
+}
