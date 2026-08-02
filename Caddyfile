@@ -32,7 +32,7 @@ chat.blake-uk.com {
 # as a subdomain.
 
 blakegroup.uk, www.blakegroup.uk {
-    @intro path / /index.html /support.js /image-slot.js /.image-slots.state.json /_ds/* /robots.txt
+    @intro path / /index.html /support.js /image-slot.js /.image-slots.state.json /_ds/* /robots.txt /sitemap.xml
     handle @intro {
         root * /var/www/blakegroup/public
         file_server
