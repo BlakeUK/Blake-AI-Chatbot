@@ -15,8 +15,53 @@
     body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
     a { color: var(--color-accent-300); text-decoration: none; }
     a:hover { color: var(--color-accent); text-decoration: underline; }
+
+    /* — Background video: pinned behind the whole page, not just the hero,
+         so it reads as the root's atmosphere rather than a section banner. — */
+    .bg-video-wrap {
+      position: fixed; inset: 0; z-index: -1; overflow: hidden;
+      background: var(--color-bg); /* holds the existing look if the file 404s or is still loading */
+    }
+    .bg-video { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    .bg-video-scrim {
+      /* Flat tint rather than a content-dependent gradient: keeps text
+         contrast constant no matter what's happening in the footage at any
+         given moment, while still leaving its motion and colour readable. */
+      position: absolute; inset: 0;
+      background: color-mix(in srgb, var(--color-bg) 68%, transparent);
+    }
+    @media (prefers-reduced-motion: reduce) { .bg-video { display: none; } }
+
+    /* — Brand logo plates —
+         Blake UK and Vision Plus are light marks that need a dark ground;
+         Solwise is a dark mark that needs a light one. Rather than forcing
+         one background on all three (which would erase one or the other),
+         every plate gets the same frame language - padding, radius, edge,
+         depth, the same slow turn - so the *system* is consistent even
+         though the fill underneath isn't. */
+    .logo-plate-wrap { perspective: 1000px; }
+    .logo-plate {
+      padding: 14px 20px; border-radius: var(--radius-md);
+      transform-style: preserve-3d;
+      animation: logo-turn 18s linear infinite;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 10px 24px rgba(0,0,0,0.28);
+    }
+    .logo-plate.on-dark { background: var(--color-bg); border: 1px solid var(--color-divider); }
+    .logo-plate.on-light {
+      background: var(--color-neutral-100);
+      border: 1px solid color-mix(in srgb, var(--color-neutral-900) 10%, transparent);
+    }
+    @keyframes logo-turn { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .logo-plate { animation: none; } }
   </style>
 </helmet>
+
+<div class="bg-video-wrap" aria-hidden="true">
+  <video class="bg-video" autoplay muted loop playsinline preload="auto">
+    <source src="generate_a_video_of_greens_bl.mp4" type="video/mp4">
+  </video>
+  <div class="bg-video-scrim"></div>
+</div>
 
 <div style="max-width: 1180px; margin: 0 auto; padding: 0 40px;">
 
@@ -46,7 +91,11 @@
 
       <div class="card elev-sm" style="padding: 32px; display: flex; flex-direction: column; gap: 16px;">
         <sc-if value="{{ showLogos }}" hint-placeholder-val="{{ true }}">
-          <image-slot id="logo-blake-uk" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Blake UK logo"></image-slot>
+          <div class="logo-plate-wrap">
+            <div class="logo-plate on-dark" style="animation-delay: -1s;">
+              <image-slot id="logo-blake-uk" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Blake UK logo"></image-slot>
+            </div>
+          </div>
         </sc-if>
         <div class="tag tag-accent" style="align-self: flex-start;">Est. 1971</div>
         <h3 class="card-title" style="font-size: 22px; margin: 0;">Blake UK</h3>
@@ -56,7 +105,11 @@
 
       <div class="card elev-sm" style="padding: 32px; display: flex; flex-direction: column; gap: 16px;">
         <sc-if value="{{ showLogos }}" hint-placeholder-val="{{ true }}">
-          <image-slot id="logo-visionplus" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Vision Plus logo"></image-slot>
+          <div class="logo-plate-wrap">
+            <div class="logo-plate on-dark" style="animation-delay: -7s;">
+              <image-slot id="logo-visionplus" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Vision Plus logo"></image-slot>
+            </div>
+          </div>
         </sc-if>
         <div class="tag tag-accent-2" style="align-self: flex-start;">Leisure</div>
         <h3 class="card-title" style="font-size: 22px; margin: 0;">Vision Plus</h3>
@@ -66,7 +119,11 @@
 
       <div class="card elev-sm" style="padding: 32px; display: flex; flex-direction: column; gap: 16px;">
         <sc-if value="{{ showLogos }}" hint-placeholder-val="{{ true }}">
-          <image-slot id="logo-solwise" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Solwise logo"></image-slot>
+          <div class="logo-plate-wrap">
+            <div class="logo-plate on-light" style="animation-delay: -13s;">
+              <image-slot id="logo-solwise" style="width: 100%; height: 56px;" shape="rect" fit="contain" placeholder="Solwise logo"></image-slot>
+            </div>
+          </div>
         </sc-if>
         <div class="tag tag-neutral" style="align-self: flex-start;">Connectivity</div>
         <h3 class="card-title" style="font-size: 22px; margin: 0;">Solwise</h3>
