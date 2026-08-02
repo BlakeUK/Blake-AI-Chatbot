@@ -49,6 +49,11 @@ $ticketId = $pdo->lastInsertId();
 $pdo->prepare('UPDATE chat_messages SET escalated=1 WHERE session_id=? AND role=?')
     ->execute([$session_id, 'assistant']);
 
+// Staff alert - deliberately after the DB writes above and wrapped so it can
+// never affect this response. If Telegram isn't configured or is down, the
+// customer still gets their normal escalation confirmation below.
+\Telegram\Notifier::sendTicketAlert($ticketId, $subject, $email ?: null, $session['page_url'] ?? null);
+
 json_out([
     'ok'        => true,
     'ticket_id' => $ticketId,

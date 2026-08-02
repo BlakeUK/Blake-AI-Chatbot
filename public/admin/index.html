@@ -319,6 +319,24 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       </div>
     </div>
     <div class="card">
+      <h2>Telegram Staff Alerts</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Pings a Telegram chat whenever a customer conversation escalates into a support ticket. Customers never see this — it's staff-only. Create a bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, paste its token below, then message the bot once before using Detect Chat ID.</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="row"><div><label>Bot Token</label><input type="password" id="tg-token-input" placeholder="123456789:AAF... (from BotFather)" autocomplete="off"></div></div>
+        <div class="row">
+          <div><label>Chat ID</label><input type="text" id="tg-chatid-input" placeholder="e.g. -100123456789 or 987654321"></div>
+          <button class="btn btn-secondary" onclick="detectChatId()">Detect Chat ID</button>
+        </div>
+        <div id="tg-detect-results" style="font-size:13px"></div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="tg-enabled-input" checked> Alerts enabled</label>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary" onclick="saveTelegramSettings()">Save</button>
+          <button class="btn btn-secondary" onclick="testTelegram()">Send Test Message</button>
+        </div>
+        <div id="tg-status" style="font-size:13px"></div>
+      </div>
+    </div>
+    <div class="card">
       <h2>Stored Services</h2>
       <table id="keys-table">
         <thead><tr><th>Service</th><th>Last Updated</th><th></th></tr></thead>
@@ -516,7 +534,7 @@ function applyRoleUI(){
 
 function init(){
   loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
-  if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();}
+  if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();}
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
@@ -990,6 +1008,48 @@ async function deleteApiKey(service){
   const r=await del(API+'/apikeys.php',{csrf,service});
   if(!r.error){flash('Key removed');loadApiKeys();}else flash(r.error,true);
 }
+
+// ── Telegram Alerts ──────────────────────────────────────────────────────────
+async function loadTelegramSettings(){
+  try{
+    const s=await get(API+'/telegram.php');
+    document.getElementById('tg-chatid-input').value=s.chat_id||'';
+    document.getElementById('tg-enabled-input').checked=s.enabled!==false;
+    document.getElementById('tg-token-input').placeholder=s.has_token?'•••••••• (saved — leave blank to keep)':'123456789:AAF... (from BotFather)';
+  }catch(_){}
+}
+async function saveTelegramSettings(){
+  const body={csrf,action:'save',chat_id:val('tg-chatid-input'),enabled:document.getElementById('tg-enabled-input').checked};
+  const token=document.getElementById('tg-token-input').value.trim();
+  if(token)body.bot_token=token;
+  const r=await post(API+'/telegram.php',body);
+  const st=document.getElementById('tg-status');
+  if(!r.error){st.innerHTML='<span style="color:#155724">Saved ✓</span>';document.getElementById('tg-token-input').value='';loadTelegramSettings();}
+  else st.innerHTML=`<span style="color:#f5a3a3">${esc(r.error)}</span>`;
+}
+async function testTelegram(){
+  const st=document.getElementById('tg-status');
+  st.innerHTML='<span style="color:#adb4ba">Sending test message...</span>';
+  const body={csrf,action:'test'};
+  const token=document.getElementById('tg-token-input').value.trim();
+  const chatId=val('tg-chatid-input');
+  if(token)body.bot_token=token;
+  if(chatId)body.chat_id=chatId;
+  const r=await post(API+'/telegram.php',body);
+  st.innerHTML=r.ok?'<span style="color:#155724">Test message sent ✓ — check Telegram</span>':`<span style="color:#f5a3a3">${esc(r.error||'Failed')}</span>`;
+}
+async function detectChatId(){
+  const box=document.getElementById('tg-detect-results');
+  box.innerHTML='<span style="color:#adb4ba">Checking recent messages to your bot...</span>';
+  const body={csrf,action:'detect_chat_id'};
+  const token=document.getElementById('tg-token-input').value.trim();
+  if(token)body.bot_token=token;
+  const r=await post(API+'/telegram.php',body);
+  if(r.error){box.innerHTML=`<span style="color:#f5a3a3">${esc(r.error)}</span>`;return;}
+  if(!r.chats||!r.chats.length){box.innerHTML='<span style="color:#adb4ba">No messages found yet — message your bot on Telegram, then try again.</span>';return;}
+  box.innerHTML=r.chats.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #454c54"><span>${esc(c.label)} <code style="font-size:11px;color:#adb4ba">${esc(c.chat_id)}</code></span><button class="btn btn-secondary" onclick="useChatId('${esc(c.chat_id)}')">Use this</button></div>`).join('');
+}
+function useChatId(id){document.getElementById('tg-chatid-input').value=id;}
 
 // ── Models ─────────────────────────────────────────────────────────────────────
 async function fetchModels(){
