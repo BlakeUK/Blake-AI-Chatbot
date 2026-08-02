@@ -146,10 +146,24 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     </div>
     <div class="card">
       <h2>Knowledge Entries</h2>
-      <table id="knowledge-table">
-        <thead><tr><th>Title</th><th>Category</th><th>URL</th><th>Active</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" id="knowledge-filter" placeholder="Filter by title, category, or URL..." style="flex:1;min-width:200px" oninput="renderKnowledgeTable()">
+        <select id="knowledge-source-filter" onchange="renderKnowledgeTable()">
+          <option value="">All sources</option>
+          <option value="manual">Manual</option>
+          <option value="page_import">Page import</option>
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px" data-role="editor">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="knowledge-select-all" onchange="toggleAllKnowledge(this.checked)"> Select all filtered (<span id="knowledge-filtered-count">0</span>)</label>
+        <button class="btn btn-danger" onclick="deleteSelectedKnowledge()">Delete Selected</button>
+      </div>
+      <div style="max-height:520px;overflow-y:auto;border:1px solid #454c54;border-radius:4px">
+        <table id="knowledge-table">
+          <thead><tr><th data-role="editor" style="width:24px"></th><th>Title</th><th>Category</th><th>Source</th><th>URL</th><th>Active</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -504,10 +518,52 @@ async function loadDashboard(){
 }
 
 // ── Knowledge ──────────────────────────────────────────────────────────────────
+let knowledgeRows=[];
 async function loadKnowledge(){
-  const rows=await get(API+'/knowledge.php');
+  knowledgeRows=await get(API+'/knowledge.php');
+  if(!Array.isArray(knowledgeRows))knowledgeRows=[];
+  renderKnowledgeTable();
+}
+function renderKnowledgeTable(){
+  const textFilter=val('knowledge-filter').toLowerCase();
+  const sourceFilter=document.getElementById('knowledge-source-filter').value;
   const tb=document.querySelector('#knowledge-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.title)}</td><td>${esc(r.category||'')}</td><td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td><td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No entries yet.</td></tr>';
+  const visible=knowledgeRows.filter(r=>{
+    if(sourceFilter && (r.source||'manual')!==sourceFilter)return false;
+    if(!textFilter)return true;
+    return (r.title||'').toLowerCase().includes(textFilter)
+      || (r.category||'').toLowerCase().includes(textFilter)
+      || (r.url||'').toLowerCase().includes(textFilter);
+  });
+  document.getElementById('knowledge-filtered-count').textContent=visible.length;
+  document.getElementById('knowledge-select-all').checked=false;
+  tb.innerHTML=visible.length?visible.map(r=>`<tr>
+    <td data-role="editor"><input type="checkbox" class="knowledge-cb" data-id="${r.id}"></td>
+    <td>${esc(r.title)}</td>
+    <td>${esc(r.category||'')}</td>
+    <td><span class="badge ${r.source==='page_import'?'badge-pending':'badge-ok'}">${r.source==='page_import'?'Page import':'Manual'}</span></td>
+    <td>${r.url?`<a href="${esc(r.url)}" target="_blank" style="font-size:12px">link</a>`:''}</td>
+    <td><span class="badge ${r.active?'badge-ok':'badge-error'}">${r.active?'Yes':'No'}</span></td>
+    <td>${canEdit()?`<button class="btn btn-danger" onclick="deleteKnowledge(${r.id})">Delete</button>`:''}</td>
+  </tr>`).join(''):'<tr><td colspan="7" style="color:#adb4ba">No entries match.</td></tr>';
+  applyRoleUI();
+}
+function toggleAllKnowledge(checked){
+  const cbs=[...document.querySelectorAll('.knowledge-cb')];
+  if(checked && cbs.length>50 && !confirm(`Select all ${cbs.length} filtered entries for deletion? This can't be undone. Narrowing the filter first is usually safer than selecting a very large batch in one go.`)){
+    document.getElementById('knowledge-select-all').checked=false;
+    return;
+  }
+  cbs.forEach(cb=>cb.checked=checked);
+}
+async function deleteSelectedKnowledge(){
+  const ids=[...document.querySelectorAll('.knowledge-cb')].filter(cb=>cb.checked).map(cb=>+cb.dataset.id);
+  if(!ids.length)return flash('Select at least one entry',true);
+  const sample=knowledgeRows.filter(r=>ids.includes(r.id)).slice(0,3).map(r=>r.title).join('; ');
+  if(!confirm(`Delete ${ids.length} knowledge entry(s)? This can't be undone.\n\nFor example: ${sample}${ids.length>3?', ...':''}`))return;
+  const r=await del(API+'/knowledge.php',{csrf,ids});
+  if(!r.error){flash(`Deleted ${r.deleted} entry(s)`);loadKnowledge();loadDashboard();}
+  else flash(r.error,true);
 }
 async function saveKnowledge(){
   const body={csrf,title:val('k-title'),body:val('k-body'),category:val('k-cat'),url:val('k-url'),product_codes:val('k-codes')};

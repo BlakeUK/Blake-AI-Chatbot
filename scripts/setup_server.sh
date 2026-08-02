@@ -50,6 +50,9 @@ fi
 if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(admin_users);" | grep -q "locked_until"; then
     sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_login_lockout.sql
 fi
+if ! sqlite3 /var/www/chat/data/chatbot.db "PRAGMA table_info(knowledge_entries);" | grep -q "source"; then
+    sqlite3 /var/www/chat/data/chatbot.db < /var/www/chat/scripts/schema_knowledge_source.sql
+fi
 chown www-data:www-data /var/www/chat/data/chatbot.db
 
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─

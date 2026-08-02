@@ -89,15 +89,15 @@ foreach ($urls as $url) {
 
     if ($existingId) {
         $id = (int)$existingId;
-        $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, updated_at=unixepoch() WHERE id=?')
+        $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, source=\'page_import\', updated_at=unixepoch() WHERE id=?')
             ->execute([$title, $body_text, $id]);
         $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type=? AND source_id=?')
             ->execute(['manual', $id]);
         $status = 'updated';
     } else {
         $pdo->prepare('
-            INSERT INTO knowledge_entries (title, body, category, product_codes, url, active)
-            VALUES (?, ?, NULL, NULL, ?, 1)
+            INSERT INTO knowledge_entries (title, body, category, product_codes, url, active, source)
+            VALUES (?, ?, NULL, NULL, ?, 1, \'page_import\')
         ')->execute([$title, $body_text, $url]);
         $id = (int)$pdo->lastInsertId();
         $status = 'imported';

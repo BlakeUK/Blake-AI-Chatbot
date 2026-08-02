@@ -9,7 +9,13 @@ $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
 
 if ($method === 'GET') {
-    $stmt = $pdo->query('SELECT * FROM knowledge_entries ORDER BY updated_at DESC');
+    $source = $_GET['source'] ?? null;
+    if ($source !== null) {
+        $stmt = $pdo->prepare('SELECT * FROM knowledge_entries WHERE source = ? ORDER BY updated_at DESC');
+        $stmt->execute([$source]);
+    } else {
+        $stmt = $pdo->query('SELECT * FROM knowledge_entries ORDER BY updated_at DESC');
+    }
     json_out($stmt->fetchAll());
 }
 
@@ -22,8 +28,8 @@ if ($method === 'POST') {
         json_err('title and body required');
     }
     $pdo->prepare('
-        INSERT INTO knowledge_entries (title, body, category, product_codes, url, active)
-        VALUES (?, ?, ?, ?, ?, 1)
+        INSERT INTO knowledge_entries (title, body, category, product_codes, url, active, source)
+        VALUES (?, ?, ?, ?, ?, 1, \'manual\')
     ')->execute([
         $body['title'],
         $body['body'],
@@ -67,6 +73,25 @@ if ($method === 'PUT') {
 }
 
 if ($method === 'DELETE') {
+    $ids = $body['ids'] ?? null;
+    if (is_array($ids)) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) json_err('ids required');
+        // Sanity cap - this endpoint is meant for reviewed, filtered bulk
+        // cleanup (source_type + a preview in the UI), not an unbounded
+        // wipe in one request.
+        if (count($ids) > 2000) json_err('Too many ids in one request (max 2000) — submit in smaller batches');
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $pdo->prepare("DELETE FROM knowledge_chunks WHERE source_type='manual' AND source_id IN ($placeholders)")
+            ->execute($ids);
+        $pdo->prepare("DELETE FROM knowledge_entries WHERE id IN ($placeholders)")
+            ->execute($ids);
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'knowledge_bulk_deleted', null, count($ids) . ' entries']);
+        json_out(['ok' => true, 'deleted' => count($ids)]);
+    }
+
     $id = (int)($body['id'] ?? 0);
     if (!$id) json_err('id required');
     // Deleting chunks fires the FTS delete trigger automatically
