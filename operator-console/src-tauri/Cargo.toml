@@ -1,0 +1,24 @@
+[package]
+name = "operator-console"
+version = "0.1.0"
+description = "Blake UK operator console - ticket notifications and department routing"
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+tauri = { version = "1", features = ["notification-all", "system-tray", "shell-open"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "operator-console"
+path = "src/main.rs"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
