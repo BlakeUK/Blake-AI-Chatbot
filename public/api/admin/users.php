@@ -10,7 +10,7 @@ $pdo    = db();
 
 if ($method === 'GET') {
     $rows = $pdo->query('
-        SELECT id, username, role, created_at, last_login, totp_enabled
+        SELECT id, username, role, created_at, last_login, totp_enabled, failed_attempts, locked_until
         FROM admin_users
         ORDER BY created_at ASC
     ')->fetchAll();
@@ -68,6 +68,14 @@ if ($method === 'PUT') {
         ')->execute([$id]);
         $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')
             ->execute([$_SESSION['admin_id'], '2fa_reset_by_admin', $id]);
+        json_out(['ok' => true]);
+    }
+
+    if (!empty($body['unlock'])) {
+        $pdo->prepare('UPDATE admin_users SET failed_attempts=0, locked_until=NULL WHERE id=?')
+            ->execute([$id]);
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'login_unlocked_by_admin', $id]);
         json_out(['ok' => true]);
     }
 

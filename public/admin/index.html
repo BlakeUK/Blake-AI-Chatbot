@@ -319,7 +319,7 @@ window.BlakeUKWidget = {
       <h2>Users</h2>
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px"><b>Admin:</b> full access. <b>Editor:</b> manage knowledge, files and products. <b>User:</b> view-only.</p>
       <table id="users-table">
-        <thead><tr><th>Username</th><th>Role</th><th>2FA</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+        <thead><tr><th>Username</th><th>Role</th><th>2FA</th><th>Locked</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -759,14 +759,22 @@ async function revokeClient(id){
 async function loadUsers(){
   const rows=await get(API+'/users.php');
   const tb=document.querySelector('#users-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#adb4ba">Unable to load.</td></tr>';return;}
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.username)}</td><td>
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="7" style="color:#adb4ba">Unable to load.</td></tr>';return;}
+  tb.innerHTML=rows.length?rows.map(r=>{
+    const isLocked=r.locked_until&&(r.locked_until*1000)>Date.now();
+    return `<tr><td>${esc(r.username)}</td><td>
     <select onchange="updateUserRole(${r.id},this.value)">
       <option value="admin" ${r.role==='admin'?'selected':''}>Admin</option>
       <option value="editor" ${r.role==='editor'?'selected':''}>Editor</option>
       <option value="user" ${r.role==='user'?'selected':''}>User</option>
     </select>
-    </td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No users yet.</td></tr>';
+    </td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${isLocked?`<span class="badge badge-error">Locked</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="unlockUser(${r.id})">Unlock</button>`:'<span class="badge badge-ok">No</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`;
+  }).join(''):'<tr><td colspan="7" style="color:#adb4ba">No users yet.</td></tr>';
+}
+async function unlockUser(id){
+  if(!confirm('Clear the failed-login lock for this user?'))return;
+  const r=await put(API+'/users.php',{csrf,id,unlock:true});
+  if(!r.error){flash('Account unlocked');loadUsers();}else flash(r.error,true);
 }
 async function resetUser2fa(id){
   if(!confirm('Reset 2FA for this user? They will need to set it up again.'))return;

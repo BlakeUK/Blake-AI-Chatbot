@@ -32,15 +32,15 @@ chat.blake-uk.com {
 # as a subdomain.
 
 blakegroup.uk, www.blakegroup.uk {
-    @app path /admin /admin/* /api/* /chat /chat/*
-    handle @app {
-        root * /var/www/chat/public
-        php_fastcgi unix//run/php/php8.2-fpm.sock
+    @intro path / /index.html /support.js /image-slot.js /.image-slots.state.json /_ds/* /robots.txt
+    handle @intro {
+        root * /var/www/blakegroup/public
         file_server
     }
 
     handle {
-        root * /var/www/blakegroup/public
+        root * /var/www/chat/public
+        php_fastcgi unix//run/php/php8.2-fpm.sock
         file_server
     }
 
