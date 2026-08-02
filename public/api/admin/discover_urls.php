@@ -1,7 +1,9 @@
 <?php
-// public/api/admin/discover_urls.php — GET: find PDF links on a page or in a sitemap
-// Used ahead of import_urls.php so an admin can point at a listing page
-// or sitemap.xml instead of manually collecting individual PDF URLs.
+// public/api/admin/discover_urls.php — GET: find PDF and other links on a
+// page or in a sitemap
+// Used ahead of import_urls.php (PDFs) or import_page_links.php (everything
+// else - category/support pages etc.) so an admin can point at a listing
+// page or sitemap.xml instead of manually collecting individual URLs.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
 \Auth\Admin::requireRole('admin', 'editor');
@@ -52,16 +54,21 @@ if (str_contains($data, '<urlset') || str_contains($data, '<sitemapindex')) {
     $links = $m[1];
 }
 
-$pdfLinks = [];
+$pdfLinks   = [];
+$otherLinks = [];
 foreach ($links as $link) {
     $abs = _resolve_url($pageUrl, $link);
-    if ($abs && preg_match('/\.pdf(\?|$)/i', $abs)) {
+    if (!$abs) continue;
+    if (preg_match('/\.pdf(\?|$)/i', $abs)) {
         $pdfLinks[] = $abs;
+    } else {
+        $otherLinks[] = $abs;
     }
 }
-$pdfLinks = array_values(array_unique($pdfLinks));
+$pdfLinks   = array_values(array_unique($pdfLinks));
+$otherLinks = array_values(array_unique($otherLinks));
 
-json_out(['links' => $pdfLinks, 'total_links_found' => count($links)]);
+json_out(['links' => $pdfLinks, 'other_links' => $otherLinks, 'total_links_found' => count($links)]);
 
 function _resolve_url(string $base, string $rel): ?string
 {

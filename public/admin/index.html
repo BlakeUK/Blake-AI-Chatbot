@@ -164,18 +164,31 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     </div>
     <div class="card" data-role="editor">
       <h2>Import from URL</h2>
-      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Paste a page or sitemap.xml URL to discover PDF links on the website, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Paste a page or sitemap.xml URL to discover PDF and other links on the website, or paste PDF URLs directly — files are fetched and indexed straight from the site, no download-then-upload needed.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input type="text" id="discover-url" placeholder="https://www.blake-uk.com/leaflets or /sitemap.xml" style="flex:1;min-width:240px">
-        <button class="btn btn-secondary" onclick="discoverUrls()">Discover PDF Links</button>
+        <button class="btn btn-secondary" onclick="discoverUrls()">Discover Links</button>
       </div>
       <div id="discover-status" style="font-size:13px;color:#adb4ba;margin-bottom:10px"></div>
       <div id="discover-results" style="display:none">
+        <h3 style="font-size:14px;margin-bottom:6px">PDF links</h3>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-select-all" checked onchange="toggleAllDiscovered(this.checked)"> Select all</label>
-          <button class="btn btn-primary" onclick="importSelectedUrls()">Import Selected</button>
+          <button class="btn btn-primary" onclick="importSelectedUrls()">Import Selected as Files</button>
         </div>
         <div id="discover-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
+      </div>
+      <div id="discover-other-results" style="display:none;margin-top:16px">
+        <h3 style="font-size:14px;margin-bottom:6px">Other links (categories, support pages, etc.)</h3>
+        <p style="font-size:12px;color:#adb4ba;margin-bottom:8px">Imported as knowledge entries — page title + meta description, tagged with the URL so the bot can link to it. Not full page content.</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="discover-other-filter" placeholder="Filter, e.g. 'category' or 'cctv'" style="flex:1" oninput="filterOtherLinks()">
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="discover-other-select-all" onchange="toggleAllOtherDiscovered(this.checked)"> Select all visible</label>
+          <button class="btn btn-primary" onclick="importSelectedPageLinks()">Import Selected as Knowledge</button>
+        </div>
+        <div id="discover-other-list" style="max-height:240px;overflow-y:auto;border:1px solid #454c54;border-radius:4px;padding:8px;font-size:13px"></div>
       </div>
       <div style="margin-top:16px;padding-top:12px;border-top:1px solid #454c54">
         <label>Or paste PDF URLs directly (one per line)</label>
@@ -507,32 +520,71 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');up
 
 // ── URL import ────────────────────────────────────────────────────────────────
 let discoveredUrls=[];
+let discoveredOtherUrls=[];
 async function discoverUrls(){
   const url=val('discover-url');
   if(!url)return flash('Enter a page or sitemap URL',true);
   const status=document.getElementById('discover-status');
   status.textContent='Discovering...';
   document.getElementById('discover-results').style.display='none';
+  document.getElementById('discover-other-results').style.display='none';
   try{
     const r=await get(API+'/discover_urls.php?url='+encodeURIComponent(url));
     if(r.error){status.textContent='';return flash(r.error,true);}
     discoveredUrls=r.links||[];
-    if(!discoveredUrls.length){status.textContent='No PDF links found on that page.';return;}
-    status.textContent=`Found ${discoveredUrls.length} PDF link(s) (out of ${r.total_links_found} total links on the page).`;
-    document.getElementById('discover-list').innerHTML=discoveredUrls.map((u,i)=>`
-      <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-cb" data-i="${i}" checked> ${esc(u)}</label>
-    `).join('');
-    document.getElementById('discover-select-all').checked=true;
-    document.getElementById('discover-results').style.display='block';
+    discoveredOtherUrls=r.other_links||[];
+    if(!discoveredUrls.length && !discoveredOtherUrls.length){status.textContent='No links found on that page.';return;}
+    status.textContent=`Found ${discoveredUrls.length} PDF link(s) and ${discoveredOtherUrls.length} other link(s), out of ${r.total_links_found} total.`;
+    if(discoveredUrls.length){
+      document.getElementById('discover-list').innerHTML=discoveredUrls.map((u,i)=>`
+        <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-cb" data-i="${i}" checked> ${esc(u)}</label>
+      `).join('');
+      document.getElementById('discover-select-all').checked=true;
+      document.getElementById('discover-results').style.display='block';
+    }
+    if(discoveredOtherUrls.length){
+      document.getElementById('discover-other-filter').value='';
+      renderOtherLinks();
+      document.getElementById('discover-other-select-all').checked=false;
+      document.getElementById('discover-other-results').style.display='block';
+    }
   }catch(e){status.textContent='';flash('Could not reach the server',true);}
 }
+function renderOtherLinks(){
+  const filter=val('discover-other-filter').toLowerCase();
+  const list=document.getElementById('discover-other-list');
+  const visible=discoveredOtherUrls.map((u,i)=>({u,i})).filter(({u})=>!filter||u.toLowerCase().includes(filter));
+  list.innerHTML=visible.length?visible.map(({u,i})=>`
+    <label style="display:block;padding:2px 0;word-break:break-all"><input type="checkbox" class="discover-other-cb" data-i="${i}" checked> ${esc(u)}</label>
+  `).join(''):'<div style="color:#adb4ba">No links match that filter.</div>';
+}
+function filterOtherLinks(){renderOtherLinks();document.getElementById('discover-other-select-all').checked=false;}
 function toggleAllDiscovered(checked){
   document.querySelectorAll('.discover-cb').forEach(cb=>cb.checked=checked);
+}
+function toggleAllOtherDiscovered(checked){
+  document.querySelectorAll('.discover-other-cb').forEach(cb=>cb.checked=checked);
 }
 function importSelectedUrls(){
   const selected=[...document.querySelectorAll('.discover-cb')].filter(cb=>cb.checked).map(cb=>discoveredUrls[+cb.dataset.i]);
   if(!selected.length)return flash('Select at least one link',true);
   importUrlsBatched(selected);
+}
+async function importSelectedPageLinks(){
+  const selected=[...document.querySelectorAll('.discover-other-cb')].filter(cb=>cb.checked).map(cb=>discoveredOtherUrls[+cb.dataset.i]);
+  if(!selected.length)return flash('Select at least one link',true);
+  const prog=document.getElementById('url-import-progress');
+  prog.innerHTML='<div class="alert alert-warn">Importing '+selected.length+' page(s)...</div>';
+  const r=await post(API+'/import_page_links.php',{csrf,urls:selected});
+  if(r.error){prog.innerHTML=`<div class="alert alert-err">${esc(r.error)}</div>`;return;}
+  prog.innerHTML=(r.results||[]).map(res=>{
+    const label=res.title||res.url;
+    const cls=res.status==='imported'?'alert-ok':'alert-err';
+    const msg=res.status==='imported'?`Imported: ${esc(label)}`:`${esc(res.url)}: ${esc(res.error||'failed')}`;
+    return `<div class="alert ${cls}" style="margin-bottom:6px">${msg}</div>`;
+  }).join('');
+  flash('Page link import finished');
+  loadKnowledge();
 }
 function importDirectUrls(){
   const lines=val('direct-urls').split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
