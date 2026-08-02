@@ -54,7 +54,16 @@ blakegroup.uk, www.blakegroup.uk {
 
 admin.blakegroup.uk {
     redir / /admin/
-    import chat_app
+
+    @robots path /robots.txt
+    handle @robots {
+        root * /var/www/blakegroup/robots-admin
+        file_server
+    }
+
+    handle {
+        import chat_app
+    }
 }
 
 # No content at /chat yet - this just makes the routing exist ahead of it,
@@ -62,5 +71,14 @@ admin.blakegroup.uk {
 # that's needed. 404s until then.
 chat.blakegroup.uk {
     redir / /chat/
-    import chat_app
+
+    @robots path /robots.txt
+    handle @robots {
+        root * /var/www/blakegroup/robots-chat
+        file_server
+    }
+
+    handle {
+        import chat_app
+    }
 }

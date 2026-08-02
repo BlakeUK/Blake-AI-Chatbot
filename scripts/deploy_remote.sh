@@ -80,8 +80,10 @@ chmod 770 "$WEBROOT"/{data,uploads,logs}
 # here rather than served out of $WEBROOT directly - keeps it a fully
 # separate site from the chatbot, matching the Caddy config.
 info "Syncing blakegroup.uk site..."
-mkdir -p /var/www/blakegroup/public
+mkdir -p /var/www/blakegroup/public /var/www/blakegroup/robots-admin /var/www/blakegroup/robots-chat
 cp -r "$WEBROOT"/blakegroup-site/public/. /var/www/blakegroup/public/
+cp "$WEBROOT"/blakegroup-site/robots-admin/robots.txt /var/www/blakegroup/robots-admin/robots.txt
+cp "$WEBROOT"/blakegroup-site/robots-chat/robots.txt /var/www/blakegroup/robots-chat/robots.txt
 chown -R www-data:www-data /var/www/blakegroup
 
 # ── Database ──────────────────────────────────────────────────────────────────
