@@ -1,0 +1,52 @@
+{
+  "build": {
+    "distDir": "../dist",
+    "devPath": "../dist",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "package": {
+    "productName": "Blake UK Operator Console",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "bundle": {
+      "active": true,
+      "identifier": "uk.blake.operatorconsole",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.ico"
+      ],
+      "targets": ["deb", "msi", "nsis"],
+      "resources": [],
+      "shortDescription": "Ticket notifications and department routing for Blake UK support staff",
+      "longDescription": "Desktop console for Blake UK support staff: get notified when the chatbot needs a human, hand tickets off to sales/support/accounts, and review the conversation before replying."
+    },
+    "security": {
+      "csp": null
+    },
+    "allowlist": {
+      "all": false,
+      "notification": { "all": true },
+      "shell": { "open": true }
+    },
+    "systemTray": {
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": false
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Blake UK Operator Console",
+        "width": 1300,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  }
+}
