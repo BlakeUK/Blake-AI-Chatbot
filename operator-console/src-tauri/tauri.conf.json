@@ -19,7 +19,7 @@
         "icons/128x128@2x.png",
         "icons/icon.ico"
       ],
-      "targets": ["deb", "msi"],
+      "targets": "all",
       "resources": [],
       "shortDescription": "Ticket notifications and department routing for Blake UK support staff",
       "longDescription": "Desktop console for Blake UK support staff: get notified when the chatbot needs a human, hand tickets off to sales/support/accounts, and review the conversation before replying."
