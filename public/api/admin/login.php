@@ -42,6 +42,9 @@ if ($result === 'ok') {
     json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
 } elseif ($result === 'requires_2fa') {
     json_out(['ok' => false, 'requires_2fa' => true]);
+} elseif ($result === 'locked') {
+    $mins = (int)ceil((\Auth\Admin::lockedForSeconds($user) ?? 0) / 60);
+    json_err("Too many failed attempts. Try again in {$mins} minute" . ($mins === 1 ? '' : 's') . '.', 429);
 } else {
     json_err('Invalid credentials', 401);
 }

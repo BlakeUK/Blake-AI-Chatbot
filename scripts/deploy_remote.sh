@@ -128,6 +128,13 @@ else
     warn "Site-feed fields schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(admin_users);" | grep -q "locked_until"; then
+    info "Applying login-lockout schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_login_lockout.sql"
+else
+    warn "Login-lockout schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

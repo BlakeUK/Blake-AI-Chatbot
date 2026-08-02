@@ -30,6 +30,15 @@ class Admin
 
     public const ROLES = ['admin', 'editor', 'user'];
 
+    // Account-level lockout, distinct from rate_limit('admin_login', 5) in
+    // login.php - that's a per-IP, per-60-second-window throttle that counts
+    // every request (successful or not) and resets on the next window, so a
+    // patient attacker pacing under it is never blocked. This counts actual
+    // consecutive failures per account and persists a lock once they hit the
+    // threshold, regardless of how slowly they're spaced out.
+    private const MAX_FAILED_ATTEMPTS = 5;
+    private const LOCKOUT_SECONDS     = 3600; // 1 hour
+
     public static function check(): void
     {
         self::session();
@@ -54,18 +63,34 @@ class Admin
     }
 
     // Returns 'ok' (fully logged in), 'requires_2fa' (password correct, code needed),
-    // or 'invalid' (bad username/password).
+    // 'locked' (too many recent failures - check lockedUntil() for when), or
+    // 'invalid' (bad username/password).
     public static function login(string $username, string $password): string
     {
         // Usernames are matched case-insensitively at login: different people
         // on different machines naturally type their own username with their
         // own casing, which won't always match whatever case an admin typed
         // when creating the account.
-        $stmt = db()->prepare('SELECT id, password, role, totp_enabled FROM admin_users WHERE username = ? COLLATE NOCASE');
+        $stmt = db()->prepare('SELECT id, password, role, totp_enabled, failed_attempts, locked_until FROM admin_users WHERE username = ? COLLATE NOCASE');
         $stmt->execute([$username]);
         $row = $stmt->fetch();
 
-        if (!$row || !password_verify($password, $row['password'])) {
+        // Unknown username: nothing to lock, but still don't leak whether the
+        // account exists via timing/response differences beyond what already
+        // happens below (password_verify against a bad row already takes a
+        // similar path). rate_limit() in login.php is what actually protects
+        // against hammering nonexistent usernames, since there's no account
+        // row here to attach a failure count to.
+        if (!$row) {
+            return 'invalid';
+        }
+
+        if ($row['locked_until'] && (int)$row['locked_until'] > time()) {
+            return 'locked';
+        }
+
+        if (!password_verify($password, $row['password'])) {
+            self::registerFailure((int)$row['id'], (int)$row['failed_attempts']);
             return 'invalid';
         }
 
@@ -80,6 +105,30 @@ class Admin
         return 'ok';
     }
 
+    // Seconds until the account unlocks, or null if it isn't locked. Kept
+    // separate from login()'s return value so login.php can build a specific
+    // "try again in N minutes" message without login() needing to return
+    // anything more than its existing simple status string.
+    public static function lockedForSeconds(string $username): ?int
+    {
+        $stmt = db()->prepare('SELECT locked_until FROM admin_users WHERE username = ? COLLATE NOCASE');
+        $stmt->execute([$username]);
+        $until = (int)($stmt->fetchColumn() ?: 0);
+        return $until > time() ? $until - time() : null;
+    }
+
+    private static function registerFailure(int $id, int $currentFailures): void
+    {
+        $failures = $currentFailures + 1;
+        if ($failures >= self::MAX_FAILED_ATTEMPTS) {
+            db()->prepare('UPDATE admin_users SET failed_attempts=?, locked_until=? WHERE id=?')
+                ->execute([$failures, time() + self::LOCKOUT_SECONDS, $id]);
+        } else {
+            db()->prepare('UPDATE admin_users SET failed_attempts=? WHERE id=?')
+                ->execute([$failures, $id]);
+        }
+    }
+
     // Step 2 of login when 2FA is enabled: verify a TOTP code or an unused backup code.
     public static function verifyTwoFactor(string $code): bool
     {
@@ -87,10 +136,14 @@ class Admin
         $id = $_SESSION['pending_2fa_id'] ?? null;
         if (!$id) return false;
 
-        $stmt = db()->prepare('SELECT id, role, totp_secret_enc, totp_secret_iv, totp_secret_tag, backup_codes FROM admin_users WHERE id = ?');
+        $stmt = db()->prepare('SELECT id, role, totp_secret_enc, totp_secret_iv, totp_secret_tag, backup_codes, failed_attempts, locked_until FROM admin_users WHERE id = ?');
         $stmt->execute([$id]);
         $row = $stmt->fetch();
         if (!$row) return false;
+
+        if ($row['locked_until'] && (int)$row['locked_until'] > time()) {
+            return false;
+        }
 
         $secret = self::decryptTotpSecret($row);
         if ($secret && Totp::verifyCode($secret, $code)) {
@@ -109,6 +162,7 @@ class Admin
             }
         }
 
+        self::registerFailure((int)$row['id'], (int)$row['failed_attempts']);
         return false;
     }
 
@@ -119,7 +173,7 @@ class Admin
         $_SESSION['admin_id']   = $row['id'];
         $_SESSION['admin_role'] = $row['role'];
         unset($_SESSION['pending_2fa_id']);
-        db()->prepare('UPDATE admin_users SET last_login=? WHERE id=?')
+        db()->prepare('UPDATE admin_users SET last_login=?, failed_attempts=0, locked_until=NULL WHERE id=?')
              ->execute([time(), $row['id']]);
     }
 
