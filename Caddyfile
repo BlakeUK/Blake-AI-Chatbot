@@ -32,8 +32,23 @@ chat.blake-uk.com {
 # as a subdomain.
 
 blakegroup.uk, www.blakegroup.uk {
-    @intro path / /index.html /support.js /image-slot.js /.image-slots.state.json /_ds/* /robots.txt /sitemap.xml
-    handle @intro {
+    # File-existence match rather than an enumerated path list: the previous
+    # version (@intro path / /index.html /support.js ... /_ds/*) required
+    # every new static asset to be added here by hand, and silently fell
+    # through to the chat app's webroot for anything missed - exactly what
+    # happened to generate_a_video_of_greens_bl.mp4 (deployed correctly to
+    # /var/www/blakegroup/public, but never served from there, because it
+    # wasn't in this list). Checking actual file existence means any current
+    # or future file in that directory is served correctly with no Caddyfile
+    # change needed, and anything genuinely missing still falls through to
+    # the app (or 404s) exactly as before.
+    @static_exists {
+        file {
+            root /var/www/blakegroup/public
+            try_files {path} {path}index.html
+        }
+    }
+    handle @static_exists {
         root * /var/www/blakegroup/public
         file_server
     }
