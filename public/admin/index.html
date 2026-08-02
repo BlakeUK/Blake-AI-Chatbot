@@ -236,6 +236,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
         </div>
         <div id="page-import-progress" style="margin-top:10px"></div>
         <div id="page-import-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelPageImport()">Cancel remaining batches</button></div>
+        <div id="page-import-summary-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
     </div>
     <div class="card">
@@ -774,11 +775,15 @@ function importDirectPageUrls(){
 }
 let pageImportCancelled=false;
 function cancelPageImport(){pageImportCancelled=true;}
+let lastPageImportResults=[];
 async function importPageLinksBatched(urls){
   const prog=document.getElementById('page-import-progress');
   const cancelRow=document.getElementById('page-import-cancel-row');
+  const summaryBox=document.getElementById('page-import-summary-actions');
   prog.innerHTML='';
+  summaryBox.innerHTML='';
   pageImportCancelled=false;
+  lastPageImportResults=[];
   cancelRow.style.display=urls.length>50?'block':'none';
   const BATCH=50; // matches import_page_links.php's own MAX_BATCH
   let doneCount=0;
@@ -790,6 +795,7 @@ async function importPageLinksBatched(urls){
       const r=await post(API+'/import_page_links.php',{csrf,urls:batch});
       if(r.error){prog.innerHTML+=`<div class="alert alert-err">${esc(r.error)}</div>`;continue;}
       (r.results||[]).forEach(res=>{
+        lastPageImportResults.push(res);
         const label=res.title||res.url;
         const cls=(res.status==='imported'||res.status==='updated')?'alert-ok':'alert-err';
         const msg=res.status==='imported'?`Indexed: ${label}`:res.status==='updated'?`Refreshed: ${label}`:`${res.url}: ${res.error||'failed'}`;
@@ -800,7 +806,44 @@ async function importPageLinksBatched(urls){
   }
   cancelRow.style.display='none';
   flash(`Page import finished: ${doneCount} of ${urls.length} indexed`);
+  renderPageImportSummaryActions();
   loadKnowledge();
+}
+// http_code===404 means the page is confirmed gone - safe to drop from a
+// cleaned sitemap. Anything else that failed (timeout, DNS, 5xx - http_code
+// 0 or otherwise) just means the check didn't complete, so it's retry-
+// eligible instead, not delete-eligible - a timeout is not evidence a page
+// is actually dead, it just means we don't know yet.
+function renderPageImportSummaryActions(){
+  const box=document.getElementById('page-import-summary-actions');
+  const notFound=lastPageImportResults.filter(r=>r.http_code===404);
+  const retryable=lastPageImportResults.filter(r=>r.status==='error'&&r.http_code!==404);
+  let html='';
+  if(notFound.length){
+    html+=`<button class="btn btn-secondary" onclick="downloadCleanedSitemap()">⬇ Download Cleaned Sitemap XML (${notFound.length} dead link${notFound.length===1?'':'s'} removed)</button>`;
+  }
+  if(retryable.length){
+    html+=`<button class="btn btn-secondary" onclick="retryFailedPageImports()">↻ Retry Failed (${retryable.length})</button>`;
+  }
+  box.innerHTML=html;
+}
+function downloadCleanedSitemap(){
+  const urls=lastPageImportResults.filter(r=>r.http_code!==404).map(r=>r.url);
+  const body=urls.map(u=>`  <url><loc>${esc(u)}</loc></url>`).join('\n');
+  const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+  const blob=new Blob([xml],{type:'application/xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='sitemap-cleaned.xml';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+function retryFailedPageImports(){
+  const urls=lastPageImportResults.filter(r=>r.status==='error'&&r.http_code!==404).map(r=>r.url);
+  if(!urls.length)return;
+  importPageLinksBatched(urls);
 }
 let pendingPollTimer=null;
 function pollPendingFiles(){
