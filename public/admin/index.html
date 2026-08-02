@@ -574,16 +574,25 @@ async function importSelectedPageLinks(){
   const selected=[...document.querySelectorAll('.discover-other-cb')].filter(cb=>cb.checked).map(cb=>discoveredOtherUrls[+cb.dataset.i]);
   if(!selected.length)return flash('Select at least one link',true);
   const prog=document.getElementById('url-import-progress');
-  prog.innerHTML='<div class="alert alert-warn">Importing '+selected.length+' page(s)...</div>';
-  const r=await post(API+'/import_page_links.php',{csrf,urls:selected});
-  if(r.error){prog.innerHTML=`<div class="alert alert-err">${esc(r.error)}</div>`;return;}
-  prog.innerHTML=(r.results||[]).map(res=>{
-    const label=res.title||res.url;
-    const cls=res.status==='imported'?'alert-ok':'alert-err';
-    const msg=res.status==='imported'?`Imported: ${esc(label)}`:`${esc(res.url)}: ${esc(res.error||'failed')}`;
-    return `<div class="alert ${cls}" style="margin-bottom:6px">${msg}</div>`;
-  }).join('');
-  flash('Page link import finished');
+  prog.innerHTML='';
+  const BATCH=50; // matches import_page_links.php's own MAX_BATCH
+  let importedCount=0;
+  for(let i=0;i<selected.length;i+=BATCH){
+    const batch=selected.slice(i,i+BATCH);
+    prog.innerHTML+=`<div class="alert alert-warn" style="margin-bottom:6px">Importing ${i+1}–${Math.min(i+BATCH,selected.length)} of ${selected.length}...</div>`;
+    try{
+      const r=await post(API+'/import_page_links.php',{csrf,urls:batch});
+      if(r.error){prog.innerHTML+=`<div class="alert alert-err">${esc(r.error)}</div>`;continue;}
+      (r.results||[]).forEach(res=>{
+        const label=res.title||res.url;
+        const cls=res.status==='imported'?'alert-ok':'alert-err';
+        const msg=res.status==='imported'?`Imported: ${label}`:`${res.url}: ${res.error||'failed'}`;
+        if(res.status==='imported')importedCount++;
+        prog.innerHTML+=`<div class="alert ${cls}" style="margin-bottom:4px;font-size:12px;word-break:break-all">${esc(msg)}</div>`;
+      });
+    }catch(e){prog.innerHTML+=`<div class="alert alert-err">Batch failed: could not reach the server</div>`;}
+  }
+  flash(`Page link import finished: ${importedCount} of ${selected.length} imported`);
   loadKnowledge();
 }
 function importDirectUrls(){
