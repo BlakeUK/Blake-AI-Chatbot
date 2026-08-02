@@ -6,7 +6,7 @@ on:
       domain:
         description: "Domain or IP to configure Caddy for"
         required: false
-        default: "195.22.157.38"
+        default: "chat.blake-uk.com"
 
 jobs:
   deploy:
