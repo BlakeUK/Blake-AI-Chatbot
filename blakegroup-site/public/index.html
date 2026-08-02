@@ -65,24 +65,6 @@
 
 <!-- TEMPORARY DEBUG READOUT - remove once the video issue is confirmed fixed -->
 <div id="video-debug" style="position:fixed;bottom:12px;left:12px;z-index:9999;background:#000;color:#0f0;font:11px/1.5 monospace;padding:8px 10px;border-radius:6px;white-space:pre;pointer-events:none;">checking...</div>
-<script>
-(function(){
-  var v = document.querySelector('.bg-video');
-  var el = document.getElementById('video-debug');
-  if (!v || !el) return;
-  var errNames = ['','MEDIA_ERR_ABORTED','MEDIA_ERR_NETWORK','MEDIA_ERR_DECODE','MEDIA_ERR_SRC_NOT_SUPPORTED'];
-  function tick(){
-    el.textContent =
-      'src: ' + (v.currentSrc || '(none)') + '\n' +
-      'readyState: ' + v.readyState + '  networkState: ' + v.networkState + '\n' +
-      'paused: ' + v.paused + '  currentTime: ' + v.currentTime.toFixed(2) + '\n' +
-      'videoWidth: ' + v.videoWidth + 'x' + v.videoHeight + '\n' +
-      'error: ' + (v.error ? (errNames[v.error.code] || v.error.code) : 'none');
-  }
-  setInterval(tick, 400);
-  tick();
-})();
-</script>
 
 <div style="max-width: 1180px; margin: 0 auto; padding: 0 40px;">
 
@@ -198,6 +180,19 @@
 </div>
 
 </x-dc>
+
+<!-- TEMPORARY DEBUG READOUT script - lives outside <x-dc> AND uses an
+     onerror handler attribute instead of a <script> tag. Root cause found:
+     the page's own runtime clearly passes the whole <body> through an
+     innerHTML-style rewrite while booting (confirmed directly - manually
+     re-running this exact same code via the devtools protocol after load
+     works instantly and sticks, but the identical code as a parsed <script>
+     tag never executes at all, regardless of where in <body> it sits).
+     innerHTML-inserted <script> tags are inert by spec; inline event-handler
+     attributes are NOT, and survive exactly this kind of rewrite - hence the
+     img/onerror trick instead of a script tag. Remove alongside #video-debug
+     and this img once resolved. -->
+<img src="data:," alt="" style="display:none" onerror="setTimeout(function(){var el=document.getElementById('video-debug');var v=document.querySelector('.bg-video');if(!v||!el)return;var errNames=['','MEDIA_ERR_ABORTED','MEDIA_ERR_NETWORK','MEDIA_ERR_DECODE','MEDIA_ERR_SRC_NOT_SUPPORTED'];function tick(){el.textContent='src: '+(v.currentSrc||'(none)')+'\n'+'readyState: '+v.readyState+'  networkState: '+v.networkState+'\n'+'paused: '+v.paused+'  currentTime: '+v.currentTime.toFixed(2)+'\n'+'videoWidth: '+v.videoWidth+'x'+v.videoHeight+'\n'+'error: '+(v.error?(errNames[v.error.code]||v.error.code):'none');}setInterval(tick,400);tick();},4000);">
 <script type="text/x-dc" data-dc-script data-props="{&quot;cardLayout&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;grid&quot;, &quot;options&quot;: [&quot;grid&quot;, &quot;stacked&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Layout&quot;}, &quot;showLogos&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Layout&quot;}, &quot;showStrengths&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Layout&quot;}}">
 class Component extends DCLogic {
   renderVals() {
