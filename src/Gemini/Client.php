@@ -14,6 +14,24 @@ class Client
         $this->apiKey = $apiKey;
     }
 
+    // Shared by every call site that needs the stored Gemini key decrypted -
+    // previously duplicated in FileExtractor and chat/send.php separately;
+    // unified here rather than adding a third copy for this new feature.
+    public static function getStoredApiKey(): ?string
+    {
+        $row = db()->prepare('SELECT key_enc, iv, tag FROM api_keys WHERE service = ?');
+        $row->execute(['gemini']);
+        $r = $row->fetch();
+        if (!$r) return null;
+
+        $key = hex2bin(CFG['encrypt_key']);
+        $dec = openssl_decrypt(
+            hex2bin($r['key_enc']), 'aes-256-gcm', $key,
+            OPENSSL_RAW_DATA, hex2bin($r['iv']), hex2bin($r['tag'])
+        );
+        return $dec ?: null;
+    }
+
     // ── Chat completion (flash) ───────────────────────────────────────────────
 
     public function chat(string $model, array $messages, string $system = ''): string
@@ -50,6 +68,22 @@ class Client
                 ],
             ]],
             'generationConfig' => ['temperature' => 0.0, 'maxOutputTokens' => 4096],
+        ]);
+
+        return $this->post("models/{$model}:generateContent", $body);
+    }
+
+    // ── Structured extraction from plain text (page content -> target JSON shape) ──
+
+    public function extractStructured(string $model, string $text, string $prompt): string
+    {
+        $body = json_encode([
+            'contents' => [[
+                'parts' => [
+                    ['text' => $prompt . "\n\n---PAGE CONTENT---\n" . $text],
+                ],
+            ]],
+            'generationConfig' => ['temperature' => 0.0, 'maxOutputTokens' => 2048],
         ]);
 
         return $this->post("models/{$model}:generateContent", $body);

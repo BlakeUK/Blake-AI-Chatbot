@@ -256,6 +256,24 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       </div>
       <div id="import-result" style="margin-top:12px"></div>
     </div>
+    <div class="card" data-role="editor">
+      <h2>Learn from a Product Page</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">For sites without a clean product feed: point this at one real product page, adjust the target fields below if needed, and preview what gets pulled out. Once it looks right, confirm it — then it can be applied to other pages found in a sitemap scan. Pages that turn out to be information-only (not a product) are detected and handled separately, not forced into this shape.</p>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div><label>Example product page URL</label><input type="text" id="template-example-url" placeholder="https://www.blake-uk.com/some-product.html" oninput="invalidateTemplatePreview()"></div>
+        <div><label>Target fields (JSON) — adjust field names or add/remove any</label><textarea id="template-shape" rows="10" style="font-family:monospace;font-size:12px" oninput="invalidateTemplatePreview()"></textarea></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="previewTemplate()">Preview Extraction</button>
+          <button class="btn btn-primary" id="confirm-template-btn" onclick="confirmTemplate()" style="display:none">Confirm This Template</button>
+        </div>
+      </div>
+      <div id="template-preview-status" style="font-size:13px;color:#adb4ba;margin-top:10px"></div>
+      <div id="template-preview-result" style="display:none;margin-top:10px">
+        <label>Extracted result — edit directly if anything's wrong, then confirm</label>
+        <textarea id="template-preview-json" rows="10" style="font-family:monospace;font-size:12px"></textarea>
+      </div>
+      <div id="template-current-status" style="font-size:12px;color:#adb4ba;margin-top:10px"></div>
+    </div>
     <div class="card" id="products-list-card">
       <h2>Products in Database</h2>
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -487,7 +505,7 @@ function applyRoleUI(){
 }
 
 function init(){
-  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadTfaStatus();loadTickets();
+  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadTfaStatus();loadTickets();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();}
 }
 
@@ -765,6 +783,74 @@ async function deleteFile(id){
   if(!confirm('Delete this file and remove from knowledge base?'))return;
   const r=await del(API+'/files.php',{csrf,id});
   if(!r.error){flash('File deleted');loadFiles();}else flash(r.error,true);
+}
+
+// ── Product Page Template ────────────────────────────────────────────────────
+const DEFAULT_TEMPLATE_SHAPE={
+  product_code:"e.g. BLA-1234",
+  name:"Product name",
+  price_inc_vat:0.00,
+  price_exc_vat:0.00,
+  stock_status:"in_stock / out_of_stock / unknown",
+  category_path:["Category","Subcategory"],
+  summary_bullets:["Key feature 1","Key feature 2"],
+  tech_specs:{}
+};
+async function loadProductTemplate(){
+  const r=await get(API+'/product_template.php');
+  const statusEl=document.getElementById('template-current-status');
+  if(r.template){
+    document.getElementById('template-shape').value=JSON.stringify(r.template.shape,null,2);
+    statusEl.textContent=`Currently confirmed, learned from: ${r.template.example_url||'(no example url saved)'}`;
+  }else{
+    document.getElementById('template-shape').value=JSON.stringify(DEFAULT_TEMPLATE_SHAPE,null,2);
+    statusEl.textContent='No template confirmed yet — using the default field list below as a starting point.';
+  }
+}
+// Editing the shape or example URL after a preview invalidates that preview -
+// hide Confirm until a fresh one is run, so it can't save a shape that
+// doesn't actually match the reviewed/corrected result anymore.
+function invalidateTemplatePreview(){
+  document.getElementById('confirm-template-btn').style.display='none';
+}
+async function previewTemplate(){
+  const url=val('template-example-url');
+  if(!url)return flash('Enter an example product page URL',true);
+  let shape;
+  try{shape=JSON.parse(val('template-shape'));}
+  catch(e){return flash('Target fields JSON is not valid: '+e.message,true);}
+
+  const status=document.getElementById('template-preview-status');
+  document.getElementById('template-preview-result').style.display='none';
+  document.getElementById('confirm-template-btn').style.display='none';
+  status.textContent='Fetching and extracting...';
+
+  const r=await post(API+'/product_template_preview.php',{csrf,url,shape});
+  if(r.error){status.textContent='';return flash(r.error,true);}
+  if(!r.ok){
+    status.textContent="Gemini's response wasn't valid JSON — raw response shown below for review.";
+    document.getElementById('template-preview-json').value=r.raw||'';
+    document.getElementById('template-preview-result').style.display='block';
+    return;
+  }
+  if(!r.is_product_page){
+    status.textContent="Gemini didn't think this looks like a product page. If it should be one, try a clearer example URL, or adjust the target fields — otherwise this page is a good candidate for the Pages import instead.";
+    return;
+  }
+  status.textContent='Extracted — review and correct anything wrong below, then confirm.';
+  document.getElementById('template-preview-json').value=JSON.stringify(r.extracted,null,2);
+  document.getElementById('template-preview-result').style.display='block';
+  document.getElementById('confirm-template-btn').style.display='inline-block';
+}
+async function confirmTemplate(){
+  let shape,extracted;
+  try{shape=JSON.parse(val('template-shape'));}
+  catch(e){return flash('Target fields JSON is not valid: '+e.message,true);}
+  try{extracted=JSON.parse(val('template-preview-json'));}
+  catch(e){return flash('Extracted JSON is not valid: '+e.message,true);}
+  const r=await post(API+'/product_template.php',{csrf,shape,example_url:val('template-example-url'),example_extracted:extracted});
+  if(!r.error){flash('Template confirmed');loadProductTemplate();document.getElementById('confirm-template-btn').style.display='none';}
+  else flash(r.error,true);
 }
 
 // ── Products ───────────────────────────────────────────────────────────────────

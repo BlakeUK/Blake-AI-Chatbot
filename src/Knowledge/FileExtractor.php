@@ -111,16 +111,7 @@ class FileExtractor
 
     private static function getApiKey(): ?string
     {
-        $row = db()->prepare('SELECT key_enc, iv, tag FROM api_keys WHERE service = ?');
-        $row->execute(['gemini']);
-        $r = $row->fetch();
-        if (!$r) return null;
-        $key = hex2bin(CFG['encrypt_key']);
-        $dec = openssl_decrypt(
-            hex2bin($r['key_enc']), 'aes-256-gcm', $key,
-            OPENSSL_RAW_DATA, hex2bin($r['iv']), hex2bin($r['tag'])
-        );
-        return $dec ?: null;
+        return \Gemini\Client::getStoredApiKey();
     }
 
     private static function getSetting(string $key): ?string
