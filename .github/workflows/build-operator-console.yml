@@ -30,7 +30,20 @@ jobs:
 
       - name: Build .deb
         working-directory: operator-console
-        run: cargo tauri build
+        shell: bash
+        run: |
+          set +e
+          cargo tauri build 2>&1 | tee /tmp/build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Build failed - emitting last 60 log lines as annotations"
+            tail -n 60 /tmp/build.log | while IFS= read -r line; do
+              esc=$(printf '%s' "$line" | sed 's/%/%25/g')
+              echo "::error::${esc}"
+            done
+            echo "::endgroup::"
+            exit "$status"
+          fi
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
@@ -58,7 +71,20 @@ jobs:
 
       - name: Build .msi
         working-directory: operator-console
-        run: cargo tauri build
+        shell: bash
+        run: |
+          set +e
+          cargo tauri build 2>&1 | tee /tmp/build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Build failed - emitting last 60 log lines as annotations"
+            tail -n 60 /tmp/build.log | while IFS= read -r line; do
+              esc=$(printf '%s' "$line" | sed 's/%/%25/g')
+              echo "::error::${esc}"
+            done
+            echo "::endgroup::"
+            exit "$status"
+          fi
 
       - name: Upload .msi artifact
         uses: actions/upload-artifact@v4
