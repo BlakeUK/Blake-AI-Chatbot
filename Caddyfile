@@ -25,13 +25,24 @@ chat.blake-uk.com {
 
 # blakegroup.uk: standalone intro site at the apex, not connected to
 # blake-uk.com in any way (deliberately - nothing here should redirect
-# there). admin./chat. are separate subdomains pointing at the same app
-# that's already running for chat.blake-uk.com, so there's one shared
-# backend/database rather than a second copy of it.
+# there). /admin and /api paths route to the same backend/database as
+# chat.blake-uk.com rather than a second copy of it - this is in addition
+# to (not instead of) the admin./chat. subdomains below, since blakegroup.uk/admin
+# is what actually got tested and it needs to work as a path too, not just
+# as a subdomain.
 
 blakegroup.uk, www.blakegroup.uk {
-    root * /var/www/blakegroup/public
-    file_server
+    @app path /admin /admin/* /api/* /chat /chat/*
+    handle @app {
+        root * /var/www/chat/public
+        php_fastcgi unix//run/php/php8.2-fpm.sock
+        file_server
+    }
+
+    handle {
+        root * /var/www/blakegroup/public
+        file_server
+    }
 
     header {
         X-Content-Type-Options nosniff
