@@ -57,7 +57,7 @@ function json_body(): array {
 // runtime itself, not something anyone configures, so it belongs in code
 // instead: http://tauri.localhost on Windows (WebView2), tauri://localhost on
 // macOS/Linux (WebKitGTK/WKWebView).
-const TAURI_APP_ORIGINS = ['http://tauri.localhost', 'tauri://localhost'];
+const TAURI_APP_ORIGINS = ['http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost'];
 
 function cors(): void {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
