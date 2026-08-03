@@ -22,7 +22,19 @@ class Admin
                 'path'     => '/',
                 'secure'   => $https,
                 'httponly' => true,
-                'samesite' => 'Strict',
+                // The operator console is a genuinely cross-site caller now
+                // (https://tauri.localhost vs blakegroup.uk) - Strict cookies
+                // are NEVER sent on any cross-site request, in every browser,
+                // no exceptions. That's fine for a same-origin request (the
+                // web admin panel) but silently breaks anything that needs
+                // the session to persist across two requests from the
+                // desktop app - 2FA specifically, since verifying the code
+                // depends on the pending-2FA state set by the password step
+                // moments earlier. None requires Secure, which $https already
+                // guarantees when true; kept Strict for the non-HTTPS
+                // fallback, where None wouldn't work anyway (browsers reject
+                // SameSite=None without Secure outright).
+                'samesite' => $https ? 'None' : 'Strict',
             ]);
             session_start();
         }
