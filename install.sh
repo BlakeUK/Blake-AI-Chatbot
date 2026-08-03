@@ -1,7 +1,7 @@
 #!/bin/bash
 # install.sh — Blake UK Chatbot one-line VPS installer
 # Usage: bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/Blake-AI-Chatbot/main/install.sh)
-# Requires: Debian 12, root access, chat.blake-uk.com DNS pointing to this server.
+# Requires: Debian 12, root access, chat.blakegroup.uk DNS pointing to this server.
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ die()     { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 [[ $EUID -ne 0 ]] && die "Run as root"
 
-DOMAIN="${DOMAIN:-chat.blake-uk.com}"
+DOMAIN="${DOMAIN:-chat.blakegroup.uk}"
 WEBROOT="/var/www/chat"
 REPO="https://github.com/BlakeUK/Blake-AI-Chatbot.git"
 
@@ -126,7 +126,11 @@ fi
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
 info "Configuring Caddy..."
-sed -e "s/chat\.blake-uk\.com/$DOMAIN/g" -e "s/php8\.2-fpm/php${PHP_VERSION}-fpm/g" \
+# No domain substitution needed - the committed Caddyfile is a fixed
+# multi-domain config (blakegroup.uk + admin./chat. subdomains), not
+# templated around chat.blake-uk.com anymore. Still substituting the PHP
+# version, which genuinely does vary by server.
+sed -e "s/php8\.2-fpm/php${PHP_VERSION}-fpm/g" \
     "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
 systemctl enable caddy --quiet
 systemctl restart caddy

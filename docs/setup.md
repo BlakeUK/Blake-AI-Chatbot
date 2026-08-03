@@ -3,7 +3,7 @@
 ## Prerequisites
 - Debian 12 VPS
 - Root or sudo access
-- Domain DNS: chat.blake-uk.com → VPS IP
+- Domain DNS: chat.blakegroup.uk → VPS IP
 
 ## Steps
 
@@ -37,14 +37,14 @@ php /var/www/chat/scripts/create_admin.php admin YourStrongPassword
 ```
 
 ### 6. Store Gemini API key via admin UI
-- Visit https://chat.blake-uk.com/admin/
+- Visit https://chat.blakegroup.uk/admin/
 - Log in
 - Go to API Settings → add service `gemini` with your key
 
 ### 7. Embed widget on blake-uk.com
 Add before `</body>`:
 ```html
-<script src="https://chat.blake-uk.com/widget/chat.js" defer></script>
+<script src="https://chat.blakegroup.uk/widget/chat.js" defer></script>
 ```
 
 For product pages, add data attributes for context:

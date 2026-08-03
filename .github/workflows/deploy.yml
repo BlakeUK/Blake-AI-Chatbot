@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       domain:
-        description: "Domain or IP to configure Caddy for"
+        description: "Domain for Caddy's next-steps message and the IP-fallback path (chat.blake-uk.com is not a real domain for this app - do not use it here)"
         required: false
-        default: "chat.blake-uk.com"
+        default: "chat.blakegroup.uk"
 
 jobs:
   deploy:

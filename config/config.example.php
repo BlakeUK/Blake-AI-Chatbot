@@ -14,7 +14,7 @@ return [
     'cors_origins'   => [
         'https://www.blake-uk.com',
         'https://blake-uk.com',
-        'https://chat.blake-uk.com',
+        'https://chat.blakegroup.uk',
     ],
 
     'rate_limit_chat'    => 20,

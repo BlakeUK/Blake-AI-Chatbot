@@ -188,7 +188,7 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 
 ## One-Line Install
 
-On a **fresh Debian 12 VPS** as root, with DNS for `chat.blake-uk.com` pointing to the server:
+On a **fresh Debian 12 VPS** as root, with DNS for `chat.blakegroup.uk` pointing to the server:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/BlakeUK/Blake-AI-Chatbot/main/install.sh)
@@ -219,7 +219,7 @@ DOMAIN=chat.example.com bash <(curl -fsSL https://raw.githubusercontent.com/Blak
 ### Prerequisites
 - Debian 12 VPS (1 vCPU / 1 GB RAM minimum recommended)
 - Root SSH access
-- DNS A record: `chat.blake-uk.com` → VPS IP address
+- DNS A record: `chat.blakegroup.uk` → VPS IP address
 
 ### Step 1 — Clone
 ```bash
@@ -278,7 +278,7 @@ php /var/www/chat/scripts/create_admin.php admin 'YourStrongPassword'
 
 ## Admin Interface
 
-Visit `https://chat.blake-uk.com/admin/` and log in.
+Visit `https://chat.blakegroup.uk/admin/` and log in.
 
 ### Tabs
 
@@ -336,7 +336,7 @@ Source: [`mobile/admin_app`](mobile/admin_app) and [`mobile/customer_app`](mobil
 Add before `</body>` on every page:
 
 ```html
-<script src="https://chat.blake-uk.com/widget/chat.js" defer></script>
+<script src="https://chat.blakegroup.uk/widget/chat.js" defer></script>
 ```
 
 ### Product page context
@@ -359,10 +359,10 @@ The widget automatically picks these up and sends them with every message, enabl
 <script>
 window.BlakeUKWidget = {
   apiKey: 'buk_yourkey',
-  endpoint: 'https://chat.blake-uk.com'
+  endpoint: 'https://chat.blakegroup.uk'
 };
 </script>
-<script src="https://chat.blake-uk.com/widget/chat.js" defer></script>
+<script src="https://chat.blakegroup.uk/widget/chat.js" defer></script>
 ```
 
 ---

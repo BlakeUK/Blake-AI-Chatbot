@@ -13,7 +13,7 @@ namespace Telegram;
 class Notifier
 {
     private const API_BASE  = 'https://api.telegram.org/bot';
-    private const ADMIN_URL = 'https://chat.blake-uk.com/admin/';
+    private const ADMIN_URL = 'https://chat.blakegroup.uk/admin/';
 
     // ── Config ────────────────────────────────────────────────────────────────
     // Bot token is a real credential (holds/read access to the bot) so it's

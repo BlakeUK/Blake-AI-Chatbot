@@ -3,7 +3,7 @@
 # Used by .github/workflows/deploy.yml — do not run this against a checkout that
 # hasn't already been placed at $WEBROOT (it does not clone or pull anything).
 #
-# Usage: DOMAIN=chat.blake-uk.com bash scripts/deploy_remote.sh
+# Usage: DOMAIN=chat.blakegroup.uk bash scripts/deploy_remote.sh
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ die()     { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 [[ $EUID -ne 0 ]] && die "Run as root"
 
-DOMAIN="${DOMAIN:-chat.blake-uk.com}"
+DOMAIN="${DOMAIN:-chat.blakegroup.uk}"
 WEBROOT="/var/www/chat"
 
 info "Blake UK AI Chatbot — Remote Deploy"
@@ -212,7 +212,12 @@ http://$DOMAIN {
 CADDYEOF
 else
     PROTO="https"
-    sed -e "s/chat\.blake-uk\.com/$DOMAIN/g" -e "s/php8\.2-fpm/php${PHP_VERSION}-fpm/g" \
+    # No domain substitution needed anymore - the committed Caddyfile is a
+    # fixed multi-domain config (blakegroup.uk + admin./chat. subdomains),
+    # not templated around a single placeholder domain the way it was when
+    # chat.blake-uk.com was the one real domain. Still substituting the PHP
+    # version, which genuinely does vary by server.
+    sed -e "s/php8\.2-fpm/php${PHP_VERSION}-fpm/g" \
         "$WEBROOT/Caddyfile" > /etc/caddy/Caddyfile
 fi
 systemctl enable caddy --quiet

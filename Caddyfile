@@ -1,6 +1,9 @@
-# Shared config for the PHP chatbot app - used by chat.blake-uk.com and by
-# blakegroup.uk's admin./chat. subdomains, which serve the same backend
-# under a different hostname rather than duplicating this block three times.
+# Shared config for the PHP chatbot app - served from blakegroup.uk's
+# admin./chat. subdomains and from /admin, /api paths on the apex, which
+# all route to the same backend under different hostnames/paths rather
+# than duplicating this block. chat.blake-uk.com is NOT a domain this app
+# is actually reachable on - removed after confirming that directly, not
+# assumed; don't re-add a block for it without checking DNS again first.
 (chat_app) {
     root * /var/www/chat/public
     php_fastcgi unix//run/php/php8.2-fpm.sock
@@ -19,15 +22,11 @@
     }
 }
 
-chat.blake-uk.com {
-    import chat_app
-}
-
 # blakegroup.uk: standalone intro site at the apex, not connected to
 # blake-uk.com in any way (deliberately - nothing here should redirect
 # there). /admin and /api paths route to the same backend/database as
-# chat.blake-uk.com rather than a second copy of it - this is in addition
-# to (not instead of) the admin./chat. subdomains below, since blakegroup.uk/admin
+# the admin./chat. subdomains below rather than a second copy of it - this
+# is in addition to (not instead of) those subdomains, since blakegroup.uk/admin
 # is what actually got tested and it needs to work as a path too, not just
 # as a subdomain.
 
