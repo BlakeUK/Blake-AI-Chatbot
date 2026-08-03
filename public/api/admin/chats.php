@@ -4,6 +4,7 @@
 // GET (?session_id=..): full message thread + sources for one session
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
+cors();
 \Auth\Admin::check();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {

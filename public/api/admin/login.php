@@ -2,6 +2,7 @@
 // public/api/admin/login.php — POST: login | DELETE: logout
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
+cors();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
