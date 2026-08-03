@@ -5,7 +5,7 @@ the chatbot escalates a conversation, review it, route it to sales/support/
 accounts, add notes. Built with [Tauri](https://tauri.app) - a small native
 binary wrapping a plain HTML/CSS/JS UI (no React, no bundler, no Node.js in
 the shipped app), talking directly to the existing admin API
-(`chat.blake-uk.com/api/admin/...`) with the same login your team already
+(`chat.blakegroup.uk/api/admin/...`) with the same login your team already
 uses on the website.
 
 ## What's here
@@ -81,7 +81,7 @@ cargo tauri build
   [icon docs](https://tauri.app/v1/guides/features/icons/) cover the exact
   sizes needed, or `cargo tauri icon path/to/logo.png` generates the full
   set from one source image.
-- **Server address**: defaults to `https://chat.blake-uk.com`, changeable
+- **Server address**: defaults to `https://chat.blakegroup.uk`, changeable
   from the login screen ("change" link next to "Server") - stored locally
   per install, so this doesn't need to be rebuilt into the app for
   different environments (e.g. a staging server).
