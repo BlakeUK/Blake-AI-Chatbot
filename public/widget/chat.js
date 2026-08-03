@@ -1,11 +1,11 @@
 /**
  * Blake UK Chat Widget
- * Embed: <script src="https://chat.blake-uk.com/widget/chat.js" defer></script>
+ * Embed: <script src="https://chat.blakegroup.uk/widget/chat.js" defer></script>
  */
 (function () {
   'use strict';
 
-  const API = 'https://chat.blake-uk.com/api/chat';
+  const API = 'https://chat.blakegroup.uk/api/chat';
   const STORAGE_KEY = 'buk_session';
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@
   // ── Build DOM ────────────────────────────────────────────────────────────────
   const style = document.createElement('link');
   style.rel = 'stylesheet';
-  style.href = 'https://chat.blake-uk.com/widget/chat.css';
+  style.href = 'https://chat.blakegroup.uk/widget/chat.css';
   document.head.appendChild(style);
 
   const btn = document.createElement('button');
