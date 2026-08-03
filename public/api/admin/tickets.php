@@ -3,6 +3,7 @@
 // GET: list tickets | POST: add note | PUT: update status
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
+cors();
 \Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];
