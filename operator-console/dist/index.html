@@ -224,7 +224,8 @@ async function doLogin() {
     }
     errEl.textContent = r.error || 'Sign-in failed';
   } catch (e) {
-    errEl.textContent = 'Could not reach ' + serverUrl + ' — check the server address and your connection.';
+    errEl.innerHTML = 'Could not reach ' + esc(serverUrl) + ' — check the server address and your connection.'
+      + '<br><span style="font-size:11px;opacity:.75">Detail: ' + esc((e && e.name || 'Error') + ': ' + (e && e.message || String(e))) + '</span>';
   }
 }
 
@@ -358,7 +359,7 @@ async function saveTicketRouting(id) {
     statusEl.style.color = r.ok ? 'var(--ok)' : 'var(--err)';
     if (r.ok) loadTickets();
   } catch (e) {
-    statusEl.textContent = 'Could not reach server';
+    statusEl.textContent = 'Could not reach server (' + ((e && e.name) || 'Error') + ': ' + ((e && e.message) || String(e)) + ')';
     statusEl.style.color = 'var(--err)';
   }
 }
