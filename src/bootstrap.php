@@ -49,9 +49,19 @@ function json_body(): array {
 }
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
+// The operator console (a Tauri desktop app) is a cross-origin caller of this
+// same API - its webview's origin isn't the customer widget's domain, so it
+// can't go through CFG['cors_origins'] (that allowlist is deployment-specific,
+// for embedding the customer widget on blake-uk.com, and lives in config.php,
+// which isn't tracked in git). Tauri's own origin is a fixed constant of the
+// runtime itself, not something anyone configures, so it belongs in code
+// instead: http://tauri.localhost on Windows (WebView2), tauri://localhost on
+// macOS/Linux (WebKitGTK/WKWebView).
+const TAURI_APP_ORIGINS = ['http://tauri.localhost', 'tauri://localhost'];
+
 function cors(): void {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if (in_array($origin, CFG['cors_origins'], true)) {
+    if (in_array($origin, CFG['cors_origins'], true) || in_array($origin, TAURI_APP_ORIGINS, true)) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
