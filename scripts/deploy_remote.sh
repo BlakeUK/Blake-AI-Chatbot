@@ -189,6 +189,13 @@ else
     warn "Reminders schema already applied — skipping."
 fi
 
+# Data fix: ticket status vocabulary expanded from open/pending/closed to
+# open/in_progress/waiting/resolved (matches the reference UI). Renames
+# only - in_progress is new and has no prior data to migrate into it.
+# Naturally idempotent, same reasoning as the department rename above.
+sqlite3 "$WEBROOT/data/chatbot.db" "UPDATE support_tickets SET status='waiting' WHERE status='pending';"
+sqlite3 "$WEBROOT/data/chatbot.db" "UPDATE support_tickets SET status='resolved' WHERE status='closed';"
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
