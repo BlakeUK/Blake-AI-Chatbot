@@ -170,6 +170,11 @@ else
     warn "Ticket-priority/SLA schema already applied — skipping."
 fi
 
+# Data fix: 'support' -> 'technical' rename (see the tickets.php validation
+# change) never touched existing rows, only new ones going forward. Naturally
+# idempotent - matches zero rows after the first run - so no guard needed.
+sqlite3 "$WEBROOT/data/chatbot.db" "UPDATE support_tickets SET department='technical' WHERE department='support';"
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

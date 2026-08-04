@@ -119,6 +119,9 @@ jobs:
           mkdir -p publish
           cp dl/linux/*.deb "publish/blake-uk-operator-console.deb"
           cp dl/windows/*.msi "publish/blake-uk-operator-console.msi"
+          VERSION=$(jq -r '.package.version' operator-console/src-tauri/tauri.conf.json)
+          printf '{"version":"%s"}' "$VERSION" > publish/version.json
+          echo "Built version: $VERSION"
           ls -la publish
 
       - name: Ensure the downloads directory exists on the VPS
@@ -135,7 +138,7 @@ jobs:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: "publish/blake-uk-operator-console.deb,publish/blake-uk-operator-console.msi"
+          source: "publish/blake-uk-operator-console.deb,publish/blake-uk-operator-console.msi,publish/version.json"
           target: "/var/www/blakegroup/public/downloads"
           strip_components: 1
           overwrite: true
