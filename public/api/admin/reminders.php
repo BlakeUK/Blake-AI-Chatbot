@@ -62,6 +62,10 @@ if ($method === 'POST') {
     $remindAt = (int)($body['remind_at'] ?? 0);
     if (!$ticketId || !$remindAt) json_err('ticket_id and remind_at required');
 
+    $ticketExists = $pdo->prepare('SELECT 1 FROM support_tickets WHERE id=?');
+    $ticketExists->execute([$ticketId]);
+    if (!$ticketExists->fetch()) json_err('Unknown ticket_id');
+
     $forAdmin = (int)($body['admin_id'] ?? $_SESSION['admin_id']);
     $exists = $pdo->prepare('SELECT 1 FROM admin_users WHERE id=?');
     $exists->execute([$forAdmin]);
@@ -102,7 +106,13 @@ if ($method === 'PUT') {
         json_out(['ok' => true, 'remind_at' => $newTime]);
     }
 
-    json_err('acknowledged or snooze_hours required');
+    if (!empty($body['remind_at'])) {
+        $newTime = (int)$body['remind_at'];
+        $pdo->prepare('UPDATE reminders SET remind_at=?, acknowledged=0 WHERE id=?')->execute([$newTime, $id]);
+        json_out(['ok' => true, 'remind_at' => $newTime]);
+    }
+
+    json_err('acknowledged, snooze_hours, or remind_at required');
 }
 
 json_err('Method not allowed', 405);

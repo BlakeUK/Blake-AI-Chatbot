@@ -9,6 +9,42 @@ cors();
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
 
+function _project_assignees(PDO $pdo, array $projectIds): array
+{
+    if (!$projectIds) return [];
+    $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
+    $stmt = $pdo->prepare("
+        SELECT pa.project_id, u.id, u.username
+        FROM project_assignees pa JOIN admin_users u ON u.id = pa.admin_id
+        WHERE pa.project_id IN ($placeholders)
+        ORDER BY u.username COLLATE NOCASE
+    ");
+    $stmt->execute($projectIds);
+    $byProject = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $byProject[$row['project_id']][] = ['id' => (int)$row['id'], 'username' => $row['username']];
+    }
+    return $byProject;
+}
+
+function _set_project_assignees(PDO $pdo, int $projectId, array $adminIds): void
+{
+    $adminIds = array_unique(array_map('intval', $adminIds));
+    $pdo->beginTransaction();
+    $pdo->prepare('DELETE FROM project_assignees WHERE project_id=?')->execute([$projectId]);
+    if ($adminIds) {
+        $placeholders = implode(',', array_fill(0, count($adminIds), '?'));
+        $valid = $pdo->prepare("SELECT id FROM admin_users WHERE id IN ($placeholders)");
+        $valid->execute($adminIds);
+        $validIds = array_map('intval', $valid->fetchAll(PDO::FETCH_COLUMN));
+        $ins = $pdo->prepare('INSERT INTO project_assignees (project_id, admin_id) VALUES (?,?)');
+        foreach ($validIds as $aid) {
+            $ins->execute([$projectId, $aid]);
+        }
+    }
+    $pdo->commit();
+}
+
 if ($method === 'GET') {
     if (!empty($_GET['id'])) {
         $id = (int)$_GET['id'];
@@ -45,6 +81,8 @@ if ($method === 'GET') {
         $children->execute([$id]);
         $project['children'] = $children->fetchAll();
 
+        $project['assignees'] = (_project_assignees($pdo, [$id]))[$id] ?? [];
+
         json_out($project);
     }
 
@@ -53,11 +91,19 @@ if ($method === 'GET') {
         SELECT p.*,
                (SELECT COUNT(*) FROM project_comments c WHERE c.project_id = p.id) AS comment_count,
                (SELECT COUNT(*) FROM support_tickets t WHERE t.project_id = p.id) AS ticket_count,
-               (SELECT COUNT(*) FROM projects p2 WHERE p2.parent_id = p.id) AS child_count
+               (SELECT COUNT(*) FROM projects p2 WHERE p2.parent_id = p.id) AS child_count,
+               (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id AND pt.completed = 0) AS open_task_count
         FROM projects p
         {$whereSql}
         ORDER BY p.status = 'archived', p.created_at DESC
     ")->fetchAll();
+
+    $assigneesByProject = _project_assignees($pdo, array_column($rows, 'id'));
+    foreach ($rows as &$r) {
+        $r['assignees'] = $assigneesByProject[$r['id']] ?? [];
+    }
+    unset($r);
+
     json_out($rows);
 }
 
@@ -96,6 +142,10 @@ if ($method === 'POST') {
     $id = $pdo->lastInsertId();
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
         ->execute([$_SESSION['admin_id'], 'project_created', $id, $name]);
+
+    if (!empty($body['assignee_ids']) && is_array($body['assignee_ids'])) {
+        _set_project_assignees($pdo, (int)$id, $body['assignee_ids']);
+    }
 
     json_out(['ok' => true, 'id' => $id]);
 }
@@ -137,14 +187,22 @@ if ($method === 'PUT') {
         $fields[] = 'due_date=?'; $params[] = !empty($body['due_date']) ? (int)$body['due_date'] : null;
     }
 
-    if (!$fields) json_err('No updatable fields provided');
+    if (!$fields && !array_key_exists('assignee_ids', $body)) json_err('No updatable fields provided');
 
-    $fields[] = 'updated_at=?'; $params[] = time();
-    $params[] = $id;
-    $pdo->prepare('UPDATE projects SET ' . implode(', ', $fields) . ' WHERE id=?')->execute($params);
+    if ($fields) {
+        $fields[] = 'updated_at=?'; $params[] = time();
+        $params[] = $id;
+        $pdo->prepare('UPDATE projects SET ' . implode(', ', $fields) . ' WHERE id=?')->execute($params);
 
-    $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
-        ->execute([$_SESSION['admin_id'], 'project_updated', $id, implode(',', array_keys($body))]);
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'project_updated', $id, implode(',', array_keys($body))]);
+    }
+
+    if (array_key_exists('assignee_ids', $body) && is_array($body['assignee_ids'])) {
+        _set_project_assignees($pdo, $id, $body['assignee_ids']);
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'project_assignees_updated', $id, count($body['assignee_ids']) . ' assignee(s)']);
+    }
 
     json_out(['ok' => true]);
 }
@@ -171,10 +229,14 @@ if ($method === 'DELETE') {
     $promoteChildren->execute([time(), $id]);
     $childrenPromoted = $promoteChildren->rowCount();
 
+    $taskCount = $pdo->prepare('SELECT COUNT(*) FROM project_tasks WHERE project_id=?');
+    $taskCount->execute([$id]);
+    $tasksRemoved = (int)$taskCount->fetchColumn();
+
     $pdo->prepare('DELETE FROM projects WHERE id=?')->execute([$id]);
 
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
-        ->execute([$_SESSION['admin_id'], 'project_deleted', $id, "$name ($ticketsUnlinked tickets unlinked, $childrenPromoted sub-projects promoted)"]);
+        ->execute([$_SESSION['admin_id'], 'project_deleted', $id, "$name ($ticketsUnlinked tickets unlinked, $childrenPromoted sub-projects promoted, $tasksRemoved tasks removed)"]);
 
     json_out(['ok' => true]);
 }
