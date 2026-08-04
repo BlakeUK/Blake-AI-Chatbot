@@ -40,11 +40,16 @@
   .pill-status-in_progress { background: #1f3a52; color: #5fb6e8; border: 1px solid #2a5578; }
   .pill-status-waiting { background: #3a2f14; color: var(--warn); border: 1px solid #4a3d1a; }
   .pill-status-resolved { background: #1c3327; color: var(--ok); border: 1px solid #234232; }
+  .pill-status-closed { background: var(--surface-3); color: var(--text-dim); border: 1px solid var(--border); }
+  .flash-highlight { animation: flash-highlight-kf 0.6s ease-in-out 2; }
+  @keyframes flash-highlight-kf { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 3px var(--accent-bright); } }
   .pill-priority-low { background: var(--surface-3); color: var(--text-dim); }
   .pill-priority-medium { background: #232840; color: #9d95d9; }
   .pill-priority-high { background: #3a2f14; color: var(--warn); }
   .pill-priority-urgent { background: #3a1f1f; color: var(--err); }
   .pill-overdue { background: #3a1f1f; color: var(--err); }
+  .pill-live { display: inline-block; background: #f0d43a; color: #241a04; font-weight: 800; font-size: 10px; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; animation: pill-live-kf 1s ease-in-out infinite; }
+  @keyframes pill-live-kf { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   .pill-assignee { background: var(--surface-3); color: var(--accent-bright); border: 1px solid var(--accent-dim); }
   .agent-online { color: var(--ok); }
   .agent-offline { color: var(--text-dim); }
@@ -309,10 +314,10 @@
         <div class="page-meta" id="dash-date"></div>
 
         <div id="stat-grid">
-          <div class="stat-card"><div class="label">Active Projects</div><div class="value" id="stat-projects">—</div></div>
-          <div class="stat-card"><div class="label">Open Tickets</div><div class="value" id="stat-open-tickets">—</div></div>
-          <div class="stat-card"><div class="label">Due Today</div><div class="value" id="stat-due-today">—</div></div>
-          <div class="stat-card"><div class="label">Due Reminders</div><div class="value" id="stat-alerts">—</div></div>
+          <div class="stat-card" style="cursor:pointer" onclick="showPage('projects')"><div class="label">Active Projects</div><div class="value" id="stat-projects">—</div></div>
+          <div class="stat-card" style="cursor:pointer" onclick="goToTickets('')"><div class="label">Open Tickets</div><div class="value" id="stat-open-tickets">—</div></div>
+          <div class="stat-card" style="cursor:pointer" onclick="goToTickets('')"><div class="label">Due Today</div><div class="value" id="stat-due-today">—</div></div>
+          <div class="stat-card" style="cursor:pointer" onclick="focusReminders()"><div class="label">Due Reminders</div><div class="value" id="stat-alerts">—</div></div>
         </div>
 
         <div id="dash-panels" style="grid-template-columns:1fr 1fr 1fr">
@@ -358,6 +363,7 @@
             <option value="in_progress">In Progress</option>
             <option value="waiting">Waiting</option>
             <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
           </select>
           <select id="filter-dept">
             <option value="">All departments</option>
@@ -487,10 +493,11 @@ let allProjects = [];
 let knownMyProjectIds = null; // null until first check, so history never fires a notification
 let knownMyTaskIds = null;
 let knownTicketState = new Map();
+let liveHandoffIds = new Set(); // tickets just transferred to me, not yet opened/acknowledged
 let currentTicketId = null;
 let pollTimer = null;
 const POLL_MS = 8000;
-const STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', waiting: 'Waiting', resolved: 'Resolved' };
+const STATUS_LABELS = { open: 'Open', in_progress: 'In Progress', waiting: 'Waiting', resolved: 'Resolved', closed: 'Closed' };
 
 function api(path) { return serverUrl.replace(/\/$/, '') + path; }
 async function apiGet(path) { const r = await fetch(api(path), { credentials: 'include' }); return r.json(); }
@@ -527,6 +534,21 @@ function showPage(name) {
   if (name === 'projects') loadProjectsPage();
 }
 document.getElementById('bell').onclick = () => showPage('dashboard');
+
+function goToTickets(statusFilter) {
+  showPage('tickets');
+  document.getElementById('filter-status').value = statusFilter;
+  document.getElementById('filter-dept').value = '';
+  loadTickets();
+}
+function focusReminders() {
+  showPage('dashboard');
+  const card = document.getElementById('dash-reminders');
+  if (!card) return;
+  card.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.closest('.card').classList.add('flash-highlight');
+  setTimeout(() => card.closest('.card').classList.remove('flash-highlight'), 1800);
+}
 
 // ── Version + self-update ────────────────────────────────────────────────────
 const DOWNLOAD_BASE = 'https://blakegroup.uk/downloads/';
@@ -702,14 +724,14 @@ async function loadDashboard() {
 
   let all = [];
   try { all = await apiGet('/api/admin/tickets.php?status=&limit=200'); if (!Array.isArray(all)) all = []; } catch (e) {}
-  const openCount = all.filter(t => t.status !== 'resolved').length;
+  const openCount = all.filter(t => !['resolved','closed'].includes(t.status)).length;
   document.getElementById('stat-open-tickets').textContent = openCount;
   const todayStr = new Date().toDateString();
   const dueToday = all.filter(t => t.sla_deadline && new Date(t.sla_deadline * 1000).toDateString() === todayStr).length;
   document.getElementById('stat-due-today').textContent = dueToday;
 
   const dashTickets = document.getElementById('dash-tickets');
-  const mine = all.filter(t => t.assigned_admin_id === myAdminId && t.status !== 'resolved').slice(0, 6);
+  const mine = all.filter(t => t.assigned_admin_id === myAdminId && !['resolved','closed'].includes(t.status)).slice(0, 6);
   dashTickets.innerHTML = mine.length ? mine.map(projectCardLikeTicket).join('') : '<div class="empty-note">No open tickets assigned to you.</div>';
 
   try {
@@ -776,12 +798,12 @@ function describeActivity(a) {
 }
 
 function projectCardLikeTicket(t) {
-  const overdue = t.sla_deadline && t.status !== 'resolved' && (t.sla_deadline * 1000) < Date.now();
+  const overdue = t.sla_deadline && !['resolved','closed'].includes(t.status) && (t.sla_deadline * 1000) < Date.now();
   return `
   <div class="project-card" onclick="openTicket(${t.id})" style="cursor:pointer">
     <div class="top-row">
       ${t.department ? `<span class="pill pill-dept">${esc(t.department)}</span>` : '<span></span>'}
-      ${overdue ? '<span class="pill pill-overdue">overdue</span>' : ''}
+      ${liveHandoffIds.has(t.id) ? '<span class="pill-live">LIVE</span>' : overdue ? '<span class="pill pill-overdue">overdue</span>' : ''}
     </div>
     <h3>${esc(t.subject || ticketCode(t))}</h3>
     <p>${esc(ticketCode(t))} · ${STATUS_LABELS[t.status] || t.status}</p>
@@ -798,7 +820,7 @@ async function loadTeam() {
     el.innerHTML = (Array.isArray(rows) ? rows : []).map(a => {
       const depts = a.departments && a.departments.length ? a.departments : (a.role === 'admin' ? ['admin'] : []);
       return `
-      <div class="team-card">
+      <div class="team-card" ${a.id !== myAdminId ? `style="cursor:pointer" onclick="openDM(${a.id}, '${esc(a.username)}')"` : ''}>
         <div class="avatar">${esc(initials(a.username))}</div>
         <div class="name">${esc(a.username)}</div>
         <div class="role">${esc(a.role)} ${a.online ? '· <span class="agent-online">online</span>' : '· <span class="agent-offline">offline</span>'}</div>
@@ -865,7 +887,7 @@ async function loadTickets() {
       const nowMine = myAdminId != null && t.assigned_admin_id === myAdminId;
       const wasMine = myAdminId != null && prevAssignee === myAdminId;
       if (isNew) notify('New support ticket', t.subject || ('Ticket #' + t.id));
-      else if (nowMine && !wasMine) notify('Ticket transferred to you', t.subject || ('Ticket #' + t.id));
+      else if (nowMine && !wasMine) { notify('Ticket transferred to you', t.subject || ('Ticket #' + t.id)); liveHandoffIds.add(t.id); }
     }
   }
   knownTicketState = freshState;
@@ -879,10 +901,11 @@ function renderTicketTable() {
   const rows = q ? tickets.filter(t => (t.subject || '').toLowerCase().includes(q)) : tickets;
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-note">No tickets match this view.</td></tr>'; return; }
   tb.innerHTML = rows.map(t => {
-    const overdue = t.sla_deadline && t.status !== 'resolved' && (t.sla_deadline * 1000) < Date.now();
+    const overdue = t.sla_deadline && !['resolved','closed'].includes(t.status) && (t.sla_deadline * 1000) < Date.now();
+    const isLive = liveHandoffIds.has(t.id);
     return `
     <tr onclick="openTicket(${t.id})">
-      <td class="ticket-cell"><div class="subj">${esc(t.subject || 'Ticket #' + t.id)}</div><div class="code">${esc(ticketCode(t))}</div></td>
+      <td class="ticket-cell"><div class="subj">${isLive ? '<span class="pill-live">LIVE</span> ' : ''}${esc(t.subject || 'Ticket #' + t.id)}</div><div class="code">${esc(ticketCode(t))}</div></td>
       <td>${t.department ? `<span class="pill pill-dept">${esc(t.department)}</span>` : '—'}</td>
       <td><span class="pill pill-priority-${esc(t.priority || 'medium')}">${esc(t.priority || 'medium')}</span></td>
       <td><span class="pill pill-status-${esc(t.status)}">${esc(STATUS_LABELS[t.status] || t.status)}</span>${overdue ? ' <span class="pill pill-overdue">overdue</span>' : ''}</td>
@@ -898,6 +921,7 @@ async function openTicket(id) {
   currentTicketId = id;
   const ticket = tickets.find(t => t.id === id);
   if (!ticket) return;
+  if (liveHandoffIds.has(id)) { liveHandoffIds.delete(id); renderTicketTable(); }
 
   let messages = [];
   try {
@@ -1158,7 +1182,7 @@ async function openProject(id) {
         <h3>Comments</h3>
         <div id="project-comments">${project.comments.length ? project.comments.map(c => `
           <div class="comment-item">
-            <span class="who">${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span>
+            <span class="who" ${c.admin_id !== myAdminId ? `style="cursor:pointer;text-decoration:underline" onclick="openDM(${c.admin_id}, '${esc(c.username)}')"` : ''}>${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span>
             ${(c.admin_id === myAdminId || myRole === 'admin') ? `<span style="float:right;cursor:pointer;color:var(--err);font-size:11px" onclick="deleteComment(${c.id}, ${project.id})">delete</span>` : ''}
             <div>${esc(c.content)}</div>
           </div>`).join('') : '<div class="empty-note">No comments yet.</div>'}</div>
@@ -1318,6 +1342,15 @@ document.getElementById('chat-bubble').onclick = () => {
   if (!panel.classList.contains('hidden')) loadChannels();
 };
 
+async function openDM(adminId, username) {
+  if (adminId === myAdminId) return; // clicking your own name is a no-op, not an error
+  const r = await apiSend('POST', '/api/admin/channels.php', { dm_with: adminId, csrf });
+  if (!r.ok) { alert(r.error || 'Could not open chat'); return; }
+  document.getElementById('chat-panel').classList.remove('hidden');
+  await loadChannels();
+  selectChannel(r.id);
+}
+
 async function loadChannels() {
   try {
     channels = await apiGet('/api/admin/channels.php');
@@ -1328,7 +1361,7 @@ async function loadChannels() {
   const list = document.getElementById('chan-items');
   list.innerHTML = channels.map(c => `
     <div class="chan-item ${c.id === activeChannelId ? 'active' : ''}" onclick="selectChannel(${c.id})">
-      ${c.unread_count > 0 ? '<span class="unread-dot"></span>' : ''}${esc(c.name)}
+      ${c.unread_count > 0 ? '<span class="unread-dot"></span>' : ''}${c.is_dm ? '@' : '#'} ${esc(c.display_name || c.name)}
     </div>`).join('') || '<div class="empty-note" style="padding:10px">No channels yet.</div>';
 }
 
@@ -1339,12 +1372,13 @@ async function selectChannel(id) {
   loadChannels();
   document.getElementById('chat-input').disabled = false;
   document.getElementById('chat-send').disabled = false;
-  document.getElementById('chat-members-btn').classList.remove('hidden');
 
   let channel;
   try { channel = await apiGet('/api/admin/channels.php?id=' + id); } catch (e) { return; }
-  document.getElementById('chat-header-name').textContent = channel.name;
-  document.getElementById('chat-members-btn').onclick = () => manageMembers(channel);
+  document.getElementById('chat-header-name').textContent = (channel.is_dm ? '@ ' : '# ') + (channel.display_name || channel.name);
+  const membersBtn = document.getElementById('chat-members-btn');
+  membersBtn.classList.toggle('hidden', !!channel.is_dm);
+  membersBtn.onclick = () => manageMembers(channel);
   renderChatMessages(channel.messages);
   await apiSend('PUT', '/api/admin/channels.php', { id, mark_read: true, csrf });
   loadChannels();
@@ -1358,7 +1392,7 @@ function renderChatMessages(messages) {
     return `
     <div class="chat-msg">
       ${replySrc ? `<div class="reply-ref">↳ ${esc(replySrc.username)}: ${esc((replySrc.content||'').slice(0,40))}</div>` : ''}
-      <span class="who">${esc(m.username)}</span><span class="when">${fmtTime(m.created_at)}</span>
+      <span class="who" ${m.admin_id !== myAdminId ? `style="cursor:pointer;text-decoration:underline" onclick="openDM(${m.admin_id}, '${esc(m.username)}')"` : ''}>${esc(m.username)}</span><span class="when">${fmtTime(m.created_at)}</span>
       <div class="chat-msg-body" onclick="setReplyTo(${m.id}, '${esc(m.username)}')">${esc(m.content)}</div>
     </div>`;
   }).join('') : '<div class="empty-note">No messages yet — say hello.</div>';
