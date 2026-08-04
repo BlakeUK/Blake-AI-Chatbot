@@ -27,6 +27,9 @@ input[type=text],input[type=password],select,textarea{width:100%;padding:7px 10p
 input:focus,select:focus,textarea:focus{outline:none;border-color:#8fb0ec}
 textarea{resize:vertical;min-height:80px}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.dept-checks{display:flex;gap:10px;flex-wrap:wrap}
+.dept-checks label{display:inline-flex;align-items:center;gap:4px;font-weight:400;margin:0;white-space:nowrap}
+.dept-checks input{width:auto}
 .row>*{flex:1;min-width:140px}
 .row>.btn{flex:0 0 auto}
 .btn{padding:7px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600}
@@ -411,6 +414,13 @@ window.BlakeUKWidget = {
             <option value="user">User</option>
           </select>
         </div>
+        <div><label>Department(s)</label>
+          <div class="dept-checks">
+            <label><input type="checkbox" id="u-dept-sales" value="sales"> Sales</label>
+            <label><input type="checkbox" id="u-dept-technical" value="technical"> Technical</label>
+            <label><input type="checkbox" id="u-dept-accounts" value="accounts"> Accounts</label>
+          </div>
+        </div>
         <button class="btn btn-primary" onclick="createUser()">Create</button>
       </div>
     </div>
@@ -418,7 +428,7 @@ window.BlakeUKWidget = {
       <h2>Users</h2>
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px"><b>Admin:</b> full access. <b>Editor:</b> manage knowledge, files and products. <b>User:</b> view-only.</p>
       <table id="users-table">
-        <thead><tr><th>Username</th><th>Role</th><th>2FA</th><th>Locked</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
+        <thead><tr><th>Username</th><th>Role</th><th>Department(s)</th><th>2FA</th><th>Locked</th><th>Created</th><th>Last Login</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -1204,17 +1214,28 @@ async function revokeClient(id){
 async function loadUsers(){
   const rows=await get(API+'/users.php');
   const tb=document.querySelector('#users-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="7" style="color:#adb4ba">Unable to load.</td></tr>';return;}
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="8" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(r=>{
     const isLocked=r.locked_until&&(r.locked_until*1000)>Date.now();
+    const depts=r.departments||[];
+    const deptCheck=(d,label)=>`<label><input type="checkbox" value="${d}" ${depts.includes(d)?'checked':''} onchange="toggleUserDepartment(${r.id},this)"> ${label}</label>`;
     return `<tr><td>${esc(r.username)}</td><td>
     <select onchange="updateUserRole(${r.id},this.value)">
       <option value="admin" ${r.role==='admin'?'selected':''}>Admin</option>
       <option value="editor" ${r.role==='editor'?'selected':''}>Editor</option>
       <option value="user" ${r.role==='user'?'selected':''}>User</option>
     </select>
-    </td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${isLocked?`<span class="badge badge-error">Locked</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="unlockUser(${r.id})">Unlock</button>`:'<span class="badge badge-ok">No</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`;
-  }).join(''):'<tr><td colspan="7" style="color:#adb4ba">No users yet.</td></tr>';
+    </td><td><div class="dept-checks">${deptCheck('sales','Sales')}${deptCheck('technical','Technical')}${deptCheck('accounts','Accounts')}</div></td><td>${r.totp_enabled?`<span class="badge badge-ok">On</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="resetUser2fa(${r.id})">Reset</button>`:'<span class="badge badge-error">Off</span>'}</td><td>${isLocked?`<span class="badge badge-error">Locked</span> <button class="btn btn-secondary" style="padding:2px 8px;font-size:11px" onclick="unlockUser(${r.id})">Unlock</button>`:'<span class="badge badge-ok">No</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${r.last_login?fmtDate(r.last_login):'Never'}</td><td><button class="btn btn-danger" onclick="deleteUser(${r.id})">Delete</button></td></tr>`;
+  }).join(''):'<tr><td colspan="8" style="color:#adb4ba">No users yet.</td></tr>';
+}
+// Reads the current state of all three checkboxes for this row rather than
+// tracking a diff - the row always has all three, so "current checked set"
+// is simpler and can't drift out of sync with what's on screen.
+async function toggleUserDepartment(id,checkboxEl){
+  const row=checkboxEl.closest('tr');
+  const departments=[...row.querySelectorAll('.dept-checks input:checked')].map(i=>i.value);
+  const r=await put(API+'/users.php',{csrf,id,departments});
+  if(r.error){flash(r.error,true);loadUsers();}
 }
 async function unlockUser(id){
   if(!confirm('Clear the failed-login lock for this user?'))return;
@@ -1230,8 +1251,9 @@ async function createUser(){
   const username=val('u-username'),password=document.getElementById('u-password').value,role=document.getElementById('u-role').value;
   if(!username||!password)return flash('Username and password required',true);
   if(password.length<8)return flash('Password must be at least 8 characters',true);
-  const r=await post(API+'/users.php',{csrf,username,password,role});
-  if(!r.error){flash('User created');document.getElementById('u-username').value='';document.getElementById('u-password').value='';loadUsers();}
+  const departments=['sales','technical','accounts'].filter(d=>document.getElementById('u-dept-'+d).checked);
+  const r=await post(API+'/users.php',{csrf,username,password,role,departments});
+  if(!r.error){flash('User created');document.getElementById('u-username').value='';document.getElementById('u-password').value='';['sales','technical','accounts'].forEach(d=>document.getElementById('u-dept-'+d).checked=false);loadUsers();}
   else flash(r.error,true);
 }
 async function updateUserRole(id,newRole){

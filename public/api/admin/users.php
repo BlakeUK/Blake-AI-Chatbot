@@ -14,6 +14,17 @@ if ($method === 'GET') {
         FROM admin_users
         ORDER BY created_at ASC
     ')->fetchAll();
+
+    $deptRows = $pdo->query('SELECT admin_id, department FROM admin_user_departments')->fetchAll();
+    $byAdmin = [];
+    foreach ($deptRows as $d) {
+        $byAdmin[$d['admin_id']][] = $d['department'];
+    }
+    foreach ($rows as &$r) {
+        $r['departments'] = $byAdmin[$r['id']] ?? [];
+    }
+    unset($r);
+
     json_out($rows);
 }
 
@@ -47,6 +58,10 @@ if ($method === 'POST') {
     $id = $pdo->lastInsertId();
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
         ->execute([$_SESSION['admin_id'], 'user_created', $username, $role]);
+
+    if (!empty($body['departments']) && is_array($body['departments'])) {
+        _set_departments($pdo, (int)$id, $body['departments']);
+    }
 
     json_out(['id' => $id, 'username' => $username, 'role' => $role], 201);
 }
@@ -97,6 +112,12 @@ if ($method === 'PUT') {
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
         ->execute([$_SESSION['admin_id'], 'user_updated', $id, $role]);
 
+    if (array_key_exists('departments', $body) && is_array($body['departments'])) {
+        _set_departments($pdo, $id, $body['departments']);
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'user_departments_updated', $id, implode(',', $body['departments']) ?: '(none)']);
+    }
+
     json_out(['ok' => true]);
 }
 
@@ -126,4 +147,17 @@ json_err('Method not allowed', 405);
 function _admin_count(PDO $pdo): int
 {
     return (int)$pdo->query("SELECT COUNT(*) FROM admin_users WHERE role='admin'")->fetchColumn();
+}
+
+function _set_departments(PDO $pdo, int $adminId, array $departments): void
+{
+    $valid = array_values(array_intersect(array_unique($departments), ['sales', 'technical', 'accounts']));
+
+    $pdo->beginTransaction();
+    $pdo->prepare('DELETE FROM admin_user_departments WHERE admin_id=?')->execute([$adminId]);
+    $ins = $pdo->prepare('INSERT INTO admin_user_departments (admin_id, department) VALUES (?,?)');
+    foreach ($valid as $dept) {
+        $ins->execute([$adminId, $dept]);
+    }
+    $pdo->commit();
 }
