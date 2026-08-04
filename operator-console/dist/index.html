@@ -529,10 +529,14 @@ async function checkForUpdate() {
 }
 document.getElementById('update-btn').onclick = async function () {
   const btn = this; const resetText = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Downloading…';
+  btn.disabled = true; btn.textContent = 'Downloading… app will close to install';
   try {
     await window.__TAURI__.invoke('download_and_install', { url: DOWNLOAD_BASE + platformInstallerFilename() });
-    btn.textContent = 'Installer launched';
+    // Unreachable on success in practice - the app quits itself from the
+    // Rust side once the installer is launched, so the installer isn't
+    // blocked by this app's own files still being open. Kept only in case
+    // invoke() ever resolves before the exit actually fires.
+    btn.textContent = 'Closing to finish installing…';
   } catch (e) {
     btn.disabled = false; btn.textContent = resetText;
     alert('Update failed: ' + (e && e.message ? e.message : e) + '\n\nDownload directly from ' + DOWNLOAD_BASE + platformInstallerFilename());

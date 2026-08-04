@@ -49,7 +49,14 @@ fn download_and_install(url: String) -> Result<(), String> {
     // warrants right now.
     open::that(&dest).map_err(|e| format!("Downloaded, but couldn't launch the installer: {e}"))?;
 
-    Ok(())
+    // The installer can't replace this app's own exe/dlls while this process
+    // still has them open - that's exactly the "files in use" prompt this
+    // exists to prevent, and on Windows it won't proceed until this app is
+    // gone. The brief delay isn't for the installer's benefit (it'll wait as
+    // long as it needs to); it's so the spawned installer process is fully
+    // up before its parent vanishes, rather than racing it.
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    std::process::exit(0);
 }
 
 fn main() {
