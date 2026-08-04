@@ -28,4 +28,4 @@ jobs:
           git config user.email "noreply@anthropic.com"
           git add diagnostic-output.txt
           git commit -m "Diagnostic output"
-          git push origin HEAD:diagnostic/ticket-data-check
+          git push --force origin HEAD:diagnostic/ticket-data-check
