@@ -57,7 +57,32 @@ class Admin
         if (empty($_SESSION['admin_id'])) {
             json_err('Unauthorised', 401);
         }
+        self::touchPresence();
     }
+
+    // Presence heartbeat for the operator console's "who's online" list.
+    // Throttled via the session itself (no extra table, no extra query) -
+    // every admin request would otherwise mean a write on every single poll
+    // from every open console/tab. 20s is comfortably under the console's
+    // 8s poll interval, so presence still reads as fresh within a few
+    // seconds of someone actually going away.
+    private const PRESENCE_THROTTLE_SECONDS = 20;
+
+    private static function touchPresence(): void
+    {
+        $last = $_SESSION['presence_written_at'] ?? 0;
+        if (time() - $last < self::PRESENCE_THROTTLE_SECONDS) {
+            return;
+        }
+        db()->prepare('UPDATE admin_users SET last_active=? WHERE id=?')
+            ->execute([time(), $_SESSION['admin_id']]);
+        $_SESSION['presence_written_at'] = time();
+    }
+
+    // "Online" = a presence write within the last 60s - three missed polls'
+    // worth of grace, since a single slow/dropped request shouldn't flip
+    // someone to offline and back a second later.
+    public const ONLINE_WINDOW_SECONDS = 60;
 
     public static function role(): string
     {

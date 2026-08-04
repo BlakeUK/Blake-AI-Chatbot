@@ -22,7 +22,7 @@
       "targets": "all",
       "resources": [],
       "shortDescription": "Ticket notifications and department routing for Blake UK support staff",
-      "longDescription": "Desktop console for Blake UK support staff: get notified when the chatbot needs a human, hand tickets off to sales/support/accounts, and review the conversation before replying."
+      "longDescription": "Desktop console for Blake UK support staff: get notified when the chatbot needs a human, hand tickets off between sales/technical/accounts and specific colleagues, and review the conversation before replying."
     },
     "security": {
       "csp": null

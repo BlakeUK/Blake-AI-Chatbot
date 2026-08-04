@@ -156,6 +156,20 @@ else
     warn "Ticket-routing schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(admin_users);" | grep -q "last_active"; then
+    info "Applying agent-presence schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_agent_presence.sql"
+else
+    warn "Agent-presence schema already applied — skipping."
+fi
+
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(support_tickets);" | grep -q "priority"; then
+    info "Applying ticket-priority/SLA schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_ticket_priority_sla.sql"
+else
+    warn "Ticket-priority/SLA schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

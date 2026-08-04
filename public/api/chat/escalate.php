@@ -38,12 +38,33 @@ if (!$subject) {
     $subject = substr($lastQuestion, 0, 100);
 }
 
+// Department routing - classify from the conversation itself. Wrapped like
+// the Telegram alert below: a Gemini hiccup here must never block ticket
+// creation or the customer's confirmation message. Unsure/failure already
+// resolves to 'sales' inside the classifier, so this never leaves a ticket
+// unrouted - it either lands correctly or lands somewhere a human sees it.
+try {
+    $recent = $pdo->prepare("SELECT role, content FROM chat_messages WHERE session_id=? AND role IN ('user','assistant') ORDER BY created_at ASC");
+    $recent->execute([$session_id]);
+    $routing = \Chat\DepartmentClassifier::classify($recent->fetchAll());
+} catch (\Throwable $e) {
+    error_log('escalate.php: department classification failed: ' . $e->getMessage());
+    $routing = ['department' => 'sales', 'confident' => false];
+}
+
+$now = time();
 $pdo->prepare('
-    INSERT INTO support_tickets (session_id, status, subject, customer_email)
-    VALUES (?, ?, ?, ?)
-')->execute([$session_id, 'open', $subject, $email ?: null]);
+    INSERT INTO support_tickets (session_id, status, subject, customer_email, department, priority, sla_deadline, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+')->execute([$session_id, 'open', $subject, $email ?: null, $routing['department'], 'medium', \Tickets\Sla::deadline('medium', $now), $now, $now]);
 
 $ticketId = $pdo->lastInsertId();
+
+if (!$routing['confident']) {
+    $ts = date('d/m/Y H:i');
+    $pdo->prepare('UPDATE support_tickets SET notes=? WHERE id=?')
+        ->execute(["[$ts] Auto-routed to Sales — the AI wasn't confident which department this belongs to. Please reassign if it isn't a sales query.", $ticketId]);
+}
 
 // Mark recent bot messages as escalated
 $pdo->prepare('UPDATE chat_messages SET escalated=1 WHERE session_id=? AND role=?')

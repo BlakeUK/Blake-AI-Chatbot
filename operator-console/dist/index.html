@@ -57,6 +57,14 @@
   .badge-pending { background: #2a2340; color: var(--accent); }
   .badge-closed { background: #232532; color: var(--text-dim); }
   .badge-dept { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); }
+  .badge-assignee { background: var(--surface-2); color: var(--accent); border: 1px solid var(--accent-dim); }
+  .badge-priority-low { background: #232532; color: var(--text-dim); }
+  .badge-priority-medium { background: var(--surface-2); color: var(--text-dim); }
+  .badge-priority-high { background: #3a2f14; color: var(--warn); }
+  .badge-priority-urgent { background: #3a1f1f; color: var(--err); }
+  .badge-overdue { background: #3a1f1f; color: var(--err); }
+  .agent-online { color: var(--ok); }
+  .agent-offline { color: var(--text-dim); }
   #ticket-list .empty { padding: 30px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
 
   /* ── Detail pane ── */
@@ -124,7 +132,7 @@
         <select id="filter-dept">
           <option value="">All departments</option>
           <option value="sales">Sales</option>
-          <option value="support">Support</option>
+          <option value="technical">Technical</option>
           <option value="accounts">Accounts</option>
         </select>
       </div>
@@ -141,8 +149,13 @@
 const DEFAULT_SERVER = 'https://chat.blakegroup.uk';
 let serverUrl = localStorage.getItem('opconsole_server') || DEFAULT_SERVER;
 let csrf = null;
+let myAdminId = null;
 let tickets = [];
-let knownTicketIds = new Set();
+let agents = [];
+// Map of ticket id -> assigned_admin_id as of the last poll, so a
+// reassignment can be told apart from a brand-new ticket (both are "wasn't
+// in the old data in the same shape before").
+let knownTicketState = new Map();
 let currentTicketId = null;
 let pollTimer = null;
 const POLL_MS = 8000;
@@ -212,6 +225,7 @@ async function doLogin() {
     const r = await apiSend('POST', '/api/admin/login.php', body);
     if (r.ok) {
       csrf = r.csrf;
+      myAdminId = r.id ?? null;
       document.getElementById('whoami').textContent = document.getElementById('login-user').value.trim() + ' · ' + (r.role || '');
       enterApp();
       return;
@@ -232,8 +246,16 @@ async function doLogin() {
 function enterApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  loadAgents();
   loadTickets();
-  pollTimer = setInterval(loadTickets, POLL_MS);
+  pollTimer = setInterval(() => { loadAgents(); loadTickets(); }, POLL_MS);
+}
+
+async function loadAgents() {
+  try {
+    agents = await apiGet('/api/admin/agents.php');
+    if (!Array.isArray(agents)) agents = [];
+  } catch (e) { /* best-effort - the assign dropdown just falls back to empty */ }
 }
 
 document.getElementById('logout-btn').onclick = async () => {
@@ -264,18 +286,26 @@ async function loadTickets() {
   }
   if (!Array.isArray(result)) return;
 
-  // Detect genuinely new tickets since the last poll (first load populates
-  // the known set silently - nobody wants a notification storm on startup).
-  const isFirstLoad = knownTicketIds.size === 0 && tickets.length === 0;
-  const freshIds = new Set(result.map(t => t.id));
+  // Detect genuinely new tickets, and tickets just handed to *this* agent,
+  // since the last poll (first load populates state silently - nobody wants
+  // a notification storm on startup).
+  const isFirstLoad = knownTicketState.size === 0 && tickets.length === 0;
+  const freshState = new Map(result.map(t => [t.id, t.assigned_admin_id ?? null]));
   if (!isFirstLoad) {
     for (const t of result) {
-      if (!knownTicketIds.has(t.id)) {
+      const prevAssignee = knownTicketState.get(t.id);
+      const isNew = prevAssignee === undefined;
+      const nowMine = myAdminId != null && t.assigned_admin_id === myAdminId;
+      const wasMine = myAdminId != null && prevAssignee === myAdminId;
+
+      if (isNew) {
         notify('New support ticket', t.subject || ('Ticket #' + t.id));
+      } else if (nowMine && !wasMine) {
+        notify('Ticket transferred to you', t.subject || ('Ticket #' + t.id));
       }
     }
   }
-  knownTicketIds = freshIds;
+  knownTicketState = freshState;
   tickets = result;
   renderTicketList();
 }
@@ -283,15 +313,21 @@ async function loadTickets() {
 function renderTicketList() {
   const el = document.getElementById('ticket-list');
   if (!tickets.length) { el.innerHTML = '<div class="empty">No tickets match this view.</div>'; return; }
-  el.innerHTML = tickets.map(t => `
+  el.innerHTML = tickets.map(t => {
+    const overdue = t.sla_deadline && t.status !== 'closed' && (t.sla_deadline * 1000) < Date.now();
+    return `
     <div class="ticket-row ${t.id === currentTicketId ? 'active' : ''}" data-id="${t.id}" onclick="openTicket(${t.id})">
       <div class="subj">${esc(t.subject || 'Ticket #' + t.id)}</div>
       <div class="meta">
         <span class="badge badge-${esc(t.status)}">${esc(t.status)}</span>
+        ${t.priority ? `<span class="badge badge-priority-${esc(t.priority)}">${esc(t.priority)}</span>` : ''}
         ${t.department ? `<span class="badge badge-dept">${esc(t.department)}</span>` : ''}
+        ${t.assigned_username ? `<span class="badge badge-assignee">${esc(t.assigned_username)}</span>` : ''}
+        ${overdue ? `<span class="badge badge-overdue">overdue</span>` : ''}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // ── Ticket detail ────────────────────────────────────────────────────────────
@@ -323,7 +359,20 @@ async function openTicket(id) {
         <label>Department</label>
         <select id="ctl-dept">
           <option value="">Unassigned</option>
-          ${['sales','support','accounts'].map(d => `<option value="${d}" ${d===ticket.department?'selected':''}>${d}</option>`).join('')}
+          ${['sales','technical','accounts'].map(d => `<option value="${d}" ${d===ticket.department?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div class="group">
+        <label>Priority</label>
+        <select id="ctl-priority">
+          ${['low','medium','high','urgent'].map(p => `<option value="${p}" ${p===(ticket.priority||'medium')?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div class="group">
+        <label>Assign to</label>
+        <select id="ctl-assignee">
+          <option value="">Unassigned</option>
+          ${agents.map(a => `<option value="${a.id}" ${a.id===ticket.assigned_admin_id?'selected':''}>${esc(a.username)} — ${a.online ? 'online' : 'offline'}</option>`).join('')}
         </select>
       </div>
       <button class="btn btn-primary btn-sm" id="ctl-save">Save</button>
@@ -351,10 +400,13 @@ async function openTicket(id) {
 async function saveTicketRouting(id) {
   const status = document.getElementById('ctl-status').value;
   const department = document.getElementById('ctl-dept').value;
+  const priority = document.getElementById('ctl-priority').value;
+  const assigneeRaw = document.getElementById('ctl-assignee').value;
+  const assigned_admin_id = assigneeRaw === '' ? null : parseInt(assigneeRaw, 10);
   const statusEl = document.getElementById('save-status');
   statusEl.textContent = 'Saving…';
   try {
-    const r = await apiSend('PUT', '/api/admin/tickets.php', { id, status, department, csrf });
+    const r = await apiSend('PUT', '/api/admin/tickets.php', { id, status, department, priority, assigned_admin_id, csrf });
     statusEl.textContent = r.ok ? 'Saved ✓' : (r.error || 'Failed');
     statusEl.style.color = r.ok ? 'var(--ok)' : 'var(--err)';
     if (r.ok) loadTickets();
