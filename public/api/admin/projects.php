@@ -13,9 +13,10 @@ if ($method === 'GET') {
     if (!empty($_GET['id'])) {
         $id = (int)$_GET['id'];
         $stmt = $pdo->prepare('
-            SELECT p.*, u.username AS created_by_username
+            SELECT p.*, u.username AS created_by_username, parent.name AS parent_name
             FROM projects p
             LEFT JOIN admin_users u ON u.id = p.created_by
+            LEFT JOIN projects parent ON parent.id = p.parent_id
             WHERE p.id = ?
         ');
         $stmt->execute([$id]);
@@ -27,23 +28,36 @@ if ($method === 'GET') {
         $project['tickets'] = $tix->fetchAll();
 
         $comments = $pdo->prepare('
-            SELECT c.id, c.content, c.created_at, u.username
+            SELECT c.id, c.content, c.created_at, c.admin_id, u.username
             FROM project_comments c JOIN admin_users u ON u.id = c.admin_id
             WHERE c.project_id = ? ORDER BY c.created_at ASC
         ');
         $comments->execute([$id]);
         $project['comments'] = $comments->fetchAll();
 
+        $children = $pdo->prepare('
+            SELECT p2.*,
+                   (SELECT COUNT(*) FROM project_comments c2 WHERE c2.project_id = p2.id) AS comment_count,
+                   (SELECT COUNT(*) FROM support_tickets t2 WHERE t2.project_id = p2.id) AS ticket_count,
+                   (SELECT COUNT(*) FROM projects p3 WHERE p3.parent_id = p2.id) AS child_count
+            FROM projects p2 WHERE p2.parent_id = ? ORDER BY p2.created_at DESC
+        ');
+        $children->execute([$id]);
+        $project['children'] = $children->fetchAll();
+
         json_out($project);
     }
 
-    $rows = $pdo->query('
+    $whereSql = empty($_GET['all']) ? 'WHERE p.parent_id IS NULL' : '';
+    $rows = $pdo->query("
         SELECT p.*,
                (SELECT COUNT(*) FROM project_comments c WHERE c.project_id = p.id) AS comment_count,
-               (SELECT COUNT(*) FROM support_tickets t WHERE t.project_id = p.id) AS ticket_count
+               (SELECT COUNT(*) FROM support_tickets t WHERE t.project_id = p.id) AS ticket_count,
+               (SELECT COUNT(*) FROM projects p2 WHERE p2.parent_id = p.id) AS child_count
         FROM projects p
-        ORDER BY p.status = "archived", p.created_at DESC
-    ')->fetchAll();
+        {$whereSql}
+        ORDER BY p.status = 'archived', p.created_at DESC
+    ")->fetchAll();
     json_out($rows);
 }
 
@@ -58,17 +72,25 @@ if ($method === 'POST') {
     $department = trim((string)($body['department'] ?? ''));
     if ($department !== '' && !in_array($department, ['sales', 'technical', 'accounts'], true)) json_err('Invalid department');
 
+    $parentId = !empty($body['parent_id']) ? (int)$body['parent_id'] : null;
+    if ($parentId !== null) {
+        $chk = $pdo->prepare('SELECT 1 FROM projects WHERE id=?');
+        $chk->execute([$parentId]);
+        if (!$chk->fetch()) json_err('Unknown parent project');
+    }
+
     $dueDate = !empty($body['due_date']) ? (int)$body['due_date'] : null;
 
     $pdo->prepare('
-        INSERT INTO projects (name, description, department, due_date, created_by)
-        VALUES (?,?,?,?,?)
+        INSERT INTO projects (name, description, department, due_date, created_by, parent_id)
+        VALUES (?,?,?,?,?,?)
     ')->execute([
         $name,
         trim((string)($body['description'] ?? '')) ?: null,
         $department !== '' ? $department : null,
         $dueDate,
         $_SESSION['admin_id'],
+        $parentId,
     ]);
 
     $id = $pdo->lastInsertId();
@@ -123,6 +145,36 @@ if ($method === 'PUT') {
 
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
         ->execute([$_SESSION['admin_id'], 'project_updated', $id, implode(',', array_keys($body))]);
+
+    json_out(['ok' => true]);
+}
+
+if ($method === 'DELETE') {
+    $id = (int)($body['id'] ?? 0);
+    if (!$id) json_err('id required');
+
+    $exists = $pdo->prepare('SELECT name FROM projects WHERE id=?');
+    $exists->execute([$id]);
+    $name = $exists->fetchColumn();
+    if ($name === false) json_err('Project not found', 404);
+
+    // Deleting a project never destroys real data it happens to reference -
+    // tickets are real customer interactions and sub-projects are real
+    // workspaces in their own right. Both get unlinked/promoted, not
+    // cascade-deleted; only the project row itself, and its own comments
+    // (which exist only in the context of this project), actually go away.
+    $unlinkTickets = $pdo->prepare('UPDATE support_tickets SET project_id=NULL, updated_at=? WHERE project_id=?');
+    $unlinkTickets->execute([time(), $id]);
+    $ticketsUnlinked = $unlinkTickets->rowCount();
+
+    $promoteChildren = $pdo->prepare('UPDATE projects SET parent_id=NULL, updated_at=? WHERE parent_id=?');
+    $promoteChildren->execute([time(), $id]);
+    $childrenPromoted = $promoteChildren->rowCount();
+
+    $pdo->prepare('DELETE FROM projects WHERE id=?')->execute([$id]);
+
+    $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+        ->execute([$_SESSION['admin_id'], 'project_deleted', $id, "$name ($ticketsUnlinked tickets unlinked, $childrenPromoted sub-projects promoted)"]);
 
     json_out(['ok' => true]);
 }
