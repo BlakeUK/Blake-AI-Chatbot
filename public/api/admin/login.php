@@ -23,7 +23,7 @@ $body = json_body();
 // Step 2: completing login with a pending 2FA challenge
 if (!empty($body['code'])) {
     if (\Auth\Admin::verifyTwoFactor(trim((string)$body['code']))) {
-        json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
+        json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role(), 'id' => $_SESSION['admin_id']]);
     }
     json_err('Invalid or expired code', 401);
 }
@@ -40,7 +40,7 @@ if (!$user || !$pass) {
 
 $result = \Auth\Admin::login($user, $pass);
 if ($result === 'ok') {
-    json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
+    json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role(), 'id' => $_SESSION['admin_id']]);
 } elseif ($result === 'requires_2fa') {
     json_out(['ok' => false, 'requires_2fa' => true]);
 } elseif ($result === 'locked') {

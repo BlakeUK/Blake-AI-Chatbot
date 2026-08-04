@@ -22,10 +22,12 @@ if ($method === 'GET') {
 
     $stmt = $pdo->prepare("
         SELECT t.*, s.page_url, s.product_code,
+               a.username AS assigned_username,
                COUNT(m.id) AS message_count
         FROM support_tickets t
         LEFT JOIN chat_sessions s ON s.id = t.session_id
         LEFT JOIN chat_messages m ON m.session_id = t.session_id
+        LEFT JOIN admin_users a ON a.id = t.assigned_admin_id
         {$whereSql}
         GROUP BY t.id
         ORDER BY t.created_at DESC
@@ -62,9 +64,13 @@ if ($method === 'PUT') {
     $id = (int)($body['id'] ?? 0);
     if (!$id) json_err('id required');
 
-    $hasStatus = array_key_exists('status', $body);
-    $hasDept   = array_key_exists('department', $body);
-    if (!$hasStatus && !$hasDept) json_err('status or department required');
+    $hasStatus     = array_key_exists('status', $body);
+    $hasDept       = array_key_exists('department', $body);
+    $hasAssignee   = array_key_exists('assigned_admin_id', $body);
+    $hasPriority   = array_key_exists('priority', $body);
+    if (!$hasStatus && !$hasDept && !$hasAssignee && !$hasPriority) {
+        json_err('status, department, assigned_admin_id, or priority required');
+    }
 
     if ($hasStatus) {
         $status = trim((string)$body['status']);
@@ -81,7 +87,7 @@ if ($method === 'PUT') {
         $department = trim((string)$body['department']);
         // Empty string is a valid, meaningful value: send it back to the
         // general/unrouted queue rather than a specific department.
-        if ($department !== '' && !in_array($department, ['sales', 'support', 'accounts'], true)) {
+        if ($department !== '' && !in_array($department, ['sales', 'technical', 'accounts'], true)) {
             json_err('Invalid department');
         }
 
@@ -90,6 +96,47 @@ if ($method === 'PUT') {
 
         $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
             ->execute([$_SESSION['admin_id'], 'ticket_department_change', $id, $department !== '' ? $department : '(unassigned)']);
+    }
+
+    if ($hasAssignee) {
+        // Passing a chat/ticket to a specific colleague - the actual handoff
+        // mechanic. Null/empty clears assignment back to "unassigned" for
+        // the department queue at large, same convention as department above.
+        $raw = $body['assigned_admin_id'];
+        $assigneeId = ($raw === null || $raw === '') ? null : (int)$raw;
+
+        $assigneeName = null;
+        if ($assigneeId !== null) {
+            $chk = $pdo->prepare('SELECT username FROM admin_users WHERE id=?');
+            $chk->execute([$assigneeId]);
+            $assigneeName = $chk->fetchColumn();
+            if ($assigneeName === false) json_err('Unknown assignee');
+        }
+
+        $pdo->prepare('UPDATE support_tickets SET assigned_admin_id=?, updated_at=? WHERE id=?')
+            ->execute([$assigneeId, time(), $id]);
+
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'ticket_reassigned', $id, $assigneeName ?? '(unassigned)']);
+    }
+
+    if ($hasPriority) {
+        $priority = trim((string)$body['priority']);
+        if (!in_array($priority, ['low', 'medium', 'high', 'urgent'], true)) json_err('Invalid priority');
+
+        // SLA window recalculated from the ticket's original created_at, not
+        // from now - upgrading an old ticket to urgent should measure "2h
+        // from when it actually came in", not reset the clock to this edit.
+        $created = $pdo->prepare('SELECT created_at FROM support_tickets WHERE id=?');
+        $created->execute([$id]);
+        $createdAt = (int)($created->fetchColumn() ?: time());
+        $slaDeadline = \Tickets\Sla::deadline($priority, $createdAt);
+
+        $pdo->prepare('UPDATE support_tickets SET priority=?, sla_deadline=?, updated_at=? WHERE id=?')
+            ->execute([$priority, $slaDeadline, time(), $id]);
+
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'ticket_priority_change', $id, $priority]);
     }
 
     json_out(['ok' => true]);
