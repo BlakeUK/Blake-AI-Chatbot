@@ -27,9 +27,16 @@ $stmt = db()->prepare('
 $stmt->execute([$cutoff]);
 $rows = $stmt->fetchAll();
 
+$deptRows = db()->query('SELECT admin_id, department FROM admin_user_departments')->fetchAll();
+$byAdmin = [];
+foreach ($deptRows as $d) {
+    $byAdmin[$d['admin_id']][] = $d['department'];
+}
+
 foreach ($rows as &$r) {
-    $r['id']     = (int)$r['id'];
-    $r['online'] = (bool)$r['online'];
+    $r['id']          = (int)$r['id'];
+    $r['online']       = (bool)$r['online'];
+    $r['departments']  = $byAdmin[$r['id']] ?? [];
 }
 
 json_out($rows);
