@@ -77,7 +77,7 @@ if ($method === 'PUT') {
 
     if ($hasStatus) {
         $status = trim((string)$body['status']);
-        if (!in_array($status, ['open', 'in_progress', 'waiting', 'resolved'], true)) json_err('Invalid status');
+        if (!in_array($status, ['open', 'in_progress', 'waiting', 'resolved', 'closed'], true)) json_err('Invalid status');
 
         $pdo->prepare('UPDATE support_tickets SET status=?, updated_at=? WHERE id=?')
             ->execute([$status, time(), $id]);
