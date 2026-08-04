@@ -18,6 +18,13 @@
   .btn:hover { border-color: var(--accent); }
   .btn-primary { background: var(--accent-dim); border-color: var(--accent); }
   .btn-primary:hover { background: var(--accent); }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: 360px; }
+  .modal-box h2 { margin: 0 0 16px; font-size: 16px; }
+  .modal-box label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 4px; }
+  .modal-box label:first-of-type { margin-top: 0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
   .btn-sm { padding: 4px 10px; font-size: 12px; }
   input, select, textarea { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; width: 100%; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
@@ -142,6 +149,7 @@
           <option value="technical">Technical</option>
           <option value="accounts">Accounts</option>
         </select>
+        <button class="btn btn-primary btn-sm" id="new-ticket-btn" title="Create a ticket that isn't tied to a chat - customer call, walk-in, internal task">+ New</button>
       </div>
       <div id="ticket-list"><div class="empty">Loading…</div></div>
       <div id="sidebar-footer">
@@ -151,6 +159,35 @@
     </div>
     <div id="detail">
       <div class="empty-state">Select a ticket to view the conversation</div>
+    </div>
+  </div>
+</div>
+
+<div id="new-ticket-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2>New ticket</h2>
+    <label for="nt-subject">Subject</label>
+    <input id="nt-subject" placeholder="e.g. Phoned in - CCTV order query">
+    <label for="nt-email">Customer email (optional)</label>
+    <input id="nt-email" type="email" placeholder="customer@example.com">
+    <label for="nt-dept">Department</label>
+    <select id="nt-dept">
+      <option value="">Unassigned</option>
+      <option value="sales">Sales</option>
+      <option value="technical">Technical</option>
+      <option value="accounts">Accounts</option>
+    </select>
+    <label for="nt-priority">Priority</label>
+    <select id="nt-priority">
+      <option value="low">Low</option>
+      <option value="medium" selected>Medium</option>
+      <option value="high">High</option>
+      <option value="urgent">Urgent</option>
+    </select>
+    <div class="err" id="nt-err"></div>
+    <div class="modal-actions">
+      <button class="btn" id="nt-cancel">Cancel</button>
+      <button class="btn btn-primary" id="nt-submit">Create</button>
     </div>
   </div>
 </div>
@@ -333,6 +370,41 @@ document.getElementById('logout-btn').onclick = async () => {
 // ── Ticket list + polling/notifications ─────────────────────────────────────
 document.getElementById('filter-status').onchange = loadTickets;
 document.getElementById('filter-dept').onchange = loadTickets;
+
+// ── Manual (agent-created) tickets ──────────────────────────────────────────
+document.getElementById('new-ticket-btn').onclick = () => {
+  document.getElementById('nt-subject').value = '';
+  document.getElementById('nt-email').value = '';
+  document.getElementById('nt-dept').value = '';
+  document.getElementById('nt-priority').value = 'medium';
+  document.getElementById('nt-err').textContent = '';
+  document.getElementById('new-ticket-modal').classList.remove('hidden');
+  document.getElementById('nt-subject').focus();
+};
+document.getElementById('nt-cancel').onclick = () => {
+  document.getElementById('new-ticket-modal').classList.add('hidden');
+};
+document.getElementById('nt-submit').onclick = async () => {
+  const errEl = document.getElementById('nt-err');
+  const subject = document.getElementById('nt-subject').value.trim();
+  if (!subject) { errEl.textContent = 'Subject is required.'; return; }
+  errEl.textContent = '';
+  try {
+    const r = await apiSend('POST', '/api/admin/ticket_create.php', {
+      subject,
+      customer_email: document.getElementById('nt-email').value.trim(),
+      department: document.getElementById('nt-dept').value,
+      priority: document.getElementById('nt-priority').value,
+      csrf,
+    });
+    if (!r.ok) { errEl.textContent = r.error || 'Could not create ticket'; return; }
+    document.getElementById('new-ticket-modal').classList.add('hidden');
+    await loadTickets();
+    openTicket(r.ticket_id);
+  } catch (e) {
+    errEl.textContent = 'Could not reach the server.';
+  }
+};
 
 async function loadTickets() {
   const status = document.getElementById('filter-status').value;
