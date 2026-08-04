@@ -161,6 +161,7 @@
   .msg-meta { font-size: 10px; color: var(--text-dim); margin-bottom: 3px; }
   #notes-panel { padding: 14px 22px; border-bottom: 1px solid var(--border); }
   #notes-panel textarea { min-height: 50px; resize: vertical; }
+  .panel-section { padding: 14px 22px; border-bottom: 1px solid var(--border); }
   #notes-existing { max-height: 90px; overflow-y: auto; font-size: 12px; color: var(--text-dim); white-space: pre-wrap; margin-bottom: 8px; }
   #save-status { font-size: 12px; margin-left: 8px; }
   #reminders-panel { padding: 14px 22px; }
@@ -858,7 +859,7 @@ async function openTicket(id) {
           <select id="ctl-assignee"><option value="">Unassigned</option>${agents.map(a => `<option value="${a.id}" ${a.id===ticket.assigned_admin_id?'selected':''}>${esc(a.username)}${a.departments && a.departments.length ? ' (' + a.departments.map(esc).join(', ') + ')' : ''} — ${a.online ? 'online' : 'offline'}</option>`).join('')}</select>
         </div>
         <div class="group"><label>Project</label>
-          <select id="ctl-project"><option value="">None</option>${allProjects.map(p => `<option value="${p.id}" ${p.id===ticket.project_id?'selected':''}>${esc(p.name)}</option>`).join('')}</select>
+          <select id="ctl-project"><option value="">None</option>${allProjects.map(p => `<option value="${p.id}" ${p.id===ticket.project_id?'selected':''}>${p.parent_id ? '— ' : ''}${esc(p.name)}</option>`).join('')}</select>
         </div>
         <button class="btn btn-primary btn-sm" id="ctl-save">Save</button>
         <span id="save-status"></span>
@@ -957,7 +958,7 @@ async function saveNote(id) {
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 async function loadProjects() {
-  try { allProjects = await apiGet('/api/admin/projects.php'); if (!Array.isArray(allProjects)) allProjects = []; } catch (e) {}
+  try { allProjects = await apiGet('/api/admin/projects.php?all=1'); if (!Array.isArray(allProjects)) allProjects = []; } catch (e) {}
 }
 
 function projectCard(p) {
@@ -973,7 +974,7 @@ function projectCard(p) {
     <div class="progress-track"><div class="progress-fill" style="width:${p.progress_pct||0}%"></div></div>
     <div class="project-footer">
       <span>${p.due_date ? 'Due ' + new Date(p.due_date*1000).toLocaleDateString() : 'No due date'}</span>
-      <span class="counts"><span>💬 ${p.comment_count||0}</span><span>🎫 ${p.ticket_count||0}</span></span>
+      <span class="counts"><span>💬 ${p.comment_count||0}</span><span>🎫 ${p.ticket_count||0}</span>${p.child_count ? `<span>📁 ${p.child_count}</span>` : ''}</span>
     </div>
   </div>`;
 }
@@ -981,18 +982,23 @@ function projectCard(p) {
 async function loadProjectsPage() {
   await loadProjects();
   const el = document.getElementById('projects-grid');
-  el.innerHTML = allProjects.length ? allProjects.map(projectCard).join('') : '<div class="empty-note">No projects yet. Create one to get started.</div>';
+  const topLevel = allProjects.filter(p => !p.parent_id);
+  el.innerHTML = topLevel.length ? topLevel.map(projectCard).join('') : '<div class="empty-note">No projects yet. Create one to get started.</div>';
 }
 
-document.getElementById('new-project-btn').onclick = () => {
+let newProjectParentId = null;
+function openNewProjectModal(parentId) {
+  newProjectParentId = parentId || null;
   document.getElementById('np-name').value = '';
   document.getElementById('np-desc').value = '';
   document.getElementById('np-dept').value = '';
   document.getElementById('np-due').value = '';
   document.getElementById('np-err').textContent = '';
+  document.querySelector('#new-project-modal h2').textContent = parentId ? 'New sub-project' : 'New project';
   document.getElementById('new-project-modal').classList.remove('hidden');
   document.getElementById('np-name').focus();
-};
+}
+document.getElementById('new-project-btn').onclick = () => openNewProjectModal(null);
 document.getElementById('np-cancel').onclick = () => document.getElementById('new-project-modal').classList.add('hidden');
 document.getElementById('np-submit').onclick = async () => {
   const errEl = document.getElementById('np-err');
@@ -1004,11 +1010,13 @@ document.getElementById('np-submit').onclick = async () => {
       name, description: document.getElementById('np-desc').value.trim(),
       department: document.getElementById('np-dept').value,
       due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
+      parent_id: newProjectParentId,
       csrf,
     });
     if (!r.ok) { errEl.textContent = r.error || 'Could not create project'; return; }
     document.getElementById('new-project-modal').classList.add('hidden');
-    loadProjectsPage();
+    if (newProjectParentId) { closeSlideOver(); openProject(newProjectParentId); }
+    else loadProjectsPage();
   } catch (e) { errEl.textContent = 'Could not reach the server.'; }
 };
 
@@ -1025,10 +1033,14 @@ async function openProject(id) {
     <div class="slide-panel">
       <div class="slide-header">
         <div>
+          ${project.parent_id ? `<div class="sub" style="margin-bottom:4px"><span style="cursor:pointer;text-decoration:underline" onclick="openProject(${project.parent_id})">← ${esc(project.parent_name)}</span></div>` : ''}
           <h2>${esc(project.name)}</h2>
           <div class="sub">Created by ${esc(project.created_by_username || 'unknown')} · ${fmtTime(project.created_at)}</div>
         </div>
-        <button class="btn btn-sm slide-close">Close</button>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-sm" id="pctl-delete" style="color:var(--err)">Delete</button>
+          <button class="btn btn-sm slide-close">Close</button>
+        </div>
       </div>
       <div class="slide-controls">
         <div class="group"><label>Status</label>
@@ -1048,9 +1060,21 @@ async function openProject(id) {
         <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Linked tickets (${project.tickets.length})</h3>
         ${project.tickets.length ? project.tickets.map(t => `<div class="linked-ticket"><span>${esc(t.subject || 'Ticket #'+t.id)}</span><span class="pill pill-status-${esc(t.status)}">${esc(STATUS_LABELS[t.status]||t.status)}</span></div>`).join('') : "<div class=\"empty-note\">No tickets linked yet — link one from a ticket's detail panel.</div>"}
       </div>
+      <div class="panel-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h3 style="margin:0;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Sub-projects (${project.children.length})</h3>
+          <button class="btn btn-xs" id="pctl-add-sub">+ Add sub-project</button>
+        </div>
+        ${project.children.length ? project.children.map(c => `<div class="linked-ticket" style="cursor:pointer" onclick="openProject(${c.id})"><span>${esc(c.name)}</span><span class="pill pill-dept">${c.progress_pct||0}%</span></div>`).join('') : '<div class="empty-note">No sub-projects yet.</div>'}
+      </div>
       <div id="reminders-panel">
         <h3>Comments</h3>
-        <div id="project-comments">${project.comments.length ? project.comments.map(c => `<div class="comment-item"><span class="who">${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span><div>${esc(c.content)}</div></div>`).join('') : '<div class="empty-note">No comments yet.</div>'}</div>
+        <div id="project-comments">${project.comments.length ? project.comments.map(c => `
+          <div class="comment-item">
+            <span class="who">${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span>
+            ${(c.admin_id === myAdminId || myRole === 'admin') ? `<span style="float:right;cursor:pointer;color:var(--err);font-size:11px" onclick="deleteComment(${c.id}, ${project.id})">delete</span>` : ''}
+            <div>${esc(c.content)}</div>
+          </div>`).join('') : '<div class="empty-note">No comments yet.</div>'}</div>
         <div style="display:flex;gap:6px;margin-top:10px">
           <input id="pc-input" placeholder="Add a comment…">
           <button class="btn btn-sm" id="pc-add">Post</button>
@@ -1060,6 +1084,16 @@ async function openProject(id) {
   document.body.appendChild(overlay);
 
   overlay.querySelector('.slide-close').onclick = closeSlideOver;
+  document.getElementById('pctl-add-sub').onclick = () => openNewProjectModal(project.id);
+  document.getElementById('pctl-delete').onclick = async () => {
+    const warn = project.children.length
+      ? `Delete "${project.name}"? Its ${project.children.length} sub-project(s) will be promoted to top-level, not deleted. Linked tickets will be unlinked, not deleted.`
+      : `Delete "${project.name}"? Linked tickets will be unlinked, not deleted. This can't be undone.`;
+    if (!confirm(warn)) return;
+    const r = await apiSend('DELETE', '/api/admin/projects.php', { id: project.id, csrf });
+    if (r.ok) { closeSlideOver(); loadProjectsPage(); loadDashboard(); }
+    else alert(r.error || 'Could not delete project');
+  };
   document.getElementById('pctl-save').onclick = async () => {
     const statusEl = document.getElementById('psave-status');
     statusEl.textContent = 'Saving…';
@@ -1079,6 +1113,12 @@ async function openProject(id) {
     const r = await apiSend('POST', '/api/admin/project_comments.php', { project_id: project.id, content, csrf });
     if (r.ok) { input.value = ''; closeSlideOver(); openProject(project.id); }
   };
+}
+async function deleteComment(id, projectId) {
+  if (!confirm('Delete this comment?')) return;
+  const r = await apiSend('DELETE', '/api/admin/project_comments.php', { id, csrf });
+  if (r.ok) { closeSlideOver(); openProject(projectId); }
+  else alert(r.error || 'Could not delete comment');
 }
 
 // ── Team chat ────────────────────────────────────────────────────────────────
