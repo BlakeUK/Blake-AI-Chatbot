@@ -23,6 +23,13 @@
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
   .hidden { display: none !important; }
 
+  #sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  #version-label { font-size: 11px; color: var(--text-dim); }
+  #update-btn { background: var(--warn); color: #1a1305; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; animation: update-flash 1.4s ease-in-out infinite; }
+  #update-btn:hover { animation: none; background: #f0b93f; }
+  #update-btn[disabled] { animation: none; opacity: 0.6; cursor: default; }
+  @keyframes update-flash { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,164,65,0.6); } 50% { box-shadow: 0 0 0 5px rgba(217,164,65,0); } }
+
   /* ── Login ── */
   #login-screen { height: 100%; display: flex; align-items: center; justify-content: center; }
   #login-box { width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
@@ -137,6 +144,10 @@
         </select>
       </div>
       <div id="ticket-list"><div class="empty">Loading…</div></div>
+      <div id="sidebar-footer">
+        <span id="version-label"></span>
+        <button id="update-btn" class="hidden" title="Downloads and launches the installer">Update available</button>
+      </div>
     </div>
     <div id="detail">
       <div class="empty-state">Select a ticket to view the conversation</div>
@@ -178,6 +189,59 @@ async function apiSend(method, path, body) {
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function fmtTime(ts) { return ts ? new Date(ts * 1000).toLocaleString() : ''; }
+
+// ── Version + self-update ────────────────────────────────────────────────────
+// Installers are always published under these two fixed filenames (see
+// build-operator-console.yml's "Prepare stable filenames" step), alongside a
+// version.json written in the same job - same source of truth, one build.
+const DOWNLOAD_BASE = 'https://blakegroup.uk/downloads/';
+const UPDATE_CHECK_MS = 5 * 60 * 1000;
+
+async function getAppVersion() {
+  try {
+    const t = window.__TAURI__;
+    if (!t || !t.app) return null;
+    return await t.app.getVersion();
+  } catch (e) { return null; }
+}
+
+function platformInstallerFilename() {
+  return /windows/i.test(navigator.userAgent || '') ? 'blake-uk-operator-console.msi' : 'blake-uk-operator-console.deb';
+}
+
+let currentAppVersion = null;
+
+async function checkForUpdate() {
+  currentAppVersion = await getAppVersion();
+  document.getElementById('version-label').textContent = currentAppVersion ? ('v' + currentAppVersion) : '';
+  if (!currentAppVersion) return; // not running inside the Tauri shell (e.g. opened this file in a plain browser) - nothing to compare
+
+  try {
+    const res = await fetch(DOWNLOAD_BASE + 'version.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const manifest = await res.json();
+    if (manifest.version && manifest.version !== currentAppVersion) {
+      const btn = document.getElementById('update-btn');
+      btn.textContent = 'Update available (v' + manifest.version + ')';
+      btn.classList.remove('hidden');
+    }
+  } catch (e) { /* offline, or the manifest isn't reachable right now - just try again next interval */ }
+}
+
+document.getElementById('update-btn').onclick = async function () {
+  const btn = this;
+  const resetText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Downloading update…';
+  try {
+    await window.__TAURI__.invoke('download_and_install', { url: DOWNLOAD_BASE + platformInstallerFilename() });
+    btn.textContent = 'Installer launched — follow its prompts';
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = resetText;
+    alert('Update failed: ' + (e && e.message ? e.message : e) + '\n\nYou can also download it directly from ' + DOWNLOAD_BASE + platformInstallerFilename());
+  }
+};
 
 // ── Native notifications (Tauri) with a safe no-op fallback ────────────────
 // Falls back to doing nothing rather than throwing if this HTML is ever
@@ -248,7 +312,9 @@ function enterApp() {
   document.getElementById('app').style.display = 'flex';
   loadAgents();
   loadTickets();
+  checkForUpdate();
   pollTimer = setInterval(() => { loadAgents(); loadTickets(); }, POLL_MS);
+  setInterval(checkForUpdate, UPDATE_CHECK_MS);
 }
 
 async function loadAgents() {

@@ -3,11 +3,12 @@
     "distDir": "../dist",
     "devPath": "../dist",
     "beforeDevCommand": "",
-    "beforeBuildCommand": ""
+    "beforeBuildCommand": "",
+    "withGlobalTauri": true
   },
   "package": {
     "productName": "Blake UK Operator Console",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "tauri": {
     "bundle": {
@@ -30,7 +31,8 @@
     "allowlist": {
       "all": false,
       "notification": { "all": true },
-      "shell": { "open": true }
+      "shell": { "open": true },
+      "app": { "all": true }
     },
     "systemTray": {
       "iconPath": "icons/32x32.png",
