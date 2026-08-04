@@ -1,6 +1,6 @@
 [package]
 name = "operator-console"
-version = "0.5.0"
+version = "0.6.0"
 description = "Blake UK operator console - ticket notifications and department routing"
 edition = "2021"
 rust-version = "1.70"

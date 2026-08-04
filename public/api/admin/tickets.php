@@ -23,11 +23,13 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare("
         SELECT t.*, s.page_url, s.product_code,
                a.username AS assigned_username,
+               pr.name AS project_name,
                COUNT(m.id) AS message_count
         FROM support_tickets t
         LEFT JOIN chat_sessions s ON s.id = t.session_id
         LEFT JOIN chat_messages m ON m.session_id = t.session_id
         LEFT JOIN admin_users a ON a.id = t.assigned_admin_id
+        LEFT JOIN projects pr ON pr.id = t.project_id
         {$whereSql}
         GROUP BY t.id
         ORDER BY t.created_at DESC
@@ -68,8 +70,9 @@ if ($method === 'PUT') {
     $hasDept       = array_key_exists('department', $body);
     $hasAssignee   = array_key_exists('assigned_admin_id', $body);
     $hasPriority   = array_key_exists('priority', $body);
-    if (!$hasStatus && !$hasDept && !$hasAssignee && !$hasPriority) {
-        json_err('status, department, assigned_admin_id, or priority required');
+    $hasProject    = array_key_exists('project_id', $body);
+    if (!$hasStatus && !$hasDept && !$hasAssignee && !$hasPriority && !$hasProject) {
+        json_err('status, department, assigned_admin_id, priority, or project_id required');
     }
 
     if ($hasStatus) {
@@ -137,6 +140,24 @@ if ($method === 'PUT') {
 
         $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
             ->execute([$_SESSION['admin_id'], 'ticket_priority_change', $id, $priority]);
+    }
+
+    if ($hasProject) {
+        $raw = $body['project_id'];
+        $projectId = ($raw === null || $raw === '') ? null : (int)$raw;
+
+        if ($projectId !== null) {
+            $chk = $pdo->prepare('SELECT name FROM projects WHERE id=?');
+            $chk->execute([$projectId]);
+            $projectName = $chk->fetchColumn();
+            if ($projectName === false) json_err('Unknown project');
+        }
+
+        $pdo->prepare('UPDATE support_tickets SET project_id=?, updated_at=? WHERE id=?')
+            ->execute([$projectId, time(), $id]);
+
+        $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
+            ->execute([$_SESSION['admin_id'], 'ticket_project_link', $id, $projectName ?? '(unlinked)']);
     }
 
     json_out(['ok' => true]);
