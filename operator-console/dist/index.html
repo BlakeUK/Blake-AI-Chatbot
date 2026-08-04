@@ -207,6 +207,23 @@
   .comment-item:last-child { border-bottom: none; }
   .comment-item .who { font-weight: 600; }
   .comment-item .when { color: var(--text-dim); font-size: 10px; margin-left: 6px; }
+
+  .task-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .task-row:last-child { border-bottom: none; }
+  .task-row.task-done .task-title { text-decoration: line-through; color: var(--text-dim); }
+  .task-row input[type="checkbox"] { width: auto; margin-top: 2px; flex-shrink: 0; }
+  .task-body { flex: 1; min-width: 0; }
+  .task-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .task-meta.task-overdue { color: var(--err); }
+  .task-del { color: var(--err); cursor: pointer; font-size: 11px; flex-shrink: 0; }
+  #task-add { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  #task-add input[type="text"] { flex: 1; min-width: 140px; }
+  #task-add input[type="date"] { width: auto; }
+  .avatar-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-dim); color: var(--accent-bright); font-size: 9px; font-weight: 700; margin-right: -6px; border: 2px solid var(--surface); }
+  .avatar-row { display: flex; align-items: center; }
+  .assignee-picker-list { max-height: 200px; overflow-y: auto; }
+  .assignee-picker-list label { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-weight: 400; }
+  .assignee-picker-list input { width: auto; }
   .linked-ticket { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
 </style>
 </head>
@@ -298,7 +315,11 @@
           <div class="stat-card"><div class="label">Due Reminders</div><div class="value" id="stat-alerts">—</div></div>
         </div>
 
-        <div id="dash-panels">
+        <div id="dash-panels" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="card">
+            <h2>My Tasks</h2>
+            <div id="dash-tasks"><div class="empty-note">Loading…</div></div>
+          </div>
           <div class="card">
             <h2>My Reminders</h2>
             <div id="dash-reminders"><div class="empty-note">Loading…</div></div>
@@ -463,6 +484,8 @@ let myRole = '';
 let tickets = [];
 let agents = [];
 let allProjects = [];
+let knownMyProjectIds = null; // null until first check, so history never fires a notification
+let knownMyTaskIds = null;
 let knownTicketState = new Map();
 let currentTicketId = null;
 let pollTimer = null;
@@ -619,9 +642,10 @@ function enterApp() {
   loadProjects();
   checkDueReminders();
   checkChannelNotifications();
+  checkAssignmentNotifications();
   checkForUpdate();
   loadDashboard();
-  pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); refreshOpenChannel(); }, POLL_MS);
+  pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); checkAssignmentNotifications(); refreshOpenChannel(); }, POLL_MS);
   setInterval(checkForUpdate, UPDATE_CHECK_MS);
 }
 
@@ -636,6 +660,38 @@ document.getElementById('logout-btn').onclick = async () => {
 };
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
+// Detects "newly assigned to me" for projects and tasks, same isFirstLoad-
+// guard pattern as ticket reassignment - compares this poll's set against
+// the last one, notifies only on genuinely new membership, and never fires
+// on whatever was already assigned when the app started.
+async function checkAssignmentNotifications() {
+  await loadProjects();
+  const currentProjectIds = new Set(allProjects.filter(p => (p.assignees || []).some(a => a.id === myAdminId)).map(p => p.id));
+  if (knownMyProjectIds !== null) {
+    for (const pid of currentProjectIds) {
+      if (!knownMyProjectIds.has(pid)) {
+        const p = allProjects.find(x => x.id === pid);
+        notify('Assigned to project', p ? p.name : 'Project #' + pid);
+      }
+    }
+  }
+  knownMyProjectIds = currentProjectIds;
+
+  try {
+    const myTasks = await apiGet('/api/admin/tasks.php?mine=1');
+    const currentTaskIds = new Set((Array.isArray(myTasks) ? myTasks : []).map(t => t.id));
+    if (knownMyTaskIds !== null) {
+      for (const tid of currentTaskIds) {
+        if (!knownMyTaskIds.has(tid)) {
+          const t = myTasks.find(x => x.id === tid);
+          notify('Assigned to task', t ? (t.title + ' (' + t.project_name + ')') : 'Task #' + tid);
+        }
+      }
+    }
+    knownMyTaskIds = currentTaskIds;
+  } catch (e) {}
+}
+
 async function loadDashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -655,6 +711,22 @@ async function loadDashboard() {
   const dashTickets = document.getElementById('dash-tickets');
   const mine = all.filter(t => t.assigned_admin_id === myAdminId && t.status !== 'resolved').slice(0, 6);
   dashTickets.innerHTML = mine.length ? mine.map(projectCardLikeTicket).join('') : '<div class="empty-note">No open tickets assigned to you.</div>';
+
+  try {
+    const myTasks = await apiGet('/api/admin/tasks.php?mine=1&limit=6');
+    const el = document.getElementById('dash-tasks');
+    el.innerHTML = Array.isArray(myTasks) && myTasks.length ? myTasks.map(t => {
+      const overdue = t.due_date && (t.due_date * 1000) < Date.now();
+      return `
+      <div class="list-item">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+        <div>
+          <div class="main">${esc(t.title)}</div>
+          <div class="sub" style="${overdue ? 'color:var(--err)' : ''}">${t.due_date ? (overdue ? 'Overdue — ' : 'Due ') + new Date(t.due_date*1000).toLocaleDateString() : 'No due date'} · ${esc(t.project_name)}</div>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty-note">No open tasks assigned to you.</div>';
+  } catch (e) {}
 
   try {
     const rem = await apiGet('/api/admin/reminders.php?mine=1&limit=6');
@@ -974,8 +1046,9 @@ function projectCard(p) {
     <div class="progress-track"><div class="progress-fill" style="width:${p.progress_pct||0}%"></div></div>
     <div class="project-footer">
       <span>${p.due_date ? 'Due ' + new Date(p.due_date*1000).toLocaleDateString() : 'No due date'}</span>
-      <span class="counts"><span>💬 ${p.comment_count||0}</span><span>🎫 ${p.ticket_count||0}</span>${p.child_count ? `<span>📁 ${p.child_count}</span>` : ''}</span>
+      <span class="counts"><span>💬 ${p.comment_count||0}</span><span>🎫 ${p.ticket_count||0}</span>${p.child_count ? `<span>📁 ${p.child_count}</span>` : ''}${p.open_task_count ? `<span>☑ ${p.open_task_count}</span>` : ''}</span>
     </div>
+    ${p.assignees && p.assignees.length ? `<div class="avatar-row" style="margin-top:10px">${p.assignees.map(a => `<span class="avatar-badge" title="${esc(a.username)}">${esc(initials(a.username))}</span>`).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -1038,6 +1111,7 @@ async function openProject(id) {
           <div class="sub">Created by ${esc(project.created_by_username || 'unknown')} · ${fmtTime(project.created_at)}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-sm" id="pctl-assigned">Assigned (${project.assignees.length})</button>
           <button class="btn btn-sm" id="pctl-delete" style="color:var(--err)">Delete</button>
           <button class="btn btn-sm slide-close">Close</button>
         </div>
@@ -1048,6 +1122,9 @@ async function openProject(id) {
         </div>
         <div class="group"><label>Department</label>
           <select id="pctl-dept"><option value="">Unassigned</option>${['sales','technical','accounts'].map(d => `<option value="${d}" ${d===project.department?'selected':''}>${d}</option>`).join('')}</select>
+        </div>
+        <div class="group"><label>Due date</label>
+          <input type="date" id="pctl-due" value="${project.due_date ? new Date(project.due_date*1000).toISOString().slice(0,10) : ''}">
         </div>
         <div class="group" style="flex:1"><label>Progress: <span id="pctl-progress-val">${project.progress_pct}</span>%</label>
           <input type="range" min="0" max="100" id="pctl-progress" value="${project.progress_pct}" oninput="document.getElementById('pctl-progress-val').textContent=this.value">
@@ -1067,6 +1144,16 @@ async function openProject(id) {
         </div>
         ${project.children.length ? project.children.map(c => `<div class="linked-ticket" style="cursor:pointer" onclick="openProject(${c.id})"><span>${esc(c.name)}</span><span class="pill pill-dept">${c.progress_pct||0}%</span></div>`).join('') : '<div class="empty-note">No sub-projects yet.</div>'}
       </div>
+      <div class="panel-section">
+        <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
+        <div id="task-list">Loading…</div>
+        <div id="task-add">
+          <input type="text" id="task-title" placeholder="New task…">
+          <input type="date" id="task-due">
+          <button class="btn btn-xs" id="task-assign-btn" type="button">Assign</button>
+          <button class="btn btn-sm" id="task-add-btn">Add</button>
+        </div>
+      </div>
       <div id="reminders-panel">
         <h3>Comments</h3>
         <div id="project-comments">${project.comments.length ? project.comments.map(c => `
@@ -1085,6 +1172,12 @@ async function openProject(id) {
 
   overlay.querySelector('.slide-close').onclick = closeSlideOver;
   document.getElementById('pctl-add-sub').onclick = () => openNewProjectModal(project.id);
+  document.getElementById('pctl-assigned').onclick = () => {
+    openAssigneePicker('Assign project to', project.assignees.map(a => a.id), async (ids) => {
+      await apiSend('PUT', '/api/admin/projects.php', { id: project.id, assignee_ids: ids, csrf });
+      closeSlideOver(); openProject(project.id); loadProjectsPage();
+    });
+  };
   document.getElementById('pctl-delete').onclick = async () => {
     const warn = project.children.length
       ? `Delete "${project.name}"? Its ${project.children.length} sub-project(s) will be promoted to top-level, not deleted. Linked tickets will be unlinked, not deleted.`
@@ -1097,9 +1190,11 @@ async function openProject(id) {
   document.getElementById('pctl-save').onclick = async () => {
     const statusEl = document.getElementById('psave-status');
     statusEl.textContent = 'Saving…';
+    const dueVal = document.getElementById('pctl-due').value;
     const r = await apiSend('PUT', '/api/admin/projects.php', {
       id: project.id, status: document.getElementById('pctl-status').value,
       department: document.getElementById('pctl-dept').value,
+      due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
       progress_pct: parseInt(document.getElementById('pctl-progress').value, 10), csrf,
     });
     statusEl.textContent = r.ok ? 'Saved ✓' : (r.error || 'Failed');
@@ -1113,12 +1208,102 @@ async function openProject(id) {
     const r = await apiSend('POST', '/api/admin/project_comments.php', { project_id: project.id, content, csrf });
     if (r.ok) { input.value = ''; closeSlideOver(); openProject(project.id); }
   };
+
+  let newTaskAssigneeIds = [];
+  document.getElementById('task-assign-btn').onclick = () => {
+    openAssigneePicker('Assign new task to', newTaskAssigneeIds, (ids) => {
+      newTaskAssigneeIds = ids;
+      document.getElementById('task-assign-btn').textContent = ids.length ? `Assign (${ids.length})` : 'Assign';
+    });
+  };
+  document.getElementById('task-add-btn').onclick = async () => {
+    const title = document.getElementById('task-title').value.trim();
+    if (!title) return;
+    const dueVal = document.getElementById('task-due').value;
+    await apiSend('POST', '/api/admin/tasks.php', {
+      project_id: project.id, title,
+      due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
+      assignee_ids: newTaskAssigneeIds, csrf,
+    });
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-due').value = '';
+    newTaskAssigneeIds = [];
+    document.getElementById('task-assign-btn').textContent = 'Assign';
+    loadProjectTasks(project.id);
+  };
+  loadProjectTasks(project.id);
 }
+
 async function deleteComment(id, projectId) {
   if (!confirm('Delete this comment?')) return;
   const r = await apiSend('DELETE', '/api/admin/project_comments.php', { id, csrf });
   if (r.ok) { closeSlideOver(); openProject(projectId); }
   else alert(r.error || 'Could not delete comment');
+}
+
+// Reusable checkbox picker for assigning people to a project or task -
+// same shape as the channel member picker, generalized rather than
+// duplicated a third time.
+function openAssigneePicker(title, currentIds, onSave) {
+  const box = document.createElement('div');
+  box.className = 'modal-overlay';
+  box.onclick = (e) => { if (e.target === box) box.remove(); };
+  box.innerHTML = `
+    <div class="modal-box">
+      <h2>${esc(title)}</h2>
+      <div class="assignee-picker-list">${agents.map(a => `<label><input type="checkbox" value="${a.id}" ${currentIds.includes(a.id) ? 'checked' : ''}> ${esc(a.username)}${a.departments && a.departments.length ? ' (' + a.departments.map(esc).join(', ') + ')' : ''}</label>`).join('') || '<div class="empty-note">No staff to assign yet.</div>'}</div>
+      <div class="modal-actions">
+        <button class="btn" id="ap-cancel">Cancel</button>
+        <button class="btn btn-primary" id="ap-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(box);
+  box.querySelector('#ap-cancel').onclick = () => box.remove();
+  box.querySelector('#ap-save').onclick = () => {
+    const ids = [...box.querySelectorAll('.assignee-picker-list input:checked')].map(i => parseInt(i.value, 10));
+    box.remove();
+    onSave(ids);
+  };
+}
+
+async function loadProjectTasks(projectId) {
+  const el = document.getElementById('task-list');
+  if (!el) return; // panel closed before this resolved
+  let tasks;
+  try { tasks = await apiGet('/api/admin/tasks.php?project_id=' + projectId); } catch (e) { el.innerHTML = '<div class="empty-note">Could not load tasks.</div>'; return; }
+  if (!Array.isArray(tasks) || !tasks.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
+
+  el.innerHTML = tasks.map(t => {
+    const overdue = t.due_date && !t.completed && (t.due_date * 1000) < Date.now();
+    return `
+    <div class="task-row ${t.completed ? 'task-done' : ''}">
+      <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id}, ${projectId}, this.checked)">
+      <div class="task-body">
+        <div class="task-title">${esc(t.title)}</div>
+        <div class="task-meta ${overdue ? 'task-overdue' : ''}">
+          ${t.due_date ? (overdue ? 'Overdue — was due ' : 'Due ') + new Date(t.due_date * 1000).toLocaleDateString() : 'No due date'}
+          ${t.assignees.length ? ' · ' + t.assignees.map(a => esc(a.username)).join(', ') : ' · Unassigned'}
+          <span style="cursor:pointer;text-decoration:underline;margin-left:6px" onclick='reassignTask(${t.id}, ${projectId}, ${JSON.stringify(t.assignees.map(a => a.id))})'>reassign</span>
+        </div>
+      </div>
+      <span class="task-del" onclick="deleteTask(${t.id}, ${projectId})">delete</span>
+    </div>`;
+  }).join('');
+}
+async function toggleTask(id, projectId, completed) {
+  await apiSend('PUT', '/api/admin/tasks.php', { id, completed, csrf });
+  loadProjectTasks(projectId);
+}
+async function deleteTask(id, projectId) {
+  if (!confirm('Delete this task?')) return;
+  await apiSend('DELETE', '/api/admin/tasks.php', { id, csrf });
+  loadProjectTasks(projectId);
+}
+function reassignTask(id, projectId, currentIds) {
+  openAssigneePicker('Assign task to', currentIds, async (ids) => {
+    await apiSend('PUT', '/api/admin/tasks.php', { id, assignee_ids: ids, csrf });
+    loadProjectTasks(projectId);
+  });
 }
 
 // ── Team chat ────────────────────────────────────────────────────────────────
