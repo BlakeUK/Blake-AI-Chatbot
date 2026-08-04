@@ -25,8 +25,21 @@ if ($method === 'GET') {
         json_out($stmt->fetchAll());
     }
 
+    if (!empty($_GET['mine'])) {
+        $stmt = $pdo->prepare('
+            SELECT r.*, t.subject AS ticket_subject
+            FROM reminders r
+            JOIN support_tickets t ON t.id = r.ticket_id
+            WHERE r.admin_id = ? AND r.acknowledged = 0
+            ORDER BY r.remind_at ASC
+            LIMIT ?
+        ');
+        $stmt->execute([$_SESSION['admin_id'], min((int)($_GET['limit'] ?? 10), 50)]);
+        json_out($stmt->fetchAll());
+    }
+
     $ticketId = (int)($_GET['ticket_id'] ?? 0);
-    if (!$ticketId) json_err('ticket_id or due required');
+    if (!$ticketId) json_err('ticket_id, due, or mine required');
 
     $stmt = $pdo->prepare('
         SELECT r.*, a.username AS for_username, c.username AS created_by_username
