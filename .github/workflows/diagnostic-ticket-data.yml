@@ -1,0 +1,28 @@
+name: Diagnostic - Ticket Data Check (throwaway)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run diagnostic query on the VPS and capture output
+        run: |
+          echo "IyEvYmluL2Jhc2gKc2V0IC1lCkRCPS92YXIvd3d3L2NoYXQvZGF0YS9jaGF0Ym90LmRiCmVjaG8gIj09PSB0YWJsZSBjb3VudHMgPT09IgpzcWxpdGUzICIkREIiICJTRUxFQ1QgJ2NoYXRfc2Vzc2lvbnMnLCBjb3VudCgqKSBGUk9NIGNoYXRfc2Vzc2lvbnM7IgpzcWxpdGUzICIkREIiICJTRUxFQ1QgJ2NoYXRfbWVzc2FnZXMnLCBjb3VudCgqKSBGUk9NIGNoYXRfbWVzc2FnZXM7IgpzcWxpdGUzICIkREIiICJTRUxFQ1QgJ3N1cHBvcnRfdGlja2V0cycsIGNvdW50KCopIEZST00gc3VwcG9ydF90aWNrZXRzOyIKZWNobyAiPT09IHRpY2tldHMgYnkgc3RhdHVzIC8gZGVwYXJ0bWVudCAvIHByaW9yaXR5ID09PSIKc3FsaXRlMyAtaGVhZGVyIC1jb2x1bW4gIiREQiIgIlNFTEVDVCBzdGF0dXMsIGRlcGFydG1lbnQsIHByaW9yaXR5LCBjb3VudCgqKSBhcyBuIEZST00gc3VwcG9ydF90aWNrZXRzIEdST1VQIEJZIHN0YXR1cywgZGVwYXJ0bWVudCwgcHJpb3JpdHk7IgplY2hvICI9PT0gYWRtaW5fdXNlcnMgKHVzZXJuYW1lL3JvbGUvb25saW5lIG9ubHksIG5vIHBhc3N3b3JkcykgPT09IgpzcWxpdGUzIC1oZWFkZXIgLWNvbHVtbiAiJERCIiAiU0VMRUNUIHVzZXJuYW1lLCByb2xlLCAobGFzdF9hY3RpdmUgSVMgTk9UIE5VTEwgQU5EIGxhc3RfYWN0aXZlID4gdW5peGVwb2NoKCktNjApIGFzIG9ubGluZV9ub3csIGxhc3RfYWN0aXZlIEZST00gYWRtaW5fdXNlcnM7IgplY2hvICI9PT0gc3VwcG9ydF90aWNrZXRzIGNvbHVtbnMgYWN0dWFsbHkgcHJlc2VudCA9PT0iCnNxbGl0ZTMgIiREQiIgIlBSQUdNQSB0YWJsZV9pbmZvKHN1cHBvcnRfdGlja2V0cyk7IgplY2hvICI9PT0gcGhwIGVycm9yIGxvZywgbGFzdCAyMCBsaW5lcywgaWYgcHJlc2VudCA9PT0iCnRhaWwgLW4gMjAgL3Zhci93d3cvY2hhdC9sb2dzLyoubG9nIDI+L2Rldi9udWxsIHx8IGVjaG8gIihubyBsb2cgZmlsZSBmb3VuZCB0aGVyZSkiCmVjaG8gIj09PSBwaHAtZnBtIHNvY2tldCBjaGVjayA9PT0iCnBocCAtdiAyPiYxIHwgaGVhZCAtMQpscyAvcnVuL3BocC8gMj4vZGV2L251bGwgfHwgZWNobyAiKG5vIC9ydW4vcGhwIGRpcikiCg==" | base64 -d > remote_check.sh
+          chmod +x remote_check.sh
+          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no remote_check.sh "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}:/tmp/remote_check.sh"
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}" "bash /tmp/remote_check.sh" > diagnostic-output.txt 2>&1
+          cat diagnostic-output.txt
+
+      - name: Commit result to this branch
+        run: |
+          git config user.name "Claude (Anthropic)"
+          git config user.email "noreply@anthropic.com"
+          git add diagnostic-output.txt
+          git commit -m "Diagnostic output"
+          git push origin HEAD:diagnostic/ticket-data-check
