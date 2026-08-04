@@ -52,6 +52,18 @@ blakegroup.uk, www.blakegroup.uk {
         file_server
     }
 
+    # The console's self-update check runs as a cross-origin fetch() from
+    # the Tauri webview's own origin (tauri://localhost / http://tauri.localhost),
+    # not from blakegroup.uk - without this, that fetch is silently blocked
+    # by the browser's CORS policy and the update button can never appear,
+    # regardless of how many versions ship. Everything under /downloads/ is
+    # already meant to be fetched from anywhere (that's the point of a
+    # stable public download URL), so a wildcard origin here isn't loosening
+    # anything - it's the plain HTTP equivalent of what "public download
+    # link" already means.
+    @downloads path /downloads/*
+    header @downloads Access-Control-Allow-Origin "*"
+
     handle {
         root * /var/www/chat/public
         php_fastcgi unix//run/php/php8.2-fpm.sock
