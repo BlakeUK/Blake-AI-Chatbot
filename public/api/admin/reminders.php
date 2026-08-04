@@ -62,21 +62,58 @@ if ($method === 'POST') {
     $remindAt = (int)($body['remind_at'] ?? 0);
     if (!$ticketId || !$remindAt) json_err('ticket_id and remind_at required');
 
+    $now = time();
+    if ($remindAt < $now + 60) json_err('Reminder must be at least 1 minute from now');
+    if ($remindAt > $now + 14 * 86400) json_err('Reminder can be at most 14 days from now');
+
     $ticketExists = $pdo->prepare('SELECT 1 FROM support_tickets WHERE id=?');
     $ticketExists->execute([$ticketId]);
     if (!$ticketExists->fetch()) json_err('Unknown ticket_id');
 
-    $forAdmin = (int)($body['admin_id'] ?? $_SESSION['admin_id']);
-    $exists = $pdo->prepare('SELECT 1 FROM admin_users WHERE id=?');
-    $exists->execute([$forAdmin]);
-    if (!$exists->fetch()) json_err('Unknown admin_id');
+    // Recipients: explicit people, whole departments expanded to their
+    // current members, and/or literally everyone - merged and deduped, not
+    // exclusive choices, so "Sarah plus all of Accounts" works in one go.
+    // Snapshotting department membership at creation time rather than
+    // tracking it live: a reminder is a point-in-time commitment, and
+    // someone changing departments later shouldn't retroactively add or
+    // remove them from a reminder that already went out.
+    $targetIds = [];
 
-    $pdo->prepare('
-        INSERT INTO reminders (ticket_id, admin_id, created_by, remind_at, note)
-        VALUES (?,?,?,?,?)
-    ')->execute([$ticketId, $forAdmin, $_SESSION['admin_id'], $remindAt, trim((string)($body['note'] ?? '')) ?: null]);
+    if (!empty($body['whole_team'])) {
+        $targetIds = array_map('intval', $pdo->query('SELECT id FROM admin_users')->fetchAll(PDO::FETCH_COLUMN));
+    } else {
+        if (!empty($body['admin_ids']) && is_array($body['admin_ids'])) {
+            $targetIds = array_merge($targetIds, array_map('intval', $body['admin_ids']));
+        }
+        if (!empty($body['departments']) && is_array($body['departments'])) {
+            $validDepts = array_intersect($body['departments'], ['sales', 'technical', 'accounts']);
+            if ($validDepts) {
+                $placeholders = implode(',', array_fill(0, count($validDepts), '?'));
+                $deptMembers = $pdo->prepare("SELECT DISTINCT admin_id FROM admin_user_departments WHERE department IN ($placeholders)");
+                $deptMembers->execute(array_values($validDepts));
+                $targetIds = array_merge($targetIds, array_map('intval', $deptMembers->fetchAll(PDO::FETCH_COLUMN)));
+            }
+        }
+    }
 
-    json_out(['ok' => true, 'id' => $pdo->lastInsertId()]);
+    $targetIds = array_values(array_unique($targetIds));
+    if ($targetIds) {
+        $placeholders = implode(',', array_fill(0, count($targetIds), '?'));
+        $valid = $pdo->prepare("SELECT id FROM admin_users WHERE id IN ($placeholders)");
+        $valid->execute($targetIds);
+        $targetIds = array_map('intval', $valid->fetchAll(PDO::FETCH_COLUMN));
+    }
+    if (!$targetIds) $targetIds = [$_SESSION['admin_id']]; // default: for myself
+
+    $note = trim((string)($body['note'] ?? '')) ?: null;
+    $ins = $pdo->prepare('INSERT INTO reminders (ticket_id, admin_id, created_by, remind_at, note) VALUES (?,?,?,?,?)');
+    $ids = [];
+    foreach ($targetIds as $tid) {
+        $ins->execute([$ticketId, $tid, $_SESSION['admin_id'], $remindAt, $note]);
+        $ids[] = (int)$pdo->lastInsertId();
+    }
+
+    json_out(['ok' => true, 'ids' => $ids, 'recipient_count' => count($targetIds)]);
 }
 
 if ($method === 'PUT') {
@@ -102,12 +139,15 @@ if ($method === 'PUT') {
 
     if (!empty($body['snooze_hours'])) {
         $newTime = max((int)$row['remind_at'], time()) + ((int)$body['snooze_hours'] * 3600);
+        if ($newTime > time() + 14 * 86400) json_err('Reminder can be at most 14 days from now');
         $pdo->prepare('UPDATE reminders SET remind_at=?, acknowledged=0 WHERE id=?')->execute([$newTime, $id]);
         json_out(['ok' => true, 'remind_at' => $newTime]);
     }
 
     if (!empty($body['remind_at'])) {
         $newTime = (int)$body['remind_at'];
+        if ($newTime < time() + 60) json_err('Reminder must be at least 1 minute from now');
+        if ($newTime > time() + 14 * 86400) json_err('Reminder can be at most 14 days from now');
         $pdo->prepare('UPDATE reminders SET remind_at=?, acknowledged=0 WHERE id=?')->execute([$newTime, $id]);
         json_out(['ok' => true, 'remind_at' => $newTime]);
     }

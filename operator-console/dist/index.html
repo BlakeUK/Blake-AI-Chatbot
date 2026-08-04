@@ -178,7 +178,8 @@
   .reminder-ack-label { color: var(--ok); font-size: 11px; }
   #reminders-add { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   #reminders-add select { width: auto; }
-  #reminders-add input { flex: 1; min-width: 120px; }
+  #reminders-add input#rem-when { width: auto; flex: 0 0 auto; }
+  #reminders-add input#rem-note { flex: 1; min-width: 120px; }
 
   /* ── Chat bubble + panel ── */
   #chat-bubble { position: fixed; bottom: 22px; right: 22px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #fff; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.4); z-index: 30; }
@@ -976,8 +977,11 @@ async function openTicket(id) {
         <h3>Reminders</h3>
         <div id="reminders-list">Loading…</div>
         <div id="reminders-add">
-          <select id="rem-for">${agents.map(a => `<option value="${a.id}" ${a.id===myAdminId?'selected':''}>${esc(a.username)}</option>`).join('')}</select>
-          <select id="rem-when"><option value="1">In 1 hour</option><option value="4">In 4 hours</option><option value="24">Tomorrow</option><option value="168">Next week</option></select>
+          <button class="btn btn-xs" type="button" id="rem-recipients-btn">For: Me</button>
+          <input type="datetime-local" id="rem-when">
+          <button class="btn btn-xs" type="button" onclick="quickSetReminder(1)">+1h</button>
+          <button class="btn btn-xs" type="button" onclick="quickSetReminder(24)">+1d</button>
+          <button class="btn btn-xs" type="button" onclick="quickSetReminder(168)">+1wk</button>
           <input id="rem-note" placeholder="What to remind about (optional)">
           <button class="btn btn-sm" id="rem-add">Add reminder</button>
         </div>
@@ -989,11 +993,68 @@ async function openTicket(id) {
   document.getElementById('ctl-save').onclick = () => saveTicketRouting(ticket.id);
   document.getElementById('note-save').onclick = () => saveNote(ticket.id);
   document.getElementById('rem-add').onclick = () => addReminder(ticket.id);
+
+  reminderRecipients = { adminIds: [myAdminId], departments: [], wholeTeam: false };
+  updateReminderRecipientsLabel();
+  document.getElementById('rem-recipients-btn').onclick = openReminderRecipientPicker;
+  const remWhen = document.getElementById('rem-when');
+  const nowLocal = d => { const t = new Date(d.getTime() - d.getTimezoneOffset()*60000); return t.toISOString().slice(0,16); };
+  remWhen.min = nowLocal(new Date(Date.now() + 60*1000));
+  remWhen.max = nowLocal(new Date(Date.now() + 14*86400*1000));
+  remWhen.value = nowLocal(new Date(Date.now() + 3600*1000));
+
   loadReminders(ticket.id);
 }
 function closeSlideOver() {
   document.querySelectorAll('.slide-overlay').forEach(el => el.remove());
   currentTicketId = null;
+}
+
+let reminderRecipients = { adminIds: [], departments: [], wholeTeam: false };
+function updateReminderRecipientsLabel() {
+  const btn = document.getElementById('rem-recipients-btn');
+  if (!btn) return;
+  if (reminderRecipients.wholeTeam) { btn.textContent = 'For: Whole team'; return; }
+  const parts = [];
+  if (reminderRecipients.adminIds.length === 1 && reminderRecipients.adminIds[0] === myAdminId && !reminderRecipients.departments.length) { btn.textContent = 'For: Me'; return; }
+  if (reminderRecipients.adminIds.length) parts.push(reminderRecipients.adminIds.length + (reminderRecipients.adminIds.length === 1 ? ' person' : ' people'));
+  if (reminderRecipients.departments.length) parts.push(reminderRecipients.departments.join('+'));
+  btn.textContent = 'For: ' + (parts.join(', ') || 'Me');
+}
+function openReminderRecipientPicker() {
+  const box = document.createElement('div');
+  box.className = 'modal-overlay';
+  box.onclick = (e) => { if (e.target === box) box.remove(); };
+  const depts = ['sales', 'technical', 'accounts'];
+  box.innerHTML = `
+    <div class="modal-box">
+      <h2>Remind who?</h2>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" id="rr-whole-team" style="width:auto" ${reminderRecipients.wholeTeam?'checked':''}> Whole team</label>
+      <div style="margin:10px 0;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em">Departments</div>
+      <div class="assignee-picker-list">${depts.map(d => `<label><input type="checkbox" class="rr-dept" value="${d}" ${reminderRecipients.departments.includes(d)?'checked':''}> ${d}</label>`).join('')}</div>
+      <div style="margin:10px 0;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em">People</div>
+      <div class="assignee-picker-list">${agents.map(a => `<label><input type="checkbox" class="rr-person" value="${a.id}" ${reminderRecipients.adminIds.includes(a.id)?'checked':''}> ${esc(a.username)}${a.id===myAdminId?' (you)':''}</label>`).join('')}</div>
+      <div class="modal-actions">
+        <button class="btn" id="rr-cancel">Cancel</button>
+        <button class="btn btn-primary" id="rr-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(box);
+  box.querySelector('#rr-cancel').onclick = () => box.remove();
+  box.querySelector('#rr-save').onclick = () => {
+    reminderRecipients = {
+      wholeTeam: box.querySelector('#rr-whole-team').checked,
+      departments: [...box.querySelectorAll('.rr-dept:checked')].map(i => i.value),
+      adminIds: [...box.querySelectorAll('.rr-person:checked')].map(i => parseInt(i.value, 10)),
+    };
+    box.remove();
+    updateReminderRecipientsLabel();
+  };
+}
+function quickSetReminder(hours) {
+  const d = new Date(Date.now() + hours * 3600 * 1000);
+  const local = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  document.getElementById('rem-when').value = local.toISOString().slice(0,16);
 }
 
 async function loadReminders(ticketId) {
@@ -1009,12 +1070,18 @@ async function loadReminders(ticketId) {
   } catch (e) { el.innerHTML = '<div class="empty-note">Could not load reminders.</div>'; }
 }
 async function addReminder(ticketId) {
-  const forId = parseInt(document.getElementById('rem-for').value, 10);
-  const hours = parseInt(document.getElementById('rem-when').value, 10);
+  const whenVal = document.getElementById('rem-when').value;
+  if (!whenVal) { alert('Pick a date and time first.'); return; }
+  const remind_at = Math.floor(new Date(whenVal).getTime() / 1000);
   const note = document.getElementById('rem-note').value.trim();
-  const remind_at = Math.floor(Date.now() / 1000) + hours * 3600;
   try {
-    await apiSend('POST', '/api/admin/reminders.php', { ticket_id: ticketId, admin_id: forId, remind_at, note, csrf });
+    const r = await apiSend('POST', '/api/admin/reminders.php', {
+      ticket_id: ticketId, remind_at, note, csrf,
+      admin_ids: reminderRecipients.wholeTeam ? [] : reminderRecipients.adminIds,
+      departments: reminderRecipients.wholeTeam ? [] : reminderRecipients.departments,
+      whole_team: reminderRecipients.wholeTeam,
+    });
+    if (!r.ok) { alert(r.error || 'Could not add reminder'); return; }
     document.getElementById('rem-note').value = '';
     loadReminders(ticketId);
   } catch (e) {}
