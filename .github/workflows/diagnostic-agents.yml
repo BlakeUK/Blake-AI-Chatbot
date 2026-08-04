@@ -1,29 +1,14 @@
 name: Diagnostic - Agents Check (throwaway)
-
 on:
   workflow_dispatch:
-
-permissions:
-  contents: write
-
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Run diagnostic on the VPS
+      - name: Cleanup temp diagnostic admin
         run: |
-          echo "IyEvYmluL2Jhc2gKc2V0IC1lCmNkIC92YXIvd3d3L2NoYXQKZWNobyAiPT09IGNyZWF0aW5nIGEgdGVtcCBkaWFnbm9zdGljIGFkbWluIChpZGVtcG90ZW50LWlzaCwgd2lsbCBmYWlsIGhhcm1sZXNzbHkgaWYgZXhpc3RzKSA9PT0iCnBocCBzY3JpcHRzL2NyZWF0ZV9hZG1pbi5waHAgY2xhdWRlX2RpYWcgVGVtcERpYWcxMjMhIGFkbWluIDI+JjEgfHwgZWNobyAiKG1heSBhbHJlYWR5IGV4aXN0LCBjb250aW51aW5nKSIKCmVjaG8gIj09PSBsb2dnaW5nIGluIHZpYSB0aGUgUkVBTCBsaXZlIGRvbWFpbiwgZXhhY3RseSBsaWtlIHRoZSBjb25zb2xlIGRvZXMgPT09IgpSRVNQPSQoY3VybCAtc1MgLWMgL3RtcC9kaWFnX2Nvb2tpZXMudHh0IC1YIFBPU1QgaHR0cHM6Ly9jaGF0LmJsYWtlZ3JvdXAudWsvYXBpL2FkbWluL2xvZ2luLnBocCBcCiAgLUggIkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vanNvbiIgXAogIC1IICJPcmlnaW46IGh0dHA6Ly90YXVyaS5sb2NhbGhvc3QiIFwKICAtZCAneyJ1c2VybmFtZSI6ImNsYXVkZV9kaWFnIiwicGFzc3dvcmQiOiJUZW1wRGlhZzEyMyEifScpCmVjaG8gImxvZ2luIHJlc3BvbnNlOiAkUkVTUCIKCmVjaG8gIj09PSBjYWxsaW5nIGFnZW50cy5waHAgd2l0aCB0aGF0IHJlYWwgc2Vzc2lvbiwgZXhhY3RseSBhcyB0aGUgY29uc29sZSB3b3VsZCwgaW5jbHVkaW5nIHRoZSBUYXVyaSBPcmlnaW4gaGVhZGVyID09PSIKY3VybCAtc1MgLUQgLSAtYiAvdG1wL2RpYWdfY29va2llcy50eHQgLUggIk9yaWdpbjogaHR0cDovL3RhdXJpLmxvY2FsaG9zdCIgaHR0cHM6Ly9jaGF0LmJsYWtlZ3JvdXAudWsvYXBpL2FkbWluL2FnZW50cy5waHAKCmVjaG8gIiIKZWNobyAiPT09IGFsc28gdHJ5IFdJVEhPVVQgYW4gT3JpZ2luIGhlYWRlciwgaW4gY2FzZSB0aGF0IG1hdHRlcnMgPT09IgpjdXJsIC1zUyAtRCAtIC1iIC90bXAvZGlhZ19jb29raWVzLnR4dCBodHRwczovL2NoYXQuYmxha2Vncm91cC51ay9hcGkvYWRtaW4vYWdlbnRzLnBocAo=" | base64 -d > remote_check.sh
-          chmod +x remote_check.sh
+          echo "IyEvYmluL2Jhc2gKc2V0IC1lCnNxbGl0ZTMgL3Zhci93d3cvY2hhdC9kYXRhL2NoYXRib3QuZGIgIkRFTEVURSBGUk9NIGFkbWluX3VzZXJzIFdIRVJFIHVzZXJuYW1lPSdjbGF1ZGVfZGlhZyc7IgplY2hvICJkaWFnbm9zdGljIGFkbWluIHJlbW92ZWQiCg==" | base64 -d > remote_cleanup.sh
+          chmod +x remote_cleanup.sh
           sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
-          sshpass -p "${{ secrets.SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no remote_check.sh "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}:/tmp/remote_check.sh"
-          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}" "bash /tmp/remote_check.sh" > diagnostic-output.txt 2>&1
-          cat diagnostic-output.txt
-      - name: Commit result
-        run: |
-          git config user.name "Claude (Anthropic)"
-          git config user.email "noreply@anthropic.com"
-          git add diagnostic-output.txt
-          git commit -m "Diagnostic output 2"
-          git push --force origin HEAD:diagnostic/agents-check
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no remote_cleanup.sh "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}:/tmp/remote_cleanup.sh"
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}" "bash /tmp/remote_cleanup.sh"
