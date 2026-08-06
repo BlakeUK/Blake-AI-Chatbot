@@ -5,7 +5,14 @@
 (function () {
   'use strict';
 
-  const API = 'https://chat.blakegroup.uk/api/chat';
+  // window.BlakeUKWidget = { apiKey, endpoint } — set by external sites
+  // embedding via the API key method (see README "External website" section).
+  // First-party (blake-uk.com) embeds omit this and just get the defaults.
+  const CONFIG   = window.BlakeUKWidget || {};
+  const ENDPOINT = String(CONFIG.endpoint || 'https://chat.blakegroup.uk').replace(/\/$/, '');
+  const API_KEY  = CONFIG.apiKey || null;
+
+  const API = ENDPOINT + '/api/chat';
   const STORAGE_KEY = 'buk_session';
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -15,7 +22,7 @@
   // ── Build DOM ────────────────────────────────────────────────────────────────
   const style = document.createElement('link');
   style.rel = 'stylesheet';
-  style.href = 'https://chat.blakegroup.uk/widget/chat.css';
+  style.href = ENDPOINT + '/widget/chat.css';
   document.head.appendChild(style);
 
   const btn = document.createElement('button');
@@ -28,7 +35,7 @@
   panel.setAttribute('aria-live', 'polite');
   panel.innerHTML = `
     <div id="buk-chat-header">
-      <span><img src="/assets/blake-uk-logo.png" alt="Blake UK" id="buk-chat-logo">Support</span>
+      <span><img src="${ENDPOINT}/assets/blake-uk-logo.png" alt="Blake UK" id="buk-chat-logo">Support</span>
       <button id="buk-chat-close" aria-label="Close chat">✕</button>
     </div>
     <div id="buk-chat-messages"></div>
@@ -58,6 +65,20 @@
   }
 
   // ── Session ──────────────────────────────────────────────────────────────────
+  // External embeds (API key configured) exchange the key for a short-lived,
+  // single-use token before creating a session — session.php requires one for
+  // any origin it doesn't already recognise as first-party.
+  async function fetchWidgetToken() {
+    const r = await fetch(ENDPOINT + '/api/widget/init.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: API_KEY }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.token) throw new Error(d.error || 'Widget authentication failed');
+    return d.token;
+  }
+
   async function initSession() {
     const payload = {
       page_url:     window.location.href,
@@ -66,6 +87,9 @@
     };
 
     try {
+      if (API_KEY) {
+        payload.token = await fetchWidgetToken();
+      }
       const r = await fetch(API + '/session.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
