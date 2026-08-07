@@ -18,6 +18,7 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 - [Manual Setup](#manual-setup)
 - [Admin Interface](#admin-interface)
 - [Mobile Apps (Android)](#mobile-apps-android)
+- [Operator Console (Desktop)](#operator-console-desktop)
 - [Embedding the Widget](#embedding-the-widget)
 - [External Widget API](#external-widget-api)
 - [Product Feed Import](#product-feed-import)
@@ -326,6 +327,23 @@ These links always point to the most recently built APKs — see the [`apk-lates
 Rebuilding: run the **Build Android APKs** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-apk.yml) — it compiles both apps and updates the release above in place.
 
 Source: [`mobile/admin_app`](mobile/admin_app) and [`mobile/customer_app`](mobile/customer_app).
+
+---
+
+## Operator Console (Desktop)
+
+Native desktop app (Windows + Debian/Linux, built with [Tauri](https://tauri.app)) for support staff: get notified when the chatbot escalates a conversation, review it, and route it to sales/technical/accounts or a specific colleague — using the same login your team already uses on the admin panel.
+
+**Download the latest build:**
+
+- 🪟 [Blake UK Operator Console (`.msi`, Windows)](https://blakegroup.uk/downloads/blake-uk-operator-console.msi)
+- 🐧 [Blake UK Operator Console (`.deb`, Debian/Ubuntu)](https://blakegroup.uk/downloads/blake-uk-operator-console.deb)
+
+These links always point to the most recently *published* build. The app checks `https://blakegroup.uk/downloads/version.json` every 5 minutes and shows an in-app **Update** button when a newer version is available — but that manifest is only regenerated when someone actually publishes a release (see below), so bumping the version number in `tauri.conf.json` alone does **not** ship anything or prompt existing installs to update.
+
+**Publishing a new build:** run the **Build Operator Console** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-operator-console.yml) (`workflow_dispatch` — it isn't triggered automatically by pushes to `main`). It builds the `.msi` and `.deb`, then uploads both plus a fresh `version.json` to the VPS at the stable filenames above.
+
+Source: [`operator-console`](operator-console) — see [`operator-console/README.md`](operator-console/README.md) for build-environment setup.
 
 ---
 
