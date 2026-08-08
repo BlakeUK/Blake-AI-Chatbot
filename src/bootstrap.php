@@ -5,7 +5,12 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-$cfg = require ROOT . '/config/config.php';
+// BLAKE_UK_CONFIG lets the test suite (tests/bootstrap.php) point at a
+// fixture config - a temp SQLite db_path, no real API keys - without
+// touching config/config.php or requiring one to exist. Unset in
+// production, so every real deployment behaves exactly as before.
+$configPath = getenv('BLAKE_UK_CONFIG') ?: ROOT . '/config/config.php';
+$cfg = require $configPath;
 define('CFG', $cfg);
 
 // ── Autoload (simple PSR-4 style without Composer) ───────────────────────────
