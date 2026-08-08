@@ -10,7 +10,7 @@ class Search
     // Returns top $limit chunks matching $query via FTS5
     public static function query(string $query, int $limit = 5): array
     {
-        $clean = self::sanitiseFts($query);
+        $clean = self::naturalLanguageMatch($query);
         if ($clean === '') {
             return [];
         }
@@ -31,7 +31,7 @@ class Search
     // Search products via FTS5
     public static function products(string $query, int $limit = 5): array
     {
-        $clean = self::sanitiseFts($query);
+        $clean = self::naturalLanguageMatch($query);
         if ($clean === '') {
             return [];
         }
@@ -133,6 +133,16 @@ class Search
         return $hits;
     }
 
+    // Strips everything but word characters/hyphens and splits on
+    // whitespace. Shared by sanitiseFts() (AND semantics, admin search box)
+    // and naturalLanguageMatch() (OR + stopwords, customer chat) so both
+    // agree on what counts as a "word" instead of drifting apart.
+    private static function tokenize(string $q): array
+    {
+        $q = preg_replace('/[^a-zA-Z0-9\s\-_]/', ' ', trim($q));
+        return preg_split('/\s+/', trim($q), -1, PREG_SPLIT_NO_EMPTY);
+    }
+
     // Escape special FTS5 chars to prevent query errors. Stripping symbols
     // isn't enough on its own: FTS5 reserved words (AND/OR/NOT/NEAR) and a
     // trailing/standalone "-" are still valid ASCII letters/hyphens, so they
@@ -141,17 +151,54 @@ class Search
     // happens to sanitise down to a trailing "--" both throw an uncaught
     // FTS5 syntax error otherwise. Quoting each word individually makes
     // every token literal regardless of content. Public: also used directly
-    // by admin/products.php, which builds its own FTS5 query.
+    // by admin/products.php, which builds its own FTS5 query - deliberately
+    // AND semantics there, since an admin typing several words into a search
+    // box expects them to narrow the result, not broaden it.
     public static function sanitiseFts(string $q): string
     {
-        $q = trim($q);
-        $q = preg_replace('/[^a-zA-Z0-9\s\-_]/', ' ', $q);
-        $words = preg_split('/\s+/', trim($q), -1, PREG_SPLIT_NO_EMPTY);
+        $words = self::tokenize($q);
         if (!$words) {
             return '';
         }
         $quoted = array_map(fn($w) => '"' . str_replace('"', '""', $w) . '"', $words);
         return implode(' ', $quoted);
+    }
+
+    // Words with no retrieval signal on their own - filtered out of
+    // customer chat queries only (see naturalLanguageMatch()), not out of
+    // sanitiseFts()/the admin search box, where they're rare in a short
+    // deliberate keyword search anyway.
+    private const STOPWORDS = [
+        'a', 'an', 'the', 'is', 'are', 'was', 'were', 'am', 'be', 'been', 'being',
+        'do', 'does', 'did', 'doing', 'have', 'has', 'had', 'having',
+        'i', 'me', 'my', 'we', 'our', 'us', 'you', 'your', 'yours',
+        'it', 'its', 'this', 'that', 'these', 'those',
+        'what', 'who', 'whom', 'which', 'when', 'where', 'why', 'how',
+        'of', 'for', 'to', 'in', 'on', 'at', 'by', 'with', 'about', 'from', 'into', 'as', 'than',
+        'and', 'or', 'but', 'if', 'so', 'not', 'no',
+        'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might', 'must',
+        'please', 'hi', 'hello', 'hey', 'thanks', 'thank',
+    ];
+
+    // Builds a customer chat FTS5 query: unlike sanitiseFts()'s implicit
+    // AND (FTS5's default for space-separated terms), this ORs the terms
+    // together after dropping stopwords. A real question like "what is your
+    // returns policy" ANDed word-for-word requires a chunk to literally
+    // contain "what" and "your" too, which almost none will, even when it
+    // plainly answers the question - natural language carries filler words
+    // an exact-match KB chunk never will. Dropping stopwords first keeps OR
+    // from matching on "is"/"the"/etc. against nearly everything.
+    private static function naturalLanguageMatch(string $q): string
+    {
+        $words = array_filter(
+            self::tokenize($q),
+            fn($w) => !in_array(strtolower($w), self::STOPWORDS, true)
+        );
+        if (!$words) {
+            return '';
+        }
+        $quoted = array_map(fn($w) => '"' . str_replace('"', '""', $w) . '"', $words);
+        return implode(' OR ', $quoted);
     }
 
     // Formats a single product row into the text block used in the Gemini
