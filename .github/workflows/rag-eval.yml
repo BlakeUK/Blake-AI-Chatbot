@@ -1,0 +1,30 @@
+name: RAG Answer-Quality Eval
+
+# Live eval against real Gemini calls - costs API usage and takes longer
+# than the fast suite (.github/workflows/test.yml), so this runs nightly
+# and on demand rather than on every pull request. Requires a GEMINI_API_KEY
+# repository secret; the eval script skips cleanly (not a failure) if it's
+# not configured, so this workflow is safe to have enabled either way.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP 8.2 (matches production)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite3, pdo_sqlite, curl, mbstring, xml, intl, fileinfo
+
+      - name: Run live RAG eval
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: php tests/eval/run.php
