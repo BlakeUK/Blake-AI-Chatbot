@@ -75,6 +75,22 @@ return [
         'expect_escalate' => null,
     ],
     [
+        'name' => 'keyword link: pinned warranty page cited even with no product context',
+        'message' => 'What is your warranty like?',
+        'product_code' => null, 'page_url' => null,
+        'must_contain' => ['https://www.blake-uk.com/support/warranty'],
+        'must_not_contain' => [],
+        'expect_escalate' => false,
+    ],
+    [
+        'name' => 'keyword link: multi-word phrase alias matches',
+        'message' => 'I want to book an installation for next week',
+        'product_code' => null, 'page_url' => null,
+        'must_contain' => ['https://www.blake-uk.com/services/book'],
+        'must_not_contain' => [],
+        'expect_escalate' => false,
+    ],
+    [
         'name' => 'off-topic question must not be answered from unrelated context',
         'message' => 'Can you help me file my tax return this year?',
         'product_code' => null, 'page_url' => null,

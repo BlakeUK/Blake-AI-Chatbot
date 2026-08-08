@@ -76,6 +76,7 @@ $ctx = \Chat\Responder::buildContext($message, $session['product_code']);
 $knowledge_hits    = $ctx['knowledge_hits'];
 $product_hits      = $ctx['product_hits'];
 $context_products  = $ctx['context_products'];
+$keyword_links     = $ctx['keyword_links'];
 
 $full_prompt = \Chat\Responder::buildPrompt($ctx, $session['product_code'], $session['page_url']);
 
@@ -112,7 +113,7 @@ try {
 }
 
 // ── Confidence heuristic ──────────────────────────────────────────────────────
-$confidence = \Chat\Responder::confidence($knowledge_hits, $product_hits);
+$confidence = \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links);
 $escalate   = \Chat\Responder::shouldEscalate($confidence);
 
 // Save assistant message
@@ -128,6 +129,10 @@ foreach ($knowledge_hits as $h) {
 foreach ($context_products as $p) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url) VALUES (?,?,?,?)')
         ->execute([$bot_msg_id, 'product', null, $p['url']]);
+}
+foreach ($keyword_links as $k) {
+    $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
+        ->execute([$bot_msg_id, 'keyword_link', $k['id'], $k['url'], $k['title']]);
 }
 
 // Update session timestamp

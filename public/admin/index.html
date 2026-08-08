@@ -101,6 +101,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 <nav id="nav-bar">
   <button class="active" onclick="switchTab('dashboard',this)">Dashboard</button>
   <button onclick="switchTab('knowledge',this)">Knowledge</button>
+  <button onclick="switchTab('keywordlinks',this)">Keyword Links</button>
   <button onclick="switchTab('files',this)">Files / RAG</button>
   <button onclick="switchTab('products',this)">Products</button>
   <button data-role="admin" onclick="switchTab('apikeys',this)">API Keys</button>
@@ -167,6 +168,27 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
           <tbody></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ── KEYWORD LINKS ── -->
+  <div id="tab-keywordlinks" class="tab">
+    <div class="card" data-role="editor">
+      <h2>Pin a Word/Phrase to a Page</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Guarantees the page is offered to the AI whenever a customer's message contains one of the keywords — independent of whether the knowledge base search happens to find it. Use for pages that must always come up (returns, warranty, delivery) rather than relying on retrieval alone.</p>
+      <div class="row">
+        <div><label>Page Title</label><input type="text" id="kl-title" placeholder="e.g. Returns Policy"></div>
+        <div><label>Page URL</label><input type="text" id="kl-url" placeholder="https://www.blake-uk.com/support/returns"></div>
+        <div><label>Keywords (comma or newline separated)</label><input type="text" id="kl-keywords" placeholder="returns, refund, send back"></div>
+        <button class="btn btn-primary" onclick="createKeywordLink()">Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Keyword Links</h2>
+      <table id="keyword-links-table">
+        <thead><tr><th>Title</th><th>Keywords</th><th>URL</th><th>Status</th><th data-role="editor"></th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
@@ -547,7 +569,7 @@ function applyRoleUI(){
 }
 
 function init(){
-  loadDashboard();loadKnowledge();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
+  loadDashboard();loadKnowledge();loadKeywordLinks();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();}
 }
 
@@ -1210,6 +1232,45 @@ async function revokeClient(id){
   if(!confirm('Revoke this client? Their API key will stop working immediately.'))return;
   const r=await del(API+'/clients.php',{csrf,id});
   if(!r.error){flash('Client revoked');loadClients();}else flash(r.error,true);
+}
+
+// ── Keyword Links ────────────────────────────────────────────────────────────
+async function loadKeywordLinks(){
+  const rows=await get(API+'/keyword_links.php');
+  const tb=document.querySelector('#keyword-links-table tbody');
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="5" style="color:#adb4ba">Unable to load.</td></tr>';return;}
+  tb.innerHTML=rows.length?rows.map(r=>`<tr>
+    <td><strong>${esc(r.title)}</strong></td>
+    <td style="font-size:11px">${(JSON.parse(r.keywords||'[]')).map(esc).join(', ')}</td>
+    <td style="font-size:11px"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></td>
+    <td><span class="badge ${r.active?'badge-active':'badge-revoked'}">${r.active?'Active':'Inactive'}</span></td>
+    <td data-role="editor">
+      <button class="btn btn-secondary" onclick="toggleKeywordLink(${r.id},${r.active?0:1})">${r.active?'Deactivate':'Activate'}</button>
+      <button class="btn btn-danger" onclick="deleteKeywordLink(${r.id})">Delete</button>
+    </td>
+  </tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No keyword links configured.</td></tr>';
+}
+async function createKeywordLink(){
+  const title=val('kl-title'),url=val('kl-url'),keywords=val('kl-keywords');
+  if(!title)return flash('Page title required',true);
+  if(!url)return flash('Page URL required',true);
+  if(!keywords)return flash('At least one keyword required',true);
+  const r=await post(API+'/keyword_links.php',{csrf,title,url,keywords});
+  if(r.error)return flash(r.error,true);
+  flash('Keyword link added');
+  ['kl-title','kl-url','kl-keywords'].forEach(id=>document.getElementById(id).value='');
+  loadKeywordLinks();
+}
+async function toggleKeywordLink(id,active){
+  const row=(await get(API+'/keyword_links.php')).find(r=>r.id===id);
+  if(!row)return;
+  const r=await put(API+'/keyword_links.php',{csrf,id,title:row.title,url:row.url,keywords:JSON.parse(row.keywords||'[]').join('\n'),active});
+  if(!r.error){flash(active?'Keyword link activated':'Keyword link deactivated');loadKeywordLinks();}else flash(r.error,true);
+}
+async function deleteKeywordLink(id){
+  if(!confirm('Delete this keyword link? This cannot be undone.'))return;
+  const r=await del(API+'/keyword_links.php',{csrf,id});
+  if(!r.error){flash('Keyword link deleted');loadKeywordLinks();}else flash(r.error,true);
 }
 
 // ── Users ──────────────────────────────────────────────────────────────────────

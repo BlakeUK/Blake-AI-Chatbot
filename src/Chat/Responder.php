@@ -20,6 +20,12 @@ class Responder
         $productHits     = \Knowledge\Search::products($message, 3);
         $currentProduct  = $productCode ? \Knowledge\Search::byCode($productCode) : null;
 
+        // Admin-curated word/phrase -> page pins (see KeywordLinks). Unlike
+        // the FTS hits above, a match here is a deliberate editorial
+        // decision, not a probabilistic one - so it counts toward
+        // confidence just as strongly as an organic hit (see confidence()).
+        $keywordLinks = \Knowledge\KeywordLinks::match($message);
+
         // The product the customer is currently on gets included in
         // context/cards even if their message text doesn't happen to match
         // it via FTS - but it does NOT by itself count toward confidence
@@ -50,6 +56,7 @@ class Responder
             'context_products'  => $contextProducts,
             'related_codes'     => $relatedCodes,
             'alternative_codes' => $alternativeCodes,
+            'keyword_links'     => $keywordLinks,
         ];
     }
 
@@ -62,6 +69,13 @@ class Responder
             $contextParts[] = "KNOWLEDGE BASE:\n" . implode("\n---\n", array_map(
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
+            ));
+        }
+
+        if ($ctx['keyword_links']) {
+            $contextParts[] = "RELEVANT PAGES:\n" . implode("\n", array_map(
+                fn($k) => "- {$k['title']}: {$k['url']}",
+                $ctx['keyword_links']
             ));
         }
 
@@ -81,6 +95,7 @@ RULES:
 - Answer ONLY using the context provided below. Do not invent products, prices or specifications.
 - Keep answers concise and helpful.
 - Always include direct Blake UK URLs when recommending products or support pages.
+- If a page is listed under RELEVANT PAGES and matches what the customer is asking about, include its exact URL in your answer.
 - Products tagged [Related product] are cross-sell/accessory suggestions for what the customer is viewing — mention one only if it's naturally relevant to their question, don't force it into every reply.
 - Products tagged [Alternative product] are substitutes for what the customer is viewing (e.g. if it's out of stock or they want a different spec) — mention one if the customer asks about alternatives, other options, or if the current product is out of stock.
 - If you cannot answer from the context, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
@@ -96,10 +111,12 @@ PROMPT;
     // Simple: if context was found, confidence is higher. Deliberately based
     // on $productHits (organic matches for this message), not
     // $contextProducts (which always includes the current product
-    // regardless of relevance) - see buildContext()'s comment.
-    public static function confidence(array $knowledgeHits, array $productHits): float
+    // regardless of relevance) - see buildContext()'s comment. $keywordLinkHits
+    // defaults to [] so existing callers/tests written before keyword links
+    // existed don't need updating.
+    public static function confidence(array $knowledgeHits, array $productHits, array $keywordLinkHits = []): float
     {
-        return (count($knowledgeHits) + count($productHits)) > 0 ? 0.75 : 0.3;
+        return (count($knowledgeHits) + count($productHits) + count($keywordLinkHits)) > 0 ? 0.75 : 0.3;
     }
 
     public static function shouldEscalate(float $confidence): bool

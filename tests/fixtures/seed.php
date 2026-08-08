@@ -17,10 +17,16 @@ function seed_fixtures(): void
     $pdo->exec('DELETE FROM knowledge_chunks');
     $pdo->exec('DELETE FROM products');
     $pdo->exec('DELETE FROM knowledge_entries');
+    $pdo->exec('DELETE FROM keyword_links');
 
     $chunk = $pdo->prepare('INSERT INTO knowledge_chunks (id, source_type, source_id, chunk_text, url) VALUES (?,?,?,?,?)');
     foreach (fixture_knowledge_chunks() as $c) {
         $chunk->execute([$c['id'], $c['source_type'], $c['source_id'], $c['chunk_text'], $c['url']]);
+    }
+
+    $kwLink = $pdo->prepare('INSERT INTO keyword_links (id, keywords, title, url, active) VALUES (?,?,?,?,1)');
+    foreach (fixture_keyword_links() as $k) {
+        $kwLink->execute([$k['id'], json_encode($k['keywords']), $k['title'], $k['url']]);
     }
 
     $product = $pdo->prepare('
@@ -98,6 +104,22 @@ function fixture_products(): array
             'search_terms' => 'cctv camera security 4k', 'price_inc_vat' => 249.99, 'price_exc_vat' => 208.33,
             'stock_status' => 'in_stock',
             'related_product_codes' => [], 'alternative_product_codes' => [],
+        ],
+    ];
+}
+
+function fixture_keyword_links(): array
+{
+    return [
+        [
+            'id' => 8001, 'title' => 'Warranty Policy',
+            'keywords' => ['warranty', 'guarantee'],
+            'url' => 'https://www.blake-uk.com/support/warranty',
+        ],
+        [
+            'id' => 8002, 'title' => 'Installation Booking',
+            'keywords' => ['book an installation', 'book installation', 'installer'],
+            'url' => 'https://www.blake-uk.com/services/book',
         ],
     ];
 }

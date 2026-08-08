@@ -288,6 +288,7 @@ Visit `https://chat.blakegroup.uk/admin/` and log in.
 |---|---|
 | **Dashboard** | Live counts: knowledge entries, indexed files, products, sessions. Recent chat table. |
 | **Knowledge** | Create / delete manual text knowledge entries. Instantly FTS5-indexed into RAG. |
+| **Keyword Links** | Pin specific words/phrases to a specific page — guaranteed to be offered to the AI whenever a customer's message mentions one, independent of whether search happens to find it. |
 | **Files / RAG** | Upload PDFs, images, DOCX, CSV etc. Gemini extracts text, chunks it, indexes it. |
 | **Products** | Import JSON or XML product feed. Searchable product table. Import result summary. |
 | **API Keys** | Store Gemini and carrier keys (AES-256-GCM encrypted, never shown after save). |
