@@ -10,7 +10,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
 
 if ($method === 'GET') {
-    $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, created_at FROM knowledge_files ORDER BY created_at DESC');
+    $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, category, created_at FROM knowledge_files ORDER BY created_at DESC');
     json_out($stmt->fetchAll());
 }
 
@@ -51,8 +51,10 @@ if ($method === 'POST') {
         json_err('Failed to store file', 500);
     }
 
-    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status) VALUES (?,?,?,?)')
-        ->execute([$f['name'], $mime, $destPath, 'pending']);
+    $category = trim($_POST['category'] ?? '') ?: null;
+
+    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status, category) VALUES (?,?,?,?,?)')
+        ->execute([$f['name'], $mime, $destPath, 'pending', $category]);
     $fileId = (int)$pdo->lastInsertId();
 
     $err = \Knowledge\FileExtractor::extract($fileId, $destPath, $mime);

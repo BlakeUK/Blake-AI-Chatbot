@@ -115,6 +115,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 
 <main>
   <div id="msg"></div>
+  <datalist id="category-suggestions"></datalist>
 
   <!-- ── DASHBOARD ── -->
   <div id="tab-dashboard" class="tab active">
@@ -141,7 +142,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
         <div><label>Title</label><input type="text" id="k-title" placeholder="e.g. Warranty Policy"></div>
         <div><label>Content</label><textarea id="k-body" rows="5" placeholder="Paste or type knowledge content here..."></textarea></div>
         <div class="row">
-          <div><label>Category (optional)</label><input type="text" id="k-cat"></div>
+          <div><label>Category (optional)</label><input type="text" id="k-cat" list="category-suggestions" placeholder="e.g. TV Aerials"></div>
           <div><label>URL (optional)</label><input type="text" id="k-url"></div>
           <div><label>Product Codes (optional)</label><input type="text" id="k-codes" placeholder="comma-separated"></div>
           <button class="btn btn-primary" onclick="saveKnowledge()">Save</button>
@@ -197,6 +198,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     <div class="card" data-role="editor">
       <h2>Upload Knowledge Files</h2>
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
+      <div style="margin-bottom:10px;max-width:320px"><label>Category (optional)</label><input type="text" id="upload-category" list="category-suggestions" placeholder="e.g. TV Amps — applies to this batch"></div>
       <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
         <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.csv,.json,.xml,.jpg,.jpeg,.png,.webp" onchange="uploadFiles(this.files)">
         <div style="font-size:32px;margin-bottom:8px">📁</div>
@@ -268,7 +270,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     <div class="card">
       <h2>Indexed Files</h2>
       <table id="files-table">
-        <thead><tr><th>Filename</th><th>Type</th><th>Status</th><th>Uploaded</th><th></th></tr></thead>
+        <thead><tr><th>Filename</th><th>Type</th><th>Category</th><th>Status</th><th>Uploaded</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -568,8 +570,13 @@ function applyRoleUI(){
   document.querySelectorAll('[data-role="editor"]').forEach(el=>{el.style.display=canEdit()?'':'none';});
 }
 
+async function loadCategorySuggestions(){
+  const cats=await get(API+'/categories.php');
+  if(!Array.isArray(cats))return;
+  document.getElementById('category-suggestions').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
+}
 function init(){
-  loadDashboard();loadKnowledge();loadKeywordLinks();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
+  loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();}
 }
 
@@ -664,14 +671,15 @@ async function deleteKnowledge(id){
 async function loadFiles(){
   const rows=await get(API+'/files.php');
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No files uploaded yet.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
 }
 async function uploadFiles(files){
   const prog=document.getElementById('upload-progress');
+  const category=val('upload-category');
   for(const f of files){
     const sid='up_'+Math.random().toString(36).slice(2);
     prog.innerHTML+=`<div id="${sid}" class="alert alert-warn" style="margin-bottom:6px">Uploading ${esc(f.name)}...</div>`;
-    const fd=new FormData();fd.append('file',f);
+    const fd=new FormData();fd.append('file',f);if(category)fd.append('category',category);
     try{
       const r=await fetch(API+'/files.php',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd});
       const d=await r.json();const el=document.getElementById(sid);

@@ -16,9 +16,17 @@ class Responder
     // customer's current page context (product-aware chat).
     public static function buildContext(string $message, ?string $productCode): array
     {
-        $knowledgeHits   = \Knowledge\Search::query($message, 5);
-        $productHits     = \Knowledge\Search::products($message, 3);
-        $currentProduct  = $productCode ? \Knowledge\Search::byCode($productCode) : null;
+        $currentProduct = $productCode ? \Knowledge\Search::byCode($productCode) : null;
+
+        // The category of the page the customer is already on is a strong
+        // signal for what an ambiguous or under-specific message ("have you
+        // got anything longer?") is actually about - used to re-prioritise
+        // (never filter - see Search::prioritiseByCategory()) both organic
+        // searches below toward that range.
+        $categoryHint = $currentProduct ? (json_decode($currentProduct['category_path'] ?? '[]', true) ?: []) : [];
+
+        $knowledgeHits = \Knowledge\Search::query($message, 5, $categoryHint);
+        $productHits   = \Knowledge\Search::products($message, 3, $categoryHint);
 
         // Admin-curated word/phrase -> page pins (see KeywordLinks). Unlike
         // the FTS hits above, a match here is a deliberate editorial

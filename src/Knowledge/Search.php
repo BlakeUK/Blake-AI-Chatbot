@@ -7,16 +7,24 @@ namespace Knowledge;
 
 class Search
 {
-    // Returns top $limit chunks matching $query via FTS5
-    public static function query(string $query, int $limit = 5): array
+    // Returns top $limit chunks matching $query via FTS5. $categoryHint (the
+    // customer's current product's category_path, when known) re-prioritises
+    // same-category chunks ahead of others without excluding anything -
+    // see prioritiseByCategory().
+    public static function query(string $query, int $limit = 5, array $categoryHint = []): array
     {
         $clean = self::naturalLanguageMatch($query);
         if ($clean === '') {
             return [];
         }
 
+        // Widen the candidate pool when a category hint is in play, so
+        // there's actually something for it to re-prioritise beyond
+        // whatever BM25 alone would have returned in the top $limit.
+        $pool = $categoryHint ? max($limit * 3, 15) : $limit;
+
         $stmt = db()->prepare('
-            SELECT kc.id, kc.source_type, kc.source_id, kc.chunk_text, kc.url,
+            SELECT kc.id, kc.source_type, kc.source_id, kc.chunk_text, kc.url, kc.category,
                    rank
             FROM knowledge_fts
             JOIN knowledge_chunks kc ON kc.id = knowledge_fts.rowid
@@ -24,20 +32,28 @@ class Search
             ORDER BY rank
             LIMIT ?
         ');
-        $stmt->execute([$clean, $limit]);
-        return $stmt->fetchAll();
+        $stmt->execute([$clean, $pool]);
+        $rows = $stmt->fetchAll();
+
+        return self::prioritiseByCategory($rows, $categoryHint, $limit, fn($row) =>
+            $row['category'] !== null && $row['category'] !== ''
+                && in_array(strtolower($row['category']), array_map('strtolower', $categoryHint), true)
+        );
     }
 
-    // Search products via FTS5
-    public static function products(string $query, int $limit = 5): array
+    // Search products via FTS5. $categoryHint works the same as in query()
+    // above, matched against the candidate's own category_path.
+    public static function products(string $query, int $limit = 5, array $categoryHint = []): array
     {
         $clean = self::naturalLanguageMatch($query);
         if ($clean === '') {
             return [];
         }
 
+        $pool = $categoryHint ? max($limit * 3, 15) : $limit;
+
         $stmt = db()->prepare('
-            SELECT p.product_code, p.name, p.title, p.url,
+            SELECT p.product_code, p.name, p.title, p.url, p.category_path,
                    p.price_inc_vat, p.price_exc_vat, p.image_url,
                    p.summary_bullets, p.description, p.tech_specs, p.stock_status,
                    p.related_product_codes, p.alternative_product_codes, p.brand,
@@ -48,19 +64,25 @@ class Search
             ORDER BY rank
             LIMIT ?
         ');
-        $stmt->execute([$clean, $limit]);
-        return $stmt->fetchAll();
+        $stmt->execute([$clean, $pool]);
+        $rows = $stmt->fetchAll();
+
+        return self::prioritiseByCategory($rows, $categoryHint, $limit, fn($row) =>
+            self::categoryPathOverlaps($row['category_path'] ?? null, $categoryHint)
+        );
     }
 
     // Exact product lookup by code — used when we already know which product
     // the customer is looking at (product-aware chat), instead of hoping a
-    // keyword search on their message happens to surface it.
+    // keyword search on their message happens to surface it. Includes
+    // category_path so callers (Chat\Responder) can use it as a category
+    // hint for query()/products() above.
     public static function byCode(string $code): ?array
     {
         if ($code === '') return null;
 
         $stmt = db()->prepare('
-            SELECT product_code, name, title, url,
+            SELECT product_code, name, title, url, category_path,
                    price_inc_vat, price_exc_vat, image_url,
                    summary_bullets, description, tech_specs, stock_status,
                    related_product_codes, alternative_product_codes, brand
@@ -131,6 +153,49 @@ class Search
         ));
         array_unshift($hits, $current);
         return $hits;
+    }
+
+    // Re-orders $rows so ones matching $categoryHint (per $matches) come
+    // first, preserving each group's existing relative order (BM25 rank)
+    // rather than re-ranking within it - then trims to $limit. Never drops
+    // a row for having no/a different category: with no hint, or nothing
+    // in the pool matching it, this is just array_slice($rows, 0, $limit),
+    // identical to behaviour before category-awareness existed. That's
+    // deliberate - a category hint should reorder toward relevance, never
+    // reduce recall by excluding a genuinely relevant but uncategorised or
+    // differently-categorised result.
+    private static function prioritiseByCategory(array $rows, array $categoryHint, int $limit, callable $matches): array
+    {
+        if (!$categoryHint) {
+            return array_slice($rows, 0, $limit);
+        }
+
+        $matching = [];
+        $rest     = [];
+        foreach ($rows as $row) {
+            if ($matches($row)) {
+                $matching[] = $row;
+            } else {
+                $rest[] = $row;
+            }
+        }
+
+        return array_slice(array_merge($matching, $rest), 0, $limit);
+    }
+
+    // Does a product's category_path (JSON array, e.g. ["Aerials & Reception",
+    // "TV Aerials"]) share any segment with $categoryHint, case-insensitive?
+    private static function categoryPathOverlaps(?string $categoryPathJson, array $categoryHint): bool
+    {
+        if (!$categoryPathJson || !$categoryHint) return false;
+        $path = json_decode($categoryPathJson, true) ?: [];
+        if (!$path) return false;
+
+        $hint = array_map('strtolower', $categoryHint);
+        foreach ($path as $segment) {
+            if (in_array(strtolower((string)$segment), $hint, true)) return true;
+        }
+        return false;
     }
 
     // Strips everything but word characters/hyphens and splits on

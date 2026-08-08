@@ -40,8 +40,8 @@ if ($method === 'POST') {
     $id = (int)$pdo->lastInsertId();
 
     // Insert chunk — FTS index updated automatically by trigger
-    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url) VALUES (?,?,?,?)')
-        ->execute(['manual', $id, $body['title'] . ' ' . $body['body'], $body['url'] ?? null]);
+    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url, category) VALUES (?,?,?,?,?)')
+        ->execute(['manual', $id, $body['title'] . ' ' . $body['body'], $body['url'] ?? null, $body['category'] ?? null]);
 
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')
         ->execute([$_SESSION['admin_id'], 'knowledge_created', $id]);
@@ -66,8 +66,8 @@ if ($method === 'PUT') {
     // Re-create chunk — DELETE + INSERT both fire FTS triggers automatically
     $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type=? AND source_id=?')
         ->execute(['manual', $id]);
-    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url) VALUES (?,?,?,?)')
-        ->execute(['manual', $id, $body['title'] . ' ' . $body['body'], $body['url'] ?? null]);
+    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url, category) VALUES (?,?,?,?,?)')
+        ->execute(['manual', $id, $body['title'] . ' ' . $body['body'], $body['url'] ?? null, $body['category'] ?? null]);
 
     json_out(['ok' => true]);
 }
