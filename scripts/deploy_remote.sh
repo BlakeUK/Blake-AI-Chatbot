@@ -245,6 +245,20 @@ else
     warn "Channel-DM schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='keyword_links';" | grep -q keyword_links; then
+    info "Applying keyword-links schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_keyword_links.sql"
+else
+    warn "Keyword-links schema already applied — skipping."
+fi
+
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(knowledge_chunks);" | grep -q "category"; then
+    info "Applying knowledge-category schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_knowledge_category.sql"
+else
+    warn "Knowledge-category schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

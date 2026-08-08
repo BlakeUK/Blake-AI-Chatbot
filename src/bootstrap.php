@@ -5,7 +5,12 @@ declare(strict_types=1);
 
 define('ROOT', dirname(__DIR__));
 
-$cfg = require ROOT . '/config/config.php';
+// BLAKE_UK_CONFIG lets the test suite (tests/bootstrap.php) point at a
+// fixture config - a temp SQLite db_path, no real API keys - without
+// touching config/config.php or requiring one to exist. Unset in
+// production, so every real deployment behaves exactly as before.
+$configPath = getenv('BLAKE_UK_CONFIG') ?: ROOT . '/config/config.php';
+$cfg = require $configPath;
 define('CFG', $cfg);
 
 // ── Autoload (simple PSR-4 style without Composer) ───────────────────────────
@@ -61,7 +66,7 @@ const TAURI_APP_ORIGINS = ['http://tauri.localhost', 'https://tauri.localhost', 
 
 function cors(): void {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if (in_array($origin, CFG['cors_origins'], true) || in_array($origin, TAURI_APP_ORIGINS, true)) {
+    if (in_array($origin, CFG['cors_origins'], true) || in_array($origin, TAURI_APP_ORIGINS, true) || widget_origin_allowed($origin)) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
@@ -71,6 +76,26 @@ function cors(): void {
         http_response_code(204);
         exit;
     }
+}
+
+// Mirrors the origin allowlist widget/init.php already enforces before issuing
+// a token, so a correctly-authenticated external embed's responses are
+// actually readable by the browser instead of being blocked by CORS after the
+// fact. An empty allowed_origins on a client means "allow all" for that
+// client, same convention the admin UI and init.php already use.
+function widget_origin_allowed(string $origin): bool {
+    if ($origin === '') return false;
+    static $clients = null;
+    if ($clients === null) {
+        $clients = db()->query('SELECT allowed_origins FROM widget_clients WHERE active = 1')->fetchAll(PDO::FETCH_COLUMN);
+    }
+    foreach ($clients as $allowedJson) {
+        $allowed = json_decode($allowedJson ?? '[]', true) ?: [];
+        if (!$allowed || in_array($origin, $allowed, true)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────

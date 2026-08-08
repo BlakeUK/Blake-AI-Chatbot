@@ -42,7 +42,7 @@ if ($ext === 'json' || str_contains($mime, 'json')) {
 } else {
     // XML
     libxml_use_internal_errors(true);
-    $xml = simplexml_load_string($raw);
+    $xml = simplexml_load_string($raw, \SimpleXMLElement::class, LIBXML_NONET);
     if (!$xml) json_err('Invalid XML');
     $products = \Products\Importer::parseXml($xml);
 }

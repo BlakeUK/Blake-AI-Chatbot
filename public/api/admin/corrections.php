@@ -58,8 +58,8 @@ if ($promote) {
 
     // Index it
     // FTS index updated automatically by trigger on knowledge_chunks
-    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES (?,?,?)')
-        ->execute(['manual', $entryId, $title . ' ' . $corrected]);
+    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, category) VALUES (?,?,?,?)')
+        ->execute(['manual', $entryId, $title . ' ' . $corrected, 'Correction']);
 
     // Mark correction as promoted
     $pdo->prepare('UPDATE answer_corrections SET promoted=1 WHERE id=?')->execute([$correctionId]);

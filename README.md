@@ -18,11 +18,13 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 - [Manual Setup](#manual-setup)
 - [Admin Interface](#admin-interface)
 - [Mobile Apps (Android)](#mobile-apps-android)
+- [Operator Console (Desktop)](#operator-console-desktop)
 - [Embedding the Widget](#embedding-the-widget)
 - [External Widget API](#external-widget-api)
 - [Product Feed Import](#product-feed-import)
 - [Carrier Tracking](#carrier-tracking)
 - [Support Tickets](#support-tickets)
+- [Testing](#testing)
 - [Security](#security)
 - [GDPR Compliance](#gdpr-uk-compliance)
 - [Build Phases](#build-phases)
@@ -286,7 +288,8 @@ Visit `https://chat.blakegroup.uk/admin/` and log in.
 |---|---|
 | **Dashboard** | Live counts: knowledge entries, indexed files, products, sessions. Recent chat table. |
 | **Knowledge** | Create / delete manual text knowledge entries. Instantly FTS5-indexed into RAG. |
-| **Files / RAG** | Upload PDFs, images, DOCX, CSV etc. Gemini extracts text, chunks it, indexes it. |
+| **Keyword Links** | Pin specific words/phrases to a specific page — guaranteed to be offered to the AI whenever a customer's message mentions one, independent of whether search happens to find it. |
+| **Files / RAG** | Upload PDFs, images, DOCX, CSV etc. Gemini extracts text, chunks it, indexes it. Optionally tag a batch with a category (e.g. "TV Aerials", "CCTV & Security") to boost its relevance when a customer is on a product page in that range. |
 | **Products** | Import JSON or XML product feed. Searchable product table. Import result summary. |
 | **API Keys** | Store Gemini and carrier keys (AES-256-GCM encrypted, never shown after save). |
 | **Model Settings** | Fetch live Gemini model list from Google API. Set chat and extraction models. |
@@ -326,6 +329,23 @@ These links always point to the most recently built APKs — see the [`apk-lates
 Rebuilding: run the **Build Android APKs** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-apk.yml) — it compiles both apps and updates the release above in place.
 
 Source: [`mobile/admin_app`](mobile/admin_app) and [`mobile/customer_app`](mobile/customer_app).
+
+---
+
+## Operator Console (Desktop)
+
+Native desktop app (Windows + Debian/Linux, built with [Tauri](https://tauri.app)) for support staff: get notified when the chatbot escalates a conversation, review it, and route it to sales/technical/accounts or a specific colleague — using the same login your team already uses on the admin panel.
+
+**Download the latest build:**
+
+- 🪟 [Blake UK Operator Console (`.msi`, Windows)](https://blakegroup.uk/downloads/blake-uk-operator-console.msi)
+- 🐧 [Blake UK Operator Console (`.deb`, Debian/Ubuntu)](https://blakegroup.uk/downloads/blake-uk-operator-console.deb)
+
+These links always point to the most recently *published* build. The app checks `https://blakegroup.uk/downloads/version.json` every 5 minutes and shows an in-app **Update** button when a newer version is available — but that manifest is only regenerated when someone actually publishes a release (see below), so bumping the version number in `tauri.conf.json` alone does **not** ship anything or prompt existing installs to update.
+
+**Publishing a new build:** run the **Build Operator Console** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-operator-console.yml) (`workflow_dispatch` — it isn't triggered automatically by pushes to `main`). It builds the `.msi` and `.deb`, then uploads both plus a fresh `version.json` to the VPS at the stable filenames above.
+
+Source: [`operator-console`](operator-console) — see [`operator-console/README.md`](operator-console/README.md) for build-environment setup.
 
 ---
 
@@ -548,6 +568,40 @@ When the bot cannot answer with sufficient confidence, or the customer asks to s
 │   └── bootstrap.php           DB, autoload, CORS, rate limiting
 └── uploads/                    Uploaded knowledge files (gitignored)
 ```
+
+---
+
+## Testing
+
+Two suites, both under `tests/` — no Composer/PHPUnit, just plain PHP, matching the rest of the project's "no build step" approach.
+
+### Fast suite (retrieval, import parsing, confidence/escalation)
+
+```bash
+php tests/run.php
+```
+
+No network calls, no LLM, runs in seconds. Builds a throwaway SQLite DB from the real `scripts/schema*.sql` files, seeds known fixture knowledge/products (`tests/fixtures/seed.php`), then checks:
+
+- **Retrieval** (`tests/cases/search_test.php`) — FTS5 queries return the right chunks/products for a given question, `sanitiseFts()`/the customer-chat query builder don't throw on reserved words or garbage input, product ordering/dedup/tagging logic is correct.
+- **Product import** (`tests/cases/importer_test.php`) — the historically bug-prone XML/JSON feed normalisation (attribute vs. repeated-element parsing, negative prices, oversized fields, related-code parsing, HTML stripping).
+- **Confidence/escalation** (`tests/cases/responder_test.php`) — the heuristic that decides whether a customer gets an AI answer or gets escalated to a human.
+
+Runs automatically on every pull request and push to `main` ([`.github/workflows/test.yml`](.github/workflows/test.yml)).
+
+### Live RAG answer-quality eval
+
+```bash
+GEMINI_API_KEY=your-key php tests/eval/run.php
+```
+
+Runs a curated set of real support questions ([`tests/eval/cases.php`](tests/eval/cases.php)) through the exact same retrieval-and-prompt code the chat endpoint uses (`src/Chat/Responder.php`), but with a real Gemini call — checking the actual answer text (contains the right facts, doesn't hallucinate, escalates when it should). This is the layer the fast suite structurally can't cover, since it depends on what the model does with a correctly-built prompt, not just whether the prompt was built correctly.
+
+Costs real API usage and takes longer, so it isn't run on every PR — it runs nightly and on demand ([`.github/workflows/rag-eval.yml`](.github/workflows/rag-eval.yml)), and needs a `GEMINI_API_KEY` repository secret. Skips cleanly (not a failure) if that secret isn't set.
+
+### Adding a fixture or case
+
+New knowledge chunks/products for the fast suite go in `tests/fixtures/seed.php`; new eval questions go in `tests/eval/cases.php`. Both are plain PHP arrays with comments explaining the expected shape.
 
 ---
 
