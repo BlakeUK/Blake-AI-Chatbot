@@ -195,6 +195,14 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 
   <!-- ── FILES / RAG ── -->
   <div id="tab-files" class="tab">
+    <div class="card" id="duplicates-card" style="display:none;background:#3a3020;border-color:#8a6d1f">
+      <h2>⚠ Possible Duplicates (<span id="duplicates-count">0</span>)</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Flagged automatically when new content closely overlaps with something already indexed. Never deleted automatically — review each pair and decide.</p>
+      <table id="duplicates-table">
+        <thead><tr><th>Item</th><th>Similar to</th><th>Similarity</th><th data-role="editor"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
     <div class="card" data-role="editor">
       <h2>Upload Knowledge Files</h2>
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
@@ -586,7 +594,7 @@ async function loadCategorySuggestions(){
   document.getElementById('category-suggestions').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
 }
 function init(){
-  loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
+  loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();loadSiteRefreshSettings();}
 }
 
@@ -668,7 +676,7 @@ async function saveKnowledge(){
   const body={csrf,title:val('k-title'),body:val('k-body'),category:val('k-cat'),url:val('k-url'),product_codes:val('k-codes')};
   if(!body.title||!body.body)return flash('Title and content required',true);
   const r=await post(API+'/knowledge.php',body);
-  if(!r.error){flash('Knowledge entry saved');['k-title','k-body','k-cat','k-url','k-codes'].forEach(id=>document.getElementById(id).value='');loadKnowledge();loadDashboard();}
+  if(!r.error){flash('Knowledge entry saved');['k-title','k-body','k-cat','k-url','k-codes'].forEach(id=>document.getElementById(id).value='');loadKnowledge();loadDashboard();loadDuplicates();}
   else flash(r.error,true);
 }
 async function deleteKnowledge(id){
@@ -694,10 +702,40 @@ async function uploadFiles(files){
       const r=await fetch(API+'/files.php',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd});
       const d=await r.json();const el=document.getElementById(sid);
       if(d.error){if(el){el.className='alert alert-err';el.textContent=f.name+': '+d.error;}}
+      else if(d.status==='duplicate'){if(el){el.className='alert alert-warn';el.textContent=f.name+': '+d.message;}}
       else{if(el){el.className='alert alert-ok';el.textContent=f.name+': '+(d.status==='indexed'?'Indexed ✓':'Error');}}
     }catch(e){prog.innerHTML+=`<div class="alert alert-err">${esc(f.name)}: upload failed</div>`;}
   }
-  loadFiles();loadDashboard();
+  loadFiles();loadDashboard();loadDuplicates();
+}
+
+// ── Possible Duplicates ──────────────────────────────────────────────────────
+async function loadDuplicates(){
+  const rows=await get(API+'/duplicates.php');
+  const card=document.getElementById('duplicates-card');
+  if(!Array.isArray(rows)||!rows.length){card.style.display='none';return;}
+  card.style.display='';
+  document.getElementById('duplicates-count').textContent=rows.length;
+  const tb=document.querySelector('#duplicates-table tbody');
+  tb.innerHTML=rows.map(r=>`<tr>
+    <td>${esc(r.source_label.title)}${r.source_label.url?`<br><small style="color:#adb4ba">${esc(r.source_label.url)}</small>`:''}</td>
+    <td>${esc(r.similar_label.title)}${r.similar_label.url?`<br><small style="color:#adb4ba">${esc(r.similar_label.url)}</small>`:''}</td>
+    <td>${Math.round(r.similarity*100)}%</td>
+    <td data-role="editor">
+      <button class="btn btn-secondary" onclick="dismissDuplicate(${r.id})">Dismiss</button>
+      <button class="btn btn-danger" onclick="deleteDuplicateSide('${r.source_type}',${r.source_id})">Delete first</button>
+      <button class="btn btn-danger" onclick="deleteDuplicateSide('${r.similar_source_type}',${r.similar_source_id})">Delete second</button>
+    </td>
+  </tr>`).join('');
+}
+async function dismissDuplicate(id){
+  const r=await post(API+'/duplicates.php',{csrf,id});
+  if(!r.error){flash('Dismissed');loadDuplicates();}else flash(r.error,true);
+}
+async function deleteDuplicateSide(type,id){
+  if(!confirm('Delete this '+(type==='file'?'file':'knowledge entry')+'? This cannot be undone.'))return;
+  const r=await del(API+(type==='file'?'/files.php':'/knowledge.php'),{csrf,id});
+  if(!r.error){flash('Deleted');loadDuplicates();loadFiles();loadKnowledge();}else flash(r.error,true);
 }
 const dz=document.getElementById('drop-zone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});

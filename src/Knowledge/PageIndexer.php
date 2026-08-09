@@ -55,20 +55,22 @@ class PageIndexer
         $entry = self::buildEntry($url, $html);
         $pdo   = db();
 
+        $contentHash = Dedup::hashText($entry['title'] . ' ' . $entry['body']);
+
         $existing = $pdo->prepare('SELECT id FROM knowledge_entries WHERE url = ?');
         $existing->execute([$url]);
         $existingId = $existing->fetchColumn();
 
         if ($existingId) {
             $id = (int)$existingId;
-            $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, source=\'page_import\', updated_at=unixepoch() WHERE id=?')
-                ->execute([$entry['title'], $entry['body'], $id]);
+            $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, source=\'page_import\', updated_at=unixepoch(), content_hash=? WHERE id=?')
+                ->execute([$entry['title'], $entry['body'], $contentHash, $id]);
             $status = 'updated';
         } else {
             $pdo->prepare('
-                INSERT INTO knowledge_entries (title, body, category, product_codes, url, active, source)
-                VALUES (?, ?, ?, NULL, ?, 1, \'page_import\')
-            ')->execute([$entry['title'], $entry['body'], $category, $url]);
+                INSERT INTO knowledge_entries (title, body, category, product_codes, url, active, source, content_hash)
+                VALUES (?, ?, ?, NULL, ?, 1, \'page_import\', ?)
+            ')->execute([$entry['title'], $entry['body'], $category, $url, $contentHash]);
             $id     = (int)$pdo->lastInsertId();
             $status = 'imported';
         }
@@ -82,6 +84,16 @@ class PageIndexer
         $chunkStmt = $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url, category) VALUES (?,?,?,?,?)');
         foreach ($entry['chunks'] as $chunk) {
             $chunkStmt->execute(['manual', $id, $chunk, $url, $category]);
+        }
+
+        // Near-duplicate check (flagged for review, never auto-deleted) -
+        // deliberately not a hard block here even for an exact-text match:
+        // two different URLs can legitimately host the same content
+        // (a page genuinely mirrored, or content simply reused site-wide),
+        // and an admin should decide whether that's actually redundant.
+        $matches = Dedup::findNearDuplicates($entry['title'] . ' ' . $entry['body'], 'manual', $id);
+        if ($matches) {
+            Dedup::flag('manual', $id, $matches);
         }
 
         return ['id' => $id, 'status' => $status, 'title' => $entry['title'], 'chunk_count' => count($entry['chunks'])];
