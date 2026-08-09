@@ -70,6 +70,9 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     $id = (int)($body['id'] ?? 0);
     if (!$id) json_err('id required');
+    if (empty($body['title']) || empty($body['body'])) {
+        json_err('title and body required');
+    }
 
     $hash = \Knowledge\Dedup::hashText($body['title'] . ' ' . $body['body']);
     $dup  = \Knowledge\Dedup::findExactEntryDuplicate($hash, $id);

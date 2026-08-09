@@ -82,6 +82,17 @@ foreach ($urls as $url) {
         continue;
     }
 
+    // Exact-duplicate check before storing anything: a byte-identical file
+    // already indexed (from a previous bulk import or a direct upload)
+    // means this download would just queue a redundant copy for
+    // extraction later.
+    $contentHash = \Knowledge\Dedup::hashBytes($data);
+    $dupFile     = \Knowledge\Dedup::findExactFileDuplicate($contentHash);
+    if ($dupFile) {
+        $results[] = $result + ['status' => 'duplicate', 'duplicate_of' => $dupFile['id'], 'duplicate_filename' => $dupFile['filename']];
+        continue;
+    }
+
     $tmp = tempnam(sys_get_temp_dir(), 'buk_import_');
     file_put_contents($tmp, $data);
     $mime = mime_content_type($tmp) ?: 'application/octet-stream';
@@ -105,8 +116,8 @@ foreach ($urls as $url) {
     }
     @unlink($tmp);
 
-    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status, source_url) VALUES (?,?,?,?,?)')
-        ->execute([$name, $mime, $destPath, 'pending', $url]);
+    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status, source_url, content_hash) VALUES (?,?,?,?,?,?)')
+        ->execute([$name, $mime, $destPath, 'pending', $url, $contentHash]);
 
     $results[] = $result + ['status' => 'queued', 'filename' => $name];
 }

@@ -33,14 +33,19 @@ class Dedup
         return hash('sha256', trim($text));
     }
 
-    // Finds an existing successfully-indexed file with byte-identical
-    // content, if any - checked before spending a Gemini extraction call
-    // on an upload.
+    // Finds an existing file with byte-identical content that's already
+    // indexed OR still queued (pending), if any - checked before spending
+    // a Gemini extraction call on an upload. Including 'pending' matters
+    // for bulk URL imports (import_urls.php queues many files in one
+    // request without extracting inline): two URLs in the same batch
+    // pointing at the same bytes must not both queue, even though neither
+    // is 'indexed' yet at queue time. Excludes 'error' - a failed
+    // extraction shouldn't block a fresh attempt at the same content.
     public static function findExactFileDuplicate(string $bytesHash): ?array
     {
         $stmt = db()->prepare("
             SELECT id, filename FROM knowledge_files
-            WHERE content_hash = ? AND status = 'indexed'
+            WHERE content_hash = ? AND status IN ('indexed', 'pending')
             LIMIT 1
         ");
         $stmt->execute([$bytesHash]);

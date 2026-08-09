@@ -56,6 +56,18 @@ test('a file stuck in error status is not treated as an existing duplicate', fun
     assert_null(\Knowledge\Dedup::findExactFileDuplicate($hash));
 });
 
+test('a file already queued as pending is treated as an existing duplicate', function () {
+    $pdo  = db();
+    $hash = \Knowledge\Dedup::hashBytes('queued-not-yet-extracted-bytes');
+    $pdo->prepare("INSERT INTO knowledge_files (filename, mime_type, stored_path, status, content_hash) VALUES ('queued.pdf', 'application/pdf', '/tmp/x', 'pending', ?)")
+        ->execute([$hash]);
+    $id = (int)$pdo->lastInsertId();
+
+    $found = \Knowledge\Dedup::findExactFileDuplicate($hash);
+    assert_true($found !== null);
+    assert_equal($id, $found['id']);
+});
+
 suite('Knowledge\Dedup — exact entry duplicates');
 
 test('finds an existing active entry with the same normalised text', function () {

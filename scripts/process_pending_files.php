@@ -53,6 +53,16 @@ foreach ($rows as $row) {
             ->execute(['error', $err, $row['id']]);
         echo "File {$row['id']}: error - {$err}\n";
     } else {
+        // Near-duplicate check (flagged for review, never auto-deleted) -
+        // exact duplicates were already caught before this file was
+        // queued (see import_urls.php/files.php), so only fuzzy overlap
+        // is left to check now that the real extracted text exists.
+        $matches = \Knowledge\Dedup::findNearDuplicates(
+            \Knowledge\Dedup::reconstructText('file', (int)$row['id']), 'file', (int)$row['id']
+        );
+        if ($matches) {
+            \Knowledge\Dedup::flag('file', (int)$row['id'], $matches);
+        }
         echo "File {$row['id']}: indexed.\n";
     }
     $done++;

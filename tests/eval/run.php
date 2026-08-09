@@ -45,7 +45,7 @@ foreach ($cases as $case) {
             ['role' => 'user', 'content' => $case['message']],
         ], $prompt);
 
-        $confidence = \Chat\Responder::confidence($ctx['knowledge_hits'], $ctx['product_hits']);
+        $confidence = \Chat\Responder::confidence($ctx['knowledge_hits'], $ctx['product_hits'], $ctx['keyword_links']);
         $escalate   = \Chat\Responder::shouldEscalate($confidence);
 
         $problems = grade_case($case, $answer, $escalate);

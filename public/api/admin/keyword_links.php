@@ -3,7 +3,7 @@
 // GET: list | POST: create | PUT: update | DELETE: remove
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-\Auth\Admin::requireRole('admin', 'editor');
+\Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
@@ -13,6 +13,12 @@ if ($method === 'GET') {
     json_out($rows);
 }
 
+// Every write requires editor+ - the admin UI's create/edit/delete
+// controls are already gated the same way (data-role="editor"), this is
+// just the matching server-side check, same pattern as
+// knowledge.php/files.php: read-only for any logged-in role, writes
+// require editor+.
+\Auth\Admin::requireRole('admin', 'editor');
 $body = json_body();
 \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
 
