@@ -95,22 +95,30 @@ class FileExtractor
         return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
     }
 
-    // Split text into word-limited chunks
-    private static function chunk(string $text, int $maxWords): array
+    // Splits text into ~$maxWords-word chunks, repeating $overlapWords
+    // words at the start of each chunk after the first. Non-overlapping
+    // chunking means a fact sitting right at a boundary gets split across
+    // two chunks and can end up unretrievable in either (neither one
+    // contains the whole sentence/fact) - the overlap guarantees anything
+    // near a boundary appears intact in at least one chunk. Public: also
+    // used by Knowledge\PageIndexer for imported page content, so both
+    // ingestion paths chunk the same way.
+    public static function chunk(string $text, int $maxWords, int $overlapWords = 50): array
     {
-        $words  = preg_split('/\s+/', trim($text));
-        $chunks = [];
-        $buf    = [];
-
-        foreach ($words as $word) {
-            $buf[] = $word;
-            if (count($buf) >= $maxWords) {
-                $chunks[] = implode(' ', $buf);
-                $buf      = [];
-            }
+        $words = preg_split('/\s+/', trim($text), -1, PREG_SPLIT_NO_EMPTY);
+        if (!$words) {
+            return [];
         }
-        if ($buf) {
-            $chunks[] = implode(' ', $buf);
+
+        $chunks = [];
+        $step   = max(1, $maxWords - $overlapWords);
+        $total  = count($words);
+
+        for ($start = 0; $start < $total; $start += $step) {
+            $chunks[] = implode(' ', array_slice($words, $start, $maxWords));
+            if ($start + $maxWords >= $total) {
+                break;
+            }
         }
 
         return $chunks;
