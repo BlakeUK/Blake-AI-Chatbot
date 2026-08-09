@@ -5,17 +5,18 @@
 //
 // Deliberately not routed through import_urls.php/knowledge_files: these
 // are live HTML pages, not downloadable documents, and text/html isn't in
-// that endpoint's allowed-mimetype list for good reason (raw page HTML is
-// full of nav/header/footer noise, not the kind of content that belongs in
-// the same pending-file-then-Gemini-extraction pipeline as a PDF manual).
-// Instead: fetch each page, pull just <title> and the meta description
-// (cheap, no Gemini call needed), and store that as a knowledge entry
-// carrying the URL - enough for the bot to know the page exists and link
-// to it, e.g. "browse our CCTV range: https://www.blake-uk.com/cctv.html".
+// that endpoint's allowed-mimetype list for good reason (a PDF's content
+// is the document; a page's raw HTML is mostly nav/header/footer markup
+// around the content, so it needs cleaning rather than the same
+// pending-file-then-Gemini-extraction pipeline as a PDF manual).
+// \Knowledge\PageIndexer does that cleaning (Html\TextCleaner strips
+// markup, no Gemini call needed) and chunks the real body text, so a
+// category page, FAQ, or service description becomes genuinely
+// searchable - not just a one-line title+description stub.
 //
 // Upserts by URL: running this again on an already-indexed page (because
-// its title/description changed) updates the existing entry rather than
-// creating a duplicate.
+// its content changed) updates the existing entry rather than creating a
+// duplicate.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
 \Auth\Admin::requireRole('admin', 'editor');
@@ -82,37 +83,12 @@ foreach ($urls as $url) {
         continue;
     }
 
-    $title = \Html\TextCleaner::extractTitle($data) ?: $url;
-    $desc  = \Html\TextCleaner::extractMetaDescription($data);
-    $body_text = trim($title . ($desc ? "\n\n{$desc}" : ''));
+    // Indexes the page's actual body content (chunked, the same way file
+    // uploads are), not just its title+meta description - upserts by URL,
+    // so re-scanning an already-indexed page refreshes it in place.
+    $indexed = \Knowledge\PageIndexer::indexPage($url, $data);
 
-    // Upsert by URL rather than always inserting - re-scanning a page that's
-    // already been indexed (because its content changed) should refresh the
-    // existing entry, not pile up duplicates every time it's re-run.
-    $existing = $pdo->prepare('SELECT id FROM knowledge_entries WHERE url = ?');
-    $existing->execute([$url]);
-    $existingId = $existing->fetchColumn();
-
-    if ($existingId) {
-        $id = (int)$existingId;
-        $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, source=\'page_import\', updated_at=unixepoch() WHERE id=?')
-            ->execute([$title, $body_text, $id]);
-        $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type=? AND source_id=?')
-            ->execute(['manual', $id]);
-        $status = 'updated';
-    } else {
-        $pdo->prepare('
-            INSERT INTO knowledge_entries (title, body, category, product_codes, url, active, source)
-            VALUES (?, ?, NULL, NULL, ?, 1, \'page_import\')
-        ')->execute([$title, $body_text, $url]);
-        $id = (int)$pdo->lastInsertId();
-        $status = 'imported';
-    }
-
-    $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url) VALUES (?,?,?,?)')
-        ->execute(['manual', $id, $title . ' ' . $body_text, $url]);
-
-    $results[] = $result + ['status' => $status, 'title' => $title, 'http_code' => $code];
+    $results[] = $result + ['status' => $indexed['status'], 'title' => $indexed['title'], 'http_code' => $code];
 }
 
 $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')

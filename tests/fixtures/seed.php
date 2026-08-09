@@ -53,25 +53,33 @@ function fixture_knowledge_chunks(): array
 {
     return [
         [
-            'id' => 9001, 'source_type' => 'manual', 'source_id' => 1,
+            // source_id deliberately matches the fixture chunk's own id
+            // (9001+), not a small 1/2/3/4 counter - these chunks have no
+            // backing knowledge_entries row, but a small source_id would
+            // collide with the real auto-incremented knowledge_entries.id
+            // values other tests create (e.g. PageIndexer tests), and
+            // PageIndexer's re-index upsert deletes existing chunks by
+            // exactly (source_type, source_id) before re-inserting -
+            // silently wiping these fixtures out from under later tests.
+            'id' => 9001, 'source_type' => 'manual', 'source_id' => 9001,
             'chunk_text' => 'Returns can be made within 30 days of purchase for a full refund, provided the item is unused and in its original packaging. Faulty items are covered by a 2 year warranty and can be returned at any time within that period.',
             'url' => 'https://www.blake-uk.com/support/returns',
             'category' => null, // general policy, not range-specific
         ],
         [
-            'id' => 9002, 'source_type' => 'manual', 'source_id' => 2,
+            'id' => 9002, 'source_type' => 'manual', 'source_id' => 9002,
             'chunk_text' => 'Our aerial installation service covers TV aerials, satellite dishes and IRS communal systems across the UK. A typical rooftop aerial install takes one to two hours and includes a full signal test before the engineer leaves.',
             'url' => 'https://www.blake-uk.com/services/aerial-installation',
             'category' => 'TV Aerials & Reception',
         ],
         [
-            'id' => 9003, 'source_type' => 'manual', 'source_id' => 3,
+            'id' => 9003, 'source_type' => 'manual', 'source_id' => 9003,
             'chunk_text' => 'Blake UK CCTV systems support 4K resolution recording, night vision up to 30 metres, and remote viewing from the Blake UK mobile app. Storage is available on local SD card or via a networked video recorder. Installation of CCTV systems is available as an add-on service at checkout.',
             'url' => 'https://www.blake-uk.com/cctv',
             'category' => 'CCTV & Security',
         ],
         [
-            'id' => 9004, 'source_type' => 'manual', 'source_id' => 4,
+            'id' => 9004, 'source_type' => 'manual', 'source_id' => 9004,
             'chunk_text' => 'Standard UK delivery takes 2 to 4 working days. Next-day delivery is available at checkout for orders placed before 2pm on a working day. We currently ship to UK mainland addresses only.',
             'url' => 'https://www.blake-uk.com/support/delivery',
             'category' => null,

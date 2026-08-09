@@ -81,35 +81,16 @@ foreach ($rows as $row) {
 
     if (!$result['is_product_page']) {
         // Info-only page - not an error, just doesn't fit the product
-        // shape. Falls back to the same lightweight title+description
-        // knowledge entry the Pages tab's direct import already builds,
-        // upserted by URL the same way, so this scan still gets some use
-        // out of the page rather than nothing.
+        // shape. Indexed as a real knowledge entry via the same
+        // PageIndexer the Pages tab's direct import uses (chunked body
+        // content, not just title+description), so this scan still gets
+        // full use out of the page rather than a one-line stub. Fetches
+        // again rather than reusing PageExtractor::extract()'s internal
+        // fetch above - that fetch isn't exposed back to the caller, and
+        // a second request to an already-confirmed-reachable URL isn't
+        // worth threading a new parameter through extract() to avoid.
         try {
-            $html  = \Products\PageExtractor::fetch($url);
-            $title = \Html\TextCleaner::extractTitle($html) ?: $url;
-            $desc  = \Html\TextCleaner::extractMetaDescription($html);
-            $body  = trim($title . ($desc ? "\n\n{$desc}" : ''));
-
-            $existing = $pdo->prepare('SELECT id FROM knowledge_entries WHERE url = ?');
-            $existing->execute([$url]);
-            $existingId = $existing->fetchColumn();
-
-            if ($existingId) {
-                $keId = (int)$existingId;
-                $pdo->prepare('UPDATE knowledge_entries SET title=?, body=?, source=\'page_import\', updated_at=unixepoch() WHERE id=?')
-                    ->execute([$title, $body, $keId]);
-                $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type=? AND source_id=?')
-                    ->execute(['manual', $keId]);
-            } else {
-                $pdo->prepare('
-                    INSERT INTO knowledge_entries (title, body, category, product_codes, url, active, source)
-                    VALUES (?, ?, NULL, NULL, ?, 1, \'page_import\')
-                ')->execute([$title, $body, $url]);
-                $keId = (int)$pdo->lastInsertId();
-            }
-            $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, url) VALUES (?,?,?,?)')
-                ->execute(['manual', $keId, $title . ' ' . $body, $url]);
+            \Knowledge\PageIndexer::indexPage($url, \Products\PageExtractor::fetch($url));
         } catch (\Throwable $e) {
             // The knowledge-entry fallback failing shouldn't block marking
             // this row done - the page was still correctly identified as
