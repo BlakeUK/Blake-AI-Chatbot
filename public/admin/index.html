@@ -265,6 +265,16 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
         <div id="page-import-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelPageImport()">Cancel remaining batches</button></div>
         <div id="page-import-summary-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
         <div id="page-import-summary-status" style="font-size:12px;color:#adb4ba;margin-top:6px"></div>
+
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid #454c54" data-role="admin">
+          <h3 style="margin-bottom:8px">Scheduled Site Refresh</h3>
+          <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Keeps page-imported content in sync automatically — a daily background job re-scans these sitemap(s) and re-indexes any page that's new or older than the refresh interval, instead of relying on manually re-running the scan above.</p>
+          <div class="row">
+            <div style="flex:2"><label>Sitemap URL(s), one per line</label><textarea id="site-sitemap-urls" rows="3" placeholder="https://www.blake-uk.com/sitemap.xml"></textarea></div>
+            <div><label>Refresh every (days)</label><input type="number" id="site-refresh-days" min="1" value="7" style="width:80px"></div>
+            <button class="btn btn-primary" onclick="saveSiteRefreshSettings()">Save</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -577,7 +587,7 @@ async function loadCategorySuggestions(){
 }
 function init(){
   loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
-  if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();}
+  if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();loadSiteRefreshSettings();}
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
@@ -1192,6 +1202,21 @@ async function loadModelSettings(){
 async function saveModelSettings(){
   const r=await post(API+'/settings.php',{csrf,gemini_chat_model:document.getElementById('chat-model-select').value,gemini_extract_model:document.getElementById('extract-model-select').value});
   if(!r.error)flash('Model settings saved');else flash(r.error,true);
+}
+
+// ── Scheduled Site Refresh ───────────────────────────────────────────────────
+async function loadSiteRefreshSettings(){
+  try{
+    const s=await get(API+'/settings.php');
+    if(s.site_sitemap_urls){try{document.getElementById('site-sitemap-urls').value=JSON.parse(s.site_sitemap_urls).join('\n');}catch(_){}}
+    if(s.site_refresh_days)document.getElementById('site-refresh-days').value=s.site_refresh_days;
+  }catch(_){}
+}
+async function saveSiteRefreshSettings(){
+  const urls=val('site-sitemap-urls').split('\n').map(u=>u.trim()).filter(Boolean);
+  const days=parseInt(val('site-refresh-days'),10)||7;
+  const r=await post(API+'/settings.php',{csrf,site_sitemap_urls:JSON.stringify(urls),site_refresh_days:String(days)});
+  if(!r.error)flash('Site refresh settings saved');else flash(r.error,true);
 }
 
 // ── Widget Clients ─────────────────────────────────────────────────────────────
