@@ -78,6 +78,7 @@ file_put_contents($configPath, '<?php return ' . var_export([
     'upload_path'        => "$tmpDir/uploads/",
     'log_path'           => "$tmpDir/logs/",
     'encrypt_key'        => bin2hex(random_bytes(32)),
+    'mobile_app_key'     => bin2hex(random_bytes(24)),
     'gemini_flash'       => getenv('BLAKE_UK_TEST_GEMINI_MODEL') ?: 'gemini-2.0-flash',
     'gemini_pro'         => getenv('BLAKE_UK_TEST_GEMINI_MODEL') ?: 'gemini-2.0-flash',
     'cors_origins'       => [],

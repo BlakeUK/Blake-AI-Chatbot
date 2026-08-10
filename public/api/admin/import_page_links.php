@@ -58,28 +58,20 @@ foreach ($urls as $url) {
         continue;
     }
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => 20,
-        CURLOPT_USERAGENT      => 'BlakeUKChatbotImporter/1.0',
-    ]);
-    $data = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
+    $fetch = \Http\SafeFetcher::get($url, 20);
+    $data  = $fetch['body'];
+    $code  = $fetch['code'];
 
-    if ($data === false || $code !== 200) {
+    if (!$fetch['ok']) {
         // http_code is 0 when no HTTP response was ever received at all -
-        // timeout, DNS failure, connection reset. That, vs. an actual 404
-        // response, is exactly the line the frontend needs: 404 means the
-        // page is confirmed gone (safe to drop from a cleaned sitemap),
-        // anything else just means the check didn't complete (retry-worthy,
-        // not delete-worthy - a timeout is not evidence a page is dead).
-        $results[] = $result + ['status' => 'error', 'error' => $err ?: "HTTP {$code}", 'http_code' => $code];
+        // timeout, DNS failure, connection reset (or this request was
+        // blocked before connecting at all, e.g. a non-public address).
+        // That, vs. an actual 404 response, is exactly the line the
+        // frontend needs: 404 means the page is confirmed gone (safe to
+        // drop from a cleaned sitemap), anything else just means the check
+        // didn't complete (retry-worthy, not delete-worthy - a timeout is
+        // not evidence a page is dead).
+        $results[] = $result + ['status' => 'error', 'error' => $fetch['error'] ?: "HTTP {$code}", 'http_code' => $code];
         continue;
     }
 

@@ -17,22 +17,11 @@ if (!preg_match('#^https?://#i', $pageUrl)) {
     json_err('Not a valid http(s) URL');
 }
 
-$ch = curl_init($pageUrl);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_MAXREDIRS      => 5,
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_TIMEOUT        => 30,
-    CURLOPT_USERAGENT      => 'BlakeUKChatbotImporter/1.0',
-]);
-$data = curl_exec($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$err  = curl_error($ch);
-curl_close($ch);
+$fetch = \Http\SafeFetcher::get($pageUrl, 30);
+$data  = $fetch['body'];
 
-if ($data === false || $code !== 200) {
-    json_err('Could not fetch page: ' . ($err ?: "HTTP {$code}"), 502);
+if (!$fetch['ok']) {
+    json_err('Could not fetch page: ' . ($fetch['error'] ?: "HTTP {$fetch['code']}"), 502);
 }
 
 $links = [];

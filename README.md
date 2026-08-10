@@ -261,6 +261,11 @@ cp /var/www/chat/config/config.example.php /var/www/chat/config/config.php
 php -r "echo bin2hex(random_bytes(32));"
 # Paste output into config.php encrypt_key value
 
+# Generate mobile app key (only needed if you build mobile/customer_app —
+# see "Mobile Apps" below for where the matching value goes)
+php -r "echo bin2hex(random_bytes(24));"
+# Paste output into config.php mobile_app_key value
+
 nano /var/www/chat/config/config.php
 ```
 
@@ -327,6 +332,8 @@ Two native Android apps (Flutter, not a WebView wrapper) talk to the same backen
 These links always point to the most recently built APKs — see the [`apk-latest` release](https://github.com/BlakeUK/Blake-AI-Chatbot/releases/tag/apk-latest) for build details. Since these aren't distributed via the Play Store, Android will ask you to allow "install from unknown sources" the first time.
 
 Rebuilding: run the **Build Android APKs** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-apk.yml) — it compiles both apps and updates the release above in place.
+
+**One-time setup for the customer app:** set a `MOBILE_APP_KEY` repository secret (Settings → Secrets and variables → Actions) to the same value as your deployment's `config.php` `mobile_app_key`. The workflow bakes it into the app in place of the committed `CHANGE_ME_MOBILE_APP_KEY` placeholder before building — without it, the customer app can't start a chat session (see `public/api/chat/session.php`'s first-party check). The admin app doesn't need this; it authenticates with a login + session cookie instead.
 
 Source: [`mobile/admin_app`](mobile/admin_app) and [`mobile/customer_app`](mobile/customer_app).
 

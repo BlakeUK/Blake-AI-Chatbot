@@ -96,24 +96,12 @@ echo "Processed {$done} page(s)." . ($remaining > 0 ? " {$remaining} still due, 
 
 function fetch_sitemap_xml(string $url): ?string
 {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_USERAGENT      => 'BlakeUKChatbotImporter/1.0',
-    ]);
-    $xml  = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($xml === false || $code !== 200) {
-        echo "Could not fetch sitemap {$url} (HTTP {$code}).\n";
+    $fetch = \Http\SafeFetcher::get($url, 30);
+    if (!$fetch['ok']) {
+        echo "Could not fetch sitemap {$url}: " . ($fetch['error'] ?: "HTTP {$fetch['code']}") . "\n";
         return null;
     }
-    return $xml;
+    return $fetch['body'];
 }
 
 // Expands a sitemap URL into page URLs, following one level of

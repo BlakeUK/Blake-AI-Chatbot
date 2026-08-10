@@ -57,24 +57,11 @@ class PageExtractor
 
     public static function fetch(string $url): string
     {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_USERAGENT      => 'BlakeUKChatbotImporter/1.0',
-        ]);
-        $html = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err  = curl_error($ch);
-        curl_close($ch);
-
-        if ($html === false || $code !== 200) {
-            throw new \RuntimeException('Could not fetch page: ' . ($err ?: "HTTP {$code}"));
+        $fetch = \Http\SafeFetcher::get($url, 20);
+        if (!$fetch['ok']) {
+            throw new \RuntimeException('Could not fetch page: ' . ($fetch['error'] ?: "HTTP {$fetch['code']}"));
         }
-        return $html;
+        return $fetch['body'];
     }
 
     private static function buildPrompt(array $shape, ?array $referenceExample): string

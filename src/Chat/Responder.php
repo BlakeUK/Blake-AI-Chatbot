@@ -94,7 +94,8 @@ class Responder
             ));
         }
 
-        $pageCtx = $pageUrl ? "Customer is viewing: {$pageUrl}\n" : '';
+        $safePageUrl = self::safePageUrl($pageUrl);
+        $pageCtx     = $safePageUrl ? "Customer is viewing: {$safePageUrl}\n" : '';
 
         $system = <<<PROMPT
 You are the Blake UK customer support assistant. Blake UK sells aerials, IRS, CCTV, networking, fibre, satellite and installation products.
@@ -114,6 +115,28 @@ PROMPT;
 
         $contextBlock = implode("\n\n", $contextParts);
         return $contextBlock ? $system . "\n\n" . $contextBlock : $system;
+    }
+
+    // $pageUrl is client-supplied (the widget/app's "current page" field)
+    // and gets interpolated straight into the system prompt - a crafted
+    // value could otherwise inject fake instructions ahead of the real
+    // context that follows it. A legitimate value is just a URL, so
+    // requiring it to look like one (single line, http(s), no embedded
+    // whitespace) is enough to keep it from being a place to smuggle
+    // prompt text; anything else is dropped rather than "cleaned up",
+    // since there's no safe way to sanitise arbitrary injected text down
+    // to a URL. Returns null (page context omitted) rather than throwing -
+    // an unexpected value here should degrade gracefully, not break chat.
+    private static function safePageUrl(?string $pageUrl): ?string
+    {
+        if (!$pageUrl) {
+            return null;
+        }
+        $pageUrl = trim($pageUrl);
+        if (mb_strlen($pageUrl) > 300) {
+            return null;
+        }
+        return preg_match('#^https?://\S+$#i', $pageUrl) ? $pageUrl : null;
     }
 
     // Simple: if context was found, confidence is higher. Deliberately based

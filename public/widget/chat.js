@@ -240,6 +240,7 @@
 
     if (products && products.length) {
       products.forEach(p => {
+        if (!isHttpUrl(p.url)) return;
         const card = document.createElement('a');
         card.className = 'buk-product-card';
         card.href = p.url;
@@ -278,5 +279,13 @@
 
   function esc(str) {
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // Product data is normally admin-curated, but if the product import
+  // pipeline ever ingests an untrusted feed, a javascript: URL landing in
+  // p.url and getting set as card.href would execute in this page's
+  // context. Cheap defence in depth: only ever link http(s) URLs.
+  function isHttpUrl(url) {
+    return typeof url === 'string' && /^https?:\/\//i.test(url);
   }
 })();

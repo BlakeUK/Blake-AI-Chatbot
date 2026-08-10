@@ -9,12 +9,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_err('Method not allowed', 405);
 }
 
+// The widget's own <input maxlength="500"> (public/widget/chat.js) is a
+// client-side convenience only - any direct API call can otherwise submit
+// an arbitrarily large message, which gets stored in SQLite and forwarded
+// to Gemini on every request. rate_limit() below caps request count per
+// minute, not payload size, so this is the only thing bounding that cost.
+// Generous relative to the widget's own limit since a pasted order number,
+// address, or product description is legitimate and shouldn't get clipped.
+const MAX_MESSAGE_LENGTH = 4000;
+
 $body       = json_body();
 $session_id = $body['session_id'] ?? '';
 $message    = trim($body['message'] ?? '');
 
 if (!$session_id || !$message) {
     json_err('session_id and message required');
+}
+if (mb_strlen($message) > MAX_MESSAGE_LENGTH) {
+    json_err('Message too long (max ' . MAX_MESSAGE_LENGTH . ' characters)');
 }
 
 $pdo = db();

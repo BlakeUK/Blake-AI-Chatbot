@@ -112,7 +112,28 @@ class Client
             throw new \RuntimeException("Gemini API error {$code}: {$resp}");
         }
 
-        $data = json_decode($resp, true);
-        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        return self::extractText(json_decode($resp, true) ?: []);
+    }
+
+    // Pulled out of post() so this parsing/validation can be unit tested
+    // without a live API call - the curl round-trip above can't be.
+    //
+    // A 200 response with no candidate text isn't a "the model said
+    // nothing" case - it means the response was blocked (safety filter,
+    // recitation, etc.) or came back in a shape this code doesn't
+    // recognise. Silently falling back to '' would let chat/send.php store
+    // and show that as a real (empty) assistant answer with no error
+    // signal anywhere; throwing surfaces it to the caller's existing error
+    // handling instead.
+    public static function extractText(array $data): string
+    {
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        if ($text === null) {
+            $reason = $data['promptFeedback']['blockReason']
+                ?? $data['candidates'][0]['finishReason']
+                ?? 'unknown';
+            throw new \RuntimeException("Gemini returned no answer text (reason: {$reason})");
+        }
+        return $text;
     }
 }

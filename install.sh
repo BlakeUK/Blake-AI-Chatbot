@@ -115,11 +115,14 @@ fi
 if [ ! -f "$WEBROOT/config/config.php" ]; then
     info "Generating config..."
     ENC_KEY=$(php -r "echo bin2hex(random_bytes(32));")
-    sed "s/CHANGE_ME_32_BYTE_HEX_KEY/$ENC_KEY/" "$WEBROOT/config/config.example.php" \
-        > "$WEBROOT/config/config.php"
+    APP_KEY=$(php -r "echo bin2hex(random_bytes(24));")
+    sed -e "s/CHANGE_ME_32_BYTE_HEX_KEY/$ENC_KEY/" \
+        -e "s/CHANGE_ME_MOBILE_APP_KEY/$APP_KEY/" \
+        "$WEBROOT/config/config.example.php" > "$WEBROOT/config/config.php"
     chown www-data:www-data "$WEBROOT/config/config.php"
     chmod 640 "$WEBROOT/config/config.php"
-    info "Config written. Encryption key auto-generated."
+    info "Config written. Encryption key and mobile app key auto-generated."
+    info "If you build the mobile apps (mobile/admin_app, mobile/customer_app), set mobile/customer_app/lib/api_client.dart's kAppKey to: $APP_KEY"
 else
     warn "Config already exists — skipping."
 fi

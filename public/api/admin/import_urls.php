@@ -55,22 +55,11 @@ foreach ($urls as $url) {
         continue;
     }
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => 60,
-        CURLOPT_USERAGENT      => 'BlakeUKChatbotImporter/1.0',
-    ]);
-    $data = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
+    $fetch = \Http\SafeFetcher::get($url, 60);
+    $data  = $fetch['body'];
 
-    if ($data === false || $code !== 200) {
-        $results[] = $result + ['status' => 'error', 'error' => $err ?: "HTTP {$code}"];
+    if (!$fetch['ok']) {
+        $results[] = $result + ['status' => 'error', 'error' => $fetch['error'] ?: "HTTP {$fetch['code']}"];
         continue;
     }
     if ($data === '') {
