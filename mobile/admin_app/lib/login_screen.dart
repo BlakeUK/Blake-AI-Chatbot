@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'api_client.dart';
 import 'home_shell.dart';
-
-const kBrandDark = Color(0xFF2F343B);
-const kBrandBlue = Color(0xFF3D5A99);
+import 'widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -69,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBrandDark,
+      backgroundColor: kBgDark,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
