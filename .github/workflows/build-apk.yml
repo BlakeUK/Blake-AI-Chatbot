@@ -25,6 +25,15 @@ jobs:
           flutter-version: '3.24.5'
           channel: stable
 
+      - name: Inject mobile app key
+        working-directory: mobile/customer_app
+        run: |
+          if [ -n "${{ secrets.MOBILE_APP_KEY }}" ]; then
+            sed -i "s/CHANGE_ME_MOBILE_APP_KEY/${{ secrets.MOBILE_APP_KEY }}/" lib/api_client.dart
+          else
+            echo "::warning::MOBILE_APP_KEY repo secret not set - shipping the placeholder key. This build's customer app won't be able to start chat sessions against a real deployment until MOBILE_APP_KEY is set to match that deployment's config.php mobile_app_key value."
+          fi
+
       - name: Build customer app APK
         working-directory: mobile/customer_app
         run: |

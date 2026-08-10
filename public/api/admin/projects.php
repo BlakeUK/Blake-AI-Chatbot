@@ -66,7 +66,7 @@ if ($method === 'GET') {
         $comments = $pdo->prepare('
             SELECT c.id, c.content, c.created_at, c.admin_id, u.username
             FROM project_comments c JOIN admin_users u ON u.id = c.admin_id
-            WHERE c.project_id = ? ORDER BY c.created_at ASC
+            WHERE c.project_id = ? AND c.task_id IS NULL ORDER BY c.created_at ASC
         ');
         $comments->execute([$id]);
         $project['comments'] = $comments->fetchAll();
@@ -92,7 +92,7 @@ if ($method === 'GET') {
                (SELECT COUNT(*) FROM project_comments c WHERE c.project_id = p.id) AS comment_count,
                (SELECT COUNT(*) FROM support_tickets t WHERE t.project_id = p.id) AS ticket_count,
                (SELECT COUNT(*) FROM projects p2 WHERE p2.parent_id = p.id) AS child_count,
-               (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id AND pt.completed = 0) AS open_task_count
+               (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id AND pt.status != 'done') AS open_task_count
         FROM projects p
         {$whereSql}
         ORDER BY p.status = 'archived', p.created_at DESC

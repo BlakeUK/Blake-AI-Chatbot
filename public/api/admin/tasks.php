@@ -1,10 +1,20 @@
 <?php
 // public/api/admin/tasks.php
-// GET ?project_id=X (list tasks for a project) | POST (create) | PUT (update) | DELETE
+// GET ?project_id=X (list tasks for a project) | GET ?mine=1 (tasks assigned to me)
+// POST (create) | PUT (update) | DELETE
+//
+// A task is a board item: which group it sits in on the table view
+// (group_label), a status (to_do|in_progress|done - the Kanban columns),
+// a timeline (start_date/due_date), assignees (many-to-many, unchanged),
+// a single reviewer, an optional tag, and optional billable hours. See
+// scripts/schema_project_board.sql for why these are a fixed shape
+// rather than a per-board custom-field system.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
 cors();
 \Auth\Admin::check();
+
+const VALID_STATUSES = ['to_do', 'in_progress', 'done'];
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
@@ -45,6 +55,42 @@ function _set_task_assignees(PDO $pdo, int $taskId, array $adminIds): void
     $pdo->commit();
 }
 
+// Single reviewer per task, unlike the many-to-many assignees - resolved
+// the same way (one lookup for every task in the result set) so an N+1
+// query per row doesn't creep in as list sizes grow.
+function _task_reviewers(PDO $pdo, array $taskIds): array
+{
+    if (!$taskIds) return [];
+    $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+    $stmt = $pdo->prepare("
+        SELECT t.id AS task_id, u.id, u.username
+        FROM project_tasks t JOIN admin_users u ON u.id = t.reviewer_id
+        WHERE t.id IN ($placeholders)
+    ");
+    $stmt->execute($taskIds);
+    $byTask = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $byTask[$row['task_id']] = ['id' => (int)$row['id'], 'username' => $row['username']];
+    }
+    return $byTask;
+}
+
+function _validate_reviewer_id(PDO $pdo, ?int $reviewerId): ?int
+{
+    if ($reviewerId === null) return null;
+    $chk = $pdo->prepare('SELECT 1 FROM admin_users WHERE id=?');
+    $chk->execute([$reviewerId]);
+    if (!$chk->fetch()) json_err('Unknown reviewer');
+    return $reviewerId;
+}
+
+function _validate_billable_hours($raw): ?float
+{
+    if ($raw === null || $raw === '') return null;
+    if (!is_numeric($raw) || (float)$raw < 0) json_err('billable_hours must be a non-negative number');
+    return (float)$raw;
+}
+
 if ($method === 'GET') {
     if (!empty($_GET['mine'])) {
         $stmt = $pdo->prepare('
@@ -52,7 +98,7 @@ if ($method === 'GET') {
             FROM project_tasks t
             JOIN task_assignees ta ON ta.task_id = t.id AND ta.admin_id = ?
             JOIN projects p ON p.id = t.project_id
-            WHERE t.completed = 0
+            WHERE t.status != \'done\'
             ORDER BY t.due_date IS NULL, t.due_date ASC, t.created_at ASC
             LIMIT ?
         ');
@@ -63,13 +109,20 @@ if ($method === 'GET') {
     $projectId = (int)($_GET['project_id'] ?? 0);
     if (!$projectId) json_err('project_id or mine required');
 
-    $stmt = $pdo->prepare('SELECT * FROM project_tasks WHERE project_id=? ORDER BY completed ASC, due_date IS NULL, due_date ASC, created_at ASC');
+    $stmt = $pdo->prepare("
+        SELECT * FROM project_tasks
+        WHERE project_id=?
+        ORDER BY status = 'done', due_date IS NULL, due_date ASC, created_at ASC
+    ");
     $stmt->execute([$projectId]);
     $tasks = $stmt->fetchAll();
 
-    $assigneesByTask = _task_assignees($pdo, array_column($tasks, 'id'));
+    $taskIds          = array_column($tasks, 'id');
+    $assigneesByTask  = _task_assignees($pdo, $taskIds);
+    $reviewersByTask  = _task_reviewers($pdo, $taskIds);
     foreach ($tasks as &$t) {
         $t['assignees'] = $assigneesByTask[$t['id']] ?? [];
+        $t['reviewer']  = $reviewersByTask[$t['id']] ?? null;
     }
     unset($t);
 
@@ -88,16 +141,27 @@ if ($method === 'POST') {
     $exists->execute([$projectId]);
     if (!$exists->fetch()) json_err('Project not found', 404);
 
-    $dueDate = !empty($body['due_date']) ? (int)$body['due_date'] : null;
+    $status = trim((string)($body['status'] ?? 'to_do')) ?: 'to_do';
+    if (!in_array($status, VALID_STATUSES, true)) json_err('Invalid status');
+
+    $reviewerId = _validate_reviewer_id($pdo, !empty($body['reviewer_id']) ? (int)$body['reviewer_id'] : null);
+    $billableHours = _validate_billable_hours($body['billable_hours'] ?? null);
 
     $pdo->prepare('
-        INSERT INTO project_tasks (project_id, title, description, due_date, created_by)
-        VALUES (?,?,?,?,?)
+        INSERT INTO project_tasks
+            (project_id, title, description, due_date, created_by, group_label, status, start_date, reviewer_id, tag, billable_hours)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
     ')->execute([
         $projectId, $title,
         trim((string)($body['description'] ?? '')) ?: null,
-        $dueDate,
+        !empty($body['due_date']) ? (int)$body['due_date'] : null,
         $_SESSION['admin_id'],
+        trim((string)($body['group_label'] ?? '')) ?: null,
+        $status,
+        !empty($body['start_date']) ? (int)$body['start_date'] : null,
+        $reviewerId,
+        trim((string)($body['tag'] ?? '')) ?: null,
+        $billableHours,
     ]);
     $taskId = $pdo->lastInsertId();
 
@@ -134,10 +198,26 @@ if ($method === 'PUT') {
     if (array_key_exists('due_date', $body)) {
         $fields[] = 'due_date=?'; $params[] = !empty($body['due_date']) ? (int)$body['due_date'] : null;
     }
-    if (array_key_exists('completed', $body)) {
-        $completed = !empty($body['completed']);
-        $fields[] = 'completed=?'; $params[] = $completed ? 1 : 0;
-        $fields[] = 'completed_at=?'; $params[] = $completed ? time() : null;
+    if (array_key_exists('start_date', $body)) {
+        $fields[] = 'start_date=?'; $params[] = !empty($body['start_date']) ? (int)$body['start_date'] : null;
+    }
+    if (array_key_exists('group_label', $body)) {
+        $fields[] = 'group_label=?'; $params[] = trim((string)$body['group_label']) ?: null;
+    }
+    if (array_key_exists('status', $body)) {
+        $status = trim((string)$body['status']);
+        if (!in_array($status, VALID_STATUSES, true)) json_err('Invalid status');
+        $fields[] = 'status=?'; $params[] = $status;
+    }
+    if (array_key_exists('reviewer_id', $body)) {
+        $reviewerId = _validate_reviewer_id($pdo, !empty($body['reviewer_id']) ? (int)$body['reviewer_id'] : null);
+        $fields[] = 'reviewer_id=?'; $params[] = $reviewerId;
+    }
+    if (array_key_exists('tag', $body)) {
+        $fields[] = 'tag=?'; $params[] = trim((string)$body['tag']) ?: null;
+    }
+    if (array_key_exists('billable_hours', $body)) {
+        $fields[] = 'billable_hours=?'; $params[] = _validate_billable_hours($body['billable_hours']);
     }
 
     if ($fields) {

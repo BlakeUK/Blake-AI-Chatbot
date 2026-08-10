@@ -32,22 +32,11 @@ if (!preg_match('#^https?://#i', $sitemapUrl)) {
     json_err('Not a valid http(s) URL');
 }
 
-$ch = curl_init($sitemapUrl);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_MAXREDIRS      => 5,
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_TIMEOUT        => 30,
-    CURLOPT_USERAGENT      => 'BlakeUKChatbotImporter/1.0',
-]);
-$data = curl_exec($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$err  = curl_error($ch);
-curl_close($ch);
+$fetch = \Http\SafeFetcher::get($sitemapUrl, 30);
+$data  = $fetch['body'];
 
-if ($data === false || $code !== 200) {
-    json_err('Could not re-fetch the sitemap: ' . ($err ?: "HTTP {$code}"), 502);
+if (!$fetch['ok']) {
+    json_err('Could not re-fetch the sitemap: ' . ($fetch['error'] ?: "HTTP {$fetch['code']}"), 502);
 }
 
 if (!str_contains($data, '<urlset') && !str_contains($data, '<sitemapindex')) {

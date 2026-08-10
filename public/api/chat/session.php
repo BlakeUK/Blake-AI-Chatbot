@@ -15,9 +15,17 @@ $pdo  = db();
 
 // ── External widget token validation ──────────────────────────────────────────
 // If a token is supplied (external embed), it must be valid, unused and unexpired.
-// Same-origin first-party widget (blake-uk.com) sends no token and is allowed via CORS.
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$isFirstParty = in_array($origin, CFG['cors_origins'], true) || $origin === '';
+// Same-origin first-party widget (blake-uk.com) sends no token and is allowed
+// via CORS. A browser omitting Origin isn't a thing that happens for this
+// endpoint, so an empty Origin only means "not a browser" — the first-party
+// mobile apps (mobile/admin_app, mobile/customer_app) are the one legitimate
+// case of that, identified by the shared X-App-Key header instead. Without
+// this check, any non-browser caller (curl, a script) could get first-party
+// treatment for free simply by sending no Origin header at all.
+$origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
+$appKey  = $_SERVER['HTTP_X_APP_KEY'] ?? '';
+$isMobileApp  = $origin === '' && $appKey !== '' && hash_equals(CFG['mobile_app_key'], $appKey);
+$isFirstParty = in_array($origin, CFG['cors_origins'], true) || $isMobileApp;
 
 if (!empty($body['token'])) {
     $tok = $pdo->prepare('SELECT * FROM widget_tokens WHERE token = ?');

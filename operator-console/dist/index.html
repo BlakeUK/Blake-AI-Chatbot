@@ -219,11 +219,18 @@
   .task-row.task-done .task-title { text-decoration: line-through; color: var(--text-dim); }
   .task-row input[type="checkbox"] { width: auto; margin-top: 2px; flex-shrink: 0; }
   .task-body { flex: 1; min-width: 0; }
-  .task-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .task-title { cursor: pointer; font-weight: 500; }
+  .task-title:hover { text-decoration: underline; }
+  .task-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .task-meta.task-overdue { color: var(--err); }
   .task-del { color: var(--err); cursor: pointer; font-size: 11px; flex-shrink: 0; }
+  .task-status-sel { width: auto; padding: 3px 6px; font-size: 11px; flex-shrink: 0; }
+  .task-group-header { display: flex; align-items: center; gap: 7px; padding: 10px 0 4px; font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  .task-group-header:first-child { padding-top: 0; }
+  .task-group-header .grp-bar { width: 4px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  .task-tag-pill { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; color: #fff; }
   #task-add { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-  #task-add input[type="text"] { flex: 1; min-width: 140px; }
+  #task-add input[type="text"] { flex: 1; min-width: 120px; }
   #task-add input[type="date"] { width: auto; }
   .avatar-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-dim); color: var(--accent-bright); font-size: 9px; font-weight: 700; margin-right: -6px; border: 2px solid var(--surface); }
   .avatar-row { display: flex; align-items: center; }
@@ -231,6 +238,15 @@
   .assignee-picker-list label { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-weight: 400; }
   .assignee-picker-list input { width: auto; }
   .linked-ticket { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+
+  /* ── Task detail modal ── */
+  #task-detail-modal .modal-box { width: 440px; max-height: 82vh; overflow-y: auto; }
+  .td-field { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .td-field label { width: 90px; flex-shrink: 0; margin: 0; }
+  .td-field input, .td-field select, .td-field textarea { flex: 1; }
+  .td-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 12px; }
+  .td-tabs button { padding: 7px 12px; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; }
+  .td-tabs button.active { color: var(--accent-bright); border-bottom-color: var(--accent-bright); }
 </style>
 </head>
 <body>
@@ -456,6 +472,20 @@
     <div class="modal-actions">
       <button class="btn" id="nc-cancel">Cancel</button>
       <button class="btn btn-primary" id="nc-submit">Create</button>
+    </div>
+  </div>
+</div>
+
+<div id="task-detail-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2><input id="td-title" style="font-size:15px;font-weight:700;background:none;border:1px solid transparent;padding:2px 4px"></h2>
+    <div class="td-tabs">
+      <button class="active" id="td-tab-btn-details">Details</button>
+      <button id="td-tab-btn-comments">Comments</button>
+    </div>
+    <div id="td-body"></div>
+    <div class="modal-actions">
+      <button class="btn" id="td-close">Close</button>
     </div>
   </div>
 </div>
@@ -1239,7 +1269,8 @@ async function openProject(id) {
         <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
         <div id="task-list">Loading…</div>
         <div id="task-add">
-          <input type="text" id="task-title" placeholder="New task…">
+          <input type="text" id="task-title" placeholder="New item…">
+          <input type="text" id="task-group" placeholder="Group (optional)" style="max-width:130px">
           <input type="date" id="task-due">
           <button class="btn btn-xs" id="task-assign-btn" type="button">Assign</button>
           <button class="btn btn-sm" id="task-add-btn">Add</button>
@@ -1311,12 +1342,15 @@ async function openProject(id) {
     const title = document.getElementById('task-title').value.trim();
     if (!title) return;
     const dueVal = document.getElementById('task-due').value;
+    const groupVal = document.getElementById('task-group').value.trim();
     await apiSend('POST', '/api/admin/tasks.php', {
       project_id: project.id, title,
+      group_label: groupVal || null,
       due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
       assignee_ids: newTaskAssigneeIds, csrf,
     });
     document.getElementById('task-title').value = '';
+    document.getElementById('task-group').value = '';
     document.getElementById('task-due').value = '';
     newTaskAssigneeIds = [];
     document.getElementById('task-assign-btn').textContent = 'Assign';
@@ -1357,44 +1391,190 @@ function openAssigneePicker(title, currentIds, onSave) {
   };
 }
 
+// A task is a board item: which group it sits in (group_label), a status
+// (to_do|in_progress|done - the same three the web admin's Kanban view
+// uses), a timeline (start_date/due_date), assignees, a single reviewer,
+// an optional tag and optional billable hours - see
+// scripts/schema_project_board.sql. This panel shows a compact grouped
+// list rather than the web admin's full table/Kanban (not enough width
+// in a 560px slide-over for that), but every field is viewable and
+// editable here too, either inline (status) or via the task detail modal
+// (everything else, plus comments).
+let taskListProjectId = null;
+let taskListCache = [];
+const TC_PALETTE = ['#7c6ef2', '#e0a83f', '#4fce8e', '#ea5f5f', '#5fb6e8', '#c07be0', '#e08f5f', '#5fe0c0'];
+function tcColor(str) {
+  let h = 0;
+  for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return TC_PALETTE[h % TC_PALETTE.length];
+}
+const TASK_STATUS_LABELS = { to_do: 'To do', in_progress: 'In progress', done: 'Done' };
+
+function groupTasksByLabel(tasks) {
+  const order = [], map = {};
+  tasks.forEach(t => {
+    const g = t.group_label || 'Ungrouped';
+    if (!map[g]) { map[g] = []; order.push(g); }
+    map[g].push(t);
+  });
+  return order.map(label => ({ label, tasks: map[label] }));
+}
+
 async function loadProjectTasks(projectId) {
+  taskListProjectId = projectId;
   const el = document.getElementById('task-list');
   if (!el) return; // panel closed before this resolved
   let tasks;
   try { tasks = await apiGet('/api/admin/tasks.php?project_id=' + projectId); } catch (e) { el.innerHTML = '<div class="empty-note">Could not load tasks.</div>'; return; }
-  if (!Array.isArray(tasks) || !tasks.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
+  taskListCache = Array.isArray(tasks) ? tasks : [];
+  if (!taskListCache.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
 
-  el.innerHTML = tasks.map(t => {
-    const overdue = t.due_date && !t.completed && (t.due_date * 1000) < Date.now();
-    return `
-    <div class="task-row ${t.completed ? 'task-done' : ''}">
-      <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id}, ${projectId}, this.checked)">
-      <div class="task-body">
-        <div class="task-title">${esc(t.title)}</div>
-        <div class="task-meta ${overdue ? 'task-overdue' : ''}">
-          ${t.due_date ? (overdue ? 'Overdue — was due ' : 'Due ') + new Date(t.due_date * 1000).toLocaleDateString() : 'No due date'}
-          ${t.assignees.length ? ' · ' + t.assignees.map(a => esc(a.username)).join(', ') : ' · Unassigned'}
-          <span style="cursor:pointer;text-decoration:underline;margin-left:6px" onclick='reassignTask(${t.id}, ${projectId}, ${JSON.stringify(t.assignees.map(a => a.id))})'>reassign</span>
-        </div>
-      </div>
-      <span class="task-del" onclick="deleteTask(${t.id}, ${projectId})">delete</span>
-    </div>`;
-  }).join('');
+  const groups = groupTasksByLabel(taskListCache);
+  el.innerHTML = groups.map(g => `
+    <div class="task-group-header"><span class="grp-bar" style="background:${tcColor(g.label)}"></span>${esc(g.label)} (${g.tasks.length})</div>
+    ${g.tasks.map(t => taskRowHtml(t, projectId)).join('')}
+  `).join('');
 }
-async function toggleTask(id, projectId, completed) {
-  await apiSend('PUT', '/api/admin/tasks.php', { id, completed, csrf });
+
+function taskRowHtml(t, projectId) {
+  const overdue = t.due_date && t.status !== 'done' && (t.due_date * 1000) < Date.now();
+  const timeline = t.start_date && t.due_date
+    ? new Date(t.start_date * 1000).toLocaleDateString() + ' – ' + new Date(t.due_date * 1000).toLocaleDateString()
+    : (t.due_date ? (overdue ? 'Overdue — was due ' : 'Due ') + new Date(t.due_date * 1000).toLocaleDateString() : 'No due date');
+  return `
+  <div class="task-row ${t.status === 'done' ? 'task-done' : ''}">
+    <div class="task-body">
+      <div class="task-title" onclick="openTaskDetail(${t.id})">${esc(t.title)}</div>
+      <div class="task-meta ${overdue ? 'task-overdue' : ''}">
+        <span>${timeline}</span>
+        ${t.tag ? `<span class="task-tag-pill" style="background:${tcColor(t.tag)}">${esc(t.tag)}</span>` : ''}
+        ${t.billable_hours != null ? `<span>${t.billable_hours}h</span>` : ''}
+        <span>${t.assignees.length ? t.assignees.map(a => esc(a.username)).join(', ') : 'Unassigned'}</span>
+        ${t.reviewer ? `<span>· reviewer ${esc(t.reviewer.username)}</span>` : ''}
+        <span style="cursor:pointer;text-decoration:underline" onclick='reassignTask(${t.id}, ${projectId}, ${JSON.stringify(t.assignees.map(a => a.id))})'>reassign</span>
+      </div>
+    </div>
+    <select class="task-status-sel" onchange="setTaskStatus(${t.id}, ${projectId}, this.value)">
+      ${Object.keys(TASK_STATUS_LABELS).map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${TASK_STATUS_LABELS[s]}</option>`).join('')}
+    </select>
+    <span class="task-del" onclick="deleteTask(${t.id}, ${projectId})">delete</span>
+  </div>`;
+}
+async function setTaskStatus(id, projectId, status) {
+  const r = await apiSend('PUT', '/api/admin/tasks.php', { id, status, csrf });
+  if (r.error) alert(r.error);
   loadProjectTasks(projectId);
 }
 async function deleteTask(id, projectId) {
   if (!confirm('Delete this task?')) return;
-  await apiSend('DELETE', '/api/admin/tasks.php', { id, csrf });
+  const r = await apiSend('DELETE', '/api/admin/tasks.php', { id, csrf });
+  if (r.error) { alert(r.error); return; }
   loadProjectTasks(projectId);
+  if (taskDetailId === id) closeTaskDetail();
 }
 function reassignTask(id, projectId, currentIds) {
   openAssigneePicker('Assign task to', currentIds, async (ids) => {
     await apiSend('PUT', '/api/admin/tasks.php', { id, assignee_ids: ids, csrf });
     loadProjectTasks(projectId);
   });
+}
+
+// ── Task detail modal (Details + Comments) ──
+let taskDetailId = null;
+let taskDetailTab = 'details';
+function openTaskDetail(id) {
+  taskDetailId = id;
+  taskDetailTab = 'details';
+  document.getElementById('task-detail-modal').classList.remove('hidden');
+  renderTaskDetailTabs();
+}
+function closeTaskDetail() {
+  document.getElementById('task-detail-modal').classList.add('hidden');
+  taskDetailId = null;
+}
+document.getElementById('td-close').onclick = closeTaskDetail;
+document.getElementById('td-tab-btn-details').onclick = () => { taskDetailTab = 'details'; renderTaskDetailTabs(); };
+document.getElementById('td-tab-btn-comments').onclick = () => { taskDetailTab = 'comments'; renderTaskDetailTabs(); };
+function findTask(id) { return taskListCache.find(t => t.id === id); }
+function renderTaskDetailTabs() {
+  const t = findTask(taskDetailId);
+  if (!t) { closeTaskDetail(); return; }
+  document.getElementById('td-tab-btn-details').classList.toggle('active', taskDetailTab === 'details');
+  document.getElementById('td-tab-btn-comments').classList.toggle('active', taskDetailTab === 'comments');
+  document.getElementById('td-title').value = t.title;
+  if (taskDetailTab === 'details') renderTaskDetailFields(t); else renderTaskDetailComments(t);
+}
+function renderTaskDetailFields(t) {
+  document.getElementById('td-body').innerHTML = `
+    <div class="td-field"><label>Group</label><input id="td-group" value="${esc(t.group_label || '')}"></div>
+    <div class="td-field"><label>Status</label><select id="td-status">${Object.keys(TASK_STATUS_LABELS).map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${TASK_STATUS_LABELS[s]}</option>`).join('')}</select></div>
+    <div class="td-field"><label>Start date</label><input type="date" id="td-start" value="${t.start_date ? new Date(t.start_date * 1000).toISOString().slice(0, 10) : ''}"></div>
+    <div class="td-field"><label>Due date</label><input type="date" id="td-due" value="${t.due_date ? new Date(t.due_date * 1000).toISOString().slice(0, 10) : ''}"></div>
+    <div class="td-field"><label>Reviewer</label><select id="td-reviewer"><option value="">Unassigned</option>${agents.map(a => `<option value="${a.id}" ${t.reviewer && t.reviewer.id === a.id ? 'selected' : ''}>${esc(a.username)}</option>`).join('')}</select></div>
+    <div class="td-field"><label>Tag</label><input id="td-tag" value="${esc(t.tag || '')}"></div>
+    <div class="td-field"><label>Billable hrs</label><input type="number" step="0.5" min="0" id="td-billable" value="${t.billable_hours ?? ''}"></div>
+    <div class="td-field" style="align-items:flex-start;flex-direction:column"><label style="width:auto;margin-bottom:4px">Description</label><textarea id="td-desc" style="width:100%;min-height:60px">${esc(t.description || '')}</textarea></div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn" id="td-assign-btn" type="button">Assignees (${t.assignees.length})</button>
+      <button class="btn btn-primary" id="td-save-btn">Save</button>
+    </div>
+  `;
+  document.getElementById('td-assign-btn').onclick = () => {
+    openAssigneePicker('Assign task to', t.assignees.map(a => a.id), async (ids) => {
+      await apiSend('PUT', '/api/admin/tasks.php', { id: t.id, assignee_ids: ids, csrf });
+      await loadProjectTasks(taskListProjectId);
+      renderTaskDetailFields(findTask(t.id));
+    });
+  };
+  document.getElementById('td-save-btn').onclick = async () => {
+    const title = document.getElementById('td-title').value.trim();
+    if (!title) { alert('Title cannot be empty'); return; }
+    const startVal = document.getElementById('td-start').value;
+    const dueVal = document.getElementById('td-due').value;
+    const reviewerVal = document.getElementById('td-reviewer').value;
+    const billableVal = document.getElementById('td-billable').value;
+    const r = await apiSend('PUT', '/api/admin/tasks.php', {
+      id: t.id, csrf,
+      title,
+      group_label: document.getElementById('td-group').value.trim(),
+      status: document.getElementById('td-status').value,
+      start_date: startVal ? Math.floor(new Date(startVal + 'T12:00:00').getTime() / 1000) : null,
+      due_date: dueVal ? Math.floor(new Date(dueVal + 'T12:00:00').getTime() / 1000) : null,
+      reviewer_id: reviewerVal ? parseInt(reviewerVal, 10) : null,
+      tag: document.getElementById('td-tag').value.trim(),
+      billable_hours: billableVal === '' ? null : parseFloat(billableVal),
+      description: document.getElementById('td-desc').value.trim(),
+    });
+    if (r.error) { alert(r.error); return; }
+    await loadProjectTasks(taskListProjectId);
+    closeTaskDetail();
+  };
+}
+async function renderTaskDetailComments(t) {
+  document.getElementById('td-body').innerHTML = '<div class="empty-note">Loading…</div>';
+  let rows;
+  try { rows = await apiGet('/api/admin/project_comments.php?task_id=' + t.id); } catch (e) { rows = []; }
+  if (taskDetailId !== t.id) return; // modal moved on while this was in flight
+  const list = Array.isArray(rows) ? rows : [];
+  document.getElementById('td-body').innerHTML = `
+    <div id="td-comments-list">${list.length ? list.map(c => `
+      <div class="comment-item">
+        <span class="who">${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span>
+        <div>${esc(c.content)}</div>
+      </div>`).join('') : '<div class="empty-note">No comments yet.</div>'}</div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <input id="td-comment-input" placeholder="Add a comment…">
+      <button class="btn btn-sm" id="td-comment-add">Post</button>
+    </div>
+  `;
+  document.getElementById('td-comment-add').onclick = async () => {
+    const input = document.getElementById('td-comment-input');
+    const content = input.value.trim();
+    if (!content) return;
+    await apiSend('POST', '/api/admin/project_comments.php', { task_id: t.id, content, csrf });
+    input.value = '';
+    renderTaskDetailComments(t);
+  };
 }
 
 // ── Team chat ────────────────────────────────────────────────────────────────

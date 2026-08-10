@@ -3,9 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Base URL of the Blake UK chatbot backend. Update if the server moves
-/// to a domain with HTTPS.
-const String kApiBase = 'http://195.22.157.38';
+/// Base URL of the Blake UK chatbot backend. Uses the same HTTPS domain
+/// the web admin panel is served from (see Caddyfile/README) rather than
+/// the raw VPS IP over plain HTTP — the IP has no TLS cert of its own, so
+/// login credentials, 2FA codes, session cookies and decrypted API keys
+/// would otherwise travel in the clear.
+const String kApiBase = 'https://chat.blakegroup.uk';
 const String kApi = '$kApiBase/api/admin';
 
 /// Minimal cookie-jar backed HTTP client. The admin panel's auth is a PHP
