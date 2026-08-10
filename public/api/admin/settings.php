@@ -20,7 +20,7 @@ if ($method === 'POST') {
     $body = json_body();
     \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
 
-    $allowed = ['gemini_chat_model', 'gemini_extract_model'];
+    $allowed = ['gemini_chat_model', 'gemini_extract_model', 'site_sitemap_urls', 'site_refresh_days'];
     foreach ($allowed as $k) {
         if (isset($body[$k])) {
             $pdo->prepare('INSERT INTO settings (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at')

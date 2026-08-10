@@ -59,7 +59,7 @@ if (!str_contains($data, '<urlset') && !str_contains($data, '<sitemapindex')) {
 
 libxml_use_internal_errors(true);
 $dom = new DOMDocument();
-if (!$dom->loadXML($data)) {
+if (!$dom->loadXML($data, LIBXML_NONET)) {
     json_out(['is_xml' => false, 'error' => 'Fetched content looked like a sitemap but did not parse as valid XML']);
 }
 

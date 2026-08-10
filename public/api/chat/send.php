@@ -68,70 +68,17 @@ if ($tracking['is_tracking']) {
     ]);
 }
 
-// ── Retrieve context ──────────────────────────────────────────────────────────
+// ── Retrieve context + build prompt ─────────────────────────────────────────
+// Shared with tests/eval/run.php via \Chat\Responder so the RAG pipeline
+// under test is the exact code path production runs, not a reimplementation.
 
-$knowledge_hits  = \Knowledge\Search::query($message, 5);
-$product_hits    = \Knowledge\Search::products($message, 3);
-$current_product = $session['product_code'] ? \Knowledge\Search::byCode($session['product_code']) : null;
+$ctx = \Chat\Responder::buildContext($message, $session['product_code']);
+$knowledge_hits    = $ctx['knowledge_hits'];
+$product_hits      = $ctx['product_hits'];
+$context_products  = $ctx['context_products'];
+$keyword_links     = $ctx['keyword_links'];
 
-// The product the customer is currently on gets included in context/cards
-// even if their message text doesn't happen to match it via FTS — but it
-// does NOT by itself count toward confidence below, since being on a product
-// page doesn't mean an unrelated question ("what are your hours?") is
-// actually answerable from that product's data.
-$context_products = \Knowledge\Search::withCurrentFirst($product_hits, $current_product);
-
-// Cross-sell: if the current product lists related codes, pull them in too
-// (also not a confidence signal - same reasoning as above).
-$related_codes = [];
-$alternative_codes = [];
-if ($current_product) {
-    $related_codes = json_decode($current_product['related_product_codes'] ?? '[]', true) ?: [];
-    $related       = \Knowledge\Search::byCodes($related_codes, 3);
-    $context_products = \Knowledge\Search::addRelated($context_products, $related);
-
-    $alternative_codes = json_decode($current_product['alternative_product_codes'] ?? '[]', true) ?: [];
-    $alternatives      = \Knowledge\Search::byCodes($alternative_codes, 3);
-    $context_products  = \Knowledge\Search::addRelated($context_products, $alternatives);
-}
-
-// ── Build Gemini prompt ───────────────────────────────────────────────────────
-
-$context_parts = [];
-
-if ($knowledge_hits) {
-    $context_parts[] = "KNOWLEDGE BASE:\n" . implode("\n---\n", array_map(
-        fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
-        $knowledge_hits
-    ));
-}
-
-if ($context_products) {
-    $context_parts[] = "PRODUCTS:\n" . implode("\n---\n", array_map(
-        fn($p) => \Knowledge\Search::formatForPrompt($p, $session['product_code'], $related_codes, $alternative_codes),
-        $context_products
-    ));
-}
-
-$page_ctx = $session['page_url'] ? "Customer is viewing: {$session['page_url']}\n" : '';
-
-$system = <<<PROMPT
-You are the Blake UK customer support assistant. Blake UK sells aerials, IRS, CCTV, networking, fibre, satellite and installation products.
-
-RULES:
-- Answer ONLY using the context provided below. Do not invent products, prices or specifications.
-- Keep answers concise and helpful.
-- Always include direct Blake UK URLs when recommending products or support pages.
-- Products tagged [Related product] are cross-sell/accessory suggestions for what the customer is viewing — mention one only if it's naturally relevant to their question, don't force it into every reply.
-- Products tagged [Alternative product] are substitutes for what the customer is viewing (e.g. if it's out of stock or they want a different spec) — mention one if the customer asks about alternatives, other options, or if the current product is out of stock.
-- If you cannot answer from the context, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
-- Never make up product codes, prices or specifications.
-
-{$page_ctx}
-PROMPT;
-
-$context_block = implode("\n\n", $context_parts);
-$full_prompt   = $context_block ? $system . "\n\n" . $context_block : $system;
+$full_prompt = \Chat\Responder::buildPrompt($ctx, $session['product_code'], $session['page_url']);
 
 // Load previous messages (last 6)
 $hist = $pdo->prepare('
@@ -166,11 +113,8 @@ try {
 }
 
 // ── Confidence heuristic ──────────────────────────────────────────────────────
-// Simple: if context was found, confidence is higher. Deliberately based on
-// $product_hits (organic matches for this message), not $context_products
-// (which always includes the current product regardless of relevance).
-$confidence = count($knowledge_hits) + count($product_hits) > 0 ? 0.75 : 0.3;
-$escalate   = $confidence < CFG['escalate_threshold'];
+$confidence = \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links);
+$escalate   = \Chat\Responder::shouldEscalate($confidence);
 
 // Save assistant message
 $pdo->prepare('INSERT INTO chat_messages (session_id, role, content, confidence, escalated) VALUES (?, ?, ?, ?, ?)')
@@ -185,6 +129,10 @@ foreach ($knowledge_hits as $h) {
 foreach ($context_products as $p) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url) VALUES (?,?,?,?)')
         ->execute([$bot_msg_id, 'product', null, $p['url']]);
+}
+foreach ($keyword_links as $k) {
+    $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
+        ->execute([$bot_msg_id, 'keyword_link', $k['id'], $k['url'], $k['title']]);
 }
 
 // Update session timestamp

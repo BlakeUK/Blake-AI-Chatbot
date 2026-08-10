@@ -33,10 +33,17 @@ class FileExtractor
             $chunks = self::chunk($text, 500);
             $pdo    = db();
 
+            // Read back the category files.php stored on this row at upload
+            // time (rather than taking it as a param here) - one less thing
+            // for every future caller of extract() to have to pass through.
+            $catRow   = $pdo->prepare('SELECT category FROM knowledge_files WHERE id = ?');
+            $catRow->execute([$fileId]);
+            $category = $catRow->fetchColumn() ?: null;
+
             foreach ($chunks as $chunk) {
                 // FTS index updated automatically by trigger on knowledge_chunks
-                $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES (?,?,?)')
-                    ->execute(['file', $fileId, $chunk]);
+                $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, category) VALUES (?,?,?,?)')
+                    ->execute(['file', $fileId, $chunk, $category]);
             }
 
             $pdo->prepare('UPDATE knowledge_files SET status=? WHERE id=?')
@@ -88,22 +95,30 @@ class FileExtractor
         return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
     }
 
-    // Split text into word-limited chunks
-    private static function chunk(string $text, int $maxWords): array
+    // Splits text into ~$maxWords-word chunks, repeating $overlapWords
+    // words at the start of each chunk after the first. Non-overlapping
+    // chunking means a fact sitting right at a boundary gets split across
+    // two chunks and can end up unretrievable in either (neither one
+    // contains the whole sentence/fact) - the overlap guarantees anything
+    // near a boundary appears intact in at least one chunk. Public: also
+    // used by Knowledge\PageIndexer for imported page content, so both
+    // ingestion paths chunk the same way.
+    public static function chunk(string $text, int $maxWords, int $overlapWords = 50): array
     {
-        $words  = preg_split('/\s+/', trim($text));
-        $chunks = [];
-        $buf    = [];
-
-        foreach ($words as $word) {
-            $buf[] = $word;
-            if (count($buf) >= $maxWords) {
-                $chunks[] = implode(' ', $buf);
-                $buf      = [];
-            }
+        $words = preg_split('/\s+/', trim($text), -1, PREG_SPLIT_NO_EMPTY);
+        if (!$words) {
+            return [];
         }
-        if ($buf) {
-            $chunks[] = implode(' ', $buf);
+
+        $chunks = [];
+        $step   = max(1, $maxWords - $overlapWords);
+        $total  = count($words);
+
+        for ($start = 0; $start < $total; $start += $step) {
+            $chunks[] = implode(' ', array_slice($words, $start, $maxWords));
+            if ($start + $maxWords >= $total) {
+                break;
+            }
         }
 
         return $chunks;

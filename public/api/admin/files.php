@@ -10,7 +10,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
 
 if ($method === 'GET') {
-    $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, created_at FROM knowledge_files ORDER BY created_at DESC');
+    $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, category, created_at FROM knowledge_files ORDER BY created_at DESC');
     json_out($stmt->fetchAll());
 }
 
@@ -43,6 +43,20 @@ if ($method === 'POST') {
         json_err('File exceeds 20 MB limit');
     }
 
+    // Exact-duplicate check before spending a Gemini extraction call: a
+    // byte-identical file already successfully indexed means this upload
+    // would add nothing but a second copy of the same chunks.
+    $contentHash = hash_file('sha256', $f['tmp_name']);
+    $dupFile     = \Knowledge\Dedup::findExactFileDuplicate($contentHash);
+    if ($dupFile) {
+        json_out([
+            'status'            => 'duplicate',
+            'duplicate_of'      => $dupFile['id'],
+            'duplicate_filename'=> $dupFile['filename'],
+            'message'           => "Identical to already-indexed file \"{$dupFile['filename']}\" — skipped.",
+        ]);
+    }
+
     $ext      = preg_replace('/[^a-zA-Z0-9]/', '', pathinfo($f['name'], PATHINFO_EXTENSION));
     $stored   = bin2hex(random_bytes(12)) . ($ext ? '.' . $ext : '');
     $destPath = rtrim(CFG['upload_path'], '/') . '/' . $stored;
@@ -51,8 +65,10 @@ if ($method === 'POST') {
         json_err('Failed to store file', 500);
     }
 
-    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status) VALUES (?,?,?,?)')
-        ->execute([$f['name'], $mime, $destPath, 'pending']);
+    $category = trim($_POST['category'] ?? '') ?: null;
+
+    $pdo->prepare('INSERT INTO knowledge_files (filename, mime_type, stored_path, status, category, content_hash) VALUES (?,?,?,?,?,?)')
+        ->execute([$f['name'], $mime, $destPath, 'pending', $category, $contentHash]);
     $fileId = (int)$pdo->lastInsertId();
 
     $err = \Knowledge\FileExtractor::extract($fileId, $destPath, $mime);
@@ -60,6 +76,15 @@ if ($method === 'POST') {
         $pdo->prepare('UPDATE knowledge_files SET status=?, error=? WHERE id=?')
             ->execute(['error', $err, $fileId]);
         json_out(['id' => $fileId, 'status' => 'error', 'error' => $err], 207);
+    }
+
+    // Near-duplicate check (flagged for review, never auto-deleted) - runs
+    // after extraction since it compares against the actual indexed text.
+    $matches = \Knowledge\Dedup::findNearDuplicates(
+        \Knowledge\Dedup::reconstructText('file', $fileId), 'file', $fileId
+    );
+    if ($matches) {
+        \Knowledge\Dedup::flag('file', $fileId, $matches);
     }
 
     json_out(['id' => $fileId, 'status' => 'indexed'], 201);
@@ -84,6 +109,8 @@ if ($method === 'DELETE') {
     // Deleting chunks fires FTS delete trigger automatically
     $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type=? AND source_id=?')->execute(['file', $id]);
     $pdo->prepare('DELETE FROM knowledge_files WHERE id=?')->execute([$id]);
+    $pdo->prepare('DELETE FROM knowledge_duplicate_flags WHERE (source_type=? AND source_id=?) OR (similar_source_type=? AND similar_source_id=?)')
+        ->execute(['file', $id, 'file', $id]);
 
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')
         ->execute([$_SESSION['admin_id'], 'file_deleted', $id]);

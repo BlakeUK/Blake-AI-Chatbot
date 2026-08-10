@@ -245,6 +245,27 @@ else
     warn "Channel-DM schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='keyword_links';" | grep -q keyword_links; then
+    info "Applying keyword-links schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_keyword_links.sql"
+else
+    warn "Keyword-links schema already applied — skipping."
+fi
+
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(knowledge_chunks);" | grep -q "category"; then
+    info "Applying knowledge-category schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_knowledge_category.sql"
+else
+    warn "Knowledge-category schema already applied — skipping."
+fi
+
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(knowledge_files);" | grep -q "content_hash"; then
+    info "Applying content-dedup schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_content_dedup.sql"
+else
+    warn "Content-dedup schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
@@ -261,6 +282,15 @@ if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_product_pages.php")
     ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_PP" ) | crontab -u www-data -
 else
     warn "Product-page extraction cron job already installed — skipping."
+fi
+
+# ── Scheduled site page refresh (daily; no-op until a sitemap is configured) ──
+CRON_LINE_REFRESH="0 4 * * * php $WEBROOT/scripts/refresh_site_pages.php >> $WEBROOT/logs/site_refresh.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "refresh_site_pages.php"); then
+    info "Installing scheduled site refresh cron job..."
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_REFRESH" ) | crontab -u www-data -
+else
+    warn "Scheduled site refresh cron job already installed — skipping."
 fi
 
 # ── Config ────────────────────────────────────────────────────────────────────
