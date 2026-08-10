@@ -156,6 +156,7 @@ class _BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<_BoardScreen> {
   bool _loading = true;
   List<dynamic> _tasks = [];
+  String _viewMode = 'list';
 
   @override
   void initState() {
@@ -195,10 +196,13 @@ class _BoardScreenState extends State<_BoardScreen> {
     _load();
   }
 
-  Future<void> _setStatus(Map<String, dynamic> task, String status) async {
+  Future<void> _setStatus(Map<String, dynamic> task, String status) =>
+      _setStatusById(task['id'] as int, status);
+
+  Future<void> _setStatusById(int taskId, String status) async {
     final r = await ApiClient.put('/tasks.php', {
       'csrf': ApiClient.csrf,
-      'id': task['id'],
+      'id': taskId,
       'status': status,
     });
     if (r['error'] != null) {
@@ -243,54 +247,219 @@ class _BoardScreenState extends State<_BoardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final groups = _groups;
     return Scaffold(
       appBar: AppBar(title: Text(widget.board['name']?.toString() ?? 'Board')),
-      floatingActionButton: _canEditPlanner
+      floatingActionButton: _canEditPlanner && _viewMode == 'list'
           ? FloatingActionButton(onPressed: () => _addItem(null), child: const Icon(Icons.add))
           : null,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: groups.isEmpty
-                  ? ListView(children: const [
-                      Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(
-                            child: Text('No items yet.', style: TextStyle(color: Colors.grey))),
-                      ),
-                    ])
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'list', label: Text('List'), icon: Icon(Icons.view_list)),
+                  ButtonSegment(value: 'kanban', label: Text('Kanban'), icon: Icon(Icons.view_column)),
+                ],
+                selected: {_viewMode},
+                onSelectionChanged: (s) => setState(() => _viewMode = s.first),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : (_viewMode == 'list' ? _buildListView() : _buildKanbanView()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListView() {
+    final groups = _groups;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: groups.isEmpty
+          ? ListView(children: const [
+              Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('No items yet.', style: TextStyle(color: Colors.grey))),
+              ),
+            ])
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+              children: [
+                for (final entry in groups) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10, bottom: 4, left: 4),
+                    child: Row(
                       children: [
-                        for (final entry in groups) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10, bottom: 4, left: 4),
-                            child: Row(
-                              children: [
-                                Container(width: 4, height: 14, color: _hashColor(entry.key)),
-                                const SizedBox(width: 8),
-                                Text('${entry.key} (${entry.value.length})',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                          for (final t in entry.value)
-                            _TaskTile(
-                              task: t as Map<String, dynamic>,
-                              onTap: () => _openTask(t),
-                              onStatusChanged: (s) => _setStatus(t, s),
-                            ),
-                          if (_canEditPlanner)
-                            TextButton(
-                              onPressed: () => _addItem(entry.key == 'Ungrouped' ? null : entry.key),
-                              child: const Text('+ Add item'),
-                            ),
-                        ],
+                        Container(width: 4, height: 14, color: _hashColor(entry.key)),
+                        const SizedBox(width: 8),
+                        Text('${entry.key} (${entry.value.length})',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       ],
                     ),
+                  ),
+                  for (final t in entry.value)
+                    _TaskTile(
+                      task: t as Map<String, dynamic>,
+                      onTap: () => _openTask(t),
+                      onStatusChanged: (s) => _setStatus(t, s),
+                    ),
+                  if (_canEditPlanner)
+                    TextButton(
+                      onPressed: () => _addItem(entry.key == 'Ungrouped' ? null : entry.key),
+                      child: const Text('+ Add item'),
+                    ),
+                ],
+              ],
             ),
+    );
+  }
+
+  // Same three columns the web admin's and Operator Console's Kanban
+  // views use. Drag-and-drop moves a card between columns by changing
+  // its status; a long-press starts the drag (consistent with how
+  // Flutter's own reorderable lists work, and avoids fighting the
+  // column's own vertical scroll gesture on a short tap-drag).
+  Widget _buildKanbanView() {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final status in _kTaskStatuses) ...[
+              _KanbanColumn(
+                status: status,
+                tasks: _tasks.where((t) => (t as Map)['status'] == status).toList(),
+                onDropTaskId: (taskId) => _setStatusById(taskId, status),
+                onTapTask: (task) => _openTask(task),
+              ),
+              const SizedBox(width: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KanbanColumn extends StatelessWidget {
+  final String status;
+  final List<dynamic> tasks;
+  final ValueChanged<int> onDropTaskId;
+  final ValueChanged<Map<String, dynamic>> onTapTask;
+  const _KanbanColumn({
+    required this.status,
+    required this.tasks,
+    required this.onDropTaskId,
+    required this.onTapTask,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _kStatusColors[status] ?? Colors.grey;
+    return SizedBox(
+      width: 220,
+      child: DragTarget<int>(
+        onAccept: onDropTaskId,
+        builder: (context, candidateData, rejectedData) {
+          final active = candidateData.isNotEmpty;
+          return Container(
+            decoration: BoxDecoration(
+              color: active ? color.withOpacity(0.12) : null,
+              border: active ? Border.all(color: color, width: 2) : null,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14)),
+                  child: Text(
+                    '${_kStatusLabels[status] ?? status} / ${tasks.length}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: tasks.isEmpty
+                      ? const SizedBox.shrink()
+                      : ListView.builder(
+                          itemCount: tasks.length,
+                          itemBuilder: (ctx, i) {
+                            final t = tasks[i] as Map<String, dynamic>;
+                            return _KanbanCard(task: t, onTap: () => onTapTask(t));
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _KanbanCard extends StatelessWidget {
+  final Map<String, dynamic> task;
+  final VoidCallback onTap;
+  const _KanbanCard({required this.task, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final id = task['id'] as int;
+    final card = Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(task['title']?.toString() ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              if (task['due_date'] != null) ...[
+                const SizedBox(height: 3),
+                Text(fmtDate(task['due_date']).split(' ').first,
+                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              ],
+              if (task['tag']?.toString().isNotEmpty == true) ...[
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: _hashColor(task['tag'].toString()), borderRadius: BorderRadius.circular(8)),
+                  child: Text(task['tag'].toString(),
+                      style: const TextStyle(fontSize: 9, color: Colors.white)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    return LongPressDraggable<int>(
+      data: id,
+      feedback: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(width: 200, child: card),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: card),
+      child: card,
     );
   }
 }

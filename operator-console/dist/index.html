@@ -247,6 +247,20 @@
   .td-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 12px; }
   .td-tabs button { padding: 7px 12px; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; }
   .td-tabs button.active { color: var(--accent-bright); border-bottom-color: var(--accent-bright); }
+
+  /* ── Task Kanban view ── */
+  .tk-view-toggle { display: flex; gap: 2px; background: var(--surface-2); border-radius: var(--radius-sm); padding: 2px; }
+  .tk-view-toggle button { padding: 4px 10px; border: none; background: none; color: var(--text-dim); border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; }
+  .tk-view-toggle button.active { background: var(--accent); color: #fff; }
+  .tk-kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .tk-kcol { flex: 0 0 190px; background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px; min-height: 60px; }
+  .tk-kcol.dragover { outline: 2px dashed var(--accent-bright); }
+  .tk-kcol-head { padding: 4px 8px; border-radius: 12px; color: #fff; font-weight: 700; font-size: 11px; text-align: center; margin-bottom: 8px; }
+  .tk-kcard { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-bottom: 6px; font-size: 12px; cursor: grab; }
+  .tk-kcard.dragging { opacity: 0.4; }
+  .tk-kcard .kc-title { font-weight: 600; margin-bottom: 4px; cursor: pointer; }
+  .tk-kcard .kc-title:hover { text-decoration: underline; }
+  .tk-kcard .kc-field { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -1266,7 +1280,13 @@ async function openProject(id) {
         ${project.children.length ? project.children.map(c => `<div class="linked-ticket" style="cursor:pointer" onclick="openProject(${c.id})"><span>${esc(c.name)}</span><span class="pill pill-dept">${c.progress_pct||0}%</span></div>`).join('') : '<div class="empty-note">No sub-projects yet.</div>'}
       </div>
       <div class="panel-section">
-        <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h3 style="margin:0;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
+          <div class="tk-view-toggle" id="tk-view-toggle">
+            <button class="active" onclick="setTaskViewMode('list')">List</button>
+            <button onclick="setTaskViewMode('kanban')">Kanban</button>
+          </div>
+        </div>
         <div id="task-list">Loading…</div>
         <div id="task-add">
           <input type="text" id="task-title" placeholder="New item…">
@@ -1356,6 +1376,7 @@ async function openProject(id) {
     document.getElementById('task-assign-btn').textContent = 'Assign';
     loadProjectTasks(project.id);
   };
+  taskViewMode = 'list';
   loadProjectTasks(project.id);
 }
 
@@ -1402,6 +1423,7 @@ function openAssigneePicker(title, currentIds, onSave) {
 // (everything else, plus comments).
 let taskListProjectId = null;
 let taskListCache = [];
+let taskViewMode = 'list';
 const TC_PALETTE = ['#7c6ef2', '#e0a83f', '#4fce8e', '#ea5f5f', '#5fb6e8', '#c07be0', '#e08f5f', '#5fe0c0'];
 function tcColor(str) {
   let h = 0;
@@ -1427,13 +1449,60 @@ async function loadProjectTasks(projectId) {
   let tasks;
   try { tasks = await apiGet('/api/admin/tasks.php?project_id=' + projectId); } catch (e) { el.innerHTML = '<div class="empty-note">Could not load tasks.</div>'; return; }
   taskListCache = Array.isArray(tasks) ? tasks : [];
+  renderTaskList();
+}
+function setTaskViewMode(mode) {
+  taskViewMode = mode;
+  const toggle = document.getElementById('tk-view-toggle');
+  if (toggle) {
+    toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    toggle.querySelector(mode === 'list' ? 'button:first-child' : 'button:last-child').classList.add('active');
+  }
+  renderTaskList();
+}
+function renderTaskList() {
+  const el = document.getElementById('task-list');
+  if (!el) return; // panel closed
   if (!taskListCache.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
+  if (taskViewMode === 'kanban') { renderTaskKanban(el); return; }
 
   const groups = groupTasksByLabel(taskListCache);
   el.innerHTML = groups.map(g => `
     <div class="task-group-header"><span class="grp-bar" style="background:${tcColor(g.label)}"></span>${esc(g.label)} (${g.tasks.length})</div>
-    ${g.tasks.map(t => taskRowHtml(t, projectId)).join('')}
+    ${g.tasks.map(t => taskRowHtml(t, taskListProjectId)).join('')}
   `).join('');
+}
+
+// ── Kanban view (same three columns as the web admin's) ──
+const TASK_KANBAN_COLUMNS = [['to_do', 'To do', '#8b5cf6'], ['in_progress', 'In progress', '#d68910'], ['done', 'Done', '#27ae60']];
+function renderTaskKanban(el) {
+  el.innerHTML = `<div class="tk-kanban">${TASK_KANBAN_COLUMNS.map(([status, label, color]) => {
+    const items = taskListCache.filter(t => t.status === status);
+    return `<div class="tk-kcol" ondragover="tkDragOver(event)" ondragleave="tkDragLeave(event)" ondrop="tkDrop(event,'${status}')">
+      <div class="tk-kcol-head" style="background:${color}">${label} / ${items.length}</div>
+      ${items.map(tkKanbanCard).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+function tkKanbanCard(t) {
+  return `<div class="tk-kcard" draggable="true" ondragstart="tkDragStart(event,${t.id})" ondragend="tkDragEnd(event)">
+    <div class="kc-title" onclick="openTaskDetail(${t.id})">${esc(t.title)}</div>
+    ${t.due_date ? `<div class="kc-field">${new Date(t.due_date * 1000).toLocaleDateString()}</div>` : ''}
+    ${t.tag ? `<div class="kc-field"><span class="task-tag-pill" style="background:${tcColor(t.tag)}">${esc(t.tag)}</span></div>` : ''}
+    <div class="kc-field">${t.assignees.length ? t.assignees.map(a => esc(a.username)).join(', ') : 'Unassigned'}</div>
+  </div>`;
+}
+let tkDragTaskId = null;
+function tkDragStart(e, taskId) { tkDragTaskId = taskId; e.target.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function tkDragEnd(e) { e.target.classList.remove('dragging'); }
+function tkDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function tkDragLeave(e) { e.currentTarget.classList.remove('dragover'); }
+async function tkDrop(e, status) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  if (tkDragTaskId === null) return;
+  const taskId = tkDragTaskId; tkDragTaskId = null;
+  await setTaskStatus(taskId, taskListProjectId, status);
 }
 
 function taskRowHtml(t, projectId) {
@@ -1516,9 +1585,13 @@ function renderTaskDetailFields(t) {
     <div class="td-field" style="align-items:flex-start;flex-direction:column"><label style="width:auto;margin-bottom:4px">Description</label><textarea id="td-desc" style="width:100%;min-height:60px">${esc(t.description || '')}</textarea></div>
     <div class="modal-actions" style="justify-content:space-between">
       <button class="btn" id="td-assign-btn" type="button">Assignees (${t.assignees.length})</button>
-      <button class="btn btn-primary" id="td-save-btn">Save</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="td-delete-btn" style="color:var(--err)">Delete</button>
+        <button class="btn btn-primary" id="td-save-btn">Save</button>
+      </div>
     </div>
   `;
+  document.getElementById('td-delete-btn').onclick = () => deleteTask(t.id, taskListProjectId);
   document.getElementById('td-assign-btn').onclick = () => {
     openAssigneePicker('Assign task to', t.assignees.map(a => a.id), async (ids) => {
       await apiSend('PUT', '/api/admin/tasks.php', { id: t.id, assignee_ids: ids, csrf });
