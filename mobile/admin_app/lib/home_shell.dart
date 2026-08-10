@@ -12,6 +12,7 @@ import 'screens/widget_clients_screen.dart';
 import 'screens/users_screen.dart';
 import 'screens/chat_logs_screen.dart';
 import 'screens/tickets_screen.dart';
+import 'screens/projects_screen.dart';
 import 'screens/my_account_screen.dart';
 
 class _NavItem {
@@ -45,6 +46,7 @@ class _HomeShellState extends State<HomeShell> {
     _NavItem('Users', Icons.people, () => const UsersScreen(), adminOnly: true),
     _NavItem('Chat Logs', Icons.chat, () => const ChatLogsScreen()),
     _NavItem('Support Tickets', Icons.confirmation_number, () => const TicketsScreen()),
+    _NavItem('Project Planner', Icons.view_column, () => const ProjectsScreen()),
     _NavItem('My Account', Icons.account_circle, () => const MyAccountScreen()),
   ];
 

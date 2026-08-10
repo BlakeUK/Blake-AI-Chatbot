@@ -302,6 +302,7 @@ Visit `https://chat.blakegroup.uk/admin/` and log in.
 | **Users** | Add staff accounts, assign admin/editor/user roles, reset a user's 2FA. |
 | **Chat Logs** | Browse all customer sessions; tap into any conversation to review it and correct bad bot answers. |
 | **Support Tickets** | Escalated conversations customers asked to raise a ticket for — filter by status, add notes, mark resolved. |
+| **Project Planner** | Board-style task tracking (grouped table view and a To do/In progress/Done Kanban board) built on the same `projects`/`project_tasks` tables the Operator Console and mobile admin app use — a task created or moved on one client shows up the same way on the others. Group, timeline, assignees, a single reviewer, an optional tag and billable hours per item; a Comments tab per item for discussion. |
 | **My Account** | Change your own password; enable/disable 2FA with a scannable QR code and backup codes. |
 
 ### First-run checklist

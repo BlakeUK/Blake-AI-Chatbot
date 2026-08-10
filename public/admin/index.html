@@ -68,6 +68,66 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 .ir-box{border-radius:6px;padding:12px;text-align:center;font-weight:600}
 .ir-box .n{font-size:24px;margin-bottom:2px}
 .ir-box .l{font-size:11px;font-weight:400}
+
+/* ── Project Planner ── */
+.board-switcher{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.board-pill{padding:6px 14px;border-radius:16px;font-size:13px;font-weight:600;cursor:pointer;background:#3a4048;color:#adb4ba;border:1px solid #454c54}
+.board-pill.active{background:#3d5a99;color:#fff;border-color:#3d5a99}
+.pb-toolbar{display:flex;align-items:center;margin-bottom:12px;gap:10px}
+.view-toggle{display:flex;gap:4px;background:#262b31;border-radius:6px;padding:3px}
+.view-toggle button{padding:5px 14px;border:none;background:none;color:#adb4ba;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600}
+.view-toggle button.active{background:#3d5a99;color:#fff}
+.pb-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.pb-table thead th{background:#262b31;color:#adb4ba;font-weight:600;padding:8px 10px;text-align:left;border-bottom:1px solid #454c54}
+.pb-group-header td{background:#262b31;font-weight:700;padding:8px 10px;cursor:pointer;color:#e8e8ea}
+.pb-group-header .grp-bar{display:inline-block;width:4px;height:14px;border-radius:2px;margin-right:8px;vertical-align:middle}
+.pb-group-header .grp-arrow{display:inline-block;transition:transform .15s;margin-right:6px;color:#8fb0ec}
+.pb-group-header.collapsed .grp-arrow{transform:rotate(-90deg)}
+.pb-row td{padding:7px 10px;border-bottom:1px solid #383e46;vertical-align:middle}
+.pb-row:hover td{background:rgba(255,255,255,.03)}
+.pb-row .pb-title{cursor:pointer;font-weight:500}
+.pb-row .pb-title:hover{text-decoration:underline}
+.pb-add-row td{padding:6px 10px;color:#8fb0ec;cursor:pointer;font-size:12px}
+.pb-add-row:hover td{background:rgba(143,176,236,.08)}
+.pb-sum-row td{color:#adb4ba;font-weight:700;font-size:12px}
+.pb-timeline{display:inline-block;background:#3d5a99;color:#fff;padding:4px 10px;border-radius:5px;font-size:11.5px;white-space:nowrap;cursor:pointer}
+.pb-status-pill{display:inline-block;padding:4px 12px;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer;border:none;color:#fff;text-align:center;min-width:86px}
+.pb-status-to_do{background:#8b5cf6}
+.pb-status-in_progress{background:#d68910}
+.pb-status-done{background:#27ae60}
+.pb-avatars{display:inline-flex;cursor:pointer}
+.pb-avatar{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;margin-right:-7px;border:2px solid #2f343b}
+.pb-tag{display:inline-block;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;color:#fff}
+.pb-num{cursor:pointer}
+.pb-empty-cell{color:#6b7480;cursor:pointer;font-size:12px}
+.pb-kanban{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:8px}
+.pb-kcol{flex:0 0 260px;background:#262b31;border-radius:8px;padding:10px;min-height:80px}
+.pb-kcol.dragover{outline:2px dashed #8fb0ec}
+.pb-kcol-head{padding:6px 10px;border-radius:16px;color:#fff;font-weight:700;font-size:12px;text-align:center;margin-bottom:10px}
+.pb-kcard{background:#3a4048;border:1px solid #454c54;border-radius:6px;padding:10px;margin-bottom:8px;cursor:grab}
+.pb-kcard.dragging{opacity:.4}
+.pb-kcard .kc-title{font-weight:600;margin-bottom:6px}
+.pb-kcard .kc-field{display:flex;justify-content:space-between;font-size:11px;color:#adb4ba;margin-top:3px}
+#pb-modal-overlay,#pb-newboard-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:900}
+#pb-modal-overlay.open{display:flex}
+#pb-modal{background:#2f343b;border:1px solid #454c54;border-radius:8px;width:560px;max-width:92vw;max-height:88vh;display:flex;flex-direction:column}
+#pb-modal-head{padding:16px 20px;border-bottom:1px solid #454c54;display:flex;justify-content:space-between;align-items:center;gap:12px}
+#pb-modal-title{font-size:16px;font-weight:700;background:none;border:1px solid transparent;color:#e8e8ea;flex:1;padding:4px 6px;border-radius:4px}
+#pb-modal-title:focus{border-color:#454c54;background:#262b31}
+#pb-modal-tabs{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid #454c54;flex-shrink:0}
+#pb-modal-tabs button{padding:9px 14px;background:none;border:none;color:#adb4ba;cursor:pointer;font-size:13px;border-bottom:2px solid transparent}
+#pb-modal-tabs button.active{color:#8fb0ec;border-bottom-color:#8fb0ec}
+#pb-modal-body{padding:16px 20px;overflow-y:auto}
+.pb-field-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #383e46}
+.pb-field-row label{width:110px;flex-shrink:0;color:#adb4ba;font-size:12px}
+.pb-field-row input,.pb-field-row select,.pb-field-row textarea{width:auto;flex:1}
+.pb-comment{padding:8px 0;border-bottom:1px solid #383e46;font-size:13px}
+.pb-comment .who{font-weight:600}
+.pb-comment .when{color:#adb4ba;font-size:11px;margin-left:6px}
+#pb-popover{position:absolute;z-index:950;background:#3a4048;border:1px solid #454c54;border-radius:6px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);min-width:190px}
+#pb-popover label{font-size:11px;color:#adb4ba;margin-top:0}
+#pb-popover input,#pb-popover select{margin-bottom:6px}
+.pb-popover-pill{display:block;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -110,6 +170,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
   <button onclick="switchTab('tickets',this)">Support Tickets</button>
+  <button onclick="switchTab('projects',this)">Project Planner</button>
   <button onclick="switchTab('account',this)">My Account</button>
 </nav>
 
@@ -521,6 +582,55 @@ window.BlakeUKWidget = {
     </div>
   </div>
 
+  <!-- ── PROJECT PLANNER ── -->
+  <div id="tab-projects" class="tab">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <h2 style="border:none;padding:0;margin:0">Project Planner</h2>
+        <button class="btn btn-secondary" data-role="editor" style="margin-left:auto" onclick="openNewBoardModal()">+ New Board</button>
+      </div>
+      <div class="board-switcher" id="pb-board-switcher"></div>
+      <div class="pb-toolbar">
+        <div class="view-toggle" id="pb-view-toggle">
+          <button class="active" onclick="setPbView('table')">Main table</button>
+          <button onclick="setPbView('kanban')">Kanban</button>
+        </div>
+        <button class="btn btn-secondary" data-role="editor" onclick="pbAddGroup()">+ Add group</button>
+      </div>
+      <div id="pb-board-content"><p style="color:#adb4ba">Loading…</p></div>
+    </div>
+  </div>
+
+  <!-- ── PROJECT PLANNER: new board modal ── -->
+  <div id="pb-newboard-overlay">
+    <div style="background:#2f343b;border:1px solid #454c54;border-radius:8px;padding:20px;width:360px">
+      <h2 style="margin-bottom:12px">New Board</h2>
+      <label>Name</label><input type="text" id="nb-name">
+      <label style="margin-top:8px">Department (optional)</label>
+      <select id="nb-dept"><option value="">—</option><option value="sales">Sales</option><option value="technical">Technical</option><option value="accounts">Accounts</option></select>
+      <div id="nb-err" style="color:#f5a3a3;font-size:12px;margin-top:8px"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+        <button class="btn btn-secondary" onclick="closeNewBoardModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNewBoard()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PROJECT PLANNER: item detail modal ── -->
+  <div id="pb-modal-overlay">
+    <div id="pb-modal">
+      <div id="pb-modal-head">
+        <input id="pb-modal-title" placeholder="Item title">
+        <button class="btn btn-secondary" onclick="closePbModal()">Close</button>
+      </div>
+      <div id="pb-modal-tabs">
+        <button class="active" id="pb-tab-btn-details" onclick="switchPbModalTab('details')">Item details</button>
+        <button id="pb-tab-btn-comments" onclick="switchPbModalTab('comments')">Comments</button>
+      </div>
+      <div id="pb-modal-body"></div>
+    </div>
+  </div>
+
   <!-- ── MY ACCOUNT ── -->
   <div id="tab-account" class="tab">
     <div class="card" style="max-width:400px">
@@ -594,7 +704,7 @@ async function loadCategorySuggestions(){
   document.getElementById('category-suggestions').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
 }
 function init(){
-  loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();
+  loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();loadProjectPlanner();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();loadSiteRefreshSettings();}
 }
 
@@ -1617,6 +1727,426 @@ async function addTicketNote(id){
   flash('Note added');
   viewTicket(id);
 }
+
+// ── Project Planner ───────────────────────────────────────────────────────────
+// A "board" is a top-level project (projects.php); its rows are that
+// project's tasks (tasks.php), now carrying group_label/status/timeline/
+// reviewer/tag/billable_hours (see scripts/schema_project_board.sql) so
+// they render as a Plaky-style table/Kanban instead of a plain checklist.
+// Edit handlers on any onclick pass only the task's id (and the clicked
+// element) - never other dynamic strings - and look the current value up
+// from the in-memory pbTasks array, so no user-entered text (a tag, a
+// group name) ever has to be escaped into a JS string literal inside an
+// HTML attribute, which is a routine source of broken/unsafe markup.
+let pbBoards=[], pbActiveBoardId=null, pbTasks=[], pbAgents=[], pbView='table';
+let pbCollapsedGroups={}, pbGroupsCache=[], pbCurrentTaskId=null, pbModalTab='details';
+
+async function loadProjectPlanner(){
+  const [boards,agents]=await Promise.all([get(API+'/projects.php'),get(API+'/agents.php')]);
+  pbBoards=Array.isArray(boards)?boards.filter(p=>!p.parent_id):[];
+  pbAgents=Array.isArray(agents)?agents:[];
+  renderBoardSwitcher();
+  if(pbBoards.length){
+    if(!pbBoards.some(b=>b.id===pbActiveBoardId))pbActiveBoardId=pbBoards[0].id;
+    await loadPbTasks();
+  }else{
+    pbActiveBoardId=null;
+    document.getElementById('pb-board-content').innerHTML='<p style="color:#adb4ba">No boards yet. Create one to get started.</p>';
+  }
+}
+function renderBoardSwitcher(){
+  document.getElementById('pb-board-switcher').innerHTML=pbBoards.map(b=>
+    `<span class="board-pill ${b.id===pbActiveBoardId?'active':''}" onclick="selectBoard(${b.id})">${esc(b.name)}</span>`
+  ).join('')||'<span style="color:#adb4ba;font-size:13px">No boards yet.</span>';
+}
+async function selectBoard(id){
+  pbActiveBoardId=id;
+  renderBoardSwitcher();
+  await loadPbTasks();
+}
+async function loadPbTasks(){
+  if(!pbActiveBoardId)return;
+  const rows=await get(API+'/tasks.php?project_id='+pbActiveBoardId);
+  pbTasks=Array.isArray(rows)?rows:[];
+  renderPbBoard();
+  if(pbCurrentTaskId!==null){
+    if(pbTasks.some(t=>t.id===pbCurrentTaskId))renderPbModalTabs();
+    else closePbModal();
+  }
+}
+function renderPbBoard(){
+  closePbPopover();
+  if(pbView==='table')renderPbTable();else renderPbKanban();
+}
+function setPbView(v){
+  pbView=v;
+  const toggle=document.getElementById('pb-view-toggle');
+  toggle.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  toggle.querySelector(v==='table'?'button:first-child':'button:last-child').classList.add('active');
+  renderPbBoard();
+}
+
+// ── New board ──
+function openNewBoardModal(){
+  document.getElementById('nb-name').value='';
+  document.getElementById('nb-dept').value='';
+  document.getElementById('nb-err').textContent='';
+  document.getElementById('pb-newboard-overlay').style.display='flex';
+  document.getElementById('nb-name').focus();
+}
+function closeNewBoardModal(){document.getElementById('pb-newboard-overlay').style.display='none';}
+async function submitNewBoard(){
+  const name=val('nb-name');
+  if(!name){document.getElementById('nb-err').textContent='Name is required.';return;}
+  const r=await post(API+'/projects.php',{name,department:document.getElementById('nb-dept').value,csrf});
+  if(!r.ok){document.getElementById('nb-err').textContent=r.error||'Could not create board';return;}
+  closeNewBoardModal();
+  pbActiveBoardId=r.id;
+  await loadProjectPlanner();
+}
+
+// ── Table view ──
+function groupTasksByLabel(tasks){
+  const order=[],map={};
+  tasks.forEach(t=>{
+    const g=t.group_label||'Ungrouped';
+    if(!map[g]){map[g]=[];order.push(g);}
+    map[g].push(t);
+  });
+  return order.map(label=>({label,tasks:map[label]}));
+}
+function renderPbTable(){
+  const groups=groupTasksByLabel(pbTasks);
+  pbGroupsCache=groups;
+  const body=groups.map((g,i)=>{
+    const collapsed=!!pbCollapsedGroups[g.label];
+    const sum=g.tasks.reduce((s,t)=>s+(t.billable_hours||0),0);
+    return `
+      <tr class="pb-group-header ${collapsed?'collapsed':''}" onclick="pbToggleGroup(${i})">
+        <td colspan="7"><span class="grp-arrow">▾</span><span class="grp-bar" style="background:${pbColor(g.label)}"></span>${esc(g.label)} <span style="color:#adb4ba;font-weight:400;font-size:12px">(${g.tasks.length})</span></td>
+      </tr>
+      ${collapsed?'':g.tasks.map(pbRowHtml).join('')}
+      ${collapsed?'':`<tr class="pb-add-row" data-role="editor" onclick="pbAddItem(${i})"><td colspan="7">+ Add item</td></tr>`}
+      ${collapsed||!sum?'':`<tr class="pb-sum-row"><td></td><td></td><td></td><td></td><td>${sum} sum</td><td></td><td></td></tr>`}
+    `;
+  }).join('');
+  document.getElementById('pb-board-content').innerHTML=`
+    <div style="overflow-x:auto"><table class="pb-table">
+      <thead><tr><th style="width:26%">Title</th><th>Timeline</th><th>Assignee</th><th>Status</th><th>Billable hours</th><th>Reviewer</th><th>Tag</th></tr></thead>
+      <tbody>${body||'<tr><td colspan="7" style="color:#adb4ba;padding:14px">No items yet.</td></tr>'}</tbody>
+    </table></div>`;
+  applyRoleUI();
+}
+function pbRowHtml(t){
+  const timeline=(t.start_date||t.due_date)
+    ?`<span class="pb-timeline" onclick="pbEditTimeline(${t.id},this)">${t.start_date?fmtShortDate(t.start_date):'?'} - ${t.due_date?fmtShortDate(t.due_date):'?'}</span>`
+    :`<span class="pb-empty-cell" onclick="pbEditTimeline(${t.id},this)">+ dates</span>`;
+  const assignees=(t.assignees&&t.assignees.length)
+    ?`<span class="pb-avatars" onclick="pbEditAssignees(${t.id},this)">${t.assignees.map(pbAvatarHtml).join('')}</span>`
+    :`<span class="pb-empty-cell" onclick="pbEditAssignees(${t.id},this)">+ assign</span>`;
+  const statusLabel={to_do:'To do',in_progress:'In progress',done:'Done'}[t.status]||t.status;
+  const reviewer=t.reviewer
+    ?`<span class="pb-avatars" onclick="pbEditReviewer(${t.id},this)">${pbAvatarHtml(t.reviewer)}</span>`
+    :`<span class="pb-empty-cell" onclick="pbEditReviewer(${t.id},this)">+ reviewer</span>`;
+  const tag=t.tag
+    ?`<span class="pb-tag" style="background:${pbColor(t.tag)}" onclick="pbEditTag(${t.id},this)">${esc(t.tag)}</span>`
+    :`<span class="pb-empty-cell" onclick="pbEditTag(${t.id},this)">+ tag</span>`;
+  const billable=(t.billable_hours!==null&&t.billable_hours!==undefined)
+    ?`<span class="pb-num" onclick="pbEditBillable(${t.id},this)">${t.billable_hours}</span>`
+    :`<span class="pb-empty-cell" onclick="pbEditBillable(${t.id},this)">—</span>`;
+  return `<tr class="pb-row">
+    <td class="pb-title" onclick="openPbModal(${t.id})">${esc(t.title)}</td>
+    <td>${timeline}</td>
+    <td>${assignees}</td>
+    <td><span class="pb-status-pill pb-status-${t.status}" onclick="pbEditStatus(${t.id},this)">${statusLabel}</span></td>
+    <td>${billable}</td>
+    <td>${reviewer}</td>
+    <td>${tag}</td>
+  </tr>`;
+}
+function pbToggleGroup(i){
+  const g=pbGroupsCache[i];
+  if(!g)return;
+  pbCollapsedGroups[g.label]=!pbCollapsedGroups[g.label];
+  renderPbTable();
+}
+function pbAddItem(i){
+  if(!canEdit())return;
+  const g=pbGroupsCache[i];
+  const label=g?g.label:'';
+  const title=prompt(label&&label!=='Ungrouped'?`New item in "${label}":`:'New item title:');
+  if(!title||!title.trim())return;
+  pbCreateTask(title.trim(),label==='Ungrouped'?'':label);
+}
+function pbAddGroup(){
+  if(!canEdit())return;
+  const label=prompt('New group name:');
+  if(!label||!label.trim())return;
+  const title=prompt('First item title:');
+  if(!title||!title.trim())return;
+  pbCreateTask(title.trim(),label.trim());
+}
+async function pbCreateTask(title,groupLabel){
+  if(!pbActiveBoardId)return;
+  const r=await post(API+'/tasks.php',{project_id:pbActiveBoardId,title,group_label:groupLabel||null,csrf});
+  if(r.error)return flash(r.error,true);
+  await loadPbTasks();
+}
+
+// ── Kanban view ──
+const PB_KANBAN_COLUMNS=[['to_do','To do','#8b5cf6'],['in_progress','In progress','#d68910'],['done','Done','#27ae60']];
+function renderPbKanban(){
+  document.getElementById('pb-board-content').innerHTML=`<div class="pb-kanban">${PB_KANBAN_COLUMNS.map(([status,label,color])=>{
+    const items=pbTasks.filter(t=>t.status===status);
+    return `<div class="pb-kcol" ondragover="pbKanbanDragOver(event)" ondragleave="pbKanbanDragLeave(event)" ondrop="pbKanbanDrop(event,'${status}')">
+      <div class="pb-kcol-head" style="background:${color}">${label} / ${items.length}</div>
+      ${items.map(pbKanbanCard).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+function pbKanbanCard(t){
+  return `<div class="pb-kcard" draggable="true" ondragstart="pbKanbanDragStart(event,${t.id})" ondragend="pbKanbanDragEnd(event)" onclick="openPbModal(${t.id})">
+    <div class="kc-title">${esc(t.title)}</div>
+    ${t.due_date?`<div class="kc-field"><span>Date</span><span>${fmtShortDate(t.due_date)}</span></div>`:''}
+    ${t.tag?`<div class="kc-field"><span>Tag</span><span class="pb-tag" style="background:${pbColor(t.tag)};padding:1px 8px">${esc(t.tag)}</span></div>`:''}
+    <div class="kc-field"><span>Assignee</span><span>${t.assignees.length?t.assignees.map(a=>esc(a.username)).join(', '):'—'}</span></div>
+  </div>`;
+}
+let pbDragTaskId=null;
+function pbKanbanDragStart(e,taskId){pbDragTaskId=taskId;e.target.classList.add('dragging');e.dataTransfer.effectAllowed='move';}
+function pbKanbanDragEnd(e){e.target.classList.remove('dragging');}
+function pbKanbanDragOver(e){e.preventDefault();e.currentTarget.classList.add('dragover');}
+function pbKanbanDragLeave(e){e.currentTarget.classList.remove('dragover');}
+async function pbKanbanDrop(e,status){
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  if(pbDragTaskId===null)return;
+  const taskId=pbDragTaskId;pbDragTaskId=null;
+  if(!canEdit())return;
+  await pbSetFields(taskId,{status});
+}
+
+// ── Inline cell editing (popover) ──
+function pbPopover(anchorEl,contentHtml){
+  closePbPopover();
+  const pop=document.createElement('div');
+  pop.id='pb-popover';
+  pop.innerHTML=contentHtml;
+  document.body.appendChild(pop);
+  const r=anchorEl.getBoundingClientRect();
+  pop.style.top=(window.scrollY+r.bottom+4)+'px';
+  pop.style.left=(window.scrollX+r.left)+'px';
+  setTimeout(()=>document.addEventListener('mousedown',pbPopoverOutsideClick),0);
+  return pop;
+}
+function pbPopoverOutsideClick(e){
+  const pop=document.getElementById('pb-popover');
+  if(pop&&!pop.contains(e.target))closePbPopover();
+}
+function closePbPopover(){
+  const pop=document.getElementById('pb-popover');
+  if(pop){pop.remove();document.removeEventListener('mousedown',pbPopoverOutsideClick);}
+}
+function pbFindTask(taskId){return pbTasks.find(t=>t.id===taskId);}
+function pbEditStatus(taskId,anchorEl){
+  if(!canEdit())return;
+  pbPopover(anchorEl,PB_KANBAN_COLUMNS.map(([v,l])=>
+    `<div class="pb-status-pill pb-status-${v} pb-popover-pill" onclick="pbSetFields(${taskId},{status:'${v}'});closePbPopover()">${l}</div>`
+  ).join(''));
+}
+function pbEditTimeline(taskId,anchorEl){
+  if(!canEdit())return;
+  const t=pbFindTask(taskId);if(!t)return;
+  pbPopover(anchorEl,`
+    <label>Start</label><input type="date" id="pbp-start" value="${tsToDate(t.start_date)}">
+    <label>Due</label><input type="date" id="pbp-due" value="${tsToDate(t.due_date)}">
+    <button class="btn btn-primary btn-sm" style="width:100%" onclick="pbSaveTimeline(${taskId})">Save</button>
+  `);
+}
+function pbSaveTimeline(taskId){
+  const start=document.getElementById('pbp-start').value;
+  const due=document.getElementById('pbp-due').value;
+  closePbPopover();
+  pbSetFields(taskId,{start_date:start?dateToTs(start):null,due_date:due?dateToTs(due):null});
+}
+function pbEditAssignees(taskId,anchorEl){
+  if(!canEdit())return;
+  const t=pbFindTask(taskId);if(!t)return;
+  const currentIds=t.assignees.map(a=>a.id);
+  pbPopover(anchorEl,`<div>${pbAgents.map(a=>
+    `<label style="display:block;padding:3px 0;font-size:12px;font-weight:400"><input type="checkbox" value="${a.id}" ${currentIds.includes(a.id)?'checked':''}> ${esc(a.username)}</label>`
+  ).join('')||'No staff to assign yet.'}</div><button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px" onclick="pbSaveAssignees(${taskId})">Save</button>`);
+}
+function pbSaveAssignees(taskId){
+  const ids=[...document.querySelectorAll('#pb-popover input:checked')].map(i=>parseInt(i.value,10));
+  closePbPopover();
+  pbSetFields(taskId,{assignee_ids:ids});
+}
+function pbEditReviewer(taskId,anchorEl){
+  if(!canEdit())return;
+  const t=pbFindTask(taskId);if(!t)return;
+  const currentId=t.reviewer?t.reviewer.id:null;
+  pbPopover(anchorEl,`<select id="pbp-reviewer"><option value="">Unassigned</option>${pbAgents.map(a=>
+    `<option value="${a.id}" ${a.id===currentId?'selected':''}>${esc(a.username)}</option>`
+  ).join('')}</select><button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px" onclick="pbSaveReviewer(${taskId})">Save</button>`);
+}
+function pbSaveReviewer(taskId){
+  const v=document.getElementById('pbp-reviewer').value;
+  closePbPopover();
+  pbSetFields(taskId,{reviewer_id:v?parseInt(v,10):null});
+}
+function pbEditTag(taskId,anchorEl){
+  if(!canEdit())return;
+  const t=pbFindTask(taskId);if(!t)return;
+  const pop=pbPopover(anchorEl,`<input type="text" id="pbp-tag" value="${esc(t.tag||'')}" placeholder="Tag"><button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px" onclick="pbSaveTag(${taskId})">Save</button>`);
+  pop.querySelector('#pbp-tag').focus();
+}
+function pbSaveTag(taskId){
+  const v=val('pbp-tag');
+  closePbPopover();
+  pbSetFields(taskId,{tag:v});
+}
+function pbEditBillable(taskId,anchorEl){
+  if(!canEdit())return;
+  const t=pbFindTask(taskId);if(!t)return;
+  const pop=pbPopover(anchorEl,`<input type="number" step="0.5" min="0" id="pbp-billable" value="${t.billable_hours??''}" placeholder="Hours"><button class="btn btn-primary btn-sm" style="width:100%;margin-top:6px" onclick="pbSaveBillable(${taskId})">Save</button>`);
+  pop.querySelector('#pbp-billable').focus();
+}
+function pbSaveBillable(taskId){
+  const raw=document.getElementById('pbp-billable').value;
+  closePbPopover();
+  pbSetFields(taskId,{billable_hours:raw===''?null:parseFloat(raw)});
+}
+async function pbSetFields(taskId,fields){
+  const r=await put(API+'/tasks.php',{id:taskId,csrf,...fields});
+  if(r.error)return flash(r.error,true);
+  await loadPbTasks();
+}
+
+// ── Item detail modal ──
+function openPbModal(taskId){
+  pbCurrentTaskId=taskId;
+  pbModalTab='details';
+  document.getElementById('pb-modal-overlay').classList.add('open');
+  renderPbModalTabs();
+}
+function closePbModal(){
+  document.getElementById('pb-modal-overlay').classList.remove('open');
+  pbCurrentTaskId=null;
+}
+function switchPbModalTab(tab){
+  pbModalTab=tab;
+  renderPbModalTabs();
+}
+function renderPbModalTabs(){
+  const t=pbFindTask(pbCurrentTaskId);
+  if(!t){closePbModal();return;}
+  document.querySelectorAll('#pb-modal-tabs button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pb-tab-btn-'+pbModalTab).classList.add('active');
+  const titleInput=document.getElementById('pb-modal-title');
+  titleInput.value=t.title;
+  titleInput.disabled=!canEdit();
+  if(pbModalTab==='details')renderPbModalDetails(t);else renderPbModalComments(t);
+}
+function renderPbModalDetails(t){
+  const editable=canEdit();
+  document.getElementById('pb-modal-body').innerHTML=`
+    <div class="pb-field-row"><label>Group</label><input type="text" id="pbm-group" value="${esc(t.group_label||'')}" ${editable?'':'disabled'}></div>
+    <div class="pb-field-row"><label>Status</label>
+      <select id="pbm-status" ${editable?'':'disabled'}>
+        <option value="to_do" ${t.status==='to_do'?'selected':''}>To do</option>
+        <option value="in_progress" ${t.status==='in_progress'?'selected':''}>In progress</option>
+        <option value="done" ${t.status==='done'?'selected':''}>Done</option>
+      </select>
+    </div>
+    <div class="pb-field-row"><label>Start date</label><input type="date" id="pbm-start" value="${tsToDate(t.start_date)}" ${editable?'':'disabled'}></div>
+    <div class="pb-field-row"><label>Due date</label><input type="date" id="pbm-due" value="${tsToDate(t.due_date)}" ${editable?'':'disabled'}></div>
+    <div class="pb-field-row"><label>Assignees</label><div>${pbAgents.map(a=>
+      `<label style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:12px;font-weight:400"><input type="checkbox" class="pbm-assignee" value="${a.id}" ${t.assignees.some(x=>x.id===a.id)?'checked':''} ${editable?'':'disabled'}> ${esc(a.username)}</label>`
+    ).join('')||'<span style="color:#6b7480;font-size:12px">No staff yet.</span>'}</div></div>
+    <div class="pb-field-row"><label>Reviewer</label><select id="pbm-reviewer" ${editable?'':'disabled'}><option value="">Unassigned</option>${pbAgents.map(a=>
+      `<option value="${a.id}" ${t.reviewer&&t.reviewer.id===a.id?'selected':''}>${esc(a.username)}</option>`
+    ).join('')}</select></div>
+    <div class="pb-field-row"><label>Tag</label><input type="text" id="pbm-tag" value="${esc(t.tag||'')}" ${editable?'':'disabled'}></div>
+    <div class="pb-field-row"><label>Billable hours</label><input type="number" step="0.5" min="0" id="pbm-billable" value="${t.billable_hours??''}" ${editable?'':'disabled'}></div>
+    <div class="pb-field-row" style="border-bottom:none;flex-direction:column;align-items:flex-start">
+      <label style="width:auto;margin-bottom:4px">Description</label>
+      <textarea id="pbm-desc" style="width:100%" ${editable?'':'disabled'}>${esc(t.description||'')}</textarea>
+    </div>
+    ${editable?`<div style="display:flex;justify-content:space-between;margin-top:14px">
+      <button class="btn btn-danger" onclick="pbDeleteFromModal()">Delete item</button>
+      <button class="btn btn-primary" onclick="pbSaveModalDetails()">Save</button>
+    </div>`:''}
+  `;
+}
+async function pbSaveModalDetails(){
+  const title=val('pb-modal-title');
+  if(!title)return flash('Title cannot be empty',true);
+  const ids=[...document.querySelectorAll('.pbm-assignee:checked')].map(i=>parseInt(i.value,10));
+  const reviewerVal=document.getElementById('pbm-reviewer').value;
+  const billableRaw=val('pbm-billable');
+  const startVal=document.getElementById('pbm-start').value;
+  const dueVal=document.getElementById('pbm-due').value;
+  const r=await put(API+'/tasks.php',{
+    id:pbCurrentTaskId,csrf,
+    title,
+    group_label:val('pbm-group'),
+    status:document.getElementById('pbm-status').value,
+    start_date:startVal?dateToTs(startVal):null,
+    due_date:dueVal?dateToTs(dueVal):null,
+    reviewer_id:reviewerVal?parseInt(reviewerVal,10):null,
+    tag:val('pbm-tag'),
+    billable_hours:billableRaw===''?null:parseFloat(billableRaw),
+    description:document.getElementById('pbm-desc').value.trim(),
+    assignee_ids:ids,
+  });
+  if(r.error)return flash(r.error,true);
+  await loadPbTasks();
+  flash('Item saved');
+}
+async function pbDeleteFromModal(){
+  if(!confirm('Delete this item? This cannot be undone.'))return;
+  const r=await del(API+'/tasks.php',{id:pbCurrentTaskId,csrf});
+  if(r.error)return flash(r.error,true);
+  closePbModal();
+  await loadPbTasks();
+}
+async function renderPbModalComments(t){
+  document.getElementById('pb-modal-body').innerHTML='<p style="color:#adb4ba">Loading…</p>';
+  const rows=await get(API+'/project_comments.php?task_id='+t.id);
+  if(pbCurrentTaskId!==t.id)return; // modal moved on while this was in flight
+  const list=Array.isArray(rows)?rows:[];
+  document.getElementById('pb-modal-body').innerHTML=`
+    <div id="pbm-comments-list">${list.length?list.map(c=>`
+      <div class="pb-comment"><span class="who">${esc(c.username)}</span><span class="when">${fmtDate(c.created_at)}</span><div>${esc(c.content)}</div></div>
+    `).join(''):'<div style="color:#adb4ba;font-size:13px">No comments yet.</div>'}</div>
+    ${canEdit()?`<div style="display:flex;gap:8px;margin-top:14px">
+      <input type="text" id="pbm-comment-input" placeholder="Add a comment…" style="flex:1">
+      <button class="btn btn-primary" id="pbm-comment-add">Add Comment</button>
+    </div>`:''}
+  `;
+  const addBtn=document.getElementById('pbm-comment-add');
+  if(addBtn)addBtn.onclick=pbAddComment;
+}
+async function pbAddComment(){
+  const input=document.getElementById('pbm-comment-input');
+  const content=input.value.trim();
+  if(!content)return;
+  const r=await post(API+'/project_comments.php',{task_id:pbCurrentTaskId,content,csrf});
+  if(r.error)return flash(r.error,true);
+  input.value='';
+  const t=pbFindTask(pbCurrentTaskId);
+  if(t)renderPbModalComments(t);
+}
+
+// ── Project Planner helpers ──
+function initials(name){return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();}
+const PB_PALETTE=['#3d5a99','#c0392b','#27ae60','#8e44ad','#d68910','#16a085','#2980b9','#e67e22','#c2185b','#00897b'];
+function pbColor(str){let h=0;for(const ch of String(str))h=(h*31+ch.charCodeAt(0))>>>0;return PB_PALETTE[h%PB_PALETTE.length];}
+function pbAvatarHtml(a){return `<span class="pb-avatar" style="background:${pbColor(a.username)}" title="${esc(a.username)}">${esc(initials(a.username))}</span>`;}
+function fmtShortDate(ts){return ts?new Date(ts*1000).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'';}
+function dateToTs(d){return Math.floor(new Date(d+'T12:00:00').getTime()/1000);}
+function tsToDate(ts){return ts?new Date(ts*1000).toISOString().slice(0,10):'';}
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
 async function get(url){const r=await fetch(url,{credentials:'same-origin'});return r.json();}
