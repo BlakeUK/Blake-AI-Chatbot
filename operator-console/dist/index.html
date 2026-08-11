@@ -131,6 +131,9 @@
   .project-footer .counts { display: flex; gap: 10px; }
   .project-footer .counts span { display: inline-flex; align-items: center; gap: 3px; }
 
+  /* ── Project detail (full page, not a slide-over) ── */
+  .project-detail { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
   .team-card { display: flex; flex-direction: column; align-items: flex-start; }
   .team-card .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-dim); color: var(--accent-bright); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
   .team-card .name { font-size: 14px; font-weight: 600; }
@@ -356,12 +359,13 @@
       </div>
 
       <div class="page" id="page-projects">
-        <div class="page-header-row">
+        <div class="page-header-row" id="projects-header-row">
           <h1>Projects</h1>
           <button class="btn btn-primary" id="new-project-btn">+ New Project</button>
         </div>
-        <div class="page-meta">&nbsp;</div>
+        <div class="page-meta" id="projects-page-meta">&nbsp;</div>
         <div class="card-grid" id="projects-grid"><div class="empty-note">Loading…</div></div>
+        <div id="project-detail-view" class="hidden"></div>
       </div>
 
       <div class="page active" id="page-tickets">
@@ -450,6 +454,8 @@
     </select>
     <label for="np-due">Due date (optional)</label>
     <input id="np-due" type="date">
+    <label for="np-color">Header colour (optional)</label>
+    <input id="np-color" type="color" value="#7c6ef2" style="width:60px;height:32px;padding:2px;cursor:pointer">
     <div class="err" id="np-err"></div>
     <div class="modal-actions">
       <button class="btn" id="np-cancel">Cancel</button>
@@ -1153,8 +1159,9 @@ async function loadProjects() {
 
 function projectCard(p) {
   const overdue = p.due_date && p.status !== 'completed' && (p.due_date * 1000) < Date.now();
+  const color = p.color || tcColor(p.name);
   return `
-  <div class="project-card" onclick="openProject(${p.id})" style="cursor:pointer">
+  <div class="project-card" onclick="openProject(${p.id})" style="cursor:pointer;border-top:4px solid ${color}">
     <div class="top-row">
       ${p.department ? `<span class="pill pill-dept">${esc(p.department)}</span>` : '<span></span>'}
       ${overdue ? '<span class="pill pill-overdue">overdue</span>' : `<span class="pill pill-dept">${esc(p.status)}</span>`}
@@ -1177,6 +1184,7 @@ async function loadProjectsPage() {
   el.innerHTML = topLevel.length ? topLevel.map(projectCard).join('') : '<div class="empty-note">No projects yet. Create one to get started.</div>';
 }
 
+const PROJECT_COLOR_PALETTE = ['#7c6ef2', '#4f9dde', '#3fbf7f', '#e0a13e', '#e0607a', '#6ec7c7', '#c76ee0'];
 let newProjectParentId = null;
 function openNewProjectModal(parentId) {
   newProjectParentId = parentId || null;
@@ -1184,6 +1192,7 @@ function openNewProjectModal(parentId) {
   document.getElementById('np-desc').value = '';
   document.getElementById('np-dept').value = '';
   document.getElementById('np-due').value = '';
+  document.getElementById('np-color').value = PROJECT_COLOR_PALETTE[Math.floor(Math.random() * PROJECT_COLOR_PALETTE.length)];
   document.getElementById('np-err').textContent = '';
   document.querySelector('#new-project-modal h2').textContent = parentId ? 'New sub-project' : 'New project';
   document.getElementById('new-project-modal').classList.remove('hidden');
@@ -1202,26 +1211,29 @@ document.getElementById('np-submit').onclick = async () => {
       department: document.getElementById('np-dept').value,
       due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
       parent_id: newProjectParentId,
+      color: document.getElementById('np-color').value,
       csrf,
     });
     if (!r.ok) { errEl.textContent = r.error || 'Could not create project'; return; }
     document.getElementById('new-project-modal').classList.add('hidden');
-    if (newProjectParentId) { closeSlideOver(); openProject(newProjectParentId); }
+    if (newProjectParentId) openProject(newProjectParentId);
     else loadProjectsPage();
   } catch (e) { errEl.textContent = 'Could not reach the server.'; }
 };
 
 async function openProject(id) {
-  closeSlideOver();
   let project;
   try { project = await apiGet('/api/admin/projects.php?id=' + id); } catch (e) { return; }
   if (project.error) { alert(project.error); return; }
 
-  const overlay = document.createElement('div');
-  overlay.className = 'slide-overlay';
-  overlay.onclick = (e) => { if (e.target === overlay) closeSlideOver(); };
-  overlay.innerHTML = `
-    <div class="slide-panel">
+  const color = project.color || tcColor(project.name);
+  document.getElementById('projects-grid').classList.add('hidden');
+  document.getElementById('projects-header-row').classList.add('hidden');
+  document.getElementById('projects-page-meta').classList.add('hidden');
+  const detail = document.getElementById('project-detail-view');
+  detail.classList.remove('hidden');
+  detail.innerHTML = `
+    <div class="project-detail" style="border-top:4px solid ${color}">
       <div class="slide-header">
         <div>
           ${project.parent_id ? `<div class="sub" style="margin-bottom:4px"><span style="cursor:pointer;text-decoration:underline" onclick="openProject(${project.parent_id})">← ${esc(project.parent_name)}</span></div>` : ''}
@@ -1231,7 +1243,7 @@ async function openProject(id) {
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-sm" id="pctl-assigned">Assigned (${project.assignees.length})</button>
           <button class="btn btn-sm" id="pctl-delete" style="color:var(--err)">Delete</button>
-          <button class="btn btn-sm slide-close">Close</button>
+          <button class="btn btn-sm" id="pctl-back">← Back to Projects</button>
         </div>
       </div>
       <div class="slide-controls">
@@ -1243,6 +1255,9 @@ async function openProject(id) {
         </div>
         <div class="group"><label>Due date</label>
           <input type="date" id="pctl-due" value="${project.due_date ? new Date(project.due_date*1000).toISOString().slice(0,10) : ''}">
+        </div>
+        <div class="group"><label>Colour</label>
+          <input type="color" id="pctl-color" value="${color}" style="width:44px;height:32px;padding:2px;cursor:pointer">
         </div>
         <div class="group" style="flex:1"><label>Progress: <span id="pctl-progress-val">${project.progress_pct}</span>%</label>
           <input type="range" min="0" max="100" id="pctl-progress" value="${project.progress_pct}" oninput="document.getElementById('pctl-progress-val').textContent=this.value">
@@ -1287,14 +1302,13 @@ async function openProject(id) {
         </div>
       </div>
     </div>`;
-  document.body.appendChild(overlay);
 
-  overlay.querySelector('.slide-close').onclick = closeSlideOver;
+  document.getElementById('pctl-back').onclick = closeProjectDetail;
   document.getElementById('pctl-add-sub').onclick = () => openNewProjectModal(project.id);
   document.getElementById('pctl-assigned').onclick = () => {
     openAssigneePicker('Assign project to', project.assignees.map(a => a.id), async (ids) => {
       await apiSend('PUT', '/api/admin/projects.php', { id: project.id, assignee_ids: ids, csrf });
-      closeSlideOver(); openProject(project.id); loadProjectsPage();
+      openProject(project.id); loadProjectsPage();
     });
   };
   document.getElementById('pctl-delete').onclick = async () => {
@@ -1303,29 +1317,35 @@ async function openProject(id) {
       : `Delete "${project.name}"? Linked tickets will be unlinked, not deleted. This can't be undone.`;
     if (!confirm(warn)) return;
     const r = await apiSend('DELETE', '/api/admin/projects.php', { id: project.id, csrf });
-    if (r.ok) { closeSlideOver(); loadProjectsPage(); loadDashboard(); }
+    if (r.ok) { closeProjectDetail(); loadDashboard(); }
     else alert(r.error || 'Could not delete project');
   };
   document.getElementById('pctl-save').onclick = async () => {
     const statusEl = document.getElementById('psave-status');
     statusEl.textContent = 'Saving…';
     const dueVal = document.getElementById('pctl-due').value;
+    const colorVal = document.getElementById('pctl-color').value;
     const r = await apiSend('PUT', '/api/admin/projects.php', {
       id: project.id, status: document.getElementById('pctl-status').value,
       department: document.getElementById('pctl-dept').value,
       due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
-      progress_pct: parseInt(document.getElementById('pctl-progress').value, 10), csrf,
+      progress_pct: parseInt(document.getElementById('pctl-progress').value, 10),
+      color: colorVal, csrf,
     });
     statusEl.textContent = r.ok ? 'Saved ✓' : (r.error || 'Failed');
     statusEl.style.color = r.ok ? 'var(--ok)' : 'var(--err)';
-    if (r.ok) loadProjectsPage();
+    if (r.ok) {
+      const panel = document.querySelector('#project-detail-view .project-detail');
+      if (panel) panel.style.borderTop = `4px solid ${colorVal}`;
+      loadProjectsPage();
+    }
   };
   document.getElementById('pc-add').onclick = async () => {
     const input = document.getElementById('pc-input');
     const content = input.value.trim();
     if (!content) return;
     const r = await apiSend('POST', '/api/admin/project_comments.php', { project_id: project.id, content, csrf });
-    if (r.ok) { input.value = ''; closeSlideOver(); openProject(project.id); }
+    if (r.ok) { input.value = ''; openProject(project.id); }
   };
 
   let newTaskAssigneeIds = [];
@@ -1356,10 +1376,20 @@ async function openProject(id) {
   loadProjectTasks(project.id);
 }
 
+function closeProjectDetail() {
+  const detail = document.getElementById('project-detail-view');
+  detail.classList.add('hidden');
+  detail.innerHTML = '';
+  document.getElementById('projects-grid').classList.remove('hidden');
+  document.getElementById('projects-header-row').classList.remove('hidden');
+  document.getElementById('projects-page-meta').classList.remove('hidden');
+  loadProjectsPage();
+}
+
 async function deleteComment(id, projectId) {
   if (!confirm('Delete this comment?')) return;
   const r = await apiSend('DELETE', '/api/admin/project_comments.php', { id, csrf });
-  if (r.ok) { closeSlideOver(); openProject(projectId); }
+  if (r.ok) { openProject(projectId); }
   else alert(r.error || 'Could not delete comment');
 }
 

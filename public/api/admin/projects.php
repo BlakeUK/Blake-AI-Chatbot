@@ -127,9 +127,12 @@ if ($method === 'POST') {
 
     $dueDate = !empty($body['due_date']) ? (int)$body['due_date'] : null;
 
+    $color = trim((string)($body['color'] ?? ''));
+    if ($color !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $color)) json_err('Invalid color');
+
     $pdo->prepare('
-        INSERT INTO projects (name, description, department, due_date, created_by, parent_id)
-        VALUES (?,?,?,?,?,?)
+        INSERT INTO projects (name, description, department, due_date, created_by, parent_id, color)
+        VALUES (?,?,?,?,?,?,?)
     ')->execute([
         $name,
         trim((string)($body['description'] ?? '')) ?: null,
@@ -137,6 +140,7 @@ if ($method === 'POST') {
         $dueDate,
         $_SESSION['admin_id'],
         $parentId,
+        $color !== '' ? $color : null,
     ]);
 
     $id = $pdo->lastInsertId();
@@ -185,6 +189,11 @@ if ($method === 'PUT') {
     }
     if (array_key_exists('due_date', $body)) {
         $fields[] = 'due_date=?'; $params[] = !empty($body['due_date']) ? (int)$body['due_date'] : null;
+    }
+    if (array_key_exists('color', $body)) {
+        $color = trim((string)$body['color']);
+        if ($color !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $color)) json_err('Invalid color');
+        $fields[] = 'color=?'; $params[] = $color !== '' ? $color : null;
     }
 
     if (!$fields && !array_key_exists('assignee_ids', $body)) json_err('No updatable fields provided');
