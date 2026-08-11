@@ -799,7 +799,7 @@ async function deleteKnowledge(id){
 async function loadFiles(){
   const rows=await get(API+'/files.php');
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
+  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
 }
 async function uploadFiles(files){
   const prog=document.getElementById('upload-progress');
@@ -1097,6 +1097,10 @@ async function deleteFile(id){
   if(!confirm('Delete this file and remove from knowledge base?'))return;
   const r=await del(API+'/files.php',{csrf,id});
   if(!r.error){flash('File deleted');loadFiles();}else flash(r.error,true);
+}
+async function retryFile(id){
+  const r=await post(API+'/reindex.php',{csrf,file_id:id});
+  if(!r.error){flash('Re-indexed: '+r.chunks+' chunks');loadFiles();loadDuplicates();}else flash(r.error,true);
 }
 
 // ── Product Page Template ────────────────────────────────────────────────────
