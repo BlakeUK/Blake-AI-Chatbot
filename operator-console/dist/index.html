@@ -214,20 +214,6 @@
   .comment-item .who { font-weight: 600; }
   .comment-item .when { color: var(--text-dim); font-size: 10px; margin-left: 6px; }
 
-  .task-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
-  .task-row:last-child { border-bottom: none; }
-  .task-row.task-done .task-title { text-decoration: line-through; color: var(--text-dim); }
-  .task-row input[type="checkbox"] { width: auto; margin-top: 2px; flex-shrink: 0; }
-  .task-body { flex: 1; min-width: 0; }
-  .task-title { cursor: pointer; font-weight: 500; }
-  .task-title:hover { text-decoration: underline; }
-  .task-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .task-meta.task-overdue { color: var(--err); }
-  .task-del { color: var(--err); cursor: pointer; font-size: 11px; flex-shrink: 0; }
-  .task-status-sel { width: auto; padding: 3px 6px; font-size: 11px; flex-shrink: 0; }
-  .task-group-header { display: flex; align-items: center; gap: 7px; padding: 10px 0 4px; font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
-  .task-group-header:first-child { padding-top: 0; }
-  .task-group-header .grp-bar { width: 4px; height: 12px; border-radius: 2px; flex-shrink: 0; }
   .task-tag-pill { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; color: #fff; }
   #task-add { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   #task-add input[type="text"] { flex: 1; min-width: 120px; }
@@ -249,9 +235,6 @@
   .td-tabs button.active { color: var(--accent-bright); border-bottom-color: var(--accent-bright); }
 
   /* ── Task Kanban view ── */
-  .tk-view-toggle { display: flex; gap: 2px; background: var(--surface-2); border-radius: var(--radius-sm); padding: 2px; }
-  .tk-view-toggle button { padding: 4px 10px; border: none; background: none; color: var(--text-dim); border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; }
-  .tk-view-toggle button.active { background: var(--accent); color: #fff; }
   .tk-kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
   .tk-kcol { flex: 0 0 190px; background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px; min-height: 60px; }
   .tk-kcol.dragover { outline: 2px dashed var(--accent-bright); }
@@ -1280,13 +1263,7 @@ async function openProject(id) {
         ${project.children.length ? project.children.map(c => `<div class="linked-ticket" style="cursor:pointer" onclick="openProject(${c.id})"><span>${esc(c.name)}</span><span class="pill pill-dept">${c.progress_pct||0}%</span></div>`).join('') : '<div class="empty-note">No sub-projects yet.</div>'}
       </div>
       <div class="panel-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <h3 style="margin:0;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
-          <div class="tk-view-toggle" id="tk-view-toggle">
-            <button class="active" onclick="setTaskViewMode('list')">List</button>
-            <button onclick="setTaskViewMode('kanban')">Kanban</button>
-          </div>
-        </div>
+        <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
         <div id="task-list">Loading…</div>
         <div id="task-add">
           <input type="text" id="task-title" placeholder="New item…">
@@ -1376,7 +1353,6 @@ async function openProject(id) {
     document.getElementById('task-assign-btn').textContent = 'Assign';
     loadProjectTasks(project.id);
   };
-  taskViewMode = 'list';
   loadProjectTasks(project.id);
 }
 
@@ -1416,14 +1392,13 @@ function openAssigneePicker(title, currentIds, onSave) {
 // (to_do|in_progress|done - the same three the web admin's Kanban view
 // uses), a timeline (start_date/due_date), assignees, a single reviewer,
 // an optional tag and optional billable hours - see
-// scripts/schema_project_board.sql. This panel shows a compact grouped
-// list rather than the web admin's full table/Kanban (not enough width
-// in a 560px slide-over for that), but every field is viewable and
-// editable here too, either inline (status) or via the task detail modal
-// (everything else, plus comments).
+// scripts/schema_project_board.sql. Kanban is the only view here (a
+// separate List view existed briefly but was confusing alongside it -
+// one clear way to work the board beats two), so every field is viewable
+// and editable either inline (status, via drag) or via the task detail
+// modal (everything else, plus comments).
 let taskListProjectId = null;
 let taskListCache = [];
-let taskViewMode = 'list';
 const TC_PALETTE = ['#7c6ef2', '#e0a83f', '#4fce8e', '#ea5f5f', '#5fb6e8', '#c07be0', '#e08f5f', '#5fe0c0'];
 function tcColor(str) {
   let h = 0;
@@ -1432,16 +1407,6 @@ function tcColor(str) {
 }
 const TASK_STATUS_LABELS = { to_do: 'To do', in_progress: 'In progress', done: 'Done' };
 
-function groupTasksByLabel(tasks) {
-  const order = [], map = {};
-  tasks.forEach(t => {
-    const g = t.group_label || 'Ungrouped';
-    if (!map[g]) { map[g] = []; order.push(g); }
-    map[g].push(t);
-  });
-  return order.map(label => ({ label, tasks: map[label] }));
-}
-
 async function loadProjectTasks(projectId) {
   taskListProjectId = projectId;
   const el = document.getElementById('task-list');
@@ -1449,33 +1414,13 @@ async function loadProjectTasks(projectId) {
   let tasks;
   try { tasks = await apiGet('/api/admin/tasks.php?project_id=' + projectId); } catch (e) { el.innerHTML = '<div class="empty-note">Could not load tasks.</div>'; return; }
   taskListCache = Array.isArray(tasks) ? tasks : [];
-  renderTaskList();
-}
-function setTaskViewMode(mode) {
-  taskViewMode = mode;
-  const toggle = document.getElementById('tk-view-toggle');
-  if (toggle) {
-    toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    toggle.querySelector(mode === 'list' ? 'button:first-child' : 'button:last-child').classList.add('active');
-  }
-  renderTaskList();
-}
-function renderTaskList() {
-  const el = document.getElementById('task-list');
-  if (!el) return; // panel closed
-  if (!taskListCache.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
-  if (taskViewMode === 'kanban') { renderTaskKanban(el); return; }
-
-  const groups = groupTasksByLabel(taskListCache);
-  el.innerHTML = groups.map(g => `
-    <div class="task-group-header"><span class="grp-bar" style="background:${tcColor(g.label)}"></span>${esc(g.label)} (${g.tasks.length})</div>
-    ${g.tasks.map(t => taskRowHtml(t, taskListProjectId)).join('')}
-  `).join('');
+  renderTaskKanban(el);
 }
 
 // ── Kanban view (same three columns as the web admin's) ──
 const TASK_KANBAN_COLUMNS = [['to_do', 'To do', '#8b5cf6'], ['in_progress', 'In progress', '#d68910'], ['done', 'Done', '#27ae60']];
 function renderTaskKanban(el) {
+  if (!taskListCache.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
   el.innerHTML = `<div class="tk-kanban">${TASK_KANBAN_COLUMNS.map(([status, label, color]) => {
     const items = taskListCache.filter(t => t.status === status);
     return `<div class="tk-kcol" ondragover="tkDragOver(event)" ondragleave="tkDragLeave(event)" ondrop="tkDrop(event,'${status}')">
@@ -1489,7 +1434,9 @@ function tkKanbanCard(t) {
     <div class="kc-title" onclick="openTaskDetail(${t.id})">${esc(t.title)}</div>
     ${t.due_date ? `<div class="kc-field">${new Date(t.due_date * 1000).toLocaleDateString()}</div>` : ''}
     ${t.tag ? `<div class="kc-field"><span class="task-tag-pill" style="background:${tcColor(t.tag)}">${esc(t.tag)}</span></div>` : ''}
+    ${t.billable_hours != null ? `<div class="kc-field">${t.billable_hours}h</div>` : ''}
     <div class="kc-field">${t.assignees.length ? t.assignees.map(a => esc(a.username)).join(', ') : 'Unassigned'}</div>
+    ${t.reviewer ? `<div class="kc-field">reviewer: ${esc(t.reviewer.username)}</div>` : ''}
   </div>`;
 }
 let tkDragTaskId = null;
@@ -1505,30 +1452,6 @@ async function tkDrop(e, status) {
   await setTaskStatus(taskId, taskListProjectId, status);
 }
 
-function taskRowHtml(t, projectId) {
-  const overdue = t.due_date && t.status !== 'done' && (t.due_date * 1000) < Date.now();
-  const timeline = t.start_date && t.due_date
-    ? new Date(t.start_date * 1000).toLocaleDateString() + ' – ' + new Date(t.due_date * 1000).toLocaleDateString()
-    : (t.due_date ? (overdue ? 'Overdue — was due ' : 'Due ') + new Date(t.due_date * 1000).toLocaleDateString() : 'No due date');
-  return `
-  <div class="task-row ${t.status === 'done' ? 'task-done' : ''}">
-    <div class="task-body">
-      <div class="task-title" onclick="openTaskDetail(${t.id})">${esc(t.title)}</div>
-      <div class="task-meta ${overdue ? 'task-overdue' : ''}">
-        <span>${timeline}</span>
-        ${t.tag ? `<span class="task-tag-pill" style="background:${tcColor(t.tag)}">${esc(t.tag)}</span>` : ''}
-        ${t.billable_hours != null ? `<span>${t.billable_hours}h</span>` : ''}
-        <span>${t.assignees.length ? t.assignees.map(a => esc(a.username)).join(', ') : 'Unassigned'}</span>
-        ${t.reviewer ? `<span>· reviewer ${esc(t.reviewer.username)}</span>` : ''}
-        <span style="cursor:pointer;text-decoration:underline" onclick='reassignTask(${t.id}, ${projectId}, ${JSON.stringify(t.assignees.map(a => a.id))})'>reassign</span>
-      </div>
-    </div>
-    <select class="task-status-sel" onchange="setTaskStatus(${t.id}, ${projectId}, this.value)">
-      ${Object.keys(TASK_STATUS_LABELS).map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${TASK_STATUS_LABELS[s]}</option>`).join('')}
-    </select>
-    <span class="task-del" onclick="deleteTask(${t.id}, ${projectId})">delete</span>
-  </div>`;
-}
 async function setTaskStatus(id, projectId, status) {
   const r = await apiSend('PUT', '/api/admin/tasks.php', { id, status, csrf });
   if (r.error) alert(r.error);
@@ -1541,13 +1464,6 @@ async function deleteTask(id, projectId) {
   loadProjectTasks(projectId);
   if (taskDetailId === id) closeTaskDetail();
 }
-function reassignTask(id, projectId, currentIds) {
-  openAssigneePicker('Assign task to', currentIds, async (ids) => {
-    await apiSend('PUT', '/api/admin/tasks.php', { id, assignee_ids: ids, csrf });
-    loadProjectTasks(projectId);
-  });
-}
-
 // ── Task detail modal (Details + Comments) ──
 let taskDetailId = null;
 let taskDetailTab = 'details';
