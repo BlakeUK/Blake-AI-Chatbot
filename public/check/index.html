@@ -8,7 +8,7 @@
 <style>
   * { box-sizing: border-box; }
   body { font-family: system-ui, sans-serif; font-size: 14px; background: #2f343b; color: #e8e8ea; margin: 0; }
-  header { background: #2f343b; color: #fff; padding: 18px 24px; border-bottom: 1px solid #454c54; }
+  header { background: #2f343b; color: #fff; padding: 18px 24px; border-bottom: 1px solid #454c54; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   header h1 { margin: 0 0 4px; font-size: 19px; }
   header p { margin: 0; color: #adb4ba; font-size: 13px; }
   main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 60px; }
@@ -19,11 +19,25 @@
   .scan-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .scan-row input[type=text] { flex: 1; min-width: 260px; padding: 8px 10px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; }
   .scan-row input[type=text]:focus { outline: none; border-color: #8fb0ec; }
+  .scan-row select { padding: 8px 10px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; flex-shrink: 0; }
+  .scan-row select:focus { outline: none; border-color: #8fb0ec; }
   button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .btn-primary { background: #3d5a99; color: #fff; } .btn-primary:hover:not(:disabled) { background: #2f4677; }
   .btn-secondary { background: #5c636b; color: #fff; } .btn-secondary:hover:not(:disabled) { background: #494f56; }
   .btn-danger { background: #c0392b; color: #fff; } .btn-danger:hover:not(:disabled) { background: #9c2d20; }
+
+  #login-overlay { position: fixed; inset: 0; background: #2f343b; display: none; align-items: center; justify-content: center; z-index: 1000; }
+  #login-overlay.show { display: flex; }
+  #login-box { background: #3a4048; border: 1px solid #454c54; border-radius: 8px; padding: 32px; width: 320px; box-shadow: 0 4px 24px rgba(0,0,0,.3); }
+  #login-box h2 { margin: 0 0 20px; color: #8fb0ec; font-size: 18px; text-align: center; }
+  #login-box label { display: block; margin-top: 10px; font-size: 12px; color: #adb4ba; }
+  #login-box input { width: 100%; padding: 8px 10px; margin-top: 4px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; }
+  #login-box input:focus { outline: none; border-color: #8fb0ec; }
+  #login-box button { width: 100%; margin-top: 18px; padding: 10px; }
+  #login-alert { color: #f18686; font-size: 12px; min-height: 14px; margin-top: 8px; }
+  #logout-btn { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+  #logout-btn:hover { background: rgba(255,255,255,.25); }
 
   #error-banner { display: none; background: #4a2a2a; border: 1px solid #c0392b; color: #f5b7b1; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
 
@@ -98,15 +112,31 @@
 </head>
 <body>
 
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>Sitemap &amp; SEO Checker</h2>
+    <label for="login-user">Username</label>
+    <input type="text" id="login-user" autocomplete="username">
+    <label for="login-pass">Password</label>
+    <input type="password" id="login-pass" autocomplete="current-password">
+    <div id="login-alert"></div>
+    <button class="btn-primary" id="login-btn">Log In</button>
+  </div>
+</div>
+
 <header>
-  <h1>Blake UK Sitemap &amp; SEO Health Checker</h1>
-  <p>Reads a sitemap, checks every page it lists, and flags anything a visitor or Google would trip over.</p>
+  <div>
+    <h1>Blake UK Sitemap &amp; SEO Health Checker</h1>
+    <p>Reads a sitemap, checks every page it lists, and flags anything a visitor or Google would trip over.</p>
+  </div>
+  <button id="logout-btn" style="display:none">Log Out</button>
 </header>
 
 <main>
   <div class="card">
     <h2>Scan</h2>
     <div class="scan-row">
+      <select id="site-select"><option value="">Loading sites…</option></select>
       <input type="text" id="sitemap-url" value="https://www.blake-uk.com/sitemap.xml" spellcheck="false">
       <button class="btn-primary" id="scan-btn">Start Scan</button>
       <button class="btn-danger" id="stop-btn" style="display:none">Stop</button>
@@ -156,8 +186,8 @@
 </main>
 
 <footer>
-  <p>Only checks pages on blake-uk.com / www.blake-uk.com. Soft-404, duplicate-content and JS-dependency flags are heuristics for a
-  human to spot-check, not a definite verdict — see the notes in each row. Built for Blake UK internal QA use.</p>
+  <p>Only checks pages on a fixed list of allowed sites (pick one above). Soft-404, duplicate-content and JS-dependency flags are heuristics for a
+  human to spot-check, not a definite verdict — see the notes in each row. Built for internal QA use.</p>
   <p>This is an on-page/technical/crawlability audit, not a replacement for Semrush or Ahrefs: it has no backlink index, keyword/ranking
   data, traffic estimates, or a Core Web Vitals/Lighthouse renderer, since those all require proprietary crawled datasets or paid APIs
   this tool doesn't have access to. What it does check — status/redirects, on-page SEO, structured data, and bot/AI crawler access — is
@@ -193,6 +223,8 @@ const botAiCard = $('bot-ai-card'), botAiContent = $('bot-ai-content');
 const dupFilterBanner = $('dup-filter-banner'), dupFilterText = $('dup-filter-text');
 let currentDupFilter = null; // { field: 'title'|'meta_description', key: normalized-lowercase-string }
 
+const loginOverlay = $('login-overlay'), loginAlert = $('login-alert'), logoutBtn = $('logout-btn');
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
@@ -207,8 +239,9 @@ function pathOf(url) {
   try { const u = new URL(url); return u.pathname + u.search; } catch (e) { return url; }
 }
 
-async function fetchJson(url) {
-  const r = await fetch(url);
+async function fetchJson(url, options) {
+  const opts = options ? { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } } : undefined;
+  const r = await fetch(url, opts);
   let data;
   try { data = await r.json(); } catch (e) { throw new Error('Server returned a non-JSON response (HTTP ' + r.status + ')'); }
   return data;
@@ -558,9 +591,14 @@ async function startScan() {
     finishScan();
     return;
   }
-  if (sitemapData.truncated) {
-    showError(`Note: this sitemap has more than ${sitemapData.count} URLs — only the first ${sitemapData.count} were scanned.`);
+  const notes = [];
+  if (sitemapData.used_html_fallback) {
+    notes.push(`Note: ${sitemapUrl} isn't a valid XML sitemap — extracted ${sitemapData.count} same-site link(s) from the page instead.`);
   }
+  if (sitemapData.truncated) {
+    notes.push(`Note: this sitemap has more than ${sitemapData.count} URLs — only the first ${sitemapData.count} were scanned.`);
+  }
+  if (notes.length) showError(notes.join(' '));
 
   entries = sitemapData.urls;
   rows = entries.map((entry, i) => {
@@ -621,6 +659,71 @@ function exportCsv() {
   a.click();
   a.remove();
 }
+
+async function loadSites() {
+  const select = $('site-select');
+  try {
+    const data = await fetchJson('sites.php');
+    if (!data || !data.ok || !data.sites || !data.sites.length) throw new Error('empty');
+    select.innerHTML = data.sites.map((s) => `<option value="${esc(s.default_sitemap)}">${esc(s.label)}</option>`).join('');
+    $('sitemap-url').value = data.sites[0].default_sitemap;
+  } catch (e) {
+    select.innerHTML = '<option value="">(site list unavailable)</option>';
+  }
+}
+$('site-select').addEventListener('change', (e) => {
+  if (e.target.value) $('sitemap-url').value = e.target.value;
+});
+
+function showLoggedIn() {
+  loginOverlay.classList.remove('show');
+  logoutBtn.style.display = 'inline-block';
+  loadSites();
+}
+
+function showLoggedOut() {
+  loginOverlay.classList.add('show');
+  logoutBtn.style.display = 'none';
+  $('login-pass').value = '';
+  $('login-user').focus();
+}
+
+async function checkAuth() {
+  try {
+    const data = await fetchJson('login.php');
+    if (data && data.authed) showLoggedIn();
+    else showLoggedOut();
+  } catch (e) {
+    showLoggedOut();
+  }
+}
+
+async function doLogin() {
+  loginAlert.textContent = '';
+  const username = $('login-user').value.trim();
+  const password = $('login-pass').value;
+  if (!username || !password) { loginAlert.textContent = 'Enter a username and password.'; return; }
+  const btn = $('login-btn');
+  btn.disabled = true;
+  try {
+    const r = await fetchJson('login.php', { method: 'POST', body: JSON.stringify({ username, password }) });
+    if (r && r.ok) showLoggedIn();
+    else loginAlert.textContent = (r && r.error) || 'Login failed.';
+  } catch (e) {
+    loginAlert.textContent = 'Could not reach the server.';
+  }
+  btn.disabled = false;
+}
+
+$('login-btn').onclick = doLogin;
+$('login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+$('login-user').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-pass').focus(); });
+logoutBtn.onclick = async () => {
+  try { await fetchJson('logout.php', { method: 'POST' }); } catch (e) { /* ignore */ }
+  showLoggedOut();
+};
+
+checkAuth();
 
 scanBtn.onclick = startScan;
 stopBtn.onclick = () => { stopRequested = true; stopBtn.disabled = true; };

@@ -12,16 +12,6 @@
     @blocked path /config/* /data/* /uploads/* /logs/* /scripts/*
     respond @blocked 403
 
-    # The sitemap/SEO checker (public/check/) is unauthenticated at the
-    # app layer by design (see its own header comments) - it's gated
-    # here instead, at the edge, so neither the static page nor its PHP
-    # endpoints are reachable without this. Password hash only (bcrypt,
-    # via `caddy hash-password` or PHP's password_hash) - never the
-    # plaintext - same reason the app never stores one either.
-    basic_auth /check/* {
-        BlakeUK $2y$12$PHA4pOBPj5UnShrSyjUha.PIRvSkTS8WI9SRBzwGeLajByJgyAO56
-    }
-
     file_server
 
     header {
@@ -75,9 +65,6 @@ blakegroup.uk, www.blakegroup.uk {
     header @downloads Access-Control-Allow-Origin "*"
 
     handle {
-        basic_auth /check/* {
-            BlakeUK $2y$12$PHA4pOBPj5UnShrSyjUha.PIRvSkTS8WI9SRBzwGeLajByJgyAO56
-        }
         root * /var/www/chat/public
         php_fastcgi unix//run/php/php8.2-fpm.sock
         file_server

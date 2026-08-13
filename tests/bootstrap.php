@@ -86,6 +86,9 @@ file_put_contents($configPath, '<?php return ' . var_export([
     'rate_limit_admin'   => 999999,
     'session_lifetime'   => 3600,
     'escalate_threshold' => 0.4,
+    // Auth\CheckTool test fixture - not the real production credential.
+    'check_tool_username'      => 'testuser',
+    'check_tool_password_hash' => password_hash('testpass', PASSWORD_DEFAULT),
 ], true) . ";\n");
 
 putenv("BLAKE_UK_CONFIG=$configPath");

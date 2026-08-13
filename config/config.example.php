@@ -34,4 +34,15 @@ return [
     'rate_limit_admin'   => 60,
     'session_lifetime'   => 3600,
     'escalate_threshold' => 0.4,
+
+    // Login gate for public/check/ (the sitemap/SEO tool) - deliberately
+    // one fixed credential, not another admin_users account, since this
+    // tool is scoped to itself rather than the rest of the admin panel.
+    // On an already-deployed server, scripts/ensure_check_tool_config.php
+    // adds these two keys on the next deploy if they're missing - config.php
+    // only gets generated from this file once, on first install, so a key
+    // added here later never reaches an existing deployment on its own.
+    // Generate a hash: php -r "echo password_hash('yourpassword', PASSWORD_DEFAULT);"
+    'check_tool_username'      => 'CHANGE_ME',
+    'check_tool_password_hash' => 'CHANGE_ME_BCRYPT_HASH',
 ];

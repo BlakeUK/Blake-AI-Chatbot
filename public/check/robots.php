@@ -16,17 +16,17 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 2) . '/src/bootstrap.php';
 cors();
+\Auth\CheckTool::requireAuth();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') json_err('Method not allowed', 405);
 
 rate_limit('check_robots', 20);
 
-const ROBOTS_ALLOWED_HOSTS = ['blake-uk.com', 'www.blake-uk.com'];
 const ROBOTS_DEFAULT_HOST = 'www.blake-uk.com';
 
 $ref = trim((string)($_GET['url'] ?? ''));
 $refHost = $ref !== '' ? parse_url($ref, PHP_URL_HOST) : null;
-$host = ($refHost && in_array(strtolower($refHost), ROBOTS_ALLOWED_HOSTS, true))
+$host = ($refHost && \Sitemap\AllowedSites::isHostAllowed($refHost))
     ? $refHost
     : ROBOTS_DEFAULT_HOST;
 
