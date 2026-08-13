@@ -87,3 +87,93 @@ test('returns the empty shape for a blank body without erroring', function () {
 test('empty() matches analyze() on blank input', function () {
     assert_equal(\Sitemap\PageAnalyzer::empty(), \Sitemap\PageAnalyzer::analyze('', 'https://www.blake-uk.com/x'));
 });
+
+test('extracts a JSON-LD @type', function () {
+    $html = '<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Widget"}</script></head></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_true($r['has_structured_data']);
+    assert_contains('Product', $r['structured_data_types']);
+});
+
+test('extracts JSON-LD types nested inside @graph', function () {
+    $html = '<html><head><script type="application/ld+json">{"@graph":[{"@type":"Organization"},{"@type":"WebSite"}]}</script></head></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_contains('Organization', $r['structured_data_types']);
+    assert_contains('WebSite', $r['structured_data_types']);
+});
+
+test('does not error on invalid JSON-LD', function () {
+    $html = '<html><head><script type="application/ld+json">{not valid json</script></head></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_false($r['has_structured_data']);
+});
+
+test('detects Open Graph and Twitter Card tags independently', function () {
+    $html = '<html><head><meta property="og:title" content="x"></head></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_true($r['has_open_graph']);
+    assert_false($r['has_twitter_card']);
+});
+
+test('collects hreflang values', function () {
+    $html = '<html><head><link rel="alternate" hreflang="en-GB" href="https://www.blake-uk.com/x">'
+        . '<link rel="alternate" hreflang="en-US" href="https://www.blake-uk.com/us/x"></head></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_equal(2, $r['hreflang_count']);
+    assert_contains('en-GB', $r['hreflang_langs']);
+});
+
+test('counts images missing an alt attribute', function () {
+    $html = '<html><body><img src="a.jpg" alt="A widget"><img src="b.jpg"><img src="c.jpg" alt=""></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_equal(3, $r['images_total']);
+    // alt="" (empty) is a deliberate "decorative image" marker, not
+    // missing - only img.b has no alt attribute at all.
+    assert_equal(1, $r['images_missing_alt']);
+});
+
+test('counts visible words', function () {
+    $html = '<html><body><p>One two three four five</p></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_equal(5, $r['word_count']);
+});
+
+test('does not count <script> or <style> text as visible words', function () {
+    $html = '<html><head><script>' . str_repeat('var x = 1; ', 100) . '</script>'
+        . '<style>' . str_repeat('.a{color:red} ', 100) . '</style></head>'
+        . '<body><p>One two three four five</p></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_equal(5, $r['word_count']);
+});
+
+test('a script/style-heavy but text-light page is still flagged as JS-dependent', function () {
+    $html = '<html><head><script>' . str_repeat('var x = 1; ', 300) . '</script></head>'
+        . '<body><p>Loading...</p></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_true($r['js_dependent']);
+});
+
+test('flags a skipped heading level', function () {
+    $html = '<html><body><h1>Title</h1><h4>Too deep too soon</h4></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_true($r['heading_skips']);
+});
+
+test('does not flag normal sequential heading levels', function () {
+    $html = '<html><body><h1>Title</h1><h2>Section</h2><h3>Subsection</h3></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_false($r['heading_skips']);
+});
+
+test('flags a likely JS-rendered shell (little text, lots of markup)', function () {
+    $html = '<html><head><script src="app.js"></script></head><body><div id="root"></div>'
+        . str_repeat('<div class="x"></div>', 200) . '</body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_true($r['js_dependent']);
+});
+
+test('does not flag a normal content-heavy page as JS-dependent', function () {
+    $html = '<html><body><p>' . str_repeat('word ', 100) . '</p></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_false($r['js_dependent']);
+});
