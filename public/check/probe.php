@@ -34,7 +34,14 @@ rate_limit('check_probe', 600);
 
 const PROBE_ALLOWED_HOSTS = ['blake-uk.com', 'www.blake-uk.com'];
 const PROBE_MAX_REDIRECTS = 5;
-const PROBE_MAX_BODY_BYTES = 400000; // plenty for <head> plus a good chunk of body on any real page
+// Real-world pages - especially e-commerce ones loaded with tracking
+// pixels, chat widgets, review-platform embeds and inlined JSON-LD -
+// routinely land well past a few hundred KB of HTML alone, so this needs
+// to be generous rather than "plenty for <head> plus a bit of body": the
+// first cut (400,000) was tripping on essentially every page on the site.
+// 3MB still bounds worst-case memory/time per request to something a
+// PHP-FPM worker handles comfortably.
+const PROBE_MAX_BODY_BYTES = 3000000;
 const PROBE_CONNECT_TIMEOUT = 6;
 const PROBE_REQUEST_TIMEOUT = 15;
 
@@ -78,6 +85,15 @@ for ($hop = 0; $hop <= PROBE_MAX_REDIRECTS; $hop++) {
         CURLOPT_TIMEOUT        => PROBE_REQUEST_TIMEOUT,
         CURLOPT_USERAGENT      => 'BlakeUKSiteChecker/1.0 (+https://blakegroup.uk)',
         CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        // Advertises and auto-decodes whatever compressed encodings this
+        // libcurl build supports. WRITEFUNCTION still sees the fully
+        // decompressed bytes either way (curl decodes before invoking it,
+        // so this doesn't change what counts against
+        // PROBE_MAX_BODY_BYTES) - the point is transfer speed: fetching
+        // real HTML as gzip/br over the wire instead of plain text cuts
+        // the time spent inside PROBE_REQUEST_TIMEOUT on a slow or
+        // metered connection to the target site.
+        CURLOPT_ENCODING       => '',
         CURLOPT_HEADERFUNCTION => function ($ch, $line) use (&$headers) {
             $parts = explode(':', $line, 2);
             if (count($parts) === 2) {
