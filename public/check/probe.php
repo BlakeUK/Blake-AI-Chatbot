@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') json_err('Method not allowed', 405);
 // ceiling here doesn't meaningfully change what it protects against.
 rate_limit('check_probe', 6000);
 
-const PROBE_ALLOWED_HOSTS = ['blake-uk.com', 'www.blake-uk.com'];
 const PROBE_MAX_REDIRECTS = 5;
 // Real-world pages - especially e-commerce ones loaded with tracking
 // pixels, chat widgets, review-platform embeds and inlined JSON-LD -
@@ -55,11 +54,10 @@ const PROBE_REQUEST_TIMEOUT = 15;
 $url = trim((string)($_GET['url'] ?? ''));
 if ($url === '') json_err('url required');
 
-$startHost = parse_url($url, PHP_URL_HOST);
-if (!$startHost || !in_array(strtolower($startHost), PROBE_ALLOWED_HOSTS, true)) {
+if (!\Sitemap\AllowedSites::isUrlAllowed($url)) {
     json_out([
         'ok' => false, 'type' => 'disallowed_host', 'url' => $url,
-        'error' => 'This tool only checks pages on blake-uk.com',
+        'error' => 'This tool only checks pages on a fixed list of allowed sites',
     ]);
 }
 
@@ -166,7 +164,7 @@ $contentType = $response['headers']['content-type'] ?? '';
 $isHtml = $contentType === '' || stripos($contentType, 'text/html') !== false;
 $finalHost = parse_url($response['final_url'], PHP_URL_HOST) ?: '';
 $redirectCount = count($chain) - 1;
-$externalRedirect = $redirectCount > 0 && !in_array(strtolower($finalHost), PROBE_ALLOWED_HOSTS, true);
+$externalRedirect = $redirectCount > 0 && !\Sitemap\AllowedSites::isHostAllowed($finalHost);
 
 $analysis = $isHtml
     ? \Sitemap\PageAnalyzer::analyze($response['body'], $response['final_url'])

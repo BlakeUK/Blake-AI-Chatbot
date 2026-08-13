@@ -1,16 +1,19 @@
 <?php
 // public/check/sitemap.php
 // Fetches (and, for a sitemap index, recursively expands one level of
-// child sitemaps) blake-uk.com's sitemap, returning the flat list of page
-// URLs for public/check/index.html to then probe one at a time via
-// probe.php.
+// child sitemaps) a site's sitemap, returning the flat list of page URLs
+// for public/check/index.html to then probe one at a time via probe.php.
+// Falls back to Sitemap\HtmlLinkExtractor - pulling same-site <a href>
+// links off the page instead - when the URL isn't valid sitemap XML at
+// all, for sites with no XML sitemap that instead publish an HTML
+// "sitemap" page or rely on a directory-listing index for navigation.
 //
-// Deliberately scoped to blake-uk.com's own sitemap files rather than an
-// arbitrary URL an unauthenticated caller supplies - ?url= only ever
-// selects which sitemap document under that domain to read (the top-level
-// one, or - if this is ever called directly rather than through the UI -
-// a specific child sitemap), never an unrelated third-party site. See
-// probe.php's header comment for why that restriction matters.
+// Deliberately scoped to Sitemap\AllowedSites' fixed list of sites rather
+// than an arbitrary URL an unauthenticated caller supplies - ?url= only
+// ever selects which document under one of those sites to read (the
+// top-level sitemap, a specific child sitemap, or an HTML navigation
+// page), never an unrelated third-party site. See probe.php's header
+// comment for why that restriction matters.
 
 declare(strict_types=1);
 
@@ -21,39 +24,39 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') json_err('Method not allowed', 405);
 
 rate_limit('check_sitemap', 20);
 
-const CHECK_ALLOWED_HOSTS = ['blake-uk.com', 'www.blake-uk.com'];
 const CHECK_MAX_CHILD_SITEMAPS = 50;
 const CHECK_MAX_URLS = 3000;
 const CHECK_DEFAULT_SITEMAP = 'https://www.blake-uk.com/sitemap.xml';
 
-function check_host_allowed(string $url): bool
-{
-    $host = parse_url($url, PHP_URL_HOST);
-    return $host !== null && $host !== false && in_array(strtolower($host), CHECK_ALLOWED_HOSTS, true);
-}
-
-function check_fetch_xml(string $url): array
+function check_fetch(string $url): array
 {
     $fetch = \Http\SafeFetcher::get($url, 20);
     if (!$fetch['ok']) {
         return ['ok' => false, 'error' => $fetch['error'] ?: "HTTP {$fetch['code']}"];
     }
-    return ['ok' => true, 'xml' => $fetch['body']];
+    return ['ok' => true, 'body' => $fetch['body']];
 }
 
 $rootUrl = trim((string)($_GET['url'] ?? '')) ?: CHECK_DEFAULT_SITEMAP;
-if (!check_host_allowed($rootUrl)) {
-    json_err('This tool only reads sitemaps on blake-uk.com', 400);
+if (!\Sitemap\AllowedSites::isUrlAllowed($rootUrl)) {
+    json_err('This tool only reads sitemaps on a fixed list of allowed sites', 400);
 }
 
-$root = check_fetch_xml($rootUrl);
+$root = check_fetch($rootUrl);
 if (!$root['ok']) {
     json_out(['ok' => false, 'error' => "Could not fetch {$rootUrl}: {$root['error']}"]);
 }
 
-$parsed = \Sitemap\Parser::parse($root['xml']);
+$parsed = \Sitemap\Parser::parse($root['body']);
+$usedHtmlFallback = false;
+
 if ($parsed['type'] === 'error') {
-    json_out(['ok' => false, 'error' => "{$rootUrl}: {$parsed['error']}"]);
+    $htmlLinks = \Sitemap\HtmlLinkExtractor::extractLinks($root['body'], $rootUrl);
+    if (!$htmlLinks) {
+        json_out(['ok' => false, 'error' => "{$rootUrl}: {$parsed['error']}, and no same-site links were found on the page either"]);
+    }
+    $parsed = ['type' => 'urlset', 'entries' => $htmlLinks];
+    $usedHtmlFallback = true;
 }
 
 $sitemapsScanned = [$rootUrl];
@@ -71,21 +74,21 @@ if ($parsed['type'] === 'urlset') {
     foreach ($children as $child) {
         if (count($urls) >= CHECK_MAX_URLS) { $truncated = true; break; }
 
-        if (!check_host_allowed($child['loc'])) {
-            // A sitemap index pointing off-domain is itself worth flagging
-            // as odd, but not worth following - skip rather than fetch it.
-            $sitemapsScanned[] = $child['loc'] . ' (skipped: not on blake-uk.com)';
+        if (!\Sitemap\AllowedSites::isUrlAllowed($child['loc'])) {
+            // A sitemap index pointing off-allowlist is itself worth
+            // flagging as odd, but not worth following - skip rather than fetch it.
+            $sitemapsScanned[] = $child['loc'] . ' (skipped: not an allowed site)';
             continue;
         }
 
-        $childFetch = check_fetch_xml($child['loc']);
+        $childFetch = check_fetch($child['loc']);
         if (!$childFetch['ok']) {
             $sitemapsScanned[] = $child['loc'] . ' (failed: ' . $childFetch['error'] . ')';
             continue;
         }
 
         $sitemapsScanned[] = $child['loc'];
-        $childParsed = \Sitemap\Parser::parse($childFetch['xml']);
+        $childParsed = \Sitemap\Parser::parse($childFetch['body']);
         if ($childParsed['type'] === 'urlset') {
             $urls = array_merge($urls, $childParsed['entries']);
         }
@@ -110,17 +113,18 @@ foreach ($urls as $u) {
         'loc'             => $u['loc'],
         'lastmod'         => $u['lastmod'] ?? null,
         'https'           => stripos($u['loc'], 'https://') === 0,
-        'outside_domain'  => !in_array(strtolower($host), CHECK_ALLOWED_HOSTS, true),
+        'outside_domain'  => !\Sitemap\AllowedSites::isHostAllowed($host),
         'duplicate'       => ($counts[$u['loc']] ?? 1) > 1,
     ];
 }
 
 json_out([
-    'ok'               => true,
-    'source'           => $rootUrl,
-    'root_type'        => $parsed['type'],
-    'sitemaps_scanned' => $sitemapsScanned,
-    'urls'             => $out,
-    'count'            => count($out),
-    'truncated'        => $truncated,
+    'ok'                 => true,
+    'source'             => $rootUrl,
+    'root_type'          => $usedHtmlFallback ? 'html_links' : $parsed['type'],
+    'used_html_fallback' => $usedHtmlFallback,
+    'sitemaps_scanned'   => $sitemapsScanned,
+    'urls'               => $out,
+    'count'              => count($out),
+    'truncated'          => $truncated,
 ]);

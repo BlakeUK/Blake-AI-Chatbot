@@ -19,6 +19,8 @@
   .scan-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .scan-row input[type=text] { flex: 1; min-width: 260px; padding: 8px 10px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; }
   .scan-row input[type=text]:focus { outline: none; border-color: #8fb0ec; }
+  .scan-row select { padding: 8px 10px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; flex-shrink: 0; }
+  .scan-row select:focus { outline: none; border-color: #8fb0ec; }
   button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .btn-primary { background: #3d5a99; color: #fff; } .btn-primary:hover:not(:disabled) { background: #2f4677; }
@@ -107,6 +109,7 @@
   <div class="card">
     <h2>Scan</h2>
     <div class="scan-row">
+      <select id="site-select"><option value="">Loading sites…</option></select>
       <input type="text" id="sitemap-url" value="https://www.blake-uk.com/sitemap.xml" spellcheck="false">
       <button class="btn-primary" id="scan-btn">Start Scan</button>
       <button class="btn-danger" id="stop-btn" style="display:none">Stop</button>
@@ -156,8 +159,8 @@
 </main>
 
 <footer>
-  <p>Only checks pages on blake-uk.com / www.blake-uk.com. Soft-404, duplicate-content and JS-dependency flags are heuristics for a
-  human to spot-check, not a definite verdict — see the notes in each row. Built for Blake UK internal QA use.</p>
+  <p>Only checks pages on a fixed list of allowed sites (pick one above). Soft-404, duplicate-content and JS-dependency flags are heuristics for a
+  human to spot-check, not a definite verdict — see the notes in each row. Built for internal QA use.</p>
   <p>This is an on-page/technical/crawlability audit, not a replacement for Semrush or Ahrefs: it has no backlink index, keyword/ranking
   data, traffic estimates, or a Core Web Vitals/Lighthouse renderer, since those all require proprietary crawled datasets or paid APIs
   this tool doesn't have access to. What it does check — status/redirects, on-page SEO, structured data, and bot/AI crawler access — is
@@ -558,9 +561,14 @@ async function startScan() {
     finishScan();
     return;
   }
-  if (sitemapData.truncated) {
-    showError(`Note: this sitemap has more than ${sitemapData.count} URLs — only the first ${sitemapData.count} were scanned.`);
+  const notes = [];
+  if (sitemapData.used_html_fallback) {
+    notes.push(`Note: ${sitemapUrl} isn't a valid XML sitemap — extracted ${sitemapData.count} same-site link(s) from the page instead.`);
   }
+  if (sitemapData.truncated) {
+    notes.push(`Note: this sitemap has more than ${sitemapData.count} URLs — only the first ${sitemapData.count} were scanned.`);
+  }
+  if (notes.length) showError(notes.join(' '));
 
   entries = sitemapData.urls;
   rows = entries.map((entry, i) => {
@@ -621,6 +629,22 @@ function exportCsv() {
   a.click();
   a.remove();
 }
+
+async function loadSites() {
+  const select = $('site-select');
+  try {
+    const data = await fetchJson('sites.php');
+    if (!data || !data.ok || !data.sites || !data.sites.length) throw new Error('empty');
+    select.innerHTML = data.sites.map((s) => `<option value="${esc(s.default_sitemap)}">${esc(s.label)}</option>`).join('');
+    $('sitemap-url').value = data.sites[0].default_sitemap;
+  } catch (e) {
+    select.innerHTML = '<option value="">(site list unavailable)</option>';
+  }
+}
+$('site-select').addEventListener('change', (e) => {
+  if (e.target.value) $('sitemap-url').value = e.target.value;
+});
+loadSites();
 
 scanBtn.onclick = startScan;
 stopBtn.onclick = () => { stopRequested = true; stopBtn.disabled = true; };
