@@ -45,6 +45,7 @@ class PageAnalyzer
             'word_count' => 0,
             'heading_skips' => false,
             'js_dependent' => false,
+            'links' => [], 'image_urls' => [],
         ];
     }
 
@@ -166,9 +167,30 @@ class PageAnalyzer
 
         $images = $xpath->query('//img');
         $result['images_total'] = $images->length;
+        $imageUrls = [];
         foreach ($images as $img) {
             if (!$img->hasAttribute('alt')) $result['images_missing_alt']++;
+            $src = trim($img->getAttribute('src'));
+            if ($src === '') continue;
+            $absolute = UrlHelper::resolve($finalUrl, $src);
+            if (preg_match('#^https?://#i', $absolute)) $imageUrls[] = $absolute;
         }
+        $result['image_urls'] = array_values(array_unique($imageUrls));
+
+        // Every same-or-different-site link on the page, for the optional
+        // broken-link check (public/check/check_link.php) - not filtered
+        // to same-host the way HtmlLinkExtractor's sitemap-discovery pass
+        // is, since checking whether *external* links are still alive is
+        // exactly the point there.
+        $links = [];
+        foreach ($xpath->query('//a[@href]') as $a) {
+            $href = trim($a->getAttribute('href'));
+            if ($href === '' || str_starts_with($href, '#')) continue;
+            if (preg_match('#^(mailto|tel|javascript):#i', $href)) continue;
+            $absolute = UrlHelper::resolve($finalUrl, $href);
+            if (preg_match('#^https?://#i', $absolute)) $links[] = $absolute;
+        }
+        $result['links'] = array_values(array_unique($links));
 
         $result['heading_skips'] = self::hasHeadingSkips($xpath);
 
