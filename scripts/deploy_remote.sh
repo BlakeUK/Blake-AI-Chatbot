@@ -320,6 +320,16 @@ else
     warn "Config already exists — skipping."
 fi
 
+# config.php only gets generated once, on first install (the block just
+# above) - a key added to config.example.php afterwards, like this one,
+# never reaches an already-deployed server without an explicit step.
+if ! grep -q "check_tool_username" "$WEBROOT/config/config.php"; then
+    info "Adding /check/ login credentials to config..."
+    php "$WEBROOT/scripts/ensure_check_tool_config.php"
+else
+    warn "/check/ login credentials already configured — skipping."
+fi
+
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
 info "Configuring Caddy..."
 if [[ "$DOMAIN" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then

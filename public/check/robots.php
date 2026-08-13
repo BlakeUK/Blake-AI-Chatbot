@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 2) . '/src/bootstrap.php';
 cors();
+\Auth\CheckTool::requireAuth();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') json_err('Method not allowed', 405);
 
