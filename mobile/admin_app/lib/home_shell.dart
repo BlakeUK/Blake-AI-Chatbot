@@ -14,6 +14,7 @@ import 'screens/chat_logs_screen.dart';
 import 'screens/tickets_screen.dart';
 import 'screens/projects_screen.dart';
 import 'screens/my_account_screen.dart';
+import 'screens/checker_webview_screen.dart';
 
 class _NavItem {
   final String label;
@@ -107,6 +108,24 @@ class _HomeShellState extends State<HomeShell> {
                   Navigator.of(context).pop();
                 },
               ),
+            const Divider(),
+            // Pushed as its own route rather than added to _items - it has
+            // its own separate login and would otherwise stay mounted
+            // (and loaded) permanently as one more page in the
+            // IndexedStack above, for a tool that's only occasionally used.
+            ListTile(
+              leading: const Icon(Icons.language),
+              title: const Text('Sitemap Checker'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const CheckerWebViewScreen(),
+                    fullscreenDialog: true,
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
