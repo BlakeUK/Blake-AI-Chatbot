@@ -126,16 +126,6 @@ class PageAnalyzer
             }
         }
 
-        $bodyText = $dom->textContent ?? '';
-        $haystack = ($result['title'] ?? '') . ' ' . self::firstChars($bodyText, 2000);
-        foreach (self::SOFT_404_PATTERNS as $pattern) {
-            if (preg_match($pattern, $haystack, $m)) {
-                $result['soft_404'] = true;
-                $result['soft_404_evidence'] = trim($m[0]);
-                break;
-            }
-        }
-
         // Structured data (JSON-LD) - what lets search engines and AI
         // answer engines understand this page as a specific kind of thing
         // (Product, Article, FAQPage, Organization...) rather than just
@@ -180,10 +170,34 @@ class PageAnalyzer
             if (!$img->hasAttribute('alt')) $result['images_missing_alt']++;
         }
 
+        $result['heading_skips'] = self::hasHeadingSkips($xpath);
+
+        // Everything from here on needs the page's actual *visible* text -
+        // DOMNode::textContent concatenates every descendant text node
+        // regardless of tag, so without stripping these first, a page's
+        // inline <script>/<style> source code (which can easily run to
+        // thousands of "words" of JS/CSS tokens) gets counted as if a
+        // visitor could read it. That silently defeated both the
+        // thin-content check and the JS-dependency heuristic below - a
+        // real JS-shell page has plenty of script text but almost no
+        // actual content, and counting the script text as content was
+        // exactly backwards for what that heuristic exists to catch.
+        foreach (iterator_to_array($xpath->query('//script | //style')) as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+        $bodyText = $dom->textContent ?? '';
+
+        $haystack = ($result['title'] ?? '') . ' ' . self::firstChars($bodyText, 2000);
+        foreach (self::SOFT_404_PATTERNS as $pattern) {
+            if (preg_match($pattern, $haystack, $m)) {
+                $result['soft_404'] = true;
+                $result['soft_404_evidence'] = trim($m[0]);
+                break;
+            }
+        }
+
         $words = preg_split('/\s+/', trim(preg_replace('/\s+/', ' ', $bodyText) ?? ''), -1, PREG_SPLIT_NO_EMPTY);
         $result['word_count'] = count($words);
-
-        $result['heading_skips'] = self::hasHeadingSkips($xpath);
 
         // Coarse heuristic: a page with almost no visible text but a
         // substantial amount of markup is very likely a JS-rendered SPA

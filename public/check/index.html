@@ -72,6 +72,10 @@
   .chip { display: inline-block; padding: 1px 7px; border-radius: 8px; font-size: 10.5px; margin: 1px 3px 1px 0; background: rgba(217,138,75,.16); color: #e6a56f; white-space: nowrap; }
   .chip.chip-bad { background: rgba(224,95,95,.16); color: #f18686; }
   .chip.chip-info { background: rgba(143,176,236,.14); color: #9fbcef; }
+  .chip.chip-clickable { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+
+  #dup-filter-banner { display: none; align-items: center; justify-content: space-between; gap: 10px; background: #2d3a4a; border: 1px solid #4a6b8f; color: #bcd4ec; border-radius: 4px; padding: 8px 14px; margin-bottom: 12px; font-size: 12.5px; }
+  #dup-filter-banner button { padding: 4px 12px; font-size: 12px; flex-shrink: 0; }
 
   .time-slow { color: #f0a76b; font-weight: 600; }
   .empty-note { color: #adb4ba; font-size: 13px; padding: 20px; text-align: center; }
@@ -122,6 +126,11 @@
 
   <div id="stat-grid" style="display:none"></div>
   <div id="seo-stat-grid" style="display:none"></div>
+
+  <div id="dup-filter-banner">
+    <span id="dup-filter-text"></span>
+    <button class="btn-secondary" id="dup-filter-clear">Clear</button>
+  </div>
 
   <div class="filter-row" id="filter-row" style="display:none"></div>
 
@@ -181,6 +190,8 @@ const errorBanner = $('error-banner');
 const progressWrap = $('progress-wrap'), progressFill = $('progress-fill'), progressLabel = $('progress-label');
 const statGrid = $('stat-grid'), seoStatGrid = $('seo-stat-grid'), filterRow = $('filter-row'), resultsBody = $('results-body');
 const botAiCard = $('bot-ai-card'), botAiContent = $('bot-ai-content');
+const dupFilterBanner = $('dup-filter-banner'), dupFilterText = $('dup-filter-text');
+let currentDupFilter = null; // { field: 'title'|'meta_description', key: normalized-lowercase-string }
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -258,7 +269,7 @@ function buildIssues(entry, result) {
 
 function classify(entry, result) {
   if (!result) return 'pending';
-  return result.type;
+  return typeof result.type === 'string' ? result.type : 'fetch_error';
 }
 
 function renderRow(row) {
@@ -274,13 +285,24 @@ function renderRow(row) {
     ? '<span class="' + (result.response_time_ms > SLOW_MS ? 'time-slow' : '') + '">' + result.response_time_ms + 'ms</span>'
     : '';
   const titleText = result && result.title ? esc(result.title) : (result && result.is_html === false ? '<span style="color:#6b7480">n/a</span>' : '<span style="color:#6b7480">—</span>');
-  const issuesHtml = row.issues.map(([text, kind]) =>
-    '<span class="chip' + (kind ? ' chip-' + kind : '') + '">' + esc(text) + '</span>'
-  ).join('');
+  const issuesHtml = row.issues.map(([text, kind, meta]) => {
+    const dupAttrs = meta && meta.dupField
+      ? ` data-dup-field="${meta.dupField}" data-dup-key="${esc(meta.dupKey)}" data-dup-display="${esc(meta.dupDisplay)}" class="chip${kind ? ' chip-' + kind : ''} chip-clickable"`
+      : ` class="chip${kind ? ' chip-' + kind : ''}"`;
+    return '<span' + dupAttrs + '>' + esc(text) + '</span>';
+  }).join('');
+  // entry.loc comes from the target site's own sitemap.xml, not
+  // something this tool controls - esc() only neutralises HTML markup,
+  // it doesn't stop a scheme like javascript: from ending up as a live
+  // href, so that's checked separately before ever rendering a clickable link.
+  const isSafeLink = /^https?:\/\//i.test(entry.loc);
+  const urlCell = isSafeLink
+    ? `<a href="${esc(entry.loc)}" target="_blank" rel="noopener">${esc(entry.loc.length > 70 ? pathOf(entry.loc) : entry.loc)}</a>`
+    : esc(entry.loc);
 
   tr.innerHTML = `
     <td>${row.index}</td>
-    <td class="url-cell"><a href="${esc(entry.loc)}" target="_blank" rel="noopener">${esc(entry.loc.length > 70 ? pathOf(entry.loc) : entry.loc)}</a></td>
+    <td class="url-cell">${urlCell}</td>
     <td><span class="badge badge-${type}">${TYPE_LABELS[type] || type}</span></td>
     <td>${statusText}</td>
     <td>${redirectText}</td>
@@ -293,7 +315,11 @@ function renderRow(row) {
 function applyFilter() {
   for (const row of rows) {
     let visible = true;
-    if (currentFilter === 'errors') visible = ['http_error', 'timeout', 'fetch_error'].includes(row.el.dataset.type);
+    if (currentDupFilter) {
+      const r = row.result;
+      const val = r && r[currentDupFilter.field];
+      visible = !!val && val.trim().toLowerCase() === currentDupFilter.key;
+    } else if (currentFilter === 'errors') visible = ['http_error', 'timeout', 'fetch_error'].includes(row.el.dataset.type);
     else if (currentFilter === 'redirects') visible = row.el.dataset.type === 'redirect';
     else if (currentFilter === 'ok') visible = row.el.dataset.type === 'ok';
     else if (currentFilter === 'warnings') visible = row.el.dataset.hasIssue === '1';
@@ -303,10 +329,37 @@ function applyFilter() {
 }
 
 function setFilter(f) {
+  clearDupFilter(false);
   currentFilter = f;
   for (const btn of filterRow.querySelectorAll('.filter-btn')) btn.classList.toggle('active', btn.dataset.filter === f);
   applyFilter();
 }
+
+function showDupFilter(field, key, display) {
+  currentDupFilter = { field, key };
+  const count = rows.filter((row) => {
+    const r = row.result;
+    const val = r && r[field];
+    return !!val && val.trim().toLowerCase() === key;
+  }).length;
+  const label = field === 'title' ? 'title' : 'meta description';
+  dupFilterText.textContent = `Showing ${count} page(s) sharing the same ${label}: "${display}"`;
+  dupFilterBanner.style.display = 'flex';
+  applyFilter();
+}
+
+function clearDupFilter(reapply = true) {
+  currentDupFilter = null;
+  dupFilterBanner.style.display = 'none';
+  if (reapply) applyFilter();
+}
+
+resultsBody.addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-dup-key]');
+  if (!chip) return;
+  showDupFilter(chip.dataset.dupField, chip.dataset.dupKey, chip.dataset.dupDisplay);
+});
+$('dup-filter-clear').onclick = () => clearDupFilter();
 
 function renderFilterRow() {
   filterRow.style.display = 'flex';
@@ -349,11 +402,15 @@ function applyCrossPageChecks() {
     if (r.title) { const k = r.title.trim().toLowerCase(); byTitle.set(k, (byTitle.get(k) || []).concat(row)); }
     if (r.meta_description) { const k = r.meta_description.trim().toLowerCase(); byDesc.set(k, (byDesc.get(k) || []).concat(row)); }
   }
-  for (const group of byTitle.values()) {
-    if (group.length > 1) for (const row of group) row.issues.push(['Duplicate title (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad']);
+  for (const [k, group] of byTitle) {
+    if (group.length <= 1) continue;
+    const meta = { dupField: 'title', dupKey: k, dupDisplay: group[0].result.title };
+    for (const row of group) row.issues.push(['Duplicate title (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad', meta]);
   }
-  for (const group of byDesc.values()) {
-    if (group.length > 1) for (const row of group) row.issues.push(['Duplicate meta description (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad']);
+  for (const [k, group] of byDesc) {
+    if (group.length <= 1) continue;
+    const meta = { dupField: 'meta_description', dupKey: k, dupDisplay: group[0].result.meta_description };
+    for (const row of group) row.issues.push(['Duplicate meta description (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad', meta]);
   }
   for (const row of rows) renderRow(row);
   updateSeoStats();
@@ -395,7 +452,17 @@ async function runPool(items, worker, concurrency) {
 async function probeOne(row) {
   try {
     const result = await fetchJson('probe.php?url=' + encodeURIComponent(row.entry.loc));
-    row.result = result;
+    // A well-formed probe.php response always has a string `type`
+    // (ok/redirect/http_error/timeout/fetch_error/disallowed_host). An
+    // HTTP error response before probe.php's own json_out() runs (rate
+    // limit, method-not-allowed) instead comes back as plain {error:
+    // "..."}, with no `type` at all - without this check that shape fell
+    // through every classify()/buildIssues() branch silently and got
+    // rendered as misleading chips like "Final URL not HTTPS" instead of
+    // a clear "could not check this page" state.
+    row.result = (result && typeof result.type === 'string')
+      ? result
+      : { ok: false, type: 'fetch_error', error: (result && result.error) || 'Unexpected response from the checker', response_time_ms: null };
   } catch (e) {
     row.result = { ok: false, type: 'fetch_error', error: 'Network error contacting the checker itself', response_time_ms: null };
   }
@@ -431,6 +498,10 @@ async function loadBotAiAccess(sitemapUrl) {
     botAiContent.innerHTML = '<div class="empty-note">Could not check robots.txt.</div>';
     return;
   }
+  if (!data || !data.robots_txt) {
+    botAiContent.innerHTML = '<div class="empty-note">' + esc((data && data.error) || 'Could not check robots.txt.') + '</div>';
+    return;
+  }
   const rtxt = data.robots_txt, llms = data.llms_txt;
   if (!rtxt.exists) {
     botAiContent.innerHTML = `<div class="bot-summary">No robots.txt found at <code>${esc(rtxt.url)}</code> (HTTP ${rtxt.status}) —
@@ -462,6 +533,7 @@ async function startScan() {
   scanning = true; stopRequested = false; completedCount = 0;
   scanBtn.disabled = true; stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; exportBtn.disabled = true;
   statGrid.style.display = 'none'; seoStatGrid.style.display = 'none'; filterRow.style.display = 'none';
+  clearDupFilter(false);
   progressWrap.style.display = 'block'; progressFill.style.width = '0%';
   progressLabel.textContent = 'Reading sitemap…';
   resultsBody.innerHTML = '';

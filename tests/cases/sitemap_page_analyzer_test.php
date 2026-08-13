@@ -138,6 +138,21 @@ test('counts visible words', function () {
     assert_equal(5, $r['word_count']);
 });
 
+test('does not count <script> or <style> text as visible words', function () {
+    $html = '<html><head><script>' . str_repeat('var x = 1; ', 100) . '</script>'
+        . '<style>' . str_repeat('.a{color:red} ', 100) . '</style></head>'
+        . '<body><p>One two three four five</p></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_equal(5, $r['word_count']);
+});
+
+test('a script/style-heavy but text-light page is still flagged as JS-dependent', function () {
+    $html = '<html><head><script>' . str_repeat('var x = 1; ', 300) . '</script></head>'
+        . '<body><p>Loading...</p></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_true($r['js_dependent']);
+});
+
 test('flags a skipped heading level', function () {
     $html = '<html><body><h1>Title</h1><h4>Too deep too soon</h4></body></html>';
     $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');

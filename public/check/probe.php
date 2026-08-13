@@ -30,7 +30,14 @@ cors();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') json_err('Method not allowed', 405);
 
-rate_limit('check_probe', 600);
+// The frontend runs 5 probes concurrently; on a fast-responding site
+// that alone can sustain well over 600 requests/minute (5 workers x a
+// few hundred ms per page easily clears 10+ req/sec), so a limit that
+// low was self-triggering partway through an entirely normal scan -
+// not an abuse case, just this tool tripping its own guard. Scoped to
+// blake-uk.com only anyway (the host allowlist above), so a higher
+// ceiling here doesn't meaningfully change what it protects against.
+rate_limit('check_probe', 6000);
 
 const PROBE_ALLOWED_HOSTS = ['blake-uk.com', 'www.blake-uk.com'];
 const PROBE_MAX_REDIRECTS = 5;
