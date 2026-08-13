@@ -32,9 +32,10 @@
   #progress-fill { height: 100%; width: 0%; background: #8fb0ec; transition: width .15s; }
   #progress-label { font-size: 12px; color: #adb4ba; margin-top: 6px; }
 
-  #stat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 16px; }
-  @media (max-width: 1100px) { #stat-grid { grid-template-columns: repeat(4, 1fr); } }
-  @media (max-width: 640px) { #stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  #stat-grid, #seo-stat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 16px; }
+  #seo-stat-grid { grid-template-columns: repeat(6, 1fr); }
+  @media (max-width: 1100px) { #stat-grid, #seo-stat-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 640px) { #stat-grid, #seo-stat-grid { grid-template-columns: repeat(2, 1fr); } }
   .stat-tile { background: #3a4048; border: 1px solid #454c54; border-radius: 6px; padding: 10px 12px; }
   .stat-tile .label { font-size: 10px; color: #adb4ba; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
   .stat-tile .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
@@ -76,6 +77,19 @@
   .empty-note { color: #adb4ba; font-size: 13px; padding: 20px; text-align: center; }
   footer { max-width: 1400px; margin: 0 auto; padding: 0 24px 40px; color: #6b7480; font-size: 11.5px; }
   footer a { color: #8fb0ec; }
+  footer p { margin: 0 0 6px; }
+
+  .bot-section-label { font-size: 11px; color: #adb4ba; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; margin: 14px 0 6px; }
+  .bot-section-label:first-child { margin-top: 0; }
+  .bot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+  .bot-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 10px; background: #262b31; border-radius: 4px; font-size: 12px; }
+  .bot-row .name { font-weight: 600; }
+  .bot-row .name small { display: block; font-weight: 400; color: #8a8f96; font-size: 10.5px; margin-top: 1px; }
+  .bot-badge { padding: 2px 8px; border-radius: 8px; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+  .bot-badge.allowed { background: rgba(76,175,125,.18); color: #6fce9c; }
+  .bot-badge.blocked { background: rgba(224,95,95,.18); color: #f18686; }
+  .bot-summary { font-size: 12.5px; color: #adb4ba; margin-bottom: 10px; }
+  .bot-summary strong { color: #e8e8ea; }
 </style>
 </head>
 <body>
@@ -101,7 +115,13 @@
     </div>
   </div>
 
+  <div class="card" id="bot-ai-card" style="display:none">
+    <h2>Bot &amp; AI Access (robots.txt)</h2>
+    <div id="bot-ai-content"></div>
+  </div>
+
   <div id="stat-grid" style="display:none"></div>
+  <div id="seo-stat-grid" style="display:none"></div>
 
   <div class="filter-row" id="filter-row" style="display:none"></div>
 
@@ -127,8 +147,12 @@
 </main>
 
 <footer>
-  Only checks pages on blake-uk.com / www.blake-uk.com. Soft-404 and duplicate-content flags are heuristics for a
-  human to spot-check, not a definite verdict — see the notes in each row. Built for Blake UK internal QA use.
+  <p>Only checks pages on blake-uk.com / www.blake-uk.com. Soft-404, duplicate-content and JS-dependency flags are heuristics for a
+  human to spot-check, not a definite verdict — see the notes in each row. Built for Blake UK internal QA use.</p>
+  <p>This is an on-page/technical/crawlability audit, not a replacement for Semrush or Ahrefs: it has no backlink index, keyword/ranking
+  data, traffic estimates, or a Core Web Vitals/Lighthouse renderer, since those all require proprietary crawled datasets or paid APIs
+  this tool doesn't have access to. What it does check — status/redirects, on-page SEO, structured data, and bot/AI crawler access — is
+  everything achievable from a single server-side fetch per page.</p>
 </footer>
 
 <script>
@@ -155,7 +179,8 @@ const $ = (id) => document.getElementById(id);
 const scanBtn = $('scan-btn'), stopBtn = $('stop-btn'), exportBtn = $('export-btn');
 const errorBanner = $('error-banner');
 const progressWrap = $('progress-wrap'), progressFill = $('progress-fill'), progressLabel = $('progress-label');
-const statGrid = $('stat-grid'), filterRow = $('filter-row'), resultsBody = $('results-body');
+const statGrid = $('stat-grid'), seoStatGrid = $('seo-stat-grid'), filterRow = $('filter-row'), resultsBody = $('results-body');
+const botAiCard = $('bot-ai-card'), botAiContent = $('bot-ai-content');
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -182,6 +207,15 @@ function buildIssues(entry, result) {
   const issues = [];
   if (entry.duplicate) issues.push(['Duplicate URL in sitemap', 'bad']);
   if (!entry.https) issues.push(['Non-HTTPS sitemap entry', 'bad']);
+  let urlParts = null;
+  try { urlParts = new URL(entry.loc); } catch (e) { /* leave null */ }
+  if (urlParts) {
+    if (/[A-Z]/.test(urlParts.pathname)) issues.push(['Uppercase letters in URL path', '']);
+    if (/_/.test(urlParts.pathname)) issues.push(['Underscore in URL path (prefer hyphens)', '']);
+    const paramCount = Array.from(urlParts.searchParams.keys()).length;
+    if (paramCount > 2) issues.push(['Many query parameters (' + paramCount + ')', '']);
+  }
+  if (entry.loc.length > 115) issues.push(['Very long URL (' + entry.loc.length + ' chars)', '']);
   if (!result) return issues;
 
   if (result.type === 'disallowed_host') { issues.push(['Outside blake-uk.com — not checked', 'info']); return issues; }
@@ -206,7 +240,15 @@ function buildIssues(entry, result) {
     else if (result.canonical_mismatch) issues.push(['Canonical points elsewhere', 'bad']);
     if (result.h1_count === 0) issues.push(['No H1 tag', '']);
     else if (result.h1_count > 1) issues.push(['Multiple H1 tags (' + result.h1_count + ')', '']);
+    if (result.heading_skips) issues.push(['Heading levels skip (e.g. H2 straight to H4)', '']);
     if (result.mixed_content) issues.push(['Mixed content (http:// resource on https page)', 'bad']);
+    if (result.images_total > 0 && result.images_missing_alt > 0) {
+      issues.push([result.images_missing_alt + ' of ' + result.images_total + ' images missing alt text', 'bad']);
+    }
+    if (result.js_dependent) {
+      issues.push(["Very little visible text vs. markup — may need JS to render; GPTBot/ClaudeBot/CCBot won't see this content", 'bad']);
+    }
+    if (result.word_count > 0 && result.word_count < 300) issues.push(['Thin content (' + result.word_count + ' words)', '']);
     if (result.body_truncated) issues.push(['Page body truncated for analysis (very large page)', 'info']);
   } else if (result.type !== 'disallowed_host') {
     issues.push(['Non-HTML resource (' + (result.content_type || 'unknown type') + ')', 'info']);
@@ -314,6 +356,29 @@ function applyCrossPageChecks() {
     if (group.length > 1) for (const row of group) row.issues.push(['Duplicate meta description (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad']);
   }
   for (const row of rows) renderRow(row);
+  updateSeoStats();
+}
+
+function updateSeoStats() {
+  const htmlRows = rows.filter((r) => r.result && r.result.is_html);
+  const n = htmlRows.length;
+  if (!n) { seoStatGrid.style.display = 'none'; return; }
+  const withStructured = htmlRows.filter((r) => r.result.has_structured_data).length;
+  const withOg = htmlRows.filter((r) => r.result.has_open_graph).length;
+  const withTwitter = htmlRows.filter((r) => r.result.has_twitter_card).length;
+  const jsDependent = htmlRows.filter((r) => r.result.js_dependent).length;
+  const missingAltImages = htmlRows.reduce((sum, r) => sum + (r.result.images_missing_alt || 0), 0);
+  const avgWords = Math.round(htmlRows.reduce((sum, r) => sum + (r.result.word_count || 0), 0) / n);
+
+  seoStatGrid.style.display = 'grid';
+  seoStatGrid.innerHTML = `
+    <div class="stat-tile"><div class="label">Structured Data</div><div class="value">${withStructured}/${n}</div></div>
+    <div class="stat-tile"><div class="label">Open Graph</div><div class="value">${withOg}/${n}</div></div>
+    <div class="stat-tile"><div class="label">Twitter Card</div><div class="value">${withTwitter}/${n}</div></div>
+    <div class="stat-tile ${jsDependent ? 'error' : ''}"><div class="label">JS-Dependent Pages</div><div class="value">${jsDependent}</div></div>
+    <div class="stat-tile ${missingAltImages ? 'warn' : ''}"><div class="label">Images Missing Alt</div><div class="value">${missingAltImages}</div></div>
+    <div class="stat-tile"><div class="label">Avg Word Count</div><div class="value">${avgWords}</div></div>
+  `;
 }
 
 async function runPool(items, worker, concurrency) {
@@ -349,6 +414,46 @@ function updateProgress() {
   progressLabel.textContent = `Checked ${completedCount} of ${toCheck} pages…`;
 }
 
+function botRow(bot) {
+  return `<div class="bot-row">
+    <span class="name">${esc(bot.token)}<small>${esc(bot.label)}</small></span>
+    <span class="bot-badge ${bot.allowed ? 'allowed' : 'blocked'}">${bot.allowed ? 'Allowed' : 'Blocked'}</span>
+  </div>`;
+}
+
+async function loadBotAiAccess(sitemapUrl) {
+  botAiCard.style.display = 'block';
+  botAiContent.innerHTML = '<div class="empty-note">Checking robots.txt…</div>';
+  let data;
+  try {
+    data = await fetchJson('robots.php?url=' + encodeURIComponent(sitemapUrl));
+  } catch (e) {
+    botAiContent.innerHTML = '<div class="empty-note">Could not check robots.txt.</div>';
+    return;
+  }
+  const rtxt = data.robots_txt, llms = data.llms_txt;
+  if (!rtxt.exists) {
+    botAiContent.innerHTML = `<div class="bot-summary">No robots.txt found at <code>${esc(rtxt.url)}</code> (HTTP ${rtxt.status}) —
+      every crawler, including AI bots, is free to access everything by default.</div>`;
+    return;
+  }
+  const aiBots = rtxt.bots.filter((b) => b.category === 'ai');
+  const searchBots = rtxt.bots.filter((b) => b.category === 'search');
+  const aiBlocked = aiBots.filter((b) => !b.allowed).length;
+
+  let html = `<div class="bot-summary">
+    <strong>${esc(rtxt.url)}</strong> found.
+    ${rtxt.blocks_everything ? '<span class="bot-badge blocked">Blocks all crawlers by default</span>' : ''}
+    ${rtxt.sitemaps.length ? ' Lists ' + rtxt.sitemaps.length + ' sitemap(s).' : ' Does not reference a sitemap.'}
+    ${llms.exists ? ' <strong>llms.txt</strong> found (' + llms.bytes + ' bytes) — this site publishes an AI-readable content summary.' : ' No llms.txt found (an emerging, optional convention for describing a site to AI crawlers).'}
+  </div>
+  <div class="bot-section-label">AI / LLM Crawlers (${aiBots.length - aiBlocked}/${aiBots.length} allowed)</div>
+  <div class="bot-grid">${aiBots.map(botRow).join('')}</div>
+  <div class="bot-section-label">Search Engines</div>
+  <div class="bot-grid">${searchBots.map(botRow).join('')}</div>`;
+  botAiContent.innerHTML = html;
+}
+
 async function startScan() {
   clearError();
   const sitemapUrl = $('sitemap-url').value.trim();
@@ -356,11 +461,12 @@ async function startScan() {
 
   scanning = true; stopRequested = false; completedCount = 0;
   scanBtn.disabled = true; stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; exportBtn.disabled = true;
-  statGrid.style.display = 'none'; filterRow.style.display = 'none';
+  statGrid.style.display = 'none'; seoStatGrid.style.display = 'none'; filterRow.style.display = 'none';
   progressWrap.style.display = 'block'; progressFill.style.width = '0%';
   progressLabel.textContent = 'Reading sitemap…';
   resultsBody.innerHTML = '';
   rows = []; rowByLoc = new Map();
+  loadBotAiAccess(sitemapUrl);
 
   let sitemapData;
   try {
@@ -417,7 +523,11 @@ function finishScan() {
 }
 
 function exportCsv() {
-  const cols = ['URL', 'Type', 'Status', 'Final URL', 'Redirect Hops', 'Response Time (ms)', 'Title', 'Meta Description', 'Canonical', 'Noindex', 'Soft 404', 'HTTPS', 'Issues'];
+  const cols = [
+    'URL', 'Type', 'Status', 'Final URL', 'Redirect Hops', 'Response Time (ms)', 'Title', 'Meta Description', 'Canonical',
+    'Noindex', 'Soft 404', 'HTTPS', 'Word Count', 'Images Missing Alt', 'Structured Data Types', 'Open Graph', 'Twitter Card',
+    'JS-Dependent', 'Issues',
+  ];
   const lines = [cols.join(',')];
   const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   for (const row of rows) {
@@ -426,6 +536,8 @@ function exportCsv() {
       row.entry.loc, TYPE_LABELS[classify(row.entry, row.result)] || '', r.status ?? '', r.final_url ?? '',
       r.redirect_count ?? '', r.response_time_ms ?? '', r.title ?? '', r.meta_description ?? '',
       r.canonical ?? '', r.noindex ? 'yes' : 'no', (r.soft_404 && r.type === 'ok') ? 'yes' : 'no', r.https ? 'yes' : 'no',
+      r.word_count ?? '', r.images_missing_alt ?? '', (r.structured_data_types || []).join('; '),
+      r.has_open_graph ? 'yes' : 'no', r.has_twitter_card ? 'yes' : 'no', r.js_dependent ? 'yes' : 'no',
       row.issues.map((i) => i[0]).join(' | '),
     ].map(q).join(','));
   }

@@ -187,6 +187,7 @@ json_out(array_merge($analysis, [
     'external_redirect' => $externalRedirect,
     'https'             => stripos($response['final_url'], 'https://') === 0,
     'content_type'      => $contentType,
+    'content_encoding'  => $response['headers']['content-encoding'] ?? null,
     'is_html'           => $isHtml,
     'bytes'             => strlen($response['body']),
     'body_truncated'    => $response['truncated'],
