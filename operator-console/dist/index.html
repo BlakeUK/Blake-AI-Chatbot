@@ -297,6 +297,10 @@
         <svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.6"/><path d="M15.5 14.2c2.6.3 4.5 2.6 4.5 5.3"/></svg>
         Team
       </div>
+      <div class="nav-item" id="checker-nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/></svg>
+        Sitemap Checker
+      </div>
     </div>
     <div id="version-row">
       <span id="version-label"></span>
@@ -555,12 +559,16 @@ function ticketCode(t) { return 'TCK-' + (1000 + t.id); }
 function initials(name) { return (name || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 
 // ── Navigation ───────────────────────────────────────────────────────────────
-document.querySelectorAll('.nav-item').forEach(el => {
+// Scoped to [data-page] specifically (not every .nav-item) - the Sitemap
+// Checker item below shares the .nav-item class for visual consistency
+// but opens a separate window rather than switching pages, so it has no
+// data-page and its own click handler instead.
+document.querySelectorAll('.nav-item[data-page]').forEach(el => {
   el.onclick = () => showPage(el.dataset.page);
 });
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
   if (name === 'dashboard') loadDashboard();
@@ -568,6 +576,16 @@ function showPage(name) {
   if (name === 'projects') loadProjectsPage();
 }
 document.getElementById('bell').onclick = () => showPage('dashboard');
+
+// Opens the web-based sitemap/SEO checker in its own native window (see
+// open_checker_window in src-tauri/src/main.rs) rather than switching
+// this app's own page, since it's a separate tool with its own login,
+// not part of this app's page set.
+document.getElementById('checker-nav-item').onclick = () => {
+  window.__TAURI__.invoke('open_checker_window').catch((e) => {
+    alert('Could not open the Sitemap Checker: ' + e);
+  });
+};
 
 function goToTickets(statusFilter) {
   showPage('tickets');
