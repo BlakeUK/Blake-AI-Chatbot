@@ -88,6 +88,33 @@ test('empty() matches analyze() on blank input', function () {
     assert_equal(\Sitemap\PageAnalyzer::empty(), \Sitemap\PageAnalyzer::analyze('', 'https://www.blake-uk.com/x'));
 });
 
+test('collects absolute image URLs, resolving relative src', function () {
+    $html = '<html><body><img src="/a.jpg"><img src="https://cdn.example.com/b.jpg"></body></html>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_contains('https://www.blake-uk.com/a.jpg', $r['image_urls']);
+    assert_contains('https://cdn.example.com/b.jpg', $r['image_urls']);
+});
+
+test('collects both internal and external links', function () {
+    $html = '<a href="/internal">In</a><a href="https://partner.example.com/page">Out</a>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_contains('https://www.blake-uk.com/internal', $r['links']);
+    assert_contains('https://partner.example.com/page', $r['links']);
+});
+
+test('excludes fragment-only, mailto, and javascript links from the link list', function () {
+    $html = '<a href="#top">Top</a><a href="mailto:x@example.com">Mail</a><a href="javascript:void(0)">JS</a>';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_count(0, $r['links']);
+});
+
+test('deduplicates repeated links and images', function () {
+    $html = '<a href="/x">1</a><a href="/x">2</a><img src="/y.jpg"><img src="/y.jpg">';
+    $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');
+    assert_count(1, $r['links']);
+    assert_count(1, $r['image_urls']);
+});
+
 test('extracts a JSON-LD @type', function () {
     $html = '<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Widget"}</script></head></html>';
     $r = \Sitemap\PageAnalyzer::analyze($html, 'https://www.blake-uk.com/x');

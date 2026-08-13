@@ -21,6 +21,8 @@
   .scan-row input[type=text]:focus { outline: none; border-color: #8fb0ec; }
   .scan-row select { padding: 8px 10px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; flex-shrink: 0; }
   .scan-row select:focus { outline: none; border-color: #8fb0ec; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #adb4ba; cursor: pointer; margin-top: 10px; }
+  .checkbox-row input[type=checkbox] { width: auto; cursor: pointer; }
   button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .btn-primary { background: #3d5a99; color: #fff; } .btn-primary:hover:not(:disabled) { background: #2f4677; }
@@ -142,6 +144,10 @@
       <button class="btn-danger" id="stop-btn" style="display:none">Stop</button>
       <button class="btn-secondary" id="export-btn" disabled>Export CSV</button>
     </div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="check-links-toggle">
+      Also check images &amp; links found on each page (internal + external, slower)
+    </label>
     <div id="error-banner"></div>
     <div id="progress-wrap">
       <div id="progress-track"><div id="progress-fill"></div></div>
@@ -156,6 +162,21 @@
 
   <div id="stat-grid" style="display:none"></div>
   <div id="seo-stat-grid" style="display:none"></div>
+
+  <div class="card" id="broken-links-card" style="display:none">
+    <h2>Broken Images &amp; Links</h2>
+    <div id="broken-links-summary" class="bot-summary"></div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="broken-links-only-toggle" checked>
+      Show broken only
+    </label>
+    <div class="table-wrap" style="margin-top:10px">
+      <table>
+        <thead><tr><th>URL</th><th>Type</th><th>Status</th><th>Found On</th></tr></thead>
+        <tbody id="broken-links-body"><tr><td colspan="4" class="empty-note">Not checked yet.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
   <div id="dup-filter-banner">
     <span id="dup-filter-text"></span>
@@ -224,6 +245,8 @@ const dupFilterBanner = $('dup-filter-banner'), dupFilterText = $('dup-filter-te
 let currentDupFilter = null; // { field: 'title'|'meta_description', key: normalized-lowercase-string }
 
 const loginOverlay = $('login-overlay'), loginAlert = $('login-alert'), logoutBtn = $('logout-btn');
+const brokenLinksCard = $('broken-links-card'), brokenLinksSummary = $('broken-links-summary'), brokenLinksBody = $('broken-links-body');
+let lastLinkRefMap = null, lastLinkResults = null;
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -482,6 +505,85 @@ async function runPool(items, worker, concurrency) {
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, next));
 }
 
+async function checkLinkStatus(url) {
+  try {
+    const r = await fetchJson('check_link.php?url=' + encodeURIComponent(url));
+    return (r && typeof r.type === 'string') ? r : { ok: false, type: 'fetch_error', error: (r && r.error) || 'Unexpected response' };
+  } catch (e) {
+    return { ok: false, type: 'fetch_error', error: 'Network error contacting the checker itself' };
+  }
+}
+
+// Builds the url -> {type, pages} reference map from every HTML page's
+// image_urls/links, deduplicated globally (a shared logo or nav link
+// referenced by every page on the site should only ever be checked
+// once, not once per page it appears on), then checks each unique URL
+// and renders the results table.
+async function runBrokenLinksCheck() {
+  const refMap = new Map();
+  for (const row of rows) {
+    const r = row.result;
+    if (!r || !r.is_html) continue;
+    for (const u of (r.image_urls || [])) {
+      if (!refMap.has(u)) refMap.set(u, { type: 'image', pages: new Set() });
+      refMap.get(u).pages.add(row.entry.loc);
+    }
+    for (const u of (r.links || [])) {
+      if (!refMap.has(u)) refMap.set(u, { type: 'link', pages: new Set() });
+      refMap.get(u).pages.add(row.entry.loc);
+    }
+  }
+
+  const urls = Array.from(refMap.keys());
+  lastLinkRefMap = refMap;
+  lastLinkResults = new Map();
+  brokenLinksCard.style.display = 'block';
+
+  if (!urls.length) {
+    brokenLinksSummary.textContent = 'No images or links found on the scanned pages.';
+    brokenLinksBody.innerHTML = '<tr><td colspan="4" class="empty-note">Nothing to check.</td></tr>';
+    return;
+  }
+
+  let done = 0;
+  brokenLinksSummary.textContent = `Checking ${urls.length} unique image(s)/link(s)…`;
+  await runPool(urls, async (u) => {
+    lastLinkResults.set(u, await checkLinkStatus(u));
+    done++;
+    brokenLinksSummary.textContent = `Checked ${done} of ${urls.length}…`;
+    if (done % 10 === 0 || done === urls.length) renderBrokenLinks();
+  }, CONCURRENCY);
+  renderBrokenLinks();
+}
+
+function renderBrokenLinks() {
+  if (!lastLinkRefMap) return;
+  const entries = Array.from(lastLinkRefMap.entries()).map(([url, meta]) => ({ url, meta, result: lastLinkResults.get(url) }));
+  const checked = entries.filter((e) => e.result);
+  const broken = checked.filter((e) => e.result.type !== 'ok');
+  const showBrokenOnly = $('broken-links-only-toggle').checked;
+  const toShow = showBrokenOnly ? broken : entries;
+
+  brokenLinksSummary.textContent = checked.length === entries.length
+    ? `${entries.length} unique image(s)/link(s) checked — ${broken.length} broken.`
+    : `Checking ${entries.length} unique image(s)/link(s)… ${checked.length} done, ${broken.length} broken so far.`;
+
+  brokenLinksBody.innerHTML = toShow.length ? toShow.map((e) => {
+    const r = e.result;
+    const type = r ? r.type : 'pending';
+    const statusText = r ? (r.status ?? (r.error || 'Error')) : '—';
+    const pages = Array.from(e.meta.pages);
+    return `<tr>
+      <td class="url-cell"><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.url.length > 70 ? pathOf(e.url) : e.url)}</a></td>
+      <td>${e.meta.type === 'image' ? 'Image' : 'Link'}</td>
+      <td><span class="badge badge-${type}">${TYPE_LABELS[type] || statusText}${r && r.status ? ' (' + r.status + ')' : ''}</span></td>
+      <td title="${esc(pages.join('\n'))}">${pages.length} page${pages.length > 1 ? 's' : ''}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" class="empty-note">Nothing broken found.</td></tr>';
+}
+
+$('broken-links-only-toggle').addEventListener('change', renderBrokenLinks);
+
 async function probeOne(row) {
   try {
     const result = await fetchJson('probe.php?url=' + encodeURIComponent(row.entry.loc));
@@ -567,6 +669,8 @@ async function startScan() {
   scanBtn.disabled = true; stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; exportBtn.disabled = true;
   statGrid.style.display = 'none'; seoStatGrid.style.display = 'none'; filterRow.style.display = 'none';
   clearDupFilter(false);
+  brokenLinksCard.style.display = 'none';
+  lastLinkRefMap = null; lastLinkResults = null;
   progressWrap.style.display = 'block'; progressFill.style.width = '0%';
   progressLabel.textContent = 'Reading sitemap…';
   resultsBody.innerHTML = '';
@@ -622,6 +726,13 @@ async function startScan() {
   progressLabel.textContent = stopRequested
     ? `Stopped — checked ${completedCount} of ${toProbe.length} pages.`
     : `Done — checked ${completedCount} of ${toProbe.length} pages.`;
+
+  if (!stopRequested && $('check-links-toggle').checked) {
+    progressLabel.textContent += ' Checking images & links…';
+    await runBrokenLinksCheck();
+    progressLabel.textContent = progressLabel.textContent.replace(' Checking images & links…', ' Images & links checked.');
+  }
+
   finishScan();
 }
 
