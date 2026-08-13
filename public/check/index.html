@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blake UK Sitemap &amp; SEO Health Checker</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; font-size: 14px; background: #2f343b; color: #e8e8ea; margin: 0; }
+  header { background: #2f343b; color: #fff; padding: 18px 24px; border-bottom: 1px solid #454c54; }
+  header h1 { margin: 0 0 4px; font-size: 19px; }
+  header p { margin: 0; color: #adb4ba; font-size: 13px; }
+  main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 60px; }
+
+  .card { background: #3a4048; border: 1px solid #454c54; border-radius: 6px; padding: 16px 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #454c54; }
+
+  .scan-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .scan-row input[type=text] { flex: 1; min-width: 260px; padding: 8px 10px; border: 1px solid #6b7480; border-radius: 4px; font-size: 13px; background: #262b31; color: #e8e8ea; }
+  .scan-row input[type=text]:focus { outline: none; border-color: #8fb0ec; }
+  button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary { background: #3d5a99; color: #fff; } .btn-primary:hover:not(:disabled) { background: #2f4677; }
+  .btn-secondary { background: #5c636b; color: #fff; } .btn-secondary:hover:not(:disabled) { background: #494f56; }
+  .btn-danger { background: #c0392b; color: #fff; } .btn-danger:hover:not(:disabled) { background: #9c2d20; }
+
+  #error-banner { display: none; background: #4a2a2a; border: 1px solid #c0392b; color: #f5b7b1; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
+
+  #progress-wrap { display: none; margin-top: 14px; }
+  #progress-track { height: 8px; border-radius: 4px; background: #262b31; overflow: hidden; }
+  #progress-fill { height: 100%; width: 0%; background: #8fb0ec; transition: width .15s; }
+  #progress-label { font-size: 12px; color: #adb4ba; margin-top: 6px; }
+
+  #stat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 1100px) { #stat-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 640px) { #stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-tile { background: #3a4048; border: 1px solid #454c54; border-radius: 6px; padding: 10px 12px; }
+  .stat-tile .label { font-size: 10px; color: #adb4ba; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .stat-tile .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .stat-tile.ok .value { color: #4caf7d; }
+  .stat-tile.redirect .value { color: #e0a83f; }
+  .stat-tile.error .value { color: #e05f5f; }
+  .stat-tile.warn .value { color: #d98a4b; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .filter-btn { background: #262b31; color: #adb4ba; border: 1px solid #454c54; }
+  .filter-btn.active { background: #8fb0ec; color: #1c2126; border-color: #8fb0ec; }
+  .filter-btn:hover:not(.active) { color: #e8e8ea; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid #454c54; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  thead th { position: sticky; top: 0; background: #262b31; text-align: left; padding: 9px 10px; font-size: 11px; color: #adb4ba; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid #454c54; white-space: nowrap; }
+  tbody td { padding: 8px 10px; border-bottom: 1px solid #3f454d; font-size: 12.5px; vertical-align: top; }
+  tbody tr:hover td { background: rgba(255,255,255,.03); }
+  tbody tr.hidden-row { display: none; }
+  .url-cell { max-width: 420px; }
+  .url-cell a { color: #b9c9e8; text-decoration: none; word-break: break-all; }
+  .url-cell a:hover { text-decoration: underline; }
+  .url-path { color: #adb4ba; font-size: 11px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge-ok { background: rgba(76,175,125,.18); color: #6fce9c; }
+  .badge-redirect { background: rgba(224,168,63,.18); color: #eab659; }
+  .badge-http_error { background: rgba(224,95,95,.18); color: #f18686; }
+  .badge-timeout { background: rgba(224,140,63,.18); color: #f0a76b; }
+  .badge-fetch_error { background: rgba(150,150,150,.18); color: #b7b7b7; }
+  .badge-disallowed_host { background: rgba(160,120,220,.18); color: #c0a2ec; }
+  .badge-pending { background: rgba(150,150,150,.12); color: #8a8f96; }
+
+  .chip { display: inline-block; padding: 1px 7px; border-radius: 8px; font-size: 10.5px; margin: 1px 3px 1px 0; background: rgba(217,138,75,.16); color: #e6a56f; white-space: nowrap; }
+  .chip.chip-bad { background: rgba(224,95,95,.16); color: #f18686; }
+  .chip.chip-info { background: rgba(143,176,236,.14); color: #9fbcef; }
+
+  .time-slow { color: #f0a76b; font-weight: 600; }
+  .empty-note { color: #adb4ba; font-size: 13px; padding: 20px; text-align: center; }
+  footer { max-width: 1400px; margin: 0 auto; padding: 0 24px 40px; color: #6b7480; font-size: 11.5px; }
+  footer a { color: #8fb0ec; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Blake UK Sitemap &amp; SEO Health Checker</h1>
+  <p>Reads a sitemap, checks every page it lists, and flags anything a visitor or Google would trip over.</p>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Scan</h2>
+    <div class="scan-row">
+      <input type="text" id="sitemap-url" value="https://www.blake-uk.com/sitemap.xml" spellcheck="false">
+      <button class="btn-primary" id="scan-btn">Start Scan</button>
+      <button class="btn-danger" id="stop-btn" style="display:none">Stop</button>
+      <button class="btn-secondary" id="export-btn" disabled>Export CSV</button>
+    </div>
+    <div id="error-banner"></div>
+    <div id="progress-wrap">
+      <div id="progress-track"><div id="progress-fill"></div></div>
+      <div id="progress-label"></div>
+    </div>
+  </div>
+
+  <div id="stat-grid" style="display:none"></div>
+
+  <div class="filter-row" id="filter-row" style="display:none"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>URL</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Redirects</th>
+          <th>Time</th>
+          <th>Title</th>
+          <th>Issues</th>
+        </tr>
+      </thead>
+      <tbody id="results-body">
+        <tr><td colspan="8" class="empty-note">Enter a sitemap URL above and click "Start Scan".</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<footer>
+  Only checks pages on blake-uk.com / www.blake-uk.com. Soft-404 and duplicate-content flags are heuristics for a
+  human to spot-check, not a definite verdict — see the notes in each row. Built for Blake UK internal QA use.
+</footer>
+
+<script>
+'use strict';
+
+const CONCURRENCY = 5;
+const SLOW_MS = 2000;
+const TITLE_MIN = 10, TITLE_MAX = 60;
+const DESC_MIN = 50, DESC_MAX = 160;
+
+const TYPE_LABELS = {
+  ok: 'OK', redirect: 'Redirect', http_error: 'HTTP Error', timeout: 'Timeout',
+  fetch_error: 'Fetch Error', disallowed_host: 'Outside Domain', pending: 'Queued',
+};
+
+let entries = [];       // raw sitemap entries: {loc, lastmod, https, outside_domain, duplicate}
+let rows = [];          // {entry, result|null, issues:[], el (tr)}
+let rowByLoc = new Map();
+let scanning = false;
+let stopRequested = false;
+let currentFilter = 'all';
+
+const $ = (id) => document.getElementById(id);
+const scanBtn = $('scan-btn'), stopBtn = $('stop-btn'), exportBtn = $('export-btn');
+const errorBanner = $('error-banner');
+const progressWrap = $('progress-wrap'), progressFill = $('progress-fill'), progressLabel = $('progress-label');
+const statGrid = $('stat-grid'), filterRow = $('filter-row'), resultsBody = $('results-body');
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function showError(msg) {
+  errorBanner.textContent = msg;
+  errorBanner.style.display = 'block';
+}
+function clearError() { errorBanner.style.display = 'none'; errorBanner.textContent = ''; }
+
+function pathOf(url) {
+  try { const u = new URL(url); return u.pathname + u.search; } catch (e) { return url; }
+}
+
+async function fetchJson(url) {
+  const r = await fetch(url);
+  let data;
+  try { data = await r.json(); } catch (e) { throw new Error('Server returned a non-JSON response (HTTP ' + r.status + ')'); }
+  return data;
+}
+
+function buildIssues(entry, result) {
+  const issues = [];
+  if (entry.duplicate) issues.push(['Duplicate URL in sitemap', 'bad']);
+  if (!entry.https) issues.push(['Non-HTTPS sitemap entry', 'bad']);
+  if (!result) return issues;
+
+  if (result.type === 'disallowed_host') { issues.push(['Outside blake-uk.com — not checked', 'info']); return issues; }
+  if (result.type === 'timeout') { issues.push(['Request timed out', 'bad']); return issues; }
+  if (result.type === 'fetch_error') { issues.push(['Could not fetch: ' + (result.error || 'unknown error'), 'bad']); return issues; }
+
+  if (result.redirect_count > 1) issues.push(['Redirect chain (' + result.redirect_count + ' hops)', 'bad']);
+  if (result.external_redirect) issues.push(['Redirects off-domain', 'bad']);
+  if (!result.https) issues.push(['Final URL not HTTPS', 'bad']);
+  if (result.response_time_ms > SLOW_MS) issues.push(['Slow (' + result.response_time_ms + 'ms)', '']);
+
+  if (result.is_html) {
+    if (result.soft_404 && result.type === 'ok') issues.push(['Possible soft 404: "' + (result.soft_404_evidence || '') + '"', 'bad']);
+    if (result.noindex) issues.push(['noindex (' + (result.noindex_header ? 'header' : 'meta') + ')', 'bad']);
+    if (!result.title) issues.push(['Missing page title', 'bad']);
+    else if (result.title_length < TITLE_MIN) issues.push(['Title very short (' + result.title_length + ' chars)', '']);
+    else if (result.title_length > TITLE_MAX) issues.push(['Title long (' + result.title_length + ' chars)', '']);
+    if (!result.meta_description) issues.push(['Missing meta description', 'bad']);
+    else if (result.meta_description_length < DESC_MIN) issues.push(['Description short (' + result.meta_description_length + ' chars)', '']);
+    else if (result.meta_description_length > DESC_MAX) issues.push(['Description long (' + result.meta_description_length + ' chars)', '']);
+    if (!result.canonical) issues.push(['Missing canonical tag', '']);
+    else if (result.canonical_mismatch) issues.push(['Canonical points elsewhere', 'bad']);
+    if (result.h1_count === 0) issues.push(['No H1 tag', '']);
+    else if (result.h1_count > 1) issues.push(['Multiple H1 tags (' + result.h1_count + ')', '']);
+    if (result.mixed_content) issues.push(['Mixed content (http:// resource on https page)', 'bad']);
+    if (result.body_truncated) issues.push(['Page body truncated for analysis (very large page)', 'info']);
+  } else if (result.type !== 'disallowed_host') {
+    issues.push(['Non-HTML resource (' + (result.content_type || 'unknown type') + ')', 'info']);
+  }
+  return issues;
+}
+
+function classify(entry, result) {
+  if (!result) return 'pending';
+  return result.type;
+}
+
+function renderRow(row) {
+  const { entry, result } = row;
+  const type = classify(entry, result);
+  const tr = row.el;
+  tr.dataset.type = type;
+  tr.dataset.hasIssue = row.issues.length ? '1' : '0';
+
+  const statusText = result ? (result.status ?? '—') : '—';
+  const redirectText = result && result.redirect_count > 0 ? result.redirect_count + ' hop' + (result.redirect_count > 1 ? 's' : '') : (result ? '—' : '');
+  const timeText = result && typeof result.response_time_ms === 'number'
+    ? '<span class="' + (result.response_time_ms > SLOW_MS ? 'time-slow' : '') + '">' + result.response_time_ms + 'ms</span>'
+    : '';
+  const titleText = result && result.title ? esc(result.title) : (result && result.is_html === false ? '<span style="color:#6b7480">n/a</span>' : '<span style="color:#6b7480">—</span>');
+  const issuesHtml = row.issues.map(([text, kind]) =>
+    '<span class="chip' + (kind ? ' chip-' + kind : '') + '">' + esc(text) + '</span>'
+  ).join('');
+
+  tr.innerHTML = `
+    <td>${row.index}</td>
+    <td class="url-cell"><a href="${esc(entry.loc)}" target="_blank" rel="noopener">${esc(entry.loc.length > 70 ? pathOf(entry.loc) : entry.loc)}</a></td>
+    <td><span class="badge badge-${type}">${TYPE_LABELS[type] || type}</span></td>
+    <td>${statusText}</td>
+    <td>${redirectText}</td>
+    <td>${timeText}</td>
+    <td>${titleText}</td>
+    <td>${issuesHtml}</td>
+  `;
+}
+
+function applyFilter() {
+  for (const row of rows) {
+    let visible = true;
+    if (currentFilter === 'errors') visible = ['http_error', 'timeout', 'fetch_error'].includes(row.el.dataset.type);
+    else if (currentFilter === 'redirects') visible = row.el.dataset.type === 'redirect';
+    else if (currentFilter === 'ok') visible = row.el.dataset.type === 'ok';
+    else if (currentFilter === 'warnings') visible = row.el.dataset.hasIssue === '1';
+    else if (currentFilter === 'outside') visible = row.el.dataset.type === 'disallowed_host';
+    row.el.classList.toggle('hidden-row', !visible);
+  }
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  for (const btn of filterRow.querySelectorAll('.filter-btn')) btn.classList.toggle('active', btn.dataset.filter === f);
+  applyFilter();
+}
+
+function renderFilterRow() {
+  filterRow.style.display = 'flex';
+  filterRow.innerHTML = [
+    ['all', 'All'], ['errors', 'Errors Only'], ['redirects', 'Redirects Only'],
+    ['ok', 'OK Only'], ['warnings', 'Warnings Only'], ['outside', 'Outside Domain'],
+  ].map(([key, label]) => `<button class="filter-btn${key === 'all' ? ' active' : ''}" data-filter="${key}">${label}</button>`).join('');
+  filterRow.querySelectorAll('.filter-btn').forEach((btn) => btn.onclick = () => setFilter(btn.dataset.filter));
+}
+
+function updateStats() {
+  const counts = { ok: 0, redirect: 0, http_error: 0, timeout: 0, fetch_error: 0, disallowed_host: 0, pending: 0 };
+  let warn = 0, totalTime = 0, timedCount = 0;
+  for (const row of rows) {
+    const t = classify(row.entry, row.result);
+    counts[t] = (counts[t] || 0) + 1;
+    if (row.issues.length) warn++;
+    if (row.result && typeof row.result.response_time_ms === 'number') { totalTime += row.result.response_time_ms; timedCount++; }
+  }
+  const avgTime = timedCount ? Math.round(totalTime / timedCount) : 0;
+  const errorCount = counts.http_error + counts.timeout + counts.fetch_error;
+
+  statGrid.style.display = 'grid';
+  statGrid.innerHTML = `
+    <div class="stat-tile"><div class="label">Total URLs</div><div class="value">${rows.length}</div></div>
+    <div class="stat-tile ok"><div class="label">OK</div><div class="value">${counts.ok}</div></div>
+    <div class="stat-tile redirect"><div class="label">Redirects</div><div class="value">${counts.redirect}</div></div>
+    <div class="stat-tile error"><div class="label">Errors</div><div class="value">${errorCount}</div></div>
+    <div class="stat-tile warn"><div class="label">Warnings</div><div class="value">${warn}</div></div>
+    <div class="stat-tile"><div class="label">Avg Response</div><div class="value">${avgTime}ms</div></div>
+    <div class="stat-tile"><div class="label">Outside Domain</div><div class="value">${counts.disallowed_host}</div></div>
+  `;
+}
+
+function applyCrossPageChecks() {
+  const byTitle = new Map(), byDesc = new Map();
+  for (const row of rows) {
+    const r = row.result;
+    if (!r || !r.is_html) continue;
+    if (r.title) { const k = r.title.trim().toLowerCase(); byTitle.set(k, (byTitle.get(k) || []).concat(row)); }
+    if (r.meta_description) { const k = r.meta_description.trim().toLowerCase(); byDesc.set(k, (byDesc.get(k) || []).concat(row)); }
+  }
+  for (const group of byTitle.values()) {
+    if (group.length > 1) for (const row of group) row.issues.push(['Duplicate title (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad']);
+  }
+  for (const group of byDesc.values()) {
+    if (group.length > 1) for (const row of group) row.issues.push(['Duplicate meta description (shared with ' + (group.length - 1) + ' other page' + (group.length > 2 ? 's' : '') + ')', 'bad']);
+  }
+  for (const row of rows) renderRow(row);
+}
+
+async function runPool(items, worker, concurrency) {
+  let idx = 0;
+  async function next() {
+    while (idx < items.length && !stopRequested) {
+      const i = idx++;
+      await worker(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, next));
+}
+
+async function probeOne(row) {
+  try {
+    const result = await fetchJson('probe.php?url=' + encodeURIComponent(row.entry.loc));
+    row.result = result;
+  } catch (e) {
+    row.result = { ok: false, type: 'fetch_error', error: 'Network error contacting the checker itself', response_time_ms: null };
+  }
+  row.issues = buildIssues(row.entry, row.result);
+  renderRow(row);
+  updateProgress();
+  updateStats();
+}
+
+let completedCount = 0;
+function updateProgress() {
+  completedCount++;
+  const toCheck = rows.filter((r) => r.entry.outside_domain !== true).length;
+  const pct = toCheck ? Math.round((completedCount / toCheck) * 100) : 100;
+  progressFill.style.width = pct + '%';
+  progressLabel.textContent = `Checked ${completedCount} of ${toCheck} pages…`;
+}
+
+async function startScan() {
+  clearError();
+  const sitemapUrl = $('sitemap-url').value.trim();
+  if (!sitemapUrl) { showError('Enter a sitemap URL.'); return; }
+
+  scanning = true; stopRequested = false; completedCount = 0;
+  scanBtn.disabled = true; stopBtn.style.display = 'inline-block'; stopBtn.disabled = false; exportBtn.disabled = true;
+  statGrid.style.display = 'none'; filterRow.style.display = 'none';
+  progressWrap.style.display = 'block'; progressFill.style.width = '0%';
+  progressLabel.textContent = 'Reading sitemap…';
+  resultsBody.innerHTML = '';
+  rows = []; rowByLoc = new Map();
+
+  let sitemapData;
+  try {
+    sitemapData = await fetchJson('sitemap.php?url=' + encodeURIComponent(sitemapUrl));
+  } catch (e) {
+    showError('Could not reach the checker backend: ' + e.message);
+    finishScan();
+    return;
+  }
+  if (!sitemapData.ok) {
+    showError(sitemapData.error || 'Could not read that sitemap.');
+    finishScan();
+    return;
+  }
+  if (!sitemapData.count) {
+    showError('That sitemap contained no page URLs.');
+    finishScan();
+    return;
+  }
+  if (sitemapData.truncated) {
+    showError(`Note: this sitemap has more than ${sitemapData.count} URLs — only the first ${sitemapData.count} were scanned.`);
+  }
+
+  entries = sitemapData.urls;
+  rows = entries.map((entry, i) => {
+    const tr = document.createElement('tr');
+    resultsBody.appendChild(tr);
+    const row = { index: i + 1, entry, result: null, issues: buildIssues(entry, null), el: tr };
+    renderRow(row);
+    return row;
+  });
+
+  renderFilterRow();
+  updateStats();
+
+  const toProbe = rows.filter((r) => !r.entry.outside_domain);
+  for (const row of rows) if (row.entry.outside_domain) { row.result = { ok: false, type: 'disallowed_host' }; row.issues = buildIssues(row.entry, row.result); renderRow(row); }
+
+  await runPool(toProbe, probeOne, CONCURRENCY);
+  applyCrossPageChecks();
+  updateStats();
+
+  progressLabel.textContent = stopRequested
+    ? `Stopped — checked ${completedCount} of ${toProbe.length} pages.`
+    : `Done — checked ${completedCount} of ${toProbe.length} pages.`;
+  finishScan();
+}
+
+function finishScan() {
+  scanning = false;
+  scanBtn.disabled = false;
+  stopBtn.style.display = 'none';
+  exportBtn.disabled = rows.length === 0;
+}
+
+function exportCsv() {
+  const cols = ['URL', 'Type', 'Status', 'Final URL', 'Redirect Hops', 'Response Time (ms)', 'Title', 'Meta Description', 'Canonical', 'Noindex', 'Soft 404', 'HTTPS', 'Issues'];
+  const lines = [cols.join(',')];
+  const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  for (const row of rows) {
+    const r = row.result || {};
+    lines.push([
+      row.entry.loc, TYPE_LABELS[classify(row.entry, row.result)] || '', r.status ?? '', r.final_url ?? '',
+      r.redirect_count ?? '', r.response_time_ms ?? '', r.title ?? '', r.meta_description ?? '',
+      r.canonical ?? '', r.noindex ? 'yes' : 'no', (r.soft_404 && r.type === 'ok') ? 'yes' : 'no', r.https ? 'yes' : 'no',
+      row.issues.map((i) => i[0]).join(' | '),
+    ].map(q).join(','));
+  }
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'blake-uk-sitemap-check-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+scanBtn.onclick = startScan;
+stopBtn.onclick = () => { stopRequested = true; stopBtn.disabled = true; };
+exportBtn.onclick = exportCsv;
+$('sitemap-url').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !scanning) startScan(); });
+</script>
+</body>
+</html>
