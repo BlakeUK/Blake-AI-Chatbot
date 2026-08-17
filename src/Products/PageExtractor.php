@@ -31,9 +31,7 @@ class PageExtractor
             throw new \RuntimeException('Gemini API key not configured');
         }
 
-        $modelRow = db()->prepare('SELECT value FROM settings WHERE key=?');
-        $modelRow->execute(['gemini_extract_model']);
-        $model = $modelRow->fetchColumn() ?: CFG['gemini_flash'];
+        $model = \Gemini\Client::getModel('gemini_extract_model', 'gemini_flash');
 
         $prompt = self::buildPrompt($shape, $referenceExample);
 

@@ -71,7 +71,7 @@ class FileExtractor
         ]);
 
         // Use model stored in DB setting, fall back to pro
-        $model = self::getSetting('gemini_extract_model') ?? CFG['gemini_pro'];
+        $model = \Gemini\Client::getModel('gemini_extract_model', 'gemini_pro');
 
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($apiKey);
 
@@ -127,12 +127,5 @@ class FileExtractor
     private static function getApiKey(): ?string
     {
         return \Gemini\Client::getStoredApiKey();
-    }
-
-    private static function getSetting(string $key): ?string
-    {
-        $row = db()->prepare('SELECT value FROM settings WHERE key=?');
-        $row->execute([$key]);
-        return $row->fetchColumn() ?: null;
     }
 }

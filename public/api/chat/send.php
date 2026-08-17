@@ -118,7 +118,7 @@ $messages = array_values(array_map(
 $messages[] = ['role' => 'user', 'content' => $message];
 
 try {
-    $answer = $gemini->chat(CFG['gemini_flash'], $messages, $full_prompt);
+    $answer = $gemini->chat(\Gemini\Client::getModel('gemini_chat_model', 'gemini_flash'), $messages, $full_prompt);
 } catch (\Throwable $e) {
     error_log('Gemini error: ' . $e->getMessage());
     json_err('AI service unavailable', 503);

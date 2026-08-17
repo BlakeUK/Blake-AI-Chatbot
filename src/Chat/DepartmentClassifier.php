@@ -50,7 +50,7 @@ PROMPT;
 
         try {
             $gemini = new \Gemini\Client($apiKey);
-            $raw    = $gemini->chat(CFG['gemini_flash'], $geminiMessages, self::SYSTEM);
+            $raw    = $gemini->chat(\Gemini\Client::getModel('gemini_chat_model', 'gemini_flash'), $geminiMessages, self::SYSTEM);
         } catch (\Throwable $e) {
             error_log('DepartmentClassifier: Gemini error: ' . $e->getMessage());
             return $fallback;

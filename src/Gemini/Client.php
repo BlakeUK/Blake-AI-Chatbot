@@ -32,6 +32,23 @@ class Client
         return $dec ?: null;
     }
 
+    // Resolves which model string to use for a given purpose: the DB
+    // settings row (admin-editable via the Model Settings tab) wins when
+    // present and non-empty, otherwise falls back to the config.php
+    // default. Unifies four previously-separate copies of this same
+    // "DB setting, else config fallback" lookup (FileExtractor,
+    // PageExtractor, chat/send.php, DepartmentClassifier) - the divergence
+    // meant editing a model in the admin UI silently didn't affect chat/
+    // classification at all, since those two read CFG directly and never
+    // consulted the settings table.
+    public static function getModel(string $settingKey, string $cfgFallbackKey): string
+    {
+        $row = db()->prepare('SELECT value FROM settings WHERE key = ?');
+        $row->execute([$settingKey]);
+        $value = $row->fetchColumn();
+        return ($value !== false && $value !== '') ? $value : CFG[$cfgFallbackKey];
+    }
+
     // ── Chat completion (flash) ───────────────────────────────────────────────
 
     public function chat(string $model, array $messages, string $system = ''): string

@@ -280,6 +280,15 @@ else
     warn "Project-color schema already applied — skipping."
 fi
 
+# ── Fix deprecated Gemini 1.5 model settings (Google shut these down - every call now 404s) ──
+if sqlite3 "$WEBROOT/data/chatbot.db" "SELECT value FROM settings WHERE key='gemini_chat_model';" | grep -qx "gemini-1.5-flash" \
+    || sqlite3 "$WEBROOT/data/chatbot.db" "SELECT value FROM settings WHERE key='gemini_extract_model';" | grep -qx "gemini-1.5-pro"; then
+    info "Fixing deprecated Gemini 1.5 model settings (Google shut these down)..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_fix_deprecated_gemini_models.sql"
+else
+    warn "Gemini model settings already updated — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then
