@@ -88,7 +88,19 @@ class FileExtractor
         curl_close($ch);
 
         if (!$resp || $code !== 200) {
-            throw new \RuntimeException("Gemini extract error {$code}");
+            // Surface Gemini's actual error text (and which model we asked
+            // for) instead of just the bare HTTP code - a 404 could mean
+            // "model retired", "wrong API version", or something else
+            // entirely, and the bare code alone isn't enough to tell those
+            // apart from the admin Files tab.
+            $detail = null;
+            if ($resp) {
+                $errData = json_decode($resp, true);
+                $detail  = $errData['error']['message'] ?? null;
+            }
+            $detail = $detail !== null ? $detail : ($resp !== false ? $resp : 'no response from Gemini');
+            $detail = mb_substr($detail, 0, 300);
+            throw new \RuntimeException("Gemini extract error {$code} (model: {$model}): {$detail}");
         }
 
         $data = json_decode($resp, true);
