@@ -671,7 +671,7 @@ const API='/api/admin'; let csrf=''; let role='user';
 async function doLogin(){
   const u=val('login-user'),p=document.getElementById('login-pass').value;
   const r=await post(API+'/login.php',{username:u,password:p});
-  if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
+  if(r.ok){sessionExpiredShown=false;csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else if(r.requires_2fa){
     document.getElementById('login-step-password').style.display='none';
     document.getElementById('login-step-2fa').style.display='block';
@@ -685,7 +685,7 @@ async function doVerify2fa(){
   const code=val('login-2fa-code');
   if(!code)return;
   const r=await post(API+'/login.php',{code});
-  if(r.ok){csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
+  if(r.ok){sessionExpiredShown=false;csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Invalid code')+'</div>';
 }
 document.getElementById('login-2fa-code').addEventListener('keydown',e=>{if(e.key==='Enter')doVerify2fa();});
@@ -698,6 +698,7 @@ async function doLogout(){await fetch(API+'/login.php',{method:'DELETE'});locati
 (async function restoreSession(){
   const r=await get(API+'/session.php');
   if(r.ok){
+    sessionExpiredShown=false;
     csrf=r.csrf;role=r.role||'user';
     document.getElementById('login-overlay').style.display='none';
     applyRoleUI();init();
@@ -2252,9 +2253,26 @@ function dateToTs(d){return Math.floor(new Date(d+'T12:00:00').getTime()/1000);}
 function tsToDate(ts){return ts?new Date(ts*1000).toISOString().slice(0,10):'';}
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
-async function get(url){const r=await fetch(url,{credentials:'same-origin'});return r.json();}
-async function post(url,body,withCred=true){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:withCred?'same-origin':'omit',body:JSON.stringify(body)});return r.json();}
-async function del(url,body){const r=await fetch(url,{method:'DELETE',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
+// A 401 from any admin API call means the PHP session has expired or been
+// invalidated - previously every list-loading function (loadFiles,
+// loadKnowledge, etc.) got the {"error":"Unauthorised"} response object
+// back, failed an Array.isArray() check, and silently rendered its normal
+// "nothing here" empty state instead. That looks exactly like real data
+// loss (e.g. Files/RAG showing "No files uploaded yet" with 125 real
+// files still sitting in the database) when it's actually just "please
+// log in again". Centralised here rather than patched into every
+// individual loadX() function, so it protects the whole admin panel at
+// once, including anywhere a future tab makes the same mistake.
+let sessionExpiredShown=false;
+function handleSessionExpired(){
+  if(sessionExpiredShown)return; // multiple in-flight requests can all 401 at once - only react to the first
+  sessionExpiredShown=true;
+  document.getElementById('login-overlay').style.display='';
+  document.getElementById('login-alert').innerHTML='<div class="alert alert-err">Your session expired — please log in again. (Nothing was lost; reload after logging back in.)</div>';
+}
+async function get(url){const r=await fetch(url,{credentials:'same-origin'});if(r.status===401)handleSessionExpired();return r.json();}
+async function post(url,body,withCred=true){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:withCred?'same-origin':'omit',body:JSON.stringify(body)});if(r.status===401)handleSessionExpired();return r.json();}
+async function del(url,body){const r=await fetch(url,{method:'DELETE',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});if(r.status===401)handleSessionExpired();return r.json();}
 async function put(url,body){const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
 function val(id){return document.getElementById(id)?.value?.trim()||'';}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
