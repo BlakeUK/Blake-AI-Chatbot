@@ -861,6 +861,11 @@ async function scanAllFiles(){
       const el=document.getElementById(rowId);
       if(el){el.className='alert alert-err';el.textContent=`${f.filename}: could not reach the server`;}
     }
+    // Small pacing gap between files - Gemini extraction already retries
+    // 429/503 server-side, but firing 100+ requests back-to-back with zero
+    // gap is exactly what provokes those in the first place. Skip the wait
+    // after the last file / when cancelled, no point delaying the finish.
+    if(i<targets.length-1 && !scanAllCancelled)await sleep(400);
   }
   cancelRow.style.display='none';
   btn.disabled=false;
@@ -2225,6 +2230,7 @@ async function del(url,body){const r=await fetch(url,{method:'DELETE',headers:{'
 async function put(url,body){const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
 function val(id){return document.getElementById(id)?.value?.trim()||'';}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function fmtDate(ts){return ts?new Date(ts*1000).toLocaleString('en-GB'):'';}
 function setSelectValue(id,v){const el=document.getElementById(id);if(el&&v){const o=[...el.options].find(o=>o.value===v);if(o)el.value=v;}}
 function flash(msg,err=false){const el=document.getElementById('msg');el.innerHTML=`<div class="alert ${err?'alert-err':'alert-ok'}">${esc(msg)}</div>`;setTimeout(()=>el.innerHTML='',4000);}

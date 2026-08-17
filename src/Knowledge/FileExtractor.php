@@ -12,6 +12,12 @@ class FileExtractor
     public static function extract(int $fileId, string $path, string $mime): ?string
     {
         try {
+            // extractViaGemini() can retry a transient 429/503 with a short
+            // backoff (see below) - make sure PHP's own execution limit
+            // (30s by default under php-fpm) doesn't kill the request
+            // before those retries get a chance to run.
+            @set_time_limit(200);
+
             $apiKey = self::getApiKey();
             if (!$apiKey) {
                 return 'Gemini API key not configured';
@@ -56,6 +62,19 @@ class FileExtractor
         }
     }
 
+    // 429 (rate limited) and 503 (temporarily overloaded) are Gemini's own
+    // signal that the request is worth retrying - its 503 body literally
+    // says "please try again later". A short, bounded backoff clears most
+    // of these without a human needing to click Retry repeatedly, which
+    // matters a lot when Scan All is firing off a large batch of files in
+    // quick succession (exactly the pattern that provokes a 503 in the
+    // first place). Genuinely permanent errors (404 model-not-found, bad
+    // request, etc.) are not retried - retrying those just burns time for
+    // an outcome that was never going to change.
+    private const RETRYABLE_CODES = [429, 503];
+    private const MAX_ATTEMPTS    = 3;
+    private const BACKOFF_SECONDS = [2, 4]; // pause before attempt 2 and 3
+
     private static function extractViaGemini(string $apiKey, string $b64, string $mime): string
     {
         $prompt = 'Extract all readable text from this document. Return plain text only, preserving structure where helpful. No commentary.';
@@ -75,19 +94,27 @@ class FileExtractor
 
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . urlencode($apiKey);
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_TIMEOUT        => 60,
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $lastCode   = 0;
+        $lastDetail = 'no response from Gemini';
 
-        if (!$resp || $code !== 200) {
+        for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_TIMEOUT        => 60,
+            ]);
+            $resp = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($resp && $code === 200) {
+                $data = json_decode($resp, true);
+                return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            }
+
             // Surface Gemini's actual error text (and which model we asked
             // for) instead of just the bare HTTP code - a 404 could mean
             // "model retired", "wrong API version", or something else
@@ -98,13 +125,17 @@ class FileExtractor
                 $errData = json_decode($resp, true);
                 $detail  = $errData['error']['message'] ?? null;
             }
-            $detail = $detail !== null ? $detail : ($resp !== false ? $resp : 'no response from Gemini');
-            $detail = mb_substr($detail, 0, 300);
-            throw new \RuntimeException("Gemini extract error {$code} (model: {$model}): {$detail}");
+            $lastCode   = $code;
+            $lastDetail = mb_substr($detail !== null ? $detail : ($resp !== false ? $resp : 'no response from Gemini'), 0, 300);
+
+            $isLastAttempt = $attempt === self::MAX_ATTEMPTS;
+            if (!in_array($code, self::RETRYABLE_CODES, true) || $isLastAttempt) {
+                break;
+            }
+            sleep(self::BACKOFF_SECONDS[$attempt - 1]);
         }
 
-        $data = json_decode($resp, true);
-        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        throw new \RuntimeException("Gemini extract error {$lastCode} (model: {$model}): {$lastDetail}");
     }
 
     // Splits text into ~$maxWords-word chunks, repeating $overlapWords
