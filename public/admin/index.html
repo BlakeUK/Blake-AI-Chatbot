@@ -187,6 +187,13 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       <div class="stat"><div class="n" id="s-chats">—</div><div class="l">Chat Sessions</div></div>
     </div>
     <div class="card">
+      <h2 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Gemini Status</span>
+        <button class="btn btn-secondary" onclick="testGeminiConnection('dash-gemini-health-status')">Check now</button>
+      </h2>
+      <div id="dash-gemini-health-status" style="font-size:13px;color:#adb4ba">Not checked yet this session — click "Check now" to make a real test call to both configured models.</div>
+    </div>
+    <div class="card">
       <h2>Recent Chat Sessions</h2>
       <table id="dash-logs-table">
         <thead><tr><th>Session</th><th>Page</th><th>Messages</th><th>Last active</th></tr></thead>
@@ -466,11 +473,13 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       <div style="display:flex;flex-direction:column;gap:14px">
         <div><label>Chat Model (used for answering customer questions)</label><select id="chat-model-select"><option>— save Gemini key first, then refresh —</option></select></div>
         <div><label>Extraction Model (PDF / image / document indexing)</label><select id="extract-model-select"><option>— save Gemini key first, then refresh —</option></select></div>
-        <div style="display:flex;gap:10px;align-items:center">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-secondary" onclick="fetchModels()">↺ Refresh model list</button>
           <button class="btn btn-primary" onclick="saveModelSettings()">Save model selection</button>
+          <button class="btn btn-secondary" onclick="testGeminiConnection()">Test connection</button>
         </div>
         <div id="models-status"></div>
+        <div id="gemini-health-status"></div>
       </div>
     </div>
   </div>
@@ -1425,6 +1434,25 @@ async function loadModelSettings(){
 async function saveModelSettings(){
   const r=await post(API+'/settings.php',{csrf,gemini_chat_model:document.getElementById('chat-model-select').value,gemini_extract_model:document.getElementById('extract-model-select').value});
   if(!r.error)flash('Model settings saved');else flash(r.error,true);
+}
+async function testGeminiConnection(targetId='gemini-health-status'){
+  const el=document.getElementById(targetId);
+  el.innerHTML='<span style="color:#adb4ba">Testing both models against Gemini — this makes a real API call, one moment...</span>';
+  try{
+    const r=await get(API+'/gemini_health.php');
+    el.innerHTML=healthRow('Chat model',r.chat)+healthRow('Extraction model',r.extract);
+  }catch(e){
+    el.innerHTML='<span style="color:#f5a3a3">Could not reach the server</span>';
+  }
+}
+function healthRow(label,result){
+  const cls=result.ok?'badge-ok':'badge-error';
+  const text=result.ok?`Working${result.latency_ms!=null?` (${result.latency_ms}ms)`:''}`:'Failed';
+  const modelText=result.model?esc(result.model):'not configured';
+  let html=`<div style="margin-top:8px;font-size:13px"><span class="badge ${cls}">${text}</span> <strong>${esc(label)}</strong> — <code>${modelText}</code>`;
+  if(!result.ok&&result.error)html+=`<br><small style="color:#f5a3a3">${esc(result.error)}</small>`;
+  html+='</div>';
+  return html;
 }
 
 // ── Scheduled Site Refresh ───────────────────────────────────────────────────

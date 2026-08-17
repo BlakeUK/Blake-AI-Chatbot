@@ -33,6 +33,20 @@ if (!$resp || $code !== 200) {
 $data   = json_decode($resp, true);
 $models = $data['models'] ?? [];
 
+// Google's ListModels returns everything under the Gemini umbrella, not
+// just general-purpose chat/document models - image generation (Nano
+// Banana/Imagen), text-to-speech, Live API audio/video, robotics, computer
+// use, embeddings, and agent models (Deep Research, Antigravity) all show
+// up here too, and several of those also satisfy the generateContent
+// check below. None of those are valid picks for "answer a customer
+// question" or "extract text from a PDF", so they're filtered out by id
+// pattern rather than left in to confuse the two dropdowns.
+$excludePatterns = [
+    'image', 'tts', 'live', 'audio', 'video', 'veo', 'robotics',
+    'computer-use', 'embedding', 'deep-research', 'antigravity',
+    'lyria', 'imagen', 'translate', 'omni',
+];
+
 // Filter to generative models only, extract name + displayName
 $out = [];
 foreach ($models as $m) {
@@ -41,6 +55,13 @@ foreach ($models as $m) {
     $name = $m['name'] ?? '';
     // Strip 'models/' prefix for cleaner display
     $short = str_replace('models/', '', $name);
+
+    $isExcluded = false;
+    foreach ($excludePatterns as $pattern) {
+        if (str_contains($short, $pattern)) { $isExcluded = true; break; }
+    }
+    if ($isExcluded) continue;
+
     $out[] = [
         'id'          => $short,
         'displayName' => $m['displayName'] ?? $short,
