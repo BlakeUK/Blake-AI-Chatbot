@@ -347,7 +347,12 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       </div>
     </div>
     <div class="card">
-      <h2>Indexed Files</h2>
+      <h2 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Indexed Files</span>
+        <button class="btn btn-secondary" id="scan-all-btn" style="display:none" onclick="scanAllFiles()">↻ Scan All (<span id="scan-all-count">0</span>)</button>
+      </h2>
+      <div id="scan-all-progress" style="margin-top:10px;max-height:220px;overflow-y:auto"></div>
+      <div id="scan-all-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelScanAll()">Cancel remaining</button></div>
       <table id="files-table">
         <thead><tr><th>Filename</th><th>Type</th><th>Category</th><th>Status</th><th>Uploaded</th><th></th></tr></thead>
         <tbody></tbody>
@@ -796,10 +801,71 @@ async function deleteKnowledge(id){
 }
 
 // ── Files ──────────────────────────────────────────────────────────────────────
+let filesRows=[];
 async function loadFiles(){
   const rows=await get(API+'/files.php');
+  filesRows=Array.isArray(rows)?rows:[];
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
+  tb.innerHTML=filesRows.length?filesRows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
+  updateScanAllButton();
+}
+function updateScanAllButton(){
+  const btn=document.getElementById('scan-all-btn');
+  if(!btn)return;
+  const scannable=filesRows.filter(r=>r.status==='pending'||r.status==='error');
+  if(canEdit()&&scannable.length){
+    btn.style.display='';
+    document.getElementById('scan-all-count').textContent=scannable.length;
+  }else{
+    btn.style.display='none';
+  }
+}
+let scanAllCancelled=false;
+function cancelScanAll(){scanAllCancelled=true;}
+async function scanAllFiles(){
+  // Refresh first so we're not acting on a stale list — cron may already
+  // have cleared some of these in the background.
+  await loadFiles();
+  const targets=filesRows.filter(r=>r.status==='pending'||r.status==='error');
+  if(!targets.length)return flash('Nothing to scan — every file is indexed');
+  if(targets.length>10&&!confirm(`Scan all ${targets.length} file(s) now? Each runs through Gemini extraction in turn, so a large batch can take a while — you can cancel partway through.`))return;
+
+  const prog=document.getElementById('scan-all-progress');
+  const cancelRow=document.getElementById('scan-all-cancel-row');
+  const btn=document.getElementById('scan-all-btn');
+  prog.innerHTML='';
+  scanAllCancelled=false;
+  btn.disabled=true;
+  cancelRow.style.display=targets.length>3?'block':'none';
+  let okCount=0,errCount=0;
+  for(let i=0;i<targets.length;i++){
+    if(scanAllCancelled){
+      prog.innerHTML+=`<div class="alert alert-warn">Cancelled — ${i} of ${targets.length} processed before stopping.</div>`;
+      break;
+    }
+    const f=targets[i];
+    const rowId='scanall_'+f.id;
+    prog.innerHTML+=`<div id="${rowId}" class="alert alert-warn" style="margin-bottom:4px;font-size:12px;word-break:break-all">Scanning ${i+1}/${targets.length}: ${esc(f.filename)}...</div>`;
+    try{
+      const r=await post(API+'/reindex.php',{csrf,file_id:f.id});
+      const el=document.getElementById(rowId);
+      if(!r.error){
+        okCount++;
+        if(el){el.className='alert alert-ok';el.textContent=`${f.filename}: indexed — ${r.chunks} chunk(s)`;}
+      }else{
+        errCount++;
+        if(el){el.className='alert alert-err';el.textContent=`${f.filename}: ${r.error}`;}
+      }
+    }catch(e){
+      errCount++;
+      const el=document.getElementById(rowId);
+      if(el){el.className='alert alert-err';el.textContent=`${f.filename}: could not reach the server`;}
+    }
+  }
+  cancelRow.style.display='none';
+  btn.disabled=false;
+  flash(`Scan finished: ${okCount} indexed, ${errCount} still failing`);
+  loadFiles();loadDashboard();loadDuplicates();
 }
 async function uploadFiles(files){
   const prog=document.getElementById('upload-progress');
