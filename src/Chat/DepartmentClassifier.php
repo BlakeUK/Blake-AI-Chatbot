@@ -36,7 +36,7 @@ PROMPT;
         $fallback = ['department' => 'sales', 'confident' => false];
         if (!$messages) return $fallback;
 
-        $apiKey = getApiKey('gemini');
+        $apiKey = \Gemini\Client::getStoredApiKey();
         if (!$apiKey) return $fallback;
 
         $geminiMessages = array_values(array_map(

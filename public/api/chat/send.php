@@ -92,16 +92,18 @@ $keyword_links     = $ctx['keyword_links'];
 
 $full_prompt = \Chat\Responder::buildPrompt($ctx, $session['product_code'], $session['page_url']);
 
-// Load previous messages (last 6)
+// Load previous messages (last 6), excluding the one just inserted above.
+// Excluded by id rather than by matching role+content against $message -
+// the old content-match approach also stripped any earlier message that
+// happened to share the same text (e.g. a customer repeating "hi" or
+// "thanks" a few turns later silently lost that earlier turn from context).
 $hist = $pdo->prepare('
     SELECT role, content FROM chat_messages
-    WHERE session_id = ? AND role IN (\'user\',\'assistant\')
+    WHERE session_id = ? AND role IN (\'user\',\'assistant\') AND id != ?
     ORDER BY created_at DESC LIMIT 6
 ');
-$hist->execute([$session_id]);
+$hist->execute([$session_id, $user_msg_id]);
 $history = array_reverse($hist->fetchAll());
-// Remove current message from history (it's the last user entry)
-$history = array_filter($history, fn($m) => !($m['role'] === 'user' && $m['content'] === $message));
 
 // ── Call Gemini ───────────────────────────────────────────────────────────────
 
