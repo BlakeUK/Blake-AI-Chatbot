@@ -28,20 +28,35 @@
   const btn = document.createElement('button');
   btn.id = 'buk-chat-btn';
   btn.setAttribute('aria-label', 'Open Blake UK chat');
-  btn.innerHTML = '💬';
+  btn.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.2 6.4L4 20l1.1-3.5A7.96 7.96 0 0 1 4 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   const panel = document.createElement('div');
   panel.id = 'buk-chat-panel';
   panel.setAttribute('aria-live', 'polite');
   panel.innerHTML = `
     <div id="buk-chat-header">
-      <span><img src="${ENDPOINT}/assets/blake-uk-logo.png" alt="Blake UK" id="buk-chat-logo">Support</span>
-      <button id="buk-chat-close" aria-label="Close chat">✕</button>
+      <div id="buk-chat-header-info">
+        <div id="buk-chat-avatar" aria-hidden="true">UK</div>
+        <div id="buk-chat-header-text">
+          <div id="buk-chat-title">Blake AI Support</div>
+          <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span>Online</div>
+        </div>
+      </div>
+      <div id="buk-chat-header-actions">
+        <button id="buk-chat-refresh" class="buk-icon-btn" type="button" aria-label="Start new conversation" title="Start new conversation">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4v5h5M20 20v-5h-5M4.5 15a8 8 0 0 0 14.1 3.4M19.5 9A8 8 0 0 0 5.4 5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="buk-chat-close" class="buk-icon-btn" type="button" aria-label="Close chat">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
     </div>
     <div id="buk-chat-messages"></div>
     <div id="buk-chat-input-row">
       <input id="buk-chat-input" type="text" placeholder="Ask a question..." autocomplete="off" maxlength="500" />
-      <button id="buk-chat-send">Send</button>
+      <button id="buk-chat-send" type="button" aria-label="Send message">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.6 22 12 3.4 3.4 3 10l12 2-12 2 .4 6.6Z"/></svg>
+      </button>
     </div>
   `;
 
@@ -55,6 +70,7 @@
   // ── Toggle ───────────────────────────────────────────────────────────────────
   btn.addEventListener('click', () => togglePanel(true));
   panel.querySelector('#buk-chat-close').addEventListener('click', () => togglePanel(false));
+  panel.querySelector('#buk-chat-refresh').addEventListener('click', startNewConversation);
 
   function togglePanel(show) {
     open = show;
@@ -62,6 +78,17 @@
     btn.style.display   = show ? 'none' : 'flex';
     if (show && !sessionId) initSession();
     if (show) input.focus();
+  }
+
+  // Clears the visible thread and opens a fresh session — the old session
+  // and its messages stay exactly as logged server-side (chat_sessions
+  // rows are never deleted from here), this only affects what this browser
+  // tab is currently looking at.
+  function startNewConversation() {
+    sessionId = null;
+    sessionStorage.removeItem(STORAGE_KEY);
+    messages.innerHTML = '';
+    initSession();
   }
 
   // ── Session ──────────────────────────────────────────────────────────────────
@@ -99,8 +126,38 @@
       sessionId = d.session_id;
       sessionStorage.setItem(STORAGE_KEY, sessionId);
       addMessage('assistant', 'Hello! How can I help you today?');
+      loadFaqSuggestions();
     } catch (e) {
       addMessage('assistant', 'Unable to connect. Please try again shortly.');
+    }
+  }
+
+  // Quick-question chips under the greeting, built from the auto-generated
+  // FAQ list (src/Faq/Builder.php). Best-effort: no FAQ entries yet, or the
+  // request failing outright, just means no chips - never blocks the chat
+  // itself from being usable.
+  async function loadFaqSuggestions() {
+    try {
+      const r = await fetch(API + '/faq.php?limit=4');
+      const items = await r.json();
+      if (!Array.isArray(items) || !items.length) return;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'buk-faq-suggestions';
+      wrap.innerHTML = '<div class="buk-faq-label">Popular questions</div>' +
+        items.map(f => `<button type="button" class="buk-faq-chip" data-q="${esc(f.question)}">${esc(f.question)}</button>`).join('');
+      messages.appendChild(wrap);
+      messages.scrollTop = messages.scrollHeight;
+
+      wrap.querySelectorAll('.buk-faq-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          wrap.remove();
+          input.value = chip.dataset.q;
+          sendMessage();
+        });
+      });
+    } catch (e) {
+      // Non-critical - chat works fine without suggestions.
     }
   }
 
@@ -112,6 +169,7 @@
     const text = input.value.trim();
     if (!text || !sessionId) return;
     input.value = '';
+    document.querySelector('.buk-faq-suggestions')?.remove();
     addMessage('user', text);
     setLoading(true);
 
@@ -150,13 +208,13 @@
   function showTrackingForm(trackingNo, carrier) {
     const wrap = document.createElement('div');
     wrap.className = 'buk-msg buk-msg-assistant';
-    wrap.innerHTML = `
-      <div class="buk-bubble buk-tracking-form">
+    wrap.innerHTML = assistantRowHtml(`
+      <div class="buk-tracking-form">
         <input type="text" class="buk-track-no" placeholder="Tracking number" value="${trackingNo ? esc(trackingNo) : ''}">
         <input type="text" class="buk-track-postcode" placeholder="Delivery postcode">
-        <button class="buk-track-submit">Track</button>
+        <button class="buk-track-submit" type="button">Track</button>
       </div>
-    `;
+    `);
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
     wrap.querySelector('.buk-track-submit').addEventListener('click', () => submitTracking(wrap, carrier));
@@ -196,12 +254,12 @@
   function showEscalateForm() {
     const wrap = document.createElement('div');
     wrap.className = 'buk-msg buk-msg-assistant';
-    wrap.innerHTML = `
-      <div class="buk-bubble buk-tracking-form">
+    wrap.innerHTML = assistantRowHtml(`
+      <div class="buk-tracking-form">
         <input type="email" class="buk-escalate-email" placeholder="Your email (optional)">
-        <button class="buk-track-submit buk-escalate-submit">Raise Ticket</button>
+        <button class="buk-track-submit buk-escalate-submit" type="button">Raise Ticket</button>
       </div>
-    `;
+    `);
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
     wrap.querySelector('.buk-escalate-submit').addEventListener('click', () => submitEscalate(wrap));
@@ -229,37 +287,55 @@
   }
 
   // ── DOM helpers ───────────────────────────────────────────────────────────────
+  // Shared avatar+bubble row markup for every assistant-side message
+  // (regular replies, the typing indicator, tracking/escalate forms) so the
+  // "UK" avatar appears consistently rather than only on plain text replies.
+  function assistantRowHtml(bubbleInnerHtml) {
+    return `<div class="buk-msg-row">
+      <div class="buk-avatar-sm" aria-hidden="true">UK</div>
+      <div class="buk-bubble">${bubbleInnerHtml}</div>
+    </div>`;
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+  }
+
   function addMessage(role, text, products) {
     const wrap = document.createElement('div');
     wrap.className = 'buk-msg buk-msg-' + role;
 
-    const bubble = document.createElement('div');
-    bubble.className = 'buk-bubble';
-    bubble.textContent = text;
-    wrap.appendChild(bubble);
+    const time = formatTime(new Date());
+    const productsHtml = productsToHtml(products);
 
-    if (products && products.length) {
-      products.forEach(p => {
-        if (!isHttpUrl(p.url)) return;
-        const card = document.createElement('a');
-        card.className = 'buk-product-card';
-        card.href = p.url;
-        card.target = '_blank';
-        card.rel = 'noopener';
-        card.innerHTML = `
-          ${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" />` : ''}
-          <div class="buk-product-info">
-            <strong>${esc(p.name)}</strong>
-            <span class="buk-product-code">${esc(p.code)}</span>
-            ${p.price ? `<span class="buk-product-price">£${parseFloat(p.price).toFixed(2)} inc VAT</span>` : ''}
-          </div>
-        `;
-        wrap.appendChild(card);
-      });
+    if (role === 'assistant') {
+      wrap.innerHTML = assistantRowHtml(esc(text)) + productsHtml + `<div class="buk-meta">${time}</div>`;
+    } else {
+      wrap.innerHTML = `<div class="buk-bubble">${esc(text)}</div>` + productsHtml
+        + `<div class="buk-meta">${time}<span class="buk-tick" aria-hidden="true">✓</span></div>`;
     }
 
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  // Product data is normally admin-curated, but if the product import
+  // pipeline ever ingests an untrusted feed, a javascript: URL landing in
+  // p.url and getting set as the card's href would execute in this page's
+  // context. Cheap defence in depth: only ever link http(s) URLs - the
+  // filter() below runs before esc() ever sees the value.
+  function productsToHtml(products) {
+    if (!products || !products.length) return '';
+    return products.filter(p => isHttpUrl(p.url)).map(p => `
+      <a class="buk-product-card" href="${esc(p.url)}" target="_blank" rel="noopener">
+        ${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" />` : ''}
+        <div class="buk-product-info">
+          <strong>${esc(p.name)}</strong>
+          <span class="buk-product-code">${esc(p.code)}</span>
+          ${p.price ? `<span class="buk-product-price">£${parseFloat(p.price).toFixed(2)} inc VAT</span>` : ''}
+        </div>
+      </a>
+    `).join('');
   }
 
   function setLoading(on) {
@@ -269,7 +345,7 @@
       const el = document.createElement('div');
       el.id = 'buk-loading';
       el.className = 'buk-msg buk-msg-assistant';
-      el.innerHTML = '<div class="buk-bubble buk-typing"><span></span><span></span><span></span></div>';
+      el.innerHTML = assistantRowHtml('<div class="buk-typing"><span></span><span></span><span></span></div>');
       messages.appendChild(el);
       messages.scrollTop = messages.scrollHeight;
     } else {
@@ -281,10 +357,7 @@
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // Product data is normally admin-curated, but if the product import
-  // pipeline ever ingests an untrusted feed, a javascript: URL landing in
-  // p.url and getting set as card.href would execute in this page's
-  // context. Cheap defence in depth: only ever link http(s) URLs.
+  // See productsToHtml() above for why this matters.
   function isHttpUrl(url) {
     return typeof url === 'string' && /^https?:\/\//i.test(url);
   }

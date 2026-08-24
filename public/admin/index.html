@@ -162,6 +162,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
   <button class="active" onclick="switchTab('dashboard',this)">Dashboard</button>
   <button onclick="switchTab('knowledge',this)">Knowledge</button>
   <button onclick="switchTab('keywordlinks',this)">Keyword Links</button>
+  <button onclick="switchTab('faq',this)">FAQ</button>
   <button onclick="switchTab('files',this)">Files / RAG</button>
   <button onclick="switchTab('products',this)">Products</button>
   <button data-role="admin" onclick="switchTab('apikeys',this)">API Keys</button>
@@ -257,6 +258,18 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       <table id="keyword-links-table">
         <thead><tr><th>Title</th><th>Keywords</th><th>URL</th><th>Status</th><th data-role="editor"></th></tr></thead>
         <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── FAQ ── -->
+  <div id="tab-faq" class="tab">
+    <div class="card">
+      <h2>Auto-Generated FAQ</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Built automatically from grounded chat answers — a question that comes up gets added the first time, and asking it again (even reworded) just increases its count rather than duplicating it. Shown to customers as quick-question suggestions in the chat widget. Edit the wording or delete anything that shouldn't be here.</p>
+      <table id="faq-table">
+        <thead><tr><th>Question</th><th>Answer</th><th>Asked</th><th data-role="editor"></th></tr></thead>
+        <tbody><tr><td colspan="4" style="color:#adb4ba">Loading...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -719,7 +732,7 @@ async function loadCategorySuggestions(){
   document.getElementById('category-suggestions').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
 }
 function init(){
-  loadDashboard();loadKnowledge();loadKeywordLinks();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();loadProjectPlanner();
+  loadDashboard();loadKnowledge();loadKeywordLinks();loadFaq();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();loadProjectPlanner();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();loadSiteRefreshSettings();}
 }
 
@@ -1558,6 +1571,53 @@ async function deleteKeywordLink(id){
   if(!r.error){flash('Keyword link deleted');loadKeywordLinks();}else flash(r.error,true);
 }
 
+// ── FAQ ──────────────────────────────────────────────────────────────────────
+let faqRows=[];
+async function loadFaq(){
+  const rows=await get(API+'/faq.php');
+  if(!Array.isArray(rows)){document.querySelector('#faq-table tbody').innerHTML='<tr><td colspan="4" style="color:#adb4ba">Unable to load.</td></tr>';return;}
+  faqRows=rows;
+  renderFaqTable();
+}
+function renderFaqTable(){
+  const tb=document.querySelector('#faq-table tbody');
+  tb.innerHTML=faqRows.length?faqRows.map(r=>`<tr id="faq-row-${r.id}">
+    <td style="max-width:280px">${esc(r.question)}</td>
+    <td style="max-width:380px">${esc(r.answer)}</td>
+    <td>${r.hit_count}×</td>
+    <td data-role="editor" style="white-space:nowrap">
+      <button class="btn btn-secondary" onclick="editFaqRow(${r.id})">Edit</button>
+      <button class="btn btn-danger" onclick="deleteFaq(${r.id})">Delete</button>
+    </td>
+  </tr>`).join(''):'<tr><td colspan="4" style="color:#adb4ba">No FAQ entries yet — they build up automatically as customers chat.</td></tr>';
+}
+function editFaqRow(id){
+  const r=faqRows.find(x=>x.id===id);if(!r)return;
+  document.getElementById('faq-row-'+id).innerHTML=`
+    <td><textarea id="faq-edit-q-${id}" rows="2">${esc(r.question)}</textarea></td>
+    <td><textarea id="faq-edit-a-${id}" rows="3">${esc(r.answer)}</textarea></td>
+    <td>${r.hit_count}×</td>
+    <td data-role="editor" style="white-space:nowrap;vertical-align:top">
+      <button class="btn btn-primary" onclick="saveFaqRow(${id})">Save</button>
+      <button class="btn btn-secondary" onclick="renderFaqTable()">Cancel</button>
+    </td>`;
+}
+async function saveFaqRow(id){
+  const question=document.getElementById('faq-edit-q-'+id).value.trim();
+  const answer=document.getElementById('faq-edit-a-'+id).value.trim();
+  if(!question)return flash('Question required',true);
+  if(!answer)return flash('Answer required',true);
+  const r=await put(API+'/faq.php',{csrf,id,question,answer});
+  if(r.error)return flash(r.error,true);
+  flash('FAQ entry updated');
+  loadFaq();
+}
+async function deleteFaq(id){
+  if(!confirm('Delete this FAQ entry? This cannot be undone.'))return;
+  const r=await del(API+'/faq.php',{csrf,id});
+  if(!r.error){flash('FAQ entry deleted');loadFaq();}else flash(r.error,true);
+}
+
 // ── Users ──────────────────────────────────────────────────────────────────────
 async function loadUsers(){
   const rows=await get(API+'/users.php');
@@ -2273,7 +2333,7 @@ function handleSessionExpired(){
 async function get(url){const r=await fetch(url,{credentials:'same-origin'});if(r.status===401)handleSessionExpired();return r.json();}
 async function post(url,body,withCred=true){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:withCred?'same-origin':'omit',body:JSON.stringify(body)});if(r.status===401)handleSessionExpired();return r.json();}
 async function del(url,body){const r=await fetch(url,{method:'DELETE',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});if(r.status===401)handleSessionExpired();return r.json();}
-async function put(url,body){const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});return r.json();}
+async function put(url,body){const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});if(r.status===401)handleSessionExpired();return r.json();}
 function val(id){return document.getElementById(id)?.value?.trim()||'';}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}

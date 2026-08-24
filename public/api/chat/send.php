@@ -135,6 +135,13 @@ $pdo->prepare('INSERT INTO chat_messages (session_id, role, content, confidence,
     ->execute([$session_id, 'assistant', $answer, $confidence, (int)$escalate]);
 $bot_msg_id = $pdo->lastInsertId();
 
+// Auto-build the FAQ list from grounded exchanges only - an escalated or
+// low-confidence answer isn't something we want surfacing to other
+// customers. See src/Faq/Builder.php for the dedup/matching logic.
+if (!$escalate) {
+    \Faq\Builder::capture($message, $answer, $bot_msg_id);
+}
+
 // Save sources
 foreach ($knowledge_hits as $h) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
