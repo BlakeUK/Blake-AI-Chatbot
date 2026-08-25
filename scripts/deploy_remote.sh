@@ -314,6 +314,15 @@ else
     warn "Product-page extraction cron job already installed — skipping."
 fi
 
+# ── Telegram update polling cron (ticket forward-button taps) ────────────────
+CRON_LINE_TG="* * * * * php $WEBROOT/scripts/process_telegram_updates.php >> $WEBROOT/logs/telegram_updates.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_telegram_updates.php"); then
+    info "Installing Telegram update-polling cron job..."
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_TG" ) | crontab -u www-data -
+else
+    warn "Telegram update-polling cron job already installed — skipping."
+fi
+
 # ── Scheduled site page refresh (daily; no-op until a sitemap is configured) ──
 CRON_LINE_REFRESH="0 4 * * * php $WEBROOT/scripts/refresh_site_pages.php >> $WEBROOT/logs/site_refresh.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "refresh_site_pages.php"); then

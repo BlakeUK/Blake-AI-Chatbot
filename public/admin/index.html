@@ -1869,6 +1869,7 @@ async function submitCorrection(messageId){
 
 // ── Support Tickets ────────────────────────────────────────────────────────────
 function deptLabel(d){return d==='sales'?'Sales':d==='technical'?'Technical':d==='accounts'?'Accounts':'—';}
+function mailtoReply(email,subject){return email?('mailto:'+email+'?subject='+encodeURIComponent('Re: '+(subject||'your enquiry'))):'';}
 async function loadTickets(){
   const status=document.getElementById('ticket-status-filter')?.value||'';
   const department=document.getElementById('ticket-department-filter')?.value||'';
@@ -1881,7 +1882,7 @@ async function loadTickets(){
   if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="7" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(t=>`<tr>
     <td>${esc(t.subject||'—')}</td>
-    <td style="font-size:12px">${esc(t.customer_email||'—')}</td>
+    <td style="font-size:12px">${t.customer_email?`<a href="${esc(mailtoReply(t.customer_email,t.subject))}" style="color:#8fb0ec">${esc(t.customer_email)}</a>`:'—'}</td>
     <td><span class="badge badge-pending">${esc(deptLabel(t.department))}</span></td>
     <td><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='resolved'?'badge-ok':t.status==='waiting'?'badge-pending':t.status==='in_progress'?'badge-active':'badge-ok'}">${esc(t.status)}</span></td>
     <td>${esc(t.message_count||0)}</td>
@@ -1904,7 +1905,7 @@ async function viewTicket(id){
   if(!t){document.getElementById('ticket-detail-content').innerHTML='<p style="color:#f5a3a3">Ticket not found.</p>';return;}
   document.getElementById('ticket-detail-subject').textContent=t.subject||'Support ticket';
   document.getElementById('ticket-detail-content').innerHTML=`
-    <p style="margin-bottom:8px;font-size:13px;color:#adb4ba">Customer: ${esc(t.customer_email||'—')} · Created ${fmtDate(t.created_at)}</p>
+    <p style="margin-bottom:8px;font-size:13px;color:#adb4ba">Customer: ${t.customer_email?`<a href="${esc(mailtoReply(t.customer_email,t.subject))}" style="color:#8fb0ec">${esc(t.customer_email)}</a>`:'—'} · Created ${fmtDate(t.created_at)}</p>
     ${canEdit()?`<div class="row" style="max-width:460px;margin-bottom:16px">
       <div>
         <label>Status</label>

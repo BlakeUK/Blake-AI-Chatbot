@@ -556,6 +556,7 @@ function fmtRelative(ts) {
   return new Date(ts * 1000).toLocaleDateString();
 }
 function ticketCode(t) { return 'TCK-' + (1000 + t.id); }
+function mailtoReply(email, subject) { return email ? ('mailto:' + email + '?subject=' + encodeURIComponent('Re: ' + (subject || 'your enquiry'))) : ''; }
 function initials(name) { return (name || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 
 // ── Navigation ───────────────────────────────────────────────────────────────
@@ -989,7 +990,7 @@ async function openTicket(id) {
       <div class="slide-header">
         <div>
           <h2>${esc(ticket.subject || 'Ticket #' + ticket.id)}</h2>
-          <div class="sub">${esc(ticketCode(ticket))}${ticket.customer_email ? ' · ' + esc(ticket.customer_email) : ''}${ticket.page_url ? ' · ' + esc(ticket.page_url) : ''} · opened ${fmtTime(ticket.created_at)}</div>
+          <div class="sub">${esc(ticketCode(ticket))}${ticket.customer_email ? ' · <a href="' + esc(mailtoReply(ticket.customer_email, ticket.subject)) + '">' + esc(ticket.customer_email) + '</a>' : ''}${ticket.page_url ? ' · ' + esc(ticket.page_url) : ''} · opened ${fmtTime(ticket.created_at)}</div>
         </div>
         <button class="btn btn-sm slide-close">Close</button>
       </div>
