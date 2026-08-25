@@ -94,11 +94,23 @@ if ($method === 'PUT') {
             json_err('Invalid department');
         }
 
+        $prev = $pdo->prepare('SELECT department, subject FROM support_tickets WHERE id=?');
+        $prev->execute([$id]);
+        $prevRow  = $prev->fetch() ?: [];
+        $prevDept = $prevRow['department'] ?? null;
+
         $pdo->prepare('UPDATE support_tickets SET department=?, updated_at=? WHERE id=?')
             ->execute([$department !== '' ? $department : null, time(), $id]);
 
         $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
             ->execute([$_SESSION['admin_id'], 'ticket_department_change', $id, $department !== '' ? $department : '(unassigned)']);
+
+        // Only the receiving department needs telling, and only when this
+        // actually moved somewhere - not on a no-op resave, and not when
+        // clearing back to unassigned (there's no specific queue to alert).
+        if ($department !== '' && $department !== $prevDept) {
+            \Telegram\Notifier::sendDepartmentChangeAlert($id, $prevRow['subject'] ?? '', $prevDept, $department);
+        }
     }
 
     if ($hasAssignee) {

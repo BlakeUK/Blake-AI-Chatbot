@@ -15,10 +15,13 @@ $pdo    = db();
 if ($method === 'GET') {
     $cfg = \Telegram\Notifier::getConfig();
     json_out([
-        'configured' => $cfg['bot_token'] !== null && $cfg['chat_id'] !== null,
-        'has_token'  => $cfg['bot_token'] !== null,
-        'chat_id'    => $cfg['chat_id'],
-        'enabled'    => $cfg['enabled'],
+        'configured'        => $cfg['bot_token'] !== null && $cfg['chat_id'] !== null,
+        'has_token'         => $cfg['bot_token'] !== null,
+        'chat_id'           => $cfg['chat_id'],
+        'chat_id_sales'     => $cfg['dept_chat_ids']['sales'],
+        'chat_id_technical' => $cfg['dept_chat_ids']['technical'],
+        'chat_id_accounts'  => $cfg['dept_chat_ids']['accounts'],
+        'enabled'           => $cfg['enabled'],
     ]);
 }
 
@@ -59,6 +62,20 @@ if ($action === 'save') {
             INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
         ')->execute(['telegram_chat_id', $chatId, time()]);
+    }
+
+    // Same "present in body -> set it (blank clears it)" convention as
+    // chat_id above, one settings row per department. All optional - a
+    // department with nothing saved here just uses the shared chat_id.
+    foreach (['sales', 'technical', 'accounts'] as $dept) {
+        $field = 'chat_id_' . $dept;
+        if (array_key_exists($field, $body)) {
+            $value = trim((string)$body[$field]);
+            $pdo->prepare('
+                INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+            ')->execute(['telegram_chat_id_' . $dept, $value, time()]);
+        }
     }
 
     if ($enabled !== null) {

@@ -457,10 +457,19 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="row"><div><label>Bot Token</label><input type="password" id="tg-token-input" placeholder="123456789:AAF... (from BotFather)" autocomplete="off"></div></div>
         <div class="row">
-          <div><label>Chat ID</label><input type="text" id="tg-chatid-input" placeholder="e.g. -100123456789 or 987654321"></div>
+          <div><label>Default Chat ID</label><input type="text" id="tg-chatid-input" placeholder="e.g. -100123456789 or 987654321"></div>
           <button class="btn btn-secondary" onclick="detectChatId()">Detect Chat ID</button>
         </div>
         <div id="tg-detect-results" style="font-size:13px"></div>
+        <div>
+          <label style="margin-bottom:2px">Per-department overrides (optional)</label>
+          <p style="margin-bottom:10px;color:#adb4ba;font-size:12.5px">Leave a department blank to route its tickets to the Default Chat ID above. Set one to send only that department's tickets (and reassignments into it) to a different chat.</p>
+          <div class="row">
+            <div><label>Sales</label><input type="text" id="tg-chatid-sales-input" placeholder="uses default if blank"></div>
+            <div><label>Technical</label><input type="text" id="tg-chatid-technical-input" placeholder="uses default if blank"></div>
+            <div><label>Accounts</label><input type="text" id="tg-chatid-accounts-input" placeholder="uses default if blank"></div>
+          </div>
+        </div>
         <label style="display:flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="tg-enabled-input" checked> Alerts enabled</label>
         <div style="display:flex;gap:10px">
           <button class="btn btn-primary" onclick="saveTelegramSettings()">Save</button>
@@ -596,10 +605,19 @@ window.BlakeUKWidget = {
             <option value="closed">Closed</option>
           </select>
         </div>
+        <div style="max-width:200px">
+          <label>Filter by department</label>
+          <select id="ticket-department-filter" onchange="loadTickets()">
+            <option value="">All</option>
+            <option value="sales">Sales</option>
+            <option value="technical">Technical</option>
+            <option value="accounts">Accounts</option>
+          </select>
+        </div>
       </div>
       <table id="tickets-table">
-        <thead><tr><th>Subject</th><th>Email</th><th>Status</th><th>Messages</th><th>Created</th><th></th></tr></thead>
-        <tbody><tr><td colspan="6" style="color:#adb4ba">Loading...</td></tr></tbody>
+        <thead><tr><th>Subject</th><th>Email</th><th>Department</th><th>Status</th><th>Messages</th><th>Created</th><th></th></tr></thead>
+        <tbody><tr><td colspan="7" style="color:#adb4ba">Loading...</td></tr></tbody>
       </table>
     </div>
     <div class="card" id="ticket-detail-card" style="display:none">
@@ -1391,12 +1409,22 @@ async function loadTelegramSettings(){
   try{
     const s=await get(API+'/telegram.php');
     document.getElementById('tg-chatid-input').value=s.chat_id||'';
+    document.getElementById('tg-chatid-sales-input').value=s.chat_id_sales||'';
+    document.getElementById('tg-chatid-technical-input').value=s.chat_id_technical||'';
+    document.getElementById('tg-chatid-accounts-input').value=s.chat_id_accounts||'';
     document.getElementById('tg-enabled-input').checked=s.enabled!==false;
     document.getElementById('tg-token-input').placeholder=s.has_token?'•••••••• (saved — leave blank to keep)':'123456789:AAF... (from BotFather)';
   }catch(_){}
 }
 async function saveTelegramSettings(){
-  const body={csrf,action:'save',chat_id:val('tg-chatid-input'),enabled:document.getElementById('tg-enabled-input').checked};
+  const body={
+    csrf,action:'save',
+    chat_id:val('tg-chatid-input'),
+    chat_id_sales:val('tg-chatid-sales-input'),
+    chat_id_technical:val('tg-chatid-technical-input'),
+    chat_id_accounts:val('tg-chatid-accounts-input'),
+    enabled:document.getElementById('tg-enabled-input').checked,
+  };
   const token=document.getElementById('tg-token-input').value.trim();
   if(token)body.bot_token=token;
   const r=await post(API+'/telegram.php',body);
@@ -1424,9 +1452,23 @@ async function detectChatId(){
   const r=await post(API+'/telegram.php',body);
   if(r.error){box.innerHTML=`<span style="color:#f5a3a3">${esc(r.error)}</span>`;return;}
   if(!r.chats||!r.chats.length){box.innerHTML='<span style="color:#adb4ba">No messages found yet — message your bot on Telegram, then try again.</span>';return;}
-  box.innerHTML=r.chats.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #454c54"><span>${esc(c.label)} <code style="font-size:11px;color:#adb4ba">${esc(c.chat_id)}</code></span><button class="btn btn-secondary" onclick="useChatId('${esc(c.chat_id)}')">Use this</button></div>`).join('');
+  box.innerHTML=r.chats.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #454c54">
+    <span>${esc(c.label)} <code style="font-size:11px;color:#adb4ba">${esc(c.chat_id)}</code></span>
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <select class="tg-use-target" style="width:auto;padding:4px 6px;font-size:12px">
+        <option value="tg-chatid-input">Default</option>
+        <option value="tg-chatid-sales-input">Sales</option>
+        <option value="tg-chatid-technical-input">Technical</option>
+        <option value="tg-chatid-accounts-input">Accounts</option>
+      </select>
+      <button class="btn btn-secondary" onclick="useChatIdFor(this,'${esc(c.chat_id)}')">Use</button>
+    </div>
+  </div>`).join('');
 }
-function useChatId(id){document.getElementById('tg-chatid-input').value=id;}
+function useChatIdFor(btn,id){
+  const targetId=btn.parentElement.querySelector('.tg-use-target').value;
+  document.getElementById(targetId).value=id;
+}
 
 // ── Models ─────────────────────────────────────────────────────────────────────
 async function fetchModels(){
@@ -1826,32 +1868,44 @@ async function submitCorrection(messageId){
 }
 
 // ── Support Tickets ────────────────────────────────────────────────────────────
+function deptLabel(d){return d==='sales'?'Sales':d==='technical'?'Technical':d==='accounts'?'Accounts':'—';}
 async function loadTickets(){
   const status=document.getElementById('ticket-status-filter')?.value||'';
-  const rows=await get(API+'/tickets.php'+(status?'?status='+encodeURIComponent(status):''));
+  const department=document.getElementById('ticket-department-filter')?.value||'';
+  const params=new URLSearchParams();
+  if(status)params.set('status',status);
+  if(department)params.set('department',department);
+  const qs=params.toString();
+  const rows=await get(API+'/tickets.php'+(qs?'?'+qs:''));
   const tb=document.querySelector('#tickets-table tbody');
-  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="6" style="color:#adb4ba">Unable to load.</td></tr>';return;}
+  if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="7" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(t=>`<tr>
     <td>${esc(t.subject||'—')}</td>
     <td style="font-size:12px">${esc(t.customer_email||'—')}</td>
+    <td><span class="badge badge-pending">${esc(deptLabel(t.department))}</span></td>
     <td><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='resolved'?'badge-ok':t.status==='waiting'?'badge-pending':t.status==='in_progress'?'badge-active':'badge-ok'}">${esc(t.status)}</span></td>
     <td>${esc(t.message_count||0)}</td>
     <td style="font-size:12px">${fmtDate(t.created_at)}</td>
     <td><button class="btn btn-secondary" onclick="viewTicket(${t.id})">View</button></td>
-  </tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No tickets.</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="7" style="color:#adb4ba">No tickets.</td></tr>';
 }
 async function viewTicket(id){
   document.getElementById('tickets-list-card').style.display='none';
   const card=document.getElementById('ticket-detail-card');
   card.style.display='block';
   const status=document.getElementById('ticket-status-filter')?.value||'';
-  const rows=await get(API+'/tickets.php'+(status?'?status='+encodeURIComponent(status):''));
+  const department=document.getElementById('ticket-department-filter')?.value||'';
+  const params=new URLSearchParams();
+  if(status)params.set('status',status);
+  if(department)params.set('department',department);
+  const qs=params.toString();
+  const rows=await get(API+'/tickets.php'+(qs?'?'+qs:''));
   const t=(Array.isArray(rows)?rows:[]).find(x=>x.id===id);
   if(!t){document.getElementById('ticket-detail-content').innerHTML='<p style="color:#f5a3a3">Ticket not found.</p>';return;}
   document.getElementById('ticket-detail-subject').textContent=t.subject||'Support ticket';
   document.getElementById('ticket-detail-content').innerHTML=`
     <p style="margin-bottom:8px;font-size:13px;color:#adb4ba">Customer: ${esc(t.customer_email||'—')} · Created ${fmtDate(t.created_at)}</p>
-    ${canEdit()?`<div class="row" style="max-width:300px;margin-bottom:16px">
+    ${canEdit()?`<div class="row" style="max-width:460px;margin-bottom:16px">
       <div>
         <label>Status</label>
         <select id="ticket-status-${t.id}">
@@ -1863,7 +1917,20 @@ async function viewTicket(id){
         </select>
       </div>
       <button class="btn btn-primary" onclick="updateTicketStatus(${t.id})">Update</button>
-    </div>`:`<p style="margin-bottom:16px"><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='resolved'?'badge-ok':t.status==='waiting'?'badge-pending':t.status==='in_progress'?'badge-active':'badge-ok'}">${esc(t.status)}</span></p>`}
+      <div>
+        <label>Department</label>
+        <select id="ticket-dept-${t.id}">
+          <option value="" ${!t.department?'selected':''}>Unassigned</option>
+          <option value="sales" ${t.department==='sales'?'selected':''}>Sales</option>
+          <option value="technical" ${t.department==='technical'?'selected':''}>Technical</option>
+          <option value="accounts" ${t.department==='accounts'?'selected':''}>Accounts</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="updateTicketDepartment(${t.id})">Reassign</button>
+    </div>`:`<p style="margin-bottom:16px">
+      <span class="badge ${t.status==='closed'?'badge-revoked':t.status==='resolved'?'badge-ok':t.status==='waiting'?'badge-pending':t.status==='in_progress'?'badge-active':'badge-ok'}">${esc(t.status)}</span>
+      <span class="badge badge-pending">${esc(deptLabel(t.department))}</span>
+    </p>`}
     <h3 style="font-size:14px;margin-bottom:6px">Notes</h3>
     <pre style="white-space:pre-wrap;background:#262b31;padding:10px;border-radius:6px;font-family:inherit;font-size:13px;margin-bottom:10px">${esc(t.notes||'No notes yet.')}</pre>
     ${canEdit()?`<textarea id="ticket-note-${t.id}" placeholder="Add a note" style="width:100%;min-height:60px;max-width:400px"></textarea><br>
@@ -1880,6 +1947,14 @@ async function updateTicketStatus(id){
   const r=await put(API+'/tickets.php',{csrf,id,status});
   if(r.error)return flash(r.error,true);
   flash('Ticket status updated');
+  loadTickets();
+  viewTicket(id);
+}
+async function updateTicketDepartment(id){
+  const department=document.getElementById('ticket-dept-'+id).value;
+  const r=await put(API+'/tickets.php',{csrf,id,department});
+  if(r.error)return flash(r.error,true);
+  flash(department?`Reassigned to ${deptLabel(department)}`:'Ticket unassigned');
   loadTickets();
   viewTicket(id);
 }

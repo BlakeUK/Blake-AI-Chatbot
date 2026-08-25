@@ -37,11 +37,18 @@ class Notifier
             $token = $dec ?: null;
         }
 
-        $settingsRows = $pdo->prepare('SELECT key, value FROM settings WHERE key IN (?, ?)');
-        $settingsRows->execute(['telegram_chat_id', 'telegram_alerts_enabled']);
+        $settingsRows = $pdo->prepare('SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?, ?)');
+        $settingsRows->execute([
+            'telegram_chat_id', 'telegram_alerts_enabled',
+            'telegram_chat_id_sales', 'telegram_chat_id_technical', 'telegram_chat_id_accounts',
+        ]);
 
         $chatId  = null;
         $enabled = true; // default on: once token+chat_id are both saved, alerts just work
+        // Per-department overrides are optional - a department with no chat
+        // id of its own falls back to the shared one (resolveChatId()
+        // below), so setting up alerts at all still only takes one chat id.
+        $deptChatIds = ['sales' => null, 'technical' => null, 'accounts' => null];
         foreach ($settingsRows->fetchAll() as $s) {
             if ($s['key'] === 'telegram_chat_id') {
                 $chatId = $s['value'] !== '' ? $s['value'] : null;
@@ -49,9 +56,39 @@ class Notifier
             if ($s['key'] === 'telegram_alerts_enabled') {
                 $enabled = $s['value'] === '1';
             }
+            if ($s['key'] === 'telegram_chat_id_sales') {
+                $deptChatIds['sales'] = $s['value'] !== '' ? $s['value'] : null;
+            }
+            if ($s['key'] === 'telegram_chat_id_technical') {
+                $deptChatIds['technical'] = $s['value'] !== '' ? $s['value'] : null;
+            }
+            if ($s['key'] === 'telegram_chat_id_accounts') {
+                $deptChatIds['accounts'] = $s['value'] !== '' ? $s['value'] : null;
+            }
         }
 
-        return ['bot_token' => $token, 'chat_id' => $chatId, 'enabled' => $enabled];
+        return ['bot_token' => $token, 'chat_id' => $chatId, 'enabled' => $enabled, 'dept_chat_ids' => $deptChatIds];
+    }
+
+    // Which chat a given department's alerts actually go to: its own
+    // override if one is configured, otherwise the shared default -
+    // callers never need to know whether per-department routing is set up.
+    private static function resolveChatId(array $cfg, ?string $department): ?string
+    {
+        if ($department !== null && !empty($cfg['dept_chat_ids'][$department])) {
+            return $cfg['dept_chat_ids'][$department];
+        }
+        return $cfg['chat_id'];
+    }
+
+    private static function deptLabel(?string $department): string
+    {
+        return match ($department) {
+            'sales'     => 'Sales',
+            'technical' => 'Technical',
+            'accounts'  => 'Accounts',
+            default     => 'General',
+        };
     }
 
     public static function isConfigured(): bool
@@ -118,16 +155,17 @@ class Notifier
     // Telegram integration must never stop a customer's ticket from being
     // created or their confirmation message from being returned.
 
-    public static function sendTicketAlert(int $ticketId, string $subject, ?string $email, ?string $pageUrl): void
+    public static function sendTicketAlert(int $ticketId, string $subject, ?string $email, ?string $pageUrl, ?string $department = null): void
     {
         try {
-            $cfg = self::getConfig();
-            if (!$cfg['enabled'] || !$cfg['bot_token'] || !$cfg['chat_id']) {
+            $cfg    = self::getConfig();
+            $chatId = self::resolveChatId($cfg, $department);
+            if (!$cfg['enabled'] || !$cfg['bot_token'] || !$chatId) {
                 return; // not configured, or deliberately silenced - not an error
             }
 
             $lines = [
-                '🎫 <b>New support ticket #' . $ticketId . '</b>',
+                '🎫 <b>New support ticket #' . $ticketId . '</b> — ' . self::deptLabel($department),
                 htmlspecialchars($subject, ENT_QUOTES, 'UTF-8'),
                 '',
             ];
@@ -140,12 +178,45 @@ class Notifier
             $lines[] = '';
             $lines[] = '<a href="' . self::ADMIN_URL . '">Open in admin</a>';
 
-            $result = self::send(implode("\n", $lines), $cfg['bot_token'], $cfg['chat_id']);
+            $result = self::send(implode("\n", $lines), $cfg['bot_token'], $chatId);
             if (!$result['ok']) {
                 error_log('Telegram ticket alert failed: ' . $result['error']);
             }
         } catch (\Throwable $e) {
             error_log('Telegram ticket alert exception: ' . $e->getMessage());
+        }
+    }
+
+    // Fires when an admin moves a ticket to a different department (see
+    // public/api/admin/tickets.php's PUT handler) - the AI's routing guess
+    // on creation above isn't always right, and the department that ends up
+    // owning it needs to actually notice it landed in their queue, not just
+    // find it later. Goes to the RECEIVING department's chat (falling back
+    // to the shared one, same as ticket creation); the losing department
+    // doesn't need a separate alert, it's off their plate.
+    public static function sendDepartmentChangeAlert(int $ticketId, string $subject, ?string $fromDepartment, string $toDepartment): void
+    {
+        try {
+            $cfg    = self::getConfig();
+            $chatId = self::resolveChatId($cfg, $toDepartment);
+            if (!$cfg['enabled'] || !$cfg['bot_token'] || !$chatId) {
+                return;
+            }
+
+            $lines = [
+                '🔀 <b>Ticket #' . $ticketId . ' reassigned to ' . self::deptLabel($toDepartment) . '</b>'
+                    . ' (was: ' . self::deptLabel($fromDepartment) . ')',
+                htmlspecialchars($subject, ENT_QUOTES, 'UTF-8'),
+                '',
+                '<a href="' . self::ADMIN_URL . '">Open in admin</a>',
+            ];
+
+            $result = self::send(implode("\n", $lines), $cfg['bot_token'], $chatId);
+            if (!$result['ok']) {
+                error_log('Telegram department-change alert failed: ' . $result['error']);
+            }
+        } catch (\Throwable $e) {
+            error_log('Telegram department-change alert exception: ' . $e->getMessage());
         }
     }
 
