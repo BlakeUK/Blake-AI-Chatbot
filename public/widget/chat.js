@@ -22,6 +22,11 @@
   // low-confidence answer doesn't prompt for email all over again -
   // support already has a way to reach this customer.
   let ticketRaised = false;
+  // active: currently requested or claimed - while true, typed messages
+  // go to live_send.php instead of send.php (see sendMessage()).
+  // pollTimer: the live_poll.php interval handle, running only while active.
+  // lastMessageId: high-water mark so polling only ever asks for what's new.
+  const liveChatState = { active: false, pollTimer: null, lastMessageId: 0 };
 
   // ── Build DOM ────────────────────────────────────────────────────────────────
   const style = document.createElement('link');
@@ -43,7 +48,7 @@
         <div id="buk-chat-avatar" aria-hidden="true">UK</div>
         <div id="buk-chat-header-text">
           <div id="buk-chat-title">Blake AI Support</div>
-          <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span>Online</div>
+          <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span><span id="buk-status-text">Online</span></div>
         </div>
       </div>
       <div id="buk-chat-header-actions">
@@ -91,6 +96,10 @@
   function startNewConversation() {
     sessionId = null;
     ticketRaised = false;
+    stopLivePolling();
+    liveChatState.active = false;
+    liveChatState.lastMessageId = 0;
+    updateHeaderForLiveChat(false);
     sessionStorage.removeItem(STORAGE_KEY);
     messages.innerHTML = '';
     initSession();
@@ -176,8 +185,13 @@
     input.value = '';
     document.querySelector('.buk-faq-suggestions')?.remove();
     addMessage('user', text);
-    setLoading(true);
 
+    if (liveChatState.active) {
+      sendLiveMessage(text);
+      return;
+    }
+
+    setLoading(true);
     try {
       const r = await fetch(API + '/send.php', {
         method: 'POST',
@@ -192,14 +206,27 @@
       });
       const d = await r.json();
       if (d.error) {
-        addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+        if (d.mode && d.mode !== 'ai') {
+          // The session moved into live chat some other way (another tab,
+          // or after a page refresh reset this tab's own JS state) -
+          // recover into live mode instead of showing a confusing error.
+          enterLiveMode();
+          addMessage('assistant', d.mode === 'live_ended' ? 'This chat has ended.' : "You're now connected with a member of our team.");
+        } else {
+          addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+        }
       } else {
         addMessage('assistant', d.answer, d.products || []);
         if (d.action === 'show_tracking_form') {
           showTrackingForm(d.tracking_no, d.carrier);
-        } else if (d.escalate && !ticketRaised && !messages.querySelector('.buk-escalate-form')) {
-          addMessage('assistant', "I don't want to guess on this one, so I'm passing it to our support team. What's your email address? They'll reply there.");
-          showEscalateForm();
+        } else if (d.escalate && !ticketRaised && !messages.querySelector('.buk-escalate-form') && !messages.querySelector('.buk-live-choice')) {
+          if (d.agent_available) {
+            addMessage('assistant', "I don't want to guess on this one. Would you like to raise a support ticket, or talk to someone now?");
+            showEscalateChoice();
+          } else {
+            addMessage('assistant', "I don't want to guess on this one, so I'm passing it to our support team. What's your email address? They'll reply there.");
+            showEscalateForm();
+          }
         }
       }
     } catch (e) {
@@ -257,6 +284,117 @@
       formWrap.remove();
       addMessage('assistant', 'Unable to reach the tracking service. Please try again shortly.');
     }
+  }
+
+  // ── Live chat (human handoff) ─────────────────────────────────────────────────
+  function showEscalateChoice() {
+    const wrap = document.createElement('div');
+    wrap.className = 'buk-msg buk-msg-assistant buk-live-choice';
+    wrap.innerHTML = assistantRowHtml(`
+      <div class="buk-choice-row">
+        <button type="button" class="buk-choice-btn" data-choice="ticket">Raise a support ticket</button>
+        <button type="button" class="buk-choice-btn" data-choice="live">Talk to someone now</button>
+      </div>
+    `);
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+
+    wrap.querySelectorAll('.buk-choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wrap.remove();
+        if (btn.dataset.choice === 'live') {
+          startLiveChat();
+        } else {
+          addMessage('assistant', "Sure - what's your email address? Our team will reply there.");
+          showEscalateForm();
+        }
+      });
+    });
+  }
+
+  async function startLiveChat() {
+    addMessage('assistant', 'One moment, connecting you with a member of our team...');
+    try {
+      const r = await fetch(API + '/live_request.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      const d = await r.json();
+      if (!d.ok) {
+        addMessage('assistant', d.error || 'Unable to start a live chat right now. Please try raising a support ticket instead.');
+        return;
+      }
+      ticketRaised = true; // a ticket was created for this too - don't also offer the ticket flow again
+      enterLiveMode();
+    } catch (e) {
+      addMessage('assistant', 'Unable to reach the server. Please try again shortly.');
+    }
+  }
+
+  function enterLiveMode() {
+    liveChatState.active = true;
+    updateHeaderForLiveChat(true);
+    startLivePolling();
+  }
+
+  async function sendLiveMessage(text) {
+    try {
+      const r = await fetch(API + '/live_send.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, message: text }),
+      });
+      const d = await r.json();
+      if (!d.ok) {
+        addMessage('assistant', d.error || 'Unable to send that. Please try again.');
+      }
+    } catch (e) {
+      addMessage('assistant', 'Unable to reach the server. Please check your connection.');
+    }
+  }
+
+  function startLivePolling() {
+    stopLivePolling();
+    liveChatState.pollTimer = setInterval(pollLiveChat, 4000);
+    pollLiveChat();
+  }
+
+  function stopLivePolling() {
+    if (liveChatState.pollTimer) {
+      clearInterval(liveChatState.pollTimer);
+      liveChatState.pollTimer = null;
+    }
+  }
+
+  async function pollLiveChat() {
+    try {
+      const r = await fetch(API + '/live_poll.php?session_id=' + encodeURIComponent(sessionId) + '&after_id=' + liveChatState.lastMessageId);
+      const d = await r.json();
+      if (!d.ok) return;
+
+      (d.messages || []).forEach(m => {
+        liveChatState.lastMessageId = Math.max(liveChatState.lastMessageId, m.id);
+        if (m.role === 'system') {
+          addSystemMessage(m.content);
+        } else {
+          addMessage('assistant', m.content);
+        }
+      });
+
+      if (d.mode === 'live_ended') {
+        stopLivePolling();
+        liveChatState.active = false;
+        updateHeaderForLiveChat(false);
+      }
+    } catch (e) {
+      // Silent - the next tick just tries again.
+    }
+  }
+
+  function updateHeaderForLiveChat(active) {
+    const statusText = panel.querySelector('#buk-status-text');
+    if (statusText) statusText.textContent = active ? 'Live agent' : 'Online';
   }
 
   // ── Escalation ───────────────────────────────────────────────────────────────
@@ -357,6 +495,17 @@
     }
 
     messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  // A quiet centred status line (agent joined / chat ended) rather than a
+  // full bubble - it's an event about the conversation, not a message
+  // within it.
+  function addSystemMessage(text) {
+    const el = document.createElement('div');
+    el.className = 'buk-system-note';
+    el.textContent = text;
+    messages.appendChild(el);
     messages.scrollTop = messages.scrollHeight;
   }
 

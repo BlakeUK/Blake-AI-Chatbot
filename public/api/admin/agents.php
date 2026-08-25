@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 $cutoff = time() - \Auth\Admin::ONLINE_WINDOW_SECONDS;
 
 $stmt = db()->prepare('
-    SELECT id, username, role,
+    SELECT id, username, role, presence_status,
            CASE WHEN last_active IS NOT NULL AND last_active >= ? THEN 1 ELSE 0 END AS online
     FROM admin_users
     ORDER BY online DESC, username COLLATE NOCASE ASC

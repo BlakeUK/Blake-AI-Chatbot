@@ -12,23 +12,27 @@ $pdo    = db();
 if ($method === 'GET') {
     $status     = $_GET['status'] ?? null;
     $department = $_GET['department'] ?? null;
+    $channel    = $_GET['channel'] ?? null;
     $limit      = min((int)($_GET['limit'] ?? 50), 200);
 
     $where  = [];
     $params = [];
     if ($status)     { $where[] = 't.status = ?';     $params[] = $status; }
     if ($department) { $where[] = 't.department = ?'; $params[] = $department; }
+    if ($channel)     { $where[] = 't.channel = ?';    $params[] = $channel; }
     $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
     $stmt = $pdo->prepare("
-        SELECT t.*, s.page_url, s.product_code,
+        SELECT t.*, s.page_url, s.product_code, s.mode AS session_mode, s.claimed_by AS session_claimed_by,
                a.username AS assigned_username,
+               claimer.username AS claimer_username,
                pr.name AS project_name,
                COUNT(m.id) AS message_count
         FROM support_tickets t
         LEFT JOIN chat_sessions s ON s.id = t.session_id
         LEFT JOIN chat_messages m ON m.session_id = t.session_id
         LEFT JOIN admin_users a ON a.id = t.assigned_admin_id
+        LEFT JOIN admin_users claimer ON claimer.id = s.claimed_by
         LEFT JOIN projects pr ON pr.id = t.project_id
         {$whereSql}
         GROUP BY t.id

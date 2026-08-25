@@ -155,7 +155,17 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     <img src="/assets/blake-uk-logo.png" alt="Blake UK" style="height:28px;width:auto">
     <h1>Chatbot Admin</h1>
   </div>
-  <button id="logout-btn" onclick="doLogout()">Log out</button>
+  <div style="display:flex;align-items:center;gap:14px">
+    <div style="display:flex;align-items:center;gap:7px">
+      <span id="presence-dot" style="width:8px;height:8px;border-radius:50%;background:#6b7480;flex-shrink:0"></span>
+      <select id="presence-select" onchange="setPresence(this.value)" style="width:auto;padding:5px 8px;font-size:13px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px">
+        <option value="online">Online</option>
+        <option value="busy">Busy</option>
+        <option value="offline">Offline</option>
+      </select>
+    </div>
+    <button id="logout-btn" onclick="doLogout()">Log out</button>
+  </div>
 </header>
 
 <nav id="nav-bar">
@@ -696,13 +706,13 @@ window.BlakeUKWidget = {
 
 <script src="vendor/qrcode.js"></script>
 <script>
-const API='/api/admin'; let csrf=''; let role='user';
+const API='/api/admin'; let csrf=''; let role='user'; let myAdminId=null;
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 async function doLogin(){
   const u=val('login-user'),p=document.getElementById('login-pass').value;
   const r=await post(API+'/login.php',{username:u,password:p});
-  if(r.ok){sessionExpiredShown=false;csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
+  if(r.ok){sessionExpiredShown=false;csrf=r.csrf;role=r.role||'user';myAdminId=r.id||null;document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else if(r.requires_2fa){
     document.getElementById('login-step-password').style.display='none';
     document.getElementById('login-step-2fa').style.display='block';
@@ -716,7 +726,7 @@ async function doVerify2fa(){
   const code=val('login-2fa-code');
   if(!code)return;
   const r=await post(API+'/login.php',{code});
-  if(r.ok){sessionExpiredShown=false;csrf=r.csrf;role=r.role||'user';document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
+  if(r.ok){sessionExpiredShown=false;csrf=r.csrf;role=r.role||'user';myAdminId=r.id||null;document.getElementById('login-overlay').style.display='none';applyRoleUI();init();}
   else document.getElementById('login-alert').innerHTML='<div class="alert alert-err">'+esc(r.error||'Invalid code')+'</div>';
 }
 document.getElementById('login-2fa-code').addEventListener('keydown',e=>{if(e.key==='Enter')doVerify2fa();});
@@ -730,7 +740,7 @@ async function doLogout(){await fetch(API+'/login.php',{method:'DELETE'});locati
   const r=await get(API+'/session.php');
   if(r.ok){
     sessionExpiredShown=false;
-    csrf=r.csrf;role=r.role||'user';
+    csrf=r.csrf;role=r.role||'user';myAdminId=r.id||null;
     document.getElementById('login-overlay').style.display='none';
     applyRoleUI();init();
   }
@@ -750,7 +760,7 @@ async function loadCategorySuggestions(){
   document.getElementById('category-suggestions').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
 }
 function init(){
-  loadDashboard();loadKnowledge();loadKeywordLinks();loadFaq();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();loadProjectPlanner();
+  loadDashboard();loadKnowledge();loadKeywordLinks();loadFaq();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();loadProjectPlanner();loadPresence();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();loadSiteRefreshSettings();}
 }
 
@@ -1830,13 +1840,17 @@ async function viewSession(id){
   if(!Array.isArray(rows)){content.innerHTML='<p style="color:#f5a3a3">Unable to load conversation.</p>';return;}
   content.innerHTML=rows.map(m=>{
     const isUser=m.role==='user';
+    const isAgent=m.role==='agent';
+    const isSystem=m.role==='system';
+    if(isSystem)return `<div style="text-align:center;font-size:11px;color:#8a929b;margin:8px 0">${esc(m.content)}</div>`;
+    const roleLabel=isUser?'Customer':isAgent?'Support Agent':'Assistant';
     const sources=(m.sources||[]).filter(s=>s.url).map(s=>`<a href="${esc(s.url)}" target="_blank" style="font-size:11px;display:block">${esc(s.url)}</a>`).join('');
-    const lowConf=!isUser&&m.confidence!=null&&m.confidence<0.6;
-    return `<div style="margin-bottom:14px;padding:10px 14px;border-radius:6px;background:${isUser?'#2d3a52':'#262b31'};max-width:80%;${isUser?'margin-left:auto':''}">
-      <div style="font-size:11px;color:#adb4ba;margin-bottom:4px">${isUser?'Customer':'Assistant'} · ${fmtDate(m.created_at)}${m.escalated?' · <span style="color:#c0392b">Escalated</span>':''}</div>
+    const lowConf=!isUser&&!isAgent&&m.confidence!=null&&m.confidence<0.6;
+    return `<div style="margin-bottom:14px;padding:10px 14px;border-radius:6px;background:${isUser?'#2d3a52':isAgent?'#1f4d2e':'#262b31'};max-width:80%;${isUser?'margin-left:auto':''}">
+      <div style="font-size:11px;color:#adb4ba;margin-bottom:4px">${roleLabel} · ${fmtDate(m.created_at)}${m.escalated?' · <span style="color:#c0392b">Escalated</span>':''}</div>
       <div>${esc(m.content)}</div>
       ${sources}
-      ${!isUser&&canEdit()?`<div style="margin-top:8px"><button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="showCorrectionForm(${m.id},this)">${lowConf?'⚠ ':''}Correct this answer</button></div>
+      ${!isUser&&!isAgent&&canEdit()?`<div style="margin-top:8px"><button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="showCorrectionForm(${m.id},this)">${lowConf?'⚠ ':''}Correct this answer</button></div>
       <div id="correction-form-${m.id}"></div>`:''}
     </div>`;
   }).join('')||'<p style="color:#adb4ba">No messages in this session.</p>';
@@ -1870,6 +1884,22 @@ async function submitCorrection(messageId){
 // ── Support Tickets ────────────────────────────────────────────────────────────
 function deptLabel(d){return d==='sales'?'Sales':d==='technical'?'Technical':d==='accounts'?'Accounts':'—';}
 function mailtoReply(email,subject){return email?('mailto:'+email+'?subject='+encodeURIComponent('Re: '+(subject||'your enquiry'))):'';}
+
+// ── Presence ─────────────────────────────────────────────────────────────────
+function presenceDotColor(status){return status==='online'?'#2ecc71':status==='busy'?'#f0ad4e':'#6b7480';}
+async function loadPresence(){
+  try{
+    const s=await get(API+'/presence.php');
+    const status=s.status||'offline';
+    document.getElementById('presence-select').value=status;
+    document.getElementById('presence-dot').style.background=presenceDotColor(status);
+  }catch(_){}
+}
+async function setPresence(status){
+  const r=await post(API+'/presence.php',{csrf,status});
+  if(r.error)return flash(r.error,true);
+  document.getElementById('presence-dot').style.background=presenceDotColor(status);
+}
 async function loadTickets(){
   const status=document.getElementById('ticket-status-filter')?.value||'';
   const department=document.getElementById('ticket-department-filter')?.value||'';
@@ -1881,7 +1911,7 @@ async function loadTickets(){
   const tb=document.querySelector('#tickets-table tbody');
   if(!Array.isArray(rows)){tb.innerHTML='<tr><td colspan="7" style="color:#adb4ba">Unable to load.</td></tr>';return;}
   tb.innerHTML=rows.length?rows.map(t=>`<tr>
-    <td>${esc(t.subject||'—')}</td>
+    <td>${t.channel==='live_chat'&&t.session_mode!=='live_ended'?'<span class="badge" style="background:#c0392b;color:#fff;margin-right:5px">LIVE</span>':''}${esc(t.subject||'—')}</td>
     <td style="font-size:12px">${t.customer_email?`<a href="${esc(mailtoReply(t.customer_email,t.subject))}" style="color:#8fb0ec">${esc(t.customer_email)}</a>`:'—'}</td>
     <td><span class="badge badge-pending">${esc(deptLabel(t.department))}</span></td>
     <td><span class="badge ${t.status==='closed'?'badge-revoked':t.status==='resolved'?'badge-ok':t.status==='waiting'?'badge-pending':t.status==='in_progress'?'badge-active':'badge-ok'}">${esc(t.status)}</span></td>
@@ -1904,8 +1934,10 @@ async function viewTicket(id){
   const t=(Array.isArray(rows)?rows:[]).find(x=>x.id===id);
   if(!t){document.getElementById('ticket-detail-content').innerHTML='<p style="color:#f5a3a3">Ticket not found.</p>';return;}
   document.getElementById('ticket-detail-subject').textContent=t.subject||'Support ticket';
+  stopLiveChatPolling();
   document.getElementById('ticket-detail-content').innerHTML=`
     <p style="margin-bottom:8px;font-size:13px;color:#adb4ba">Customer: ${t.customer_email?`<a href="${esc(mailtoReply(t.customer_email,t.subject))}" style="color:#8fb0ec">${esc(t.customer_email)}</a>`:'—'} · Created ${fmtDate(t.created_at)}</p>
+    ${liveChatPanelHtml(t)}
     ${canEdit()?`<div class="row" style="max-width:460px;margin-bottom:16px">
       <div>
         <label>Status</label>
@@ -1938,10 +1970,89 @@ async function viewTicket(id){
     <button class="btn btn-secondary" style="margin-top:8px" onclick="addTicketNote(${t.id})">Add Note</button>`:''}
     ${t.session_id?`<p style="margin-top:16px"><button class="btn btn-secondary" onclick="switchTab('chatlogs',document.querySelector('nav button[onclick*=chatlogs]'));viewSession('${esc(t.session_id)}')">View conversation</button></p>`:''}
   `;
+  if(t.channel==='live_chat'&&t.session_mode==='live_active'&&Number(t.session_claimed_by)===Number(myAdminId)){
+    startLiveChatPolling(t.session_id);
+  }
 }
 function closeTicketDetail(){
+  stopLiveChatPolling();
   document.getElementById('ticket-detail-card').style.display='none';
   document.getElementById('tickets-list-card').style.display='block';
+}
+
+// ── Live chat (claim / converse / end) ──────────────────────────────────────
+function liveChatPanelHtml(t){
+  if(t.channel!=='live_chat')return '';
+  if(t.session_mode==='live_requested'){
+    return `<div class="card" style="background:#3a2f1a;border:1px solid #6b5124;margin-bottom:16px">
+      <p style="margin-bottom:10px">🔴 <strong>Live chat waiting to be claimed</strong> — a customer is waiting right now.</p>
+      ${canEdit()?`<button class="btn btn-primary" onclick="claimLiveChat('${esc(t.session_id)}',${t.id})">Claim this chat</button>`:''}
+    </div>`;
+  }
+  if(t.session_mode==='live_active'){
+    if(Number(t.session_claimed_by)===Number(myAdminId)){
+      return `<div class="card" style="margin-bottom:16px">
+        <p style="margin-bottom:8px;font-size:13px;color:#2ecc71">🟢 You're live with this customer.</p>
+        <div id="live-chat-thread" style="max-height:280px;overflow-y:auto;background:#1a1e22;padding:10px;border-radius:6px;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="live-chat-input" placeholder="Type a reply..." style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();sendLiveChatMessage('${esc(t.session_id)}');}">
+          <button class="btn btn-primary" onclick="sendLiveChatMessage('${esc(t.session_id)}')">Send</button>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:8px" onclick="endLiveChat('${esc(t.session_id)}',${t.id})">End chat</button>
+      </div>`;
+    }
+    return `<div class="card" style="margin-bottom:16px"><p>🟢 Claimed by ${esc(t.claimer_username||'another admin')}.</p></div>`;
+  }
+  return '';
+}
+let liveChatPollTimer=null;
+async function loadLiveChatThread(sessionId){
+  const rows=await get(API+'/chats.php?session_id='+encodeURIComponent(sessionId));
+  const el=document.getElementById('live-chat-thread');
+  if(!el||!Array.isArray(rows))return;
+  el.innerHTML=rows.map(m=>{
+    if(m.role==='system')return `<div style="text-align:center;font-size:11px;color:#8a929b;margin:6px 0">${esc(m.content)}</div>`;
+    const isCustomer=m.role==='user';
+    const label=isCustomer?'Customer':m.role==='agent'?'You':'Assistant';
+    return `<div style="margin-bottom:8px;${isCustomer?'':'text-align:right'}">
+      <div style="font-size:10px;color:#8a929b;margin-bottom:2px">${label}</div>
+      <div style="display:inline-block;max-width:80%;padding:6px 10px;border-radius:6px;background:${isCustomer?'#2d3a52':'#1f4d2e'};text-align:left">${esc(m.content)}</div>
+    </div>`;
+  }).join('')||'<p style="color:#8a929b;font-size:12px">No messages yet.</p>';
+  el.scrollTop=el.scrollHeight;
+}
+function startLiveChatPolling(sessionId){
+  stopLiveChatPolling();
+  loadLiveChatThread(sessionId);
+  liveChatPollTimer=setInterval(()=>loadLiveChatThread(sessionId),4000);
+}
+function stopLiveChatPolling(){
+  if(liveChatPollTimer){clearInterval(liveChatPollTimer);liveChatPollTimer=null;}
+}
+async function claimLiveChat(sessionId,ticketId){
+  const r=await post(API+'/live_chat.php',{csrf,action:'claim',session_id:sessionId});
+  if(r.error)return flash(r.error,true);
+  flash('Chat claimed');
+  loadTickets();
+  viewTicket(ticketId);
+}
+async function sendLiveChatMessage(sessionId){
+  const inputEl=document.getElementById('live-chat-input');
+  const text=inputEl.value.trim();
+  if(!text)return;
+  inputEl.value='';
+  const r=await post(API+'/live_chat.php',{csrf,action:'send',session_id:sessionId,message:text});
+  if(r.error)return flash(r.error,true);
+  loadLiveChatThread(sessionId);
+}
+async function endLiveChat(sessionId,ticketId){
+  if(!confirm('End this live chat? The customer will see it has ended.'))return;
+  const r=await post(API+'/live_chat.php',{csrf,action:'end',session_id:sessionId});
+  if(r.error)return flash(r.error,true);
+  flash('Live chat ended');
+  stopLiveChatPolling();
+  loadTickets();
+  viewTicket(ticketId);
 }
 async function updateTicketStatus(id){
   const status=document.getElementById('ticket-status-'+id).value;

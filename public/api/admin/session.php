@@ -15,4 +15,4 @@ if (empty($_SESSION['admin_id'])) {
     json_out(['ok' => false]);
 }
 
-json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role()]);
+json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role(), 'id' => $_SESSION['admin_id']]);

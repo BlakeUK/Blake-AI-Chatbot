@@ -49,6 +49,7 @@
   .pill-priority-urgent { background: #3a1f1f; color: var(--err); }
   .pill-overdue { background: #3a1f1f; color: var(--err); }
   .pill-live { display: inline-block; background: #f0d43a; color: #241a04; font-weight: 800; font-size: 10px; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; animation: pill-live-kf 1s ease-in-out infinite; }
+  .pill-livechat { display: inline-block; background: #c0392b; color: #fff; font-weight: 800; font-size: 10px; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; animation: pill-live-kf 1s ease-in-out infinite; }
   @keyframes pill-live-kf { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   .pill-assignee { background: var(--surface-3); color: var(--accent-bright); border: 1px solid var(--accent-dim); }
   .agent-online { color: var(--ok); }
@@ -167,6 +168,13 @@
   .msg-customer { background: var(--surface-2); align-self: flex-start; }
   .msg-assistant { background: var(--accent-dim); align-self: flex-end; }
   .msg-meta { font-size: 10px; color: var(--text-dim); margin-bottom: 3px; }
+  .msg-system { align-self: center; font-size: 11px; color: var(--text-dim); background: var(--surface-2); border-radius: 8px; padding: 3px 10px; }
+  .live-chat-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
+  .live-chat-box.live-chat-waiting { background: #3a2416; border-color: #6b4124; }
+  .live-chat-box p { margin: 0 0 8px; font-size: 13px; }
+  .live-chat-status { color: var(--ok); }
+  .live-chat-reply-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .live-chat-reply-row input { flex: 1; }
   #notes-panel { padding: 14px 22px; border-bottom: 1px solid var(--border); }
   #notes-panel textarea { min-height: 50px; resize: vertical; }
   .panel-section { padding: 14px 22px; border-bottom: 1px solid var(--border); }
@@ -321,6 +329,14 @@
       <div id="search-wrap">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="topbar-search" placeholder="Search tickets…">
+      </div>
+      <div id="presence-wrap" style="display:flex;align-items:center;gap:7px;margin-right:10px">
+        <span id="presence-dot" style="width:8px;height:8px;border-radius:50%;background:#6b7480;flex-shrink:0"></span>
+        <select id="presence-select" onchange="setPresence(this.value)" style="width:auto;padding:5px 8px;font-size:13px">
+          <option value="online">Online</option>
+          <option value="busy">Busy</option>
+          <option value="offline">Offline</option>
+        </select>
       </div>
       <div id="bell" title="Due reminders">
         <svg class="icon" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
@@ -557,6 +573,94 @@ function fmtRelative(ts) {
 }
 function ticketCode(t) { return 'TCK-' + (1000 + t.id); }
 function mailtoReply(email, subject) { return email ? ('mailto:' + email + '?subject=' + encodeURIComponent('Re: ' + (subject || 'your enquiry'))) : ''; }
+
+// ── Live chat (claim / converse / end) ──────────────────────────────────────
+function liveChatPanelHtml(t) {
+  if (t.channel !== 'live_chat') return '';
+  if (t.session_mode === 'live_requested') {
+    return `<div class="live-chat-box live-chat-waiting">
+      <p>🔴 <strong>Live chat waiting to be claimed</strong> - a customer is waiting right now.</p>
+      <button class="btn btn-primary btn-sm" onclick="claimLiveChat('${esc(t.session_id)}',${t.id})">Claim this chat</button>
+    </div>`;
+  }
+  if (t.session_mode === 'live_active') {
+    if (myAdminId != null && Number(t.session_claimed_by) === Number(myAdminId)) {
+      return `<div class="live-chat-box">
+        <p class="live-chat-status">🟢 You're live with this customer.</p>
+        <div class="live-chat-reply-row">
+          <input type="text" id="live-chat-input" placeholder="Type a reply…" onkeydown="if(event.key==='Enter'){event.preventDefault();sendLiveChatMessage('${esc(t.session_id)}');}">
+          <button class="btn btn-primary btn-sm" onclick="sendLiveChatMessage('${esc(t.session_id)}')">Send</button>
+        </div>
+        <button class="btn btn-sm" onclick="endLiveChat('${esc(t.session_id)}',${t.id})">End chat</button>
+      </div>`;
+    }
+    return `<div class="live-chat-box"><p class="live-chat-status">🟢 Claimed by ${esc(t.claimer_username || 'another admin')}.</p></div>`;
+  }
+  return '';
+}
+let liveChatPollTimer = null;
+async function refreshLiveChatTranscript(sessionId) {
+  let messages = [];
+  try {
+    const conv = await apiGet('/api/admin/chats.php?session_id=' + encodeURIComponent(sessionId));
+    messages = Array.isArray(conv) ? conv : (conv.messages || []);
+  } catch (e) { return; }
+  const el = document.getElementById('transcript');
+  if (!el) return;
+  el.innerHTML = messages.length ? messages.map(m => m.role === 'system'
+    ? `<div class="msg-system">${esc(m.content || '')}</div>`
+    : `<div class="msg msg-${m.role === 'user' ? 'customer' : 'assistant'}">
+      <div class="msg-meta">${m.role === 'user' ? 'Customer' : m.role === 'agent' ? 'Support Agent' : 'Assistant'} · ${fmtTime(m.created_at)}</div>
+      ${esc(m.content || m.message || '')}
+    </div>`).join('') : '<div class="empty-note">No conversation transcript available.</div>';
+  el.scrollTop = el.scrollHeight;
+}
+function startLiveChatPolling(sessionId) {
+  stopLiveChatPolling();
+  liveChatPollTimer = setInterval(() => refreshLiveChatTranscript(sessionId), 4000);
+}
+function stopLiveChatPolling() {
+  if (liveChatPollTimer) { clearInterval(liveChatPollTimer); liveChatPollTimer = null; }
+}
+async function claimLiveChat(sessionId, ticketId) {
+  const r = await apiSend('POST', '/api/admin/live_chat.php', { csrf, action: 'claim', session_id: sessionId });
+  if (r.error) { notify('Could not claim chat', r.error); return; }
+  await loadTickets();
+  if (currentTicketId === ticketId) openTicket(ticketId);
+}
+async function sendLiveChatMessage(sessionId) {
+  const inputEl = document.getElementById('live-chat-input');
+  const text = (inputEl.value || '').trim();
+  if (!text) return;
+  inputEl.value = '';
+  const r = await apiSend('POST', '/api/admin/live_chat.php', { csrf, action: 'send', session_id: sessionId, message: text });
+  if (r.error) { notify('Could not send message', r.error); return; }
+  refreshLiveChatTranscript(sessionId);
+}
+async function endLiveChat(sessionId, ticketId) {
+  if (!confirm('End this live chat? The customer will see it has ended.')) return;
+  const r = await apiSend('POST', '/api/admin/live_chat.php', { csrf, action: 'end', session_id: sessionId });
+  if (r.error) { notify('Could not end chat', r.error); return; }
+  stopLiveChatPolling();
+  await loadTickets();
+  if (currentTicketId === ticketId) openTicket(ticketId);
+}
+
+// ── Presence ─────────────────────────────────────────────────────────────────
+function presenceDotColor(status) { return status === 'online' ? '#2ecc71' : status === 'busy' ? '#f0ad4e' : '#6b7480'; }
+async function loadPresence() {
+  try {
+    const s = await apiGet('/api/admin/presence.php');
+    const status = s.status || 'offline';
+    document.getElementById('presence-select').value = status;
+    document.getElementById('presence-dot').style.background = presenceDotColor(status);
+  } catch (_) {}
+}
+async function setPresence(status) {
+  const r = await apiSend('POST', '/api/admin/presence.php', { csrf, status });
+  if (r.error) { notify('Could not update status', r.error); return; }
+  document.getElementById('presence-dot').style.background = presenceDotColor(status);
+}
 function initials(name) { return (name || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 
 // ── Navigation ───────────────────────────────────────────────────────────────
@@ -720,6 +824,7 @@ function enterApp() {
   checkAssignmentNotifications();
   checkForUpdate();
   loadDashboard();
+  loadPresence();
   pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); checkAssignmentNotifications(); refreshOpenChannel(); }, POLL_MS);
   setInterval(checkForUpdate, UPDATE_CHECK_MS);
 }
@@ -956,9 +1061,10 @@ function renderTicketTable() {
   tb.innerHTML = rows.map(t => {
     const overdue = t.sla_deadline && !['resolved','closed'].includes(t.status) && (t.sla_deadline * 1000) < Date.now();
     const isLive = liveHandoffIds.has(t.id);
+    const isLiveChat = t.channel === 'live_chat' && t.session_mode !== 'live_ended';
     return `
     <tr onclick="openTicket(${t.id})">
-      <td class="ticket-cell"><div class="subj">${isLive ? '<span class="pill-live">LIVE</span> ' : ''}${esc(t.subject || 'Ticket #' + t.id)}</div><div class="code">${esc(ticketCode(t))}</div></td>
+      <td class="ticket-cell"><div class="subj">${isLiveChat ? '<span class="pill-livechat">LIVE CHAT</span> ' : ''}${isLive ? '<span class="pill-live">NEW</span> ' : ''}${esc(t.subject || 'Ticket #' + t.id)}</div><div class="code">${esc(ticketCode(t))}</div></td>
       <td>${t.department ? `<span class="pill pill-dept">${esc(t.department)}</span>` : '—'}</td>
       <td><span class="pill pill-priority-${esc(t.priority || 'medium')}">${esc(t.priority || 'medium')}</span></td>
       <td><span class="pill pill-status-${esc(t.status)}">${esc(STATUS_LABELS[t.status] || t.status)}</span>${overdue ? ' <span class="pill pill-overdue">overdue</span>' : ''}</td>
@@ -1013,10 +1119,12 @@ async function openTicket(id) {
         <button class="btn btn-primary btn-sm" id="ctl-save">Save</button>
         <span id="save-status"></span>
       </div>
+      <div id="live-chat-panel">${liveChatPanelHtml(ticket)}</div>
       <div id="transcript">
-        ${messages.length ? messages.map(m => `
-          <div class="msg msg-${m.role === 'assistant' ? 'assistant' : 'customer'}">
-            <div class="msg-meta">${m.role === 'assistant' ? 'Assistant' : 'Customer'} · ${fmtTime(m.created_at)}</div>
+        ${messages.length ? messages.map(m => m.role === 'system'
+          ? `<div class="msg-system">${esc(m.content || '')}</div>`
+          : `<div class="msg msg-${m.role === 'user' ? 'customer' : 'assistant'}">
+            <div class="msg-meta">${m.role === 'user' ? 'Customer' : m.role === 'agent' ? 'Support Agent' : 'Assistant'} · ${fmtTime(m.created_at)}</div>
             ${esc(m.content || m.message || '')}
           </div>`).join('') : '<div class="empty-note">No conversation transcript available.</div>'}
       </div>
@@ -1041,6 +1149,10 @@ async function openTicket(id) {
     </div>`;
   document.body.appendChild(overlay);
 
+  if (ticket.channel === 'live_chat' && ticket.session_mode === 'live_active' && myAdminId != null && Number(ticket.session_claimed_by) === Number(myAdminId)) {
+    startLiveChatPolling(ticket.session_id);
+  }
+
   overlay.querySelector('.slide-close').onclick = closeSlideOver;
   document.getElementById('ctl-save').onclick = () => saveTicketRouting(ticket.id);
   document.getElementById('note-save').onclick = () => saveNote(ticket.id);
@@ -1058,6 +1170,7 @@ async function openTicket(id) {
   loadReminders(ticket.id);
 }
 function closeSlideOver() {
+  stopLiveChatPolling();
   document.querySelectorAll('.slide-overlay').forEach(el => el.remove());
   currentTicketId = null;
 }

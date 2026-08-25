@@ -39,6 +39,13 @@ if (!$session) {
     json_err('Invalid session', 404);
 }
 
+// Once a session has asked for (or is in) a live chat, the AI must never
+// also answer - the widget switches to live_send.php/live_poll.php once
+// it sees this, but this is the actual enforcement, not just a hint.
+if ($session['mode'] !== 'ai') {
+    json_out(['error' => 'This chat is live - use live_send.php instead', 'mode' => $session['mode']], 409);
+}
+
 // Refresh page context if the widget sent updated values — the customer may
 // have navigated to a different product page without starting a new session.
 // Only touches fields the caller actually sent, so callers that omit them
@@ -160,9 +167,10 @@ foreach ($keyword_links as $k) {
 $pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time(), $session_id]);
 
 json_out([
-    'answer'    => $answer,
-    'escalate'  => $escalate,
-    'confidence'=> $confidence,
+    'answer'          => $answer,
+    'escalate'        => $escalate,
+    'agent_available' => $escalate ? \Chat\LiveChat::isAgentAvailable() : false,
+    'confidence'      => $confidence,
     'products'  => array_map(fn($p) => [
         'code'  => $p['product_code'],
         'name'  => $p['name'],

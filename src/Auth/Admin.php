@@ -217,6 +217,13 @@ class Admin
     public static function logout(): void
     {
         self::session();
+        if (!empty($_SESSION['admin_id'])) {
+            // A logged-out admin can't be live-chatting with anyone -
+            // leaving a stale "online" would wrongly offer live chat to
+            // customers with nobody actually there to answer.
+            db()->prepare("UPDATE admin_users SET presence_status = 'offline' WHERE id = ?")
+                ->execute([$_SESSION['admin_id']]);
+        }
         $_SESSION = [];
         session_destroy();
     }

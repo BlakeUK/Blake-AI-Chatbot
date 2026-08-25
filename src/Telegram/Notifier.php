@@ -264,6 +264,43 @@ class Notifier
         }
     }
 
+    // Fires when a customer asks to talk to a person right now (see
+    // Chat\LiveChat::requestLive()) - urgent by nature, so styled and
+    // worded differently from a normal ticket alert. No "claim" button
+    // here deliberately: claiming only makes sense from the admin panel
+    // or operator console, where there's actually somewhere to type a
+    // reply - a Telegram-only claim would let someone grab it and then
+    // have no way to talk to the customer. Forward buttons still apply
+    // (the AI's department guess can still be wrong here too); there's
+    // no mailto button since a live-chat request has no email attached
+    // (nothing to reply to later - the customer is waiting right now).
+    public static function sendLiveChatAlert(int $ticketId, string $subject, ?string $pageUrl, ?string $department = null): void
+    {
+        try {
+            $cfg    = self::getConfig();
+            $chatId = self::resolveChatId($cfg, $department);
+            if (!$cfg['enabled'] || !$cfg['bot_token'] || !$chatId) {
+                return;
+            }
+
+            $lines = [
+                '🔴 <b>Live chat requested — #' . $ticketId . '</b> — ' . self::deptLabel($department),
+                htmlspecialchars($subject, ENT_QUOTES, 'UTF-8'),
+                '',
+                'A customer is waiting right now.',
+                '<a href="' . self::ADMIN_URL . '">Open in admin to claim</a>',
+            ];
+
+            $keyboard = self::buildTicketKeyboard($ticketId, $department, null, $subject);
+            $result   = self::send(implode("\n", $lines), $cfg['bot_token'], $chatId, $keyboard);
+            if (!$result['ok']) {
+                error_log('Telegram live-chat alert failed: ' . $result['error']);
+            }
+        } catch (\Throwable $e) {
+            error_log('Telegram live-chat alert exception: ' . $e->getMessage());
+        }
+    }
+
     // ── Chat-id discovery ─────────────────────────────────────────────────────
     // No webhook is registered for this bot (staff-alerts-only, nothing needs
     // to receive customer traffic), so plain getUpdates polling works fine.

@@ -223,6 +223,37 @@
 .buk-typing span:nth-child(3) { animation-delay: .3s; }
 @keyframes buk-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
 
+/* ── Ticket vs live-chat choice ─────────────────────────────────────────── */
+.buk-choice-row { display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
+.buk-choice-btn {
+  background: var(--buk-bg-panel);
+  color: var(--buk-text);
+  border: 1px solid var(--buk-border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+}
+.buk-choice-btn:hover { border-color: var(--buk-accent); background: var(--buk-surface-2); }
+.buk-choice-btn:focus-visible { outline: 2px solid var(--buk-accent); outline-offset: 1px; }
+.buk-choice-btn[data-choice="live"] { color: var(--buk-accent); }
+
+/* ── System status notes (agent joined / chat ended) ───────────────────── */
+.buk-system-note {
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--buk-text-dim);
+  background: var(--buk-surface);
+  border: 1px solid var(--buk-border);
+  border-radius: 10px;
+  padding: 4px 12px;
+  margin: 0;
+}
+
 /* ── Input row ──────────────────────────────────────────────────────────── */
 #buk-chat-input-row {
   display: flex;
