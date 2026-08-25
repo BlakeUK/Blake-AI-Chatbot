@@ -18,6 +18,10 @@
   // ── State ────────────────────────────────────────────────────────────────────
   let sessionId = sessionStorage.getItem(STORAGE_KEY) || null;
   let open = false;
+  // Set once a ticket has actually been raised this session, so a later
+  // low-confidence answer doesn't prompt for email all over again -
+  // support already has a way to reach this customer.
+  let ticketRaised = false;
 
   // ── Build DOM ────────────────────────────────────────────────────────────────
   const style = document.createElement('link');
@@ -86,6 +90,7 @@
   // tab is currently looking at.
   function startNewConversation() {
     sessionId = null;
+    ticketRaised = false;
     sessionStorage.removeItem(STORAGE_KEY);
     messages.innerHTML = '';
     initSession();
@@ -192,8 +197,8 @@
         addMessage('assistant', d.answer, d.products || []);
         if (d.action === 'show_tracking_form') {
           showTrackingForm(d.tracking_no, d.carrier);
-        } else if (d.escalate) {
-          addMessage('assistant', 'Would you like me to raise a support ticket? A member of the team will get back to you.');
+        } else if (d.escalate && !ticketRaised && !messages.querySelector('.buk-escalate-form')) {
+          addMessage('assistant', "I don't want to guess on this one, so I'm passing it to our support team. What's your email address? They'll reply there.");
           showEscalateForm();
         }
       }
@@ -253,20 +258,42 @@
   // ── Escalation ───────────────────────────────────────────────────────────────
   function showEscalateForm() {
     const wrap = document.createElement('div');
-    wrap.className = 'buk-msg buk-msg-assistant';
+    wrap.className = 'buk-msg buk-msg-assistant buk-escalate-form';
     wrap.innerHTML = assistantRowHtml(`
       <div class="buk-tracking-form">
-        <input type="email" class="buk-escalate-email" placeholder="Your email (optional)">
+        <input type="email" class="buk-escalate-email" placeholder="Your email address" required>
+        <div class="buk-form-error" hidden></div>
         <button class="buk-track-submit buk-escalate-submit" type="button">Raise Ticket</button>
       </div>
     `);
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
+
+    const emailInput = wrap.querySelector('.buk-escalate-email');
     wrap.querySelector('.buk-escalate-submit').addEventListener('click', () => submitEscalate(wrap));
+    emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitEscalate(wrap); });
+  }
+
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
   async function submitEscalate(formWrap) {
-    const email = formWrap.querySelector('.buk-escalate-email').value.trim();
+    const emailInput = formWrap.querySelector('.buk-escalate-email');
+    const errorEl     = formWrap.querySelector('.buk-form-error');
+    const email       = emailInput.value.trim();
+
+    // Required, not optional - support has no way to reply without it.
+    // Checked client-side for instant feedback; escalate.php enforces the
+    // same rule server-side regardless.
+    if (!isValidEmail(email)) {
+      errorEl.textContent = 'Please enter a valid email address so support can reply.';
+      errorEl.hidden = false;
+      emailInput.focus();
+      return;
+    }
+    errorEl.hidden = true;
+
     const btn = formWrap.querySelector('.buk-escalate-submit');
     btn.disabled = true;
     btn.textContent = 'Raising...';
@@ -278,11 +305,21 @@
         body: JSON.stringify({ session_id: sessionId, email }),
       });
       const d = await r.json();
+      if (d.error) {
+        errorEl.textContent = d.error;
+        errorEl.hidden = false;
+        btn.disabled = false;
+        btn.textContent = 'Raise Ticket';
+        return;
+      }
+      ticketRaised = true;
       formWrap.remove();
       addMessage('assistant', d.message || 'Your query has been passed to our support team.');
     } catch (e) {
-      formWrap.remove();
-      addMessage('assistant', 'Unable to reach the server. Please try again shortly.');
+      errorEl.textContent = 'Unable to reach the server. Please try again shortly.';
+      errorEl.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Raise Ticket';
     }
   }
 

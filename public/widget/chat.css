@@ -15,6 +15,7 @@
   --buk-text:       #f3f5fb;
   --buk-text-dim:   #98a2b8;
   --buk-online:     #34d399;
+  --buk-danger:     #f87171;
 }
 
 #buk-chat-btn {
@@ -198,6 +199,7 @@
   color: var(--buk-text);
 }
 .buk-tracking-form input:focus-visible { outline: none; border-color: var(--buk-accent); }
+.buk-form-error { font-size: 12px; color: var(--buk-danger); line-height: 1.4; }
 .buk-track-submit {
   background: var(--buk-accent);
   color: #fff;
