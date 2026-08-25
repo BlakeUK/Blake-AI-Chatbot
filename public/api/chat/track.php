@@ -42,6 +42,35 @@ if (!$carrier) {
     ]);
 }
 
+// DX: Blake's own white-label tracking page, keyed off the Sales Order
+// number + postcode - a direct link, no DX API account involved, so this
+// branches off before the carrier-API-key path below (which DX never
+// needs to reach).
+if ($carrier === 'dx') {
+    if (!$postcode) {
+        json_out([
+            'status'  => 'need_postcode',
+            'message' => 'Please also let me know the delivery postcode so I can look that up.',
+        ]);
+    }
+
+    $link = \Tracking\LinkBuilder::dx($trackingNo, $postcode);
+
+    $pdo->prepare('
+        INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status)
+        VALUES (?, ?, ?, ?, ?)
+    ')->execute([$session_id, 'dx', $trackingNo, json_encode($link), 'link_provided']);
+
+    json_out([
+        'status'    => 'found',
+        'carrier'   => 'DX',
+        'tracking'  => $trackingNo,
+        'current'   => $link['message'],
+        'events'    => [],
+        'link_only' => true,
+    ]);
+}
+
 // Get carrier API key
 $keyStmt = $pdo->prepare('SELECT key_enc, iv, tag FROM api_keys WHERE service = ?');
 $keyStmt->execute([$carrier]);

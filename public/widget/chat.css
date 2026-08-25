@@ -141,6 +141,7 @@
 
 .buk-msg-user .buk-bubble    { background: var(--buk-accent); color: #fff; border-bottom-right-radius: 4px; }
 .buk-msg-assistant .buk-bubble { background: var(--buk-surface); color: var(--buk-text); border: 1px solid var(--buk-border); border-bottom-left-radius: 4px; }
+.buk-bubble a { color: var(--buk-accent); text-decoration: underline; word-break: break-all; }
 
 .buk-meta { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--buk-text-dim); padding: 0 2px; }
 .buk-msg-assistant .buk-meta { margin-left: 32px; }

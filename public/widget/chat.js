@@ -215,7 +215,7 @@
     wrap.className = 'buk-msg buk-msg-assistant';
     wrap.innerHTML = assistantRowHtml(`
       <div class="buk-tracking-form">
-        <input type="text" class="buk-track-no" placeholder="Tracking number" value="${trackingNo ? esc(trackingNo) : ''}">
+        <input type="text" class="buk-track-no" placeholder="Order or tracking number" value="${trackingNo ? esc(trackingNo) : ''}">
         <input type="text" class="buk-track-postcode" placeholder="Delivery postcode">
         <button class="buk-track-submit" type="button">Track</button>
       </div>
@@ -244,8 +244,12 @@
       formWrap.remove();
 
       if (d.status === 'found') {
-        const eventLines = (d.events || []).map(e => `• ${e.date || ''} ${e.description || ''}`.trim()).join('\n');
-        addMessage('assistant', `${d.carrier} tracking ${d.tracking}: ${d.current}` + (eventLines ? '\n' + eventLines : ''));
+        if (d.link_only) {
+          addMessage('assistant', d.current);
+        } else {
+          const eventLines = (d.events || []).map(e => `• ${e.date || ''} ${e.description || ''}`.trim()).join('\n');
+          addMessage('assistant', `${d.carrier} tracking ${d.tracking}: ${d.current}` + (eventLines ? '\n' + eventLines : ''));
+        }
       } else {
         addMessage('assistant', d.message || 'Unable to retrieve tracking information.');
       }
@@ -346,7 +350,7 @@
     const productsHtml = productsToHtml(products);
 
     if (role === 'assistant') {
-      wrap.innerHTML = assistantRowHtml(esc(text)) + productsHtml + `<div class="buk-meta">${time}</div>`;
+      wrap.innerHTML = assistantRowHtml(linkify(esc(text))) + productsHtml + `<div class="buk-meta">${time}</div>`;
     } else {
       wrap.innerHTML = `<div class="buk-bubble">${esc(text)}</div>` + productsHtml
         + `<div class="buk-meta">${time}<span class="buk-tick" aria-hidden="true">✓</span></div>`;
@@ -354,6 +358,19 @@
 
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  // Turns a bare URL (e.g. the DX tracking link in a link_only tracking
+  // reply) into a clickable link. Runs AFTER esc(), so an "&" already
+  // reads as the escaped "&amp;" at this point - correct either way, since
+  // that's exactly how it needs to appear inside the href attribute too.
+  function linkify(escapedHtml) {
+    return escapedHtml.replace(/https?:\/\/[^\s<]+/g, url => {
+      const trail = url.match(/[.,;:!?)]+$/);
+      const clean = trail ? url.slice(0, -trail[0].length) : url;
+      const rest  = trail ? trail[0] : '';
+      return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${rest}`;
+    });
   }
 
   // Product data is normally admin-curated, but if the product import

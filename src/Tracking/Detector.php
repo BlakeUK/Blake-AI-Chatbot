@@ -35,8 +35,13 @@ class Detector
             '/\b(\d{14})\b/',                        // 14-digit DPD
             '/\b(1[56]\d{12})\b/',                   // DPD parcel ID
         ],
+        // Not a DX-issued consignment code - Blake's DX tracking page (see
+        // Tracking\LinkBuilder::dx()) looks orders up by Blake's own Sales
+        // Order number instead, shown on sales orders (top right) and
+        // despatch notes (top left). That's what a customer actually has
+        // to hand, so that's what this detects.
         'dx' => [
-            '/\b([A-Z]{1,2}\d{7,9})\b/i',           // DX consignment
+            '/\b(SO\d{4,8}(?:-\d{1,3})?)\b/i',
         ],
     ];
 
