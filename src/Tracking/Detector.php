@@ -31,7 +31,13 @@ class Detector
             '/\b([A-Z]{2}\d{9}GB)\b/i',           // RM parcel (e.g. AB123456789GB)
             '/\b([A-Z]{2}\d{8}\d?GB)\b/i',         // Signed for
         ],
+        // Blake's actual DPD consignment number format (confirmed against
+        // a real link - see Tracking\LinkBuilder::dpd()): 10 digits, no
+        // prefix. The 14-digit patterns below predate that confirmation -
+        // not proven wrong, just unconfirmed - kept as fallbacks rather
+        // than removed outright.
         'dpd' => [
+            '/\b(\d{10})\b/',                        // Blake's DPD consignment number
             '/\b(\d{14})\b/',                        // 14-digit DPD
             '/\b(1[56]\d{12})\b/',                   // DPD parcel ID
         ],

@@ -71,6 +71,27 @@ if ($carrier === 'dx') {
     ]);
 }
 
+// DPD: also a direct link (see Tracking\LinkBuilder::dpd()), no API
+// account or postcode needed - branches off before the carrier-API-key
+// path below for the same reason DX does.
+if ($carrier === 'dpd') {
+    $link = \Tracking\LinkBuilder::dpd($trackingNo);
+
+    $pdo->prepare('
+        INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status)
+        VALUES (?, ?, ?, ?, ?)
+    ')->execute([$session_id, 'dpd', $trackingNo, json_encode($link), 'link_provided']);
+
+    json_out([
+        'status'    => 'found',
+        'carrier'   => 'DPD',
+        'tracking'  => $trackingNo,
+        'current'   => $link['message'],
+        'events'    => [],
+        'link_only' => true,
+    ]);
+}
+
 // Get carrier API key
 $keyStmt = $pdo->prepare('SELECT key_enc, iv, tag FROM api_keys WHERE service = ?');
 $keyStmt->execute([$carrier]);

@@ -56,3 +56,35 @@ test('a DPD-shaped 14-digit number is still detected as DPD, not DX', function (
     $d = \Tracking\Detector::analyse('my parcel number is 15976950635219');
     assert_equal('dpd', $d['carrier']);
 });
+
+suite('Tracking\LinkBuilder — dpd()');
+
+test('builds the exact URL shape agreed with Blake', function () {
+    $r = \Tracking\LinkBuilder::dpd('6950635219');
+    assert_equal('https://track.dpd.co.uk/parcels/15976950635219*21421', $r['url']);
+});
+
+test('strips whitespace from a consignment number pasted with spaces', function () {
+    $r = \Tracking\LinkBuilder::dpd('  6950 635 219  ');
+    assert_equal('https://track.dpd.co.uk/parcels/15976950635219*21421', $r['url']);
+});
+
+test('message includes the link itself', function () {
+    $r = \Tracking\LinkBuilder::dpd('6950635219');
+    assert_str_contains($r['url'], $r['message']);
+    assert_str_contains('Please track your DPD parcel', $r['message']);
+});
+
+suite('Tracking\Detector — DPD consignment number');
+
+test('Blake\'s real 10-digit consignment number is detected as DPD', function () {
+    $d = \Tracking\Detector::analyse('my DPD number is 6950635219');
+    assert_true($d['is_tracking']);
+    assert_equal('dpd', $d['carrier']);
+    assert_equal('6950635219', $d['tracking_no']);
+});
+
+test('a bare 10-digit number does not get misdetected as a DX Sales Order number', function () {
+    $d = \Tracking\Detector::analyse('tracking 6950635219');
+    assert_equal('dpd', $d['carrier']);
+});
