@@ -67,6 +67,16 @@ else
     info "Caddy already installed — skipping."
 fi
 
+# ── Remove retired features ─────────────────────────────────────────────────
+# scp-action only adds/overwrites files - it never deletes ones removed from
+# the repo - so anything dropped from git has to be cleaned up here explicitly
+# or it lingers on the server indefinitely.
+info "Removing retired Sitemap Checker files..."
+rm -rf "$WEBROOT/public/check"
+rm -rf "$WEBROOT/src/Sitemap"
+rm -f "$WEBROOT/src/Auth/CheckTool.php"
+rm -f "$WEBROOT/scripts/ensure_check_tool_config.php"
+
 # ── Directory structure ───────────────────────────────────────────────────────
 info "Setting up directories..."
 mkdir -p "$WEBROOT"/{data,uploads,logs,config}
@@ -350,16 +360,6 @@ if [ ! -f "$WEBROOT/config/config.php" ]; then
     info "Config written. Encryption key auto-generated."
 else
     warn "Config already exists — skipping."
-fi
-
-# config.php only gets generated once, on first install (the block just
-# above) - a key added to config.example.php afterwards, like this one,
-# never reaches an already-deployed server without an explicit step.
-if ! grep -q "check_tool_username" "$WEBROOT/config/config.php"; then
-    info "Adding /check/ login credentials to config..."
-    php "$WEBROOT/scripts/ensure_check_tool_config.php"
-else
-    warn "/check/ login credentials already configured — skipping."
 fi
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────

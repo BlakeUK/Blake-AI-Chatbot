@@ -16,43 +16,6 @@ use tauri::{
     WindowEvent,
 };
 
-// Opens the web-based sitemap/SEO checker (public/check/) in its own
-// native window rather than the system browser, so it feels like part of
-// the console rather than something that pops the user out to Chrome/
-// Edge - a bare Tauri window has no browser chrome (no address bar,
-// tabs, back/forward) to begin with, so decorations left at their
-// default already give exactly the OS's normal minimize/maximize/close
-// title-bar controls and nothing else. Hardcoded URL, not
-// frontend-supplied, for the same reason download_and_install hardcodes
-// its own host - this only ever opens the app's own checker tool.
-// Re-focuses the existing window instead of creating a second one if
-// it's already open.
-#[tauri::command]
-fn open_checker_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_window("checker") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    tauri::WindowBuilder::new(
-        &app,
-        "checker",
-        tauri::WindowUrl::External(
-            "https://chat.blakegroup.uk/check/"
-                .parse()
-                .expect("hardcoded checker URL is a valid URL"),
-        ),
-    )
-    .title("Sitemap & SEO Checker")
-    .min_inner_size(900.0, 600.0)
-    .inner_size(1200.0, 800.0)
-    .build()
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
 // Self-update: called from the frontend once it's compared its own
 // app.getVersion() against version.json and found something newer. Does the
 // download + launch entirely on the Rust side rather than via the JS-exposed
@@ -78,7 +41,7 @@ fn download_and_install(url: String) -> Result<(), String> {
         .map_err(|e| format!("Couldn't save installer: {e}"))?;
     drop(file);
 
-    // Hands off to the OS's own installer UI (Windows Installer for .msi,
+    // Hands off to the OS's own installer UI (the NSIS setup wizard for .exe,
     // the desktop's package handler for .deb) rather than trying to run it
     // unattended - both platforms need elevated permissions for a real
     // install anyway, so a silent/headless install isn't actually available
@@ -105,7 +68,7 @@ fn main() {
         .add_item(quit);
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![download_and_install, open_checker_window])
+        .invoke_handler(tauri::generate_handler![download_and_install])
         .system_tray(SystemTray::new().with_menu(tray_menu))
         .on_system_tray_event(|app, event| match event {
             // Left-click the tray icon itself: same as picking "Show console".
@@ -134,9 +97,7 @@ fn main() {
                 let window = event.window();
                 // Only the main window hides-instead-of-closes (the tray's
                 // "Quit" item is the real exit, so notifications keep
-                // working after the X is clicked). A secondary window like
-                // the sitemap checker has no such reason to linger hidden -
-                // closing it should actually close it.
+                // working after the X is clicked).
                 if window.label() == "main" {
                     let _ = window.hide();
                     api.prevent_close();

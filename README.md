@@ -320,12 +320,12 @@ Native desktop app (Windows + Debian/Linux, built with [Tauri](https://tauri.app
 
 **Download the latest build:**
 
-- 🪟 [Blake UK Operator Console (`.msi`, Windows)](https://blakegroup.uk/downloads/blake-uk-operator-console.msi)
+- 🪟 [Blake UK Operator Console (`.exe`, Windows)](https://blakegroup.uk/downloads/blake-uk-operator-console-setup.exe)
 - 🐧 [Blake UK Operator Console (`.deb`, Debian/Ubuntu)](https://blakegroup.uk/downloads/blake-uk-operator-console.deb)
 
 These links always point to the most recently *published* build. The app checks `https://blakegroup.uk/downloads/version.json` every 5 minutes and shows an in-app **Update** button when a newer version is available — but that manifest is only regenerated when someone actually publishes a release (see below), so bumping the version number in `tauri.conf.json` alone does **not** ship anything or prompt existing installs to update.
 
-**Publishing a new build:** run the **Build Operator Console** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-operator-console.yml) (`workflow_dispatch` — it isn't triggered automatically by pushes to `main`). It builds the `.msi` and `.deb`, then uploads both plus a fresh `version.json` to the VPS at the stable filenames above.
+**Publishing a new build:** run the **Build Operator Console** workflow from the [Actions tab](https://github.com/BlakeUK/Blake-AI-Chatbot/actions/workflows/build-operator-console.yml) (`workflow_dispatch` — it isn't triggered automatically by pushes to `main`). It builds the Windows installer as an NSIS `.exe` (not `.msi`) and the `.deb`, then uploads both plus a fresh `version.json` to the VPS at the stable filenames above. NSIS is set to `installMode: currentUser`, so install and self-update both run without Administrator rights — needed for staff on locked-down PCs.
 
 Source: [`operator-console`](operator-console) — see [`operator-console/README.md`](operator-console/README.md) for build-environment setup. Note: the Rust/Tauri build has not been verified on a real Windows machine as of this update — it's been syntax-checked and the build workflow validated structurally, but not confirmed end-to-end on real Windows hardware.
 

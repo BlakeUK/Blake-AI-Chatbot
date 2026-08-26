@@ -68,7 +68,7 @@ From the `operator-console/` directory:
 # Development (hot-reloads dist/index.html on change)
 cargo tauri dev
 
-# Production build - produces a .deb on Linux, or .msi/.exe on Windows,
+# Production build - produces a .deb on Linux, or a .exe (NSIS) on Windows,
 # in src-tauri/target/release/bundle/
 cargo tauri build
 ```
