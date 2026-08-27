@@ -657,6 +657,7 @@ async function setPresence(status) {
   const r = await apiSend('POST', '/api/admin/presence.php', { csrf, status });
   if (r.error) { notify('Could not update status', r.error); return; }
   document.getElementById('presence-dot').style.background = presenceDotColor(status);
+  refreshTeamIfOpen();
 }
 function initials(name) { return (name || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 
@@ -796,6 +797,10 @@ async function checkDueReminders() {
   } catch (e) {}
 }
 
+function refreshTeamIfOpen() {
+  if (document.getElementById('page-team').classList.contains('active')) loadTeam();
+}
+
 function enterApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -808,7 +813,7 @@ function enterApp() {
   checkForUpdate();
   loadDashboard();
   loadPresence();
-  pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); checkAssignmentNotifications(); refreshOpenChannel(); }, POLL_MS);
+  pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); checkAssignmentNotifications(); refreshOpenChannel(); refreshTeamIfOpen(); }, POLL_MS);
   setInterval(checkForUpdate, UPDATE_CHECK_MS);
 }
 
