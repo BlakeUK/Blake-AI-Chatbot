@@ -53,6 +53,7 @@
   @keyframes pill-live-kf { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   .pill-assignee { background: var(--surface-3); color: var(--accent-bright); border: 1px solid var(--accent-dim); }
   .agent-online { color: var(--ok); }
+  .agent-busy { color: #f0ad4e; }
   .agent-offline { color: var(--text-dim); }
 
   /* ── Login ── */
@@ -963,7 +964,7 @@ async function loadTeam() {
       <div class="team-card" ${a.id !== myAdminId ? `style="cursor:pointer" onclick="openDM(${a.id}, '${esc(a.username)}')"` : ''}>
         <div class="avatar">${esc(initials(a.username))}</div>
         <div class="name">${esc(a.username)}</div>
-        <div class="role">${esc(a.role)} ${a.online ? '· <span class="agent-online">online</span>' : '· <span class="agent-offline">offline</span>'}</div>
+        <div class="role">${esc(a.role)} · <span class="${a.effective_status === 'online' ? 'agent-online' : a.effective_status === 'busy' ? 'agent-busy' : 'agent-offline'}">${esc(a.effective_status)}</span></div>
         <div class="badges">${depts.map(d => `<span class="pill pill-dept">${esc(d)}</span>`).join('') || '<span class="pill pill-dept">Unassigned</span>'}</div>
       </div>`;
     }).join('') || '<div class="empty-note">No staff accounts yet.</div>';
@@ -1093,7 +1094,7 @@ async function openTicket(id) {
           <select id="ctl-priority">${['low','medium','high','urgent'].map(p => `<option value="${p}" ${p===(ticket.priority||'medium')?'selected':''}>${p}</option>`).join('')}</select>
         </div>
         <div class="group"><label>Assign to</label>
-          <select id="ctl-assignee"><option value="">Unassigned</option>${agents.map(a => `<option value="${a.id}" ${a.id===ticket.assigned_admin_id?'selected':''}>${esc(a.username)}${a.departments && a.departments.length ? ' (' + a.departments.map(esc).join(', ') + ')' : ''} — ${a.online ? 'online' : 'offline'}</option>`).join('')}</select>
+          <select id="ctl-assignee"><option value="">Unassigned</option>${agents.map(a => `<option value="${a.id}" ${a.id===ticket.assigned_admin_id?'selected':''}>${esc(a.username)}${a.departments && a.departments.length ? ' (' + a.departments.map(esc).join(', ') + ')' : ''} — ${esc(a.effective_status)}</option>`).join('')}</select>
         </div>
         <div class="group"><label>Project</label>
           <select id="ctl-project"><option value="">None</option>${allProjects.map(p => `<option value="${p.id}" ${p.id===ticket.project_id?'selected':''}>${p.parent_id ? '— ' : ''}${esc(p.name)}</option>`).join('')}</select>
@@ -1865,7 +1866,10 @@ async function checkChannelNotifications() {
     const r = await apiGet('/api/admin/channel_notify.php?since=' + chatNotifyWatermark);
     chatNotifyWatermark = r.max_id || chatNotifyWatermark;
     for (const n of r.notifications) {
-      notify(n.reason === 'mention' ? (n.username + ' mentioned you in #' + n.channel_name) : (n.username + ' replied to you in #' + n.channel_name), n.content);
+      const title = n.reason === 'dm' ? (n.username + ' sent you a message')
+        : n.reason === 'mention' ? (n.username + ' mentioned you in #' + n.channel_name)
+        : (n.username + ' replied to you in #' + n.channel_name);
+      notify(title, n.content);
     }
     if (r.notifications.length) loadChannels();
   } catch (e) {}

@@ -18,13 +18,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 $cutoff = time() - \Auth\Admin::ONLINE_WINDOW_SECONDS;
 
-$stmt = db()->prepare('
+// effective_status is the source of truth for display: the staff-set
+// presence_status (online/busy/offline) while the client is actually
+// connected (heartbeat within the window), otherwise forced to 'offline'
+// since a stale/closed client can't really be "online" no matter what
+// status was last selected. online (bool) is kept for existing callers
+// that only care about the binary case.
+$stmt = db()->prepare("
     SELECT id, username, role, presence_status,
-           CASE WHEN last_active IS NOT NULL AND last_active >= ? THEN 1 ELSE 0 END AS online
+           CASE WHEN last_active IS NOT NULL AND last_active >= ? THEN presence_status ELSE 'offline' END AS effective_status
     FROM admin_users
-    ORDER BY online DESC, username COLLATE NOCASE ASC
-');
-$stmt->execute([$cutoff]);
+    ORDER BY (CASE WHEN last_active IS NOT NULL AND last_active >= ? AND presence_status = 'online' THEN 1 ELSE 0 END) DESC, username COLLATE NOCASE ASC
+");
+$stmt->execute([$cutoff, $cutoff]);
 $rows = $stmt->fetchAll();
 
 $deptRows = db()->query('SELECT admin_id, department FROM admin_user_departments')->fetchAll();
@@ -35,7 +41,7 @@ foreach ($deptRows as $d) {
 
 foreach ($rows as &$r) {
     $r['id']          = (int)$r['id'];
-    $r['online']       = (bool)$r['online'];
+    $r['online']       = $r['effective_status'] === 'online';
     $r['departments']  = $byAdmin[$r['id']] ?? [];
 }
 

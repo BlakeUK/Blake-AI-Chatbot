@@ -25,7 +25,7 @@ $userRow->execute([$me]);
 $myUsername = $userRow->fetchColumn();
 
 $stmt = $pdo->prepare('
-    SELECT m.id, m.channel_id, m.content, m.reply_to_id, m.created_at, u.username, c.name AS channel_name
+    SELECT m.id, m.channel_id, m.content, m.reply_to_id, m.created_at, u.username, c.name AS channel_name, c.is_dm
     FROM channel_messages m
     JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.admin_id = ?
     JOIN admin_users u ON u.id = m.admin_id
@@ -56,8 +56,9 @@ if ($candidates) {
     foreach ($candidates as $c) {
         $isMention = $myUsername && preg_match($mentionPattern, $c['content']);
         $isReply   = $c['reply_to_id'] && in_array((int)$c['reply_to_id'], $myMessageIds, true);
-        if ($isMention || $isReply) {
-            $c['reason'] = $isMention ? 'mention' : 'reply';
+        $isDm      = (bool)$c['is_dm'];
+        if ($isDm || $isMention || $isReply) {
+            $c['reason'] = $isDm ? 'dm' : ($isMention ? 'mention' : 'reply');
             $results[] = $c;
         }
     }
