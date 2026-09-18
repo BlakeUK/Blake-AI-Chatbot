@@ -45,7 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
           _initializing = false;
           _messages.add(ChatMessage(
             role: 'assistant',
-            text: 'Hello! How can I help you today?',
+            text: "Hi, I'm Max, Blake UK's support assistant. How can I help you today?",
           ));
         });
       } else {

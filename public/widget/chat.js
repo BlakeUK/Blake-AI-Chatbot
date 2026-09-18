@@ -119,7 +119,7 @@
   const btn = document.createElement('button');
   btn.id = 'buk-chat-btn';
   btn.type = 'button';
-  btn.setAttribute('aria-label', 'Open Blake UK chat');
+  btn.setAttribute('aria-label', 'Chat with Max, Blake UK support');
   btn.innerHTML = ROBOT_SVG;
 
   // Speech bubble beside the robot. Schedule per browser session:
@@ -133,8 +133,8 @@
   const GREET_GAP_MS   = 60000;
   const GREET_MAX      = 2;
   const GREET_LINES = [
-    'Hi! \u{1F44B}<br>Can I help you?',
-    'Still looking?<br>Ask me anything.'
+    'Hi! I\'m Max \u{1F44B}<br>Can I help you?',
+    'Max here again.<br>Still looking? Just ask.'
   ];
   const greet = document.createElement('div');
   greet.id = 'buk-chat-greet';
@@ -152,7 +152,7 @@
       <div id="buk-chat-header-info">
         <img id="buk-chat-logo" src="${ENDPOINT}/widget/img/blake-uk-logo.png" alt="Blake UK" width="91" height="30">
         <div id="buk-chat-header-text">
-          <div id="buk-chat-title">Blake AI Support</div>
+          <div id="buk-chat-title">Max, AI Support</div>
           <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span><span id="buk-status-text">Online</span></div>
         </div>
       </div>
@@ -306,7 +306,7 @@
       const d = await r.json();
       sessionId = d.session_id;
       sessionStorage.setItem(STORAGE_KEY, sessionId);
-      addMessage('assistant', 'Hello! How can I help you today?');
+      addMessage('assistant', "Hi, I'm Max, Blake UK's support assistant. How can I help you today?");
       loadFaqSuggestions();
     } catch (e) {
       addMessage('assistant', 'Unable to connect. Please try again shortly.');
