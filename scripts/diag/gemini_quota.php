@@ -33,3 +33,9 @@ foreach (['/etc/php/8.2/fpm/php.ini', '/etc/php/8.3/fpm/php.ini'] as $ini) {
     if (is_file($ini) && preg_match('/^disable_functions\s*=\s*(.*)$/m', file_get_contents($ini), $m)) echo "fpm disable_functions ($ini): '" . trim($m[1]) . "'\n";
 }
 foreach (db()->query("SELECT id, filename, status, substr(error,1,120) e FROM knowledge_files WHERE status <> 'indexed'") as $r) echo "file {$r['id']} {$r['status']}: {$r['filename']} {$r['e']}\n";
+echo "--- recent voice calls (UTC)\n";
+foreach (db()->query("SELECT datetime(created_at,'unixepoch') t, model, http_code, ok, substr(error,1,150) e, latency_ms FROM api_usage_log WHERE operation = 'voice' ORDER BY id DESC LIMIT 25") as $r) echo "{$r['t']} {$r['model']} {$r['http_code']} ok={$r['ok']} {$r['latency_ms']}ms {$r['e']}\n";
+echo "--- recent chat sessions (UTC)\n";
+foreach (db()->query("SELECT s.id, datetime(s.created_at,'unixepoch') t, substr(s.page_url,1,60) u, (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id=s.id) n FROM chat_sessions s ORDER BY s.created_at DESC LIMIT 12") as $r) echo "{$r['t']} {$r['id']} msgs={$r['n']} {$r['u']}\n";
+echo "--- tts cache: " . count(glob('/var/www/chat/data/tts/*.wav') ?: []) . " files\n";
+foreach (['/var/log/caddy', '/var/log/caddy/access.log'] as $l) if (file_exists($l)) echo "log exists: $l\n";
