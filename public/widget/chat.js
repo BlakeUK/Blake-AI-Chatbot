@@ -37,59 +37,80 @@
   // Animated robot mascot launcher (inline SVG, no external assets).
   // All ids are buk-prefixed so they cannot collide with the host page.
   const ROBOT_SVG = `
-<svg class="buk-bot" viewBox="0 0 120 140" width="88" height="103" aria-hidden="true" focusable="false">
+<svg class="buk-bot" viewBox="0 0 170 200" width="136" height="160" aria-hidden="true" focusable="false">
   <defs>
-    <radialGradient id="buk-bot-disc" cx="50%" cy="35%" r="70%">
-      <stop offset="0" stop-color="#5b7cff"/><stop offset="1" stop-color="#1c32b3"/>
-    </radialGradient>
     <linearGradient id="buk-bot-shell" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe4ee"/>
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d9dfeb"/>
     </linearGradient>
-    <clipPath id="buk-bot-clip"><circle cx="60" cy="98" r="40"/></clipPath>
+    <linearGradient id="buk-bot-fade" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="200">
+      <stop offset=".82" stop-color="#fff"/><stop offset="1" stop-color="#000"/>
+    </linearGradient>
+    <mask id="buk-bot-mask" maskUnits="userSpaceOnUse" x="-20" y="-20" width="210" height="220">
+      <rect x="-20" y="-20" width="210" height="220" fill="url(#buk-bot-fade)"/>
+    </mask>
     <filter id="buk-bot-glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="1.6" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <circle class="buk-bot-halo" cx="60" cy="98" r="40" fill="none" stroke="#3d63ff" stroke-width="2"/>
-  <circle cx="60" cy="98" r="40" fill="url(#buk-bot-disc)"/>
-  <g class="buk-bot-body">
-    <g clip-path="url(#buk-bot-clip)">
-      <path d="M22 142C22 110 36 95 60 95s38 15 38 47Z" fill="url(#buk-bot-shell)"/>
-      <path d="M31 142c0-22 5-34 14-40M89 142c0-22-5-34-14-40" fill="none" stroke="#3d63ff" stroke-width="2.2" stroke-linecap="round"/>
-      <path d="M36 118c8 3 40 3 48 0" fill="none" stroke="#f5a623" stroke-width="1.4" stroke-linecap="round" opacity=".8"/>
-      <rect x="42" y="104" width="36" height="11" rx="4" fill="#fff" stroke="#cfd6e4"/>
-      <circle cx="60" cy="109.5" r="4.2" fill="#2f4fd6"/>
-      <text x="60" y="111.3" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="4.6" fill="#fff">UK</text>
-    </g>
+  <g class="buk-bot-body" mask="url(#buk-bot-mask)">
+    <!-- left arm (hanging) -->
+    <path d="M36 140 30 198" stroke="url(#buk-bot-shell)" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="32" cy="172" r="5.5" fill="#2a2f3a" stroke="#3d63ff" stroke-width="1.5" filter="url(#buk-bot-glow)"/>
+    <!-- right arm (waving) -->
     <g class="buk-bot-arm">
-      <path d="M90 104 104 82" stroke="#e7ebf3" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="97" cy="93" r="3.2" fill="#2a2f3a"/>
-      <g fill="#fff" stroke="#2a2f3a" stroke-width="1.2">
-        <rect x="100.5" y="64" width="3.6" height="10" rx="1.8"/>
-        <rect x="104.6" y="62.5" width="3.6" height="11" rx="1.8"/>
-        <rect x="108.7" y="64" width="3.6" height="10" rx="1.8"/>
-        <rect x="112.4" y="69" width="3.4" height="8" rx="1.7" transform="rotate(25 114 73)"/>
-        <ellipse cx="106" cy="77" rx="7" ry="6"/>
-      </g>
-    </g>
-    <g class="buk-bot-head">
-      <rect x="51" y="82" width="18" height="12" rx="3" fill="#2a2f3a"/>
-      <circle class="buk-bot-ear" cx="24" cy="51" r="9" fill="#1f3fd1" stroke="#f5a623" stroke-width="2.4"/>
-      <circle class="buk-bot-ear" cx="96" cy="51" r="9" fill="#1f3fd1" stroke="#f5a623" stroke-width="2.4"/>
-      <circle cx="24" cy="51" r="3.6" fill="#8fb4ff"/>
-      <circle cx="96" cy="51" r="3.6" fill="#8fb4ff"/>
-      <rect x="26" y="15" width="68" height="70" rx="32" fill="url(#buk-bot-shell)" stroke="#c9d1e0" stroke-width="1"/>
-      <path d="M46 19c8-3 20-3 28 0" fill="none" stroke="#c9d1e0" stroke-width="1.2" stroke-linecap="round"/>
-      <rect x="33" y="27" width="54" height="47" rx="22" fill="#0a0e1a"/>
-      <path d="M40 38c4-6 12-9 22-9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".16"/>
-      <g filter="url(#buk-bot-glow)" fill="none" stroke-linecap="round">
-        <path d="M42 41q5-3 10-1M68 40q5-2 10 1" stroke="#f5a623" stroke-width="1.8"/>
-        <g class="buk-bot-eyes" stroke="#56a8ff" stroke-width="3.6">
-          <path d="M42 53q6-9 12 0"/>
-          <path d="M66 53q6-9 12 0"/>
+      <path d="M128 138 141 164" stroke="#e4e9f2" stroke-width="13" stroke-linecap="round"/>
+      <g class="buk-bot-forearm">
+        <path d="M141 164 151 124" stroke="#eef1f7" stroke-width="11" stroke-linecap="round"/>
+        <ellipse cx="151.5" cy="120" rx="6.5" ry="2.6" fill="#2a2f3a" stroke="#56a8ff" stroke-width="1.4" filter="url(#buk-bot-glow)"/>
+        <g fill="#fff" stroke="#2a2f3a" stroke-width="1.3">
+          <rect x="142.5" y="92" width="4.4" height="14" rx="2.2"/>
+          <rect x="147.6" y="89" width="4.4" height="16" rx="2.2"/>
+          <rect x="152.7" y="90" width="4.4" height="15" rx="2.2"/>
+          <rect x="157.6" y="94" width="4.2" height="12" rx="2.1"/>
+          <rect x="136" y="103" width="4.2" height="11" rx="2.1" transform="rotate(-40 138 108)"/>
+          <path d="M141 104h20v6c0 6-4 9-10 9s-10-3-10-9Z"/>
         </g>
-        <path class="buk-bot-mouth" d="M52 62q8 7 16 0" stroke="#56a8ff" stroke-width="2.6"/>
+      </g>
+      <circle cx="141" cy="164" r="5.5" fill="#2a2f3a" stroke="#3d63ff" stroke-width="1.5" filter="url(#buk-bot-glow)"/>
+    </g>
+    <!-- torso -->
+    <path d="M46 120c0-8 12-12 39-12s39 4 39 12l-5 50c-2 16-14 30-34 30s-32-14-34-30Z" fill="url(#buk-bot-shell)" stroke="#c9d1e0"/>
+    <g filter="url(#buk-bot-glow)" fill="none" stroke-linecap="round">
+      <path d="M53 124c3 26 6 46 13 66M117 124c-3 26-6 46-13 66" stroke="#3d63ff" stroke-width="2"/>
+      <path d="M62 164q23 7 46 0" stroke="#f5a623" stroke-width="1.4" opacity=".9"/>
+    </g>
+    <rect x="57" y="126" width="56" height="26" rx="7" fill="#fff" stroke="#c9d1e0"/>
+    <text x="78" y="143.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="11" fill="#2f4fd6" letter-spacing="-.4">blake</text>
+    <circle cx="100" cy="139.5" r="7.4" fill="#2f4fd6"/>
+    <text x="100" y="142.6" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="7.6" fill="#fff">UK</text>
+    <g fill="#2a2f3a"><rect x="72" y="172" width="26" height="5" rx="2.5"/><rect x="74" y="180" width="22" height="5" rx="2.5"/><rect x="76" y="188" width="18" height="5" rx="2.5"/></g>
+    <!-- neck -->
+    <g fill="#2a2f3a"><rect x="72" y="92" width="26" height="20" rx="4"/></g>
+    <g fill="#454c5c"><rect x="68" y="97" width="34" height="4" rx="2"/><rect x="68" y="104" width="34" height="4" rx="2"/></g>
+    <!-- shoulders -->
+    <ellipse cx="42" cy="126" rx="18" ry="16" fill="url(#buk-bot-shell)" stroke="#c9d1e0"/>
+    <circle cx="40" cy="128" r="9" fill="#2f4fd6" stroke="#fff" stroke-width="1.5"/>
+    <text x="40" y="131" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="8" fill="#fff">UK</text>
+    <ellipse cx="128" cy="126" rx="18" ry="16" fill="url(#buk-bot-shell)" stroke="#c9d1e0"/>
+    <path d="M116 118q12-8 25 2" fill="none" stroke="#f5a623" stroke-width="1.4" stroke-linecap="round"/>
+    <!-- head -->
+    <g class="buk-bot-head">
+      <circle class="buk-bot-ear" cx="40" cy="54" r="11" fill="#1f3fd1" stroke="#f5a623" stroke-width="2.6"/>
+      <circle class="buk-bot-ear" cx="130" cy="54" r="11" fill="#1f3fd1" stroke="#f5a623" stroke-width="2.6"/>
+      <circle cx="40" cy="54" r="4.4" fill="#8fb4ff"/>
+      <circle cx="130" cy="54" r="4.4" fill="#8fb4ff"/>
+      <rect x="42" y="10" width="86" height="86" rx="40" fill="url(#buk-bot-shell)" stroke="#c9d1e0"/>
+      <path d="M64 15q21-6 42 0M46 40q-2 16 2 30M124 40q2 16-2 30" fill="none" stroke="#c9d1e0" stroke-width="1.2" stroke-linecap="round"/>
+      <rect x="50" y="26" width="70" height="58" rx="27" fill="#0a0e1a"/>
+      <path d="M58 40c5-8 14-11 26-11" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".16"/>
+      <g filter="url(#buk-bot-glow)" fill="none" stroke-linecap="round">
+        <path d="M59 43q7-4 13-1M98 42q7-3 13 1" stroke="#f5a623" stroke-width="2"/>
+        <g class="buk-bot-eyes" stroke="#56a8ff" stroke-width="4.4">
+          <path d="M59 58q7-11 14 0"/>
+          <path d="M97 58q7-11 14 0"/>
+        </g>
+        <path class="buk-bot-mouth" d="M73 70q12 9 24 0" stroke="#56a8ff" stroke-width="3"/>
       </g>
     </g>
   </g>

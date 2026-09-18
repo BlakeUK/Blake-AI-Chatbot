@@ -24,8 +24,8 @@
   bottom: 16px;
   right: 16px;
   z-index: 9998;
-  width: 88px;
-  height: 103px;
+  width: 136px;
+  height: 160px;
   padding: 0;
   margin: 0;
   background: none;
@@ -40,21 +40,19 @@
 #buk-chat-btn .buk-bot { display: block; overflow: visible; }
 #buk-chat-btn .buk-bot * { transform-box: view-box; }
 
-#buk-chat-btn .buk-bot-body  { animation: buk-bob 3.2s ease-in-out infinite; }
-#buk-chat-btn .buk-bot-head  { transform-origin: 60px 88px; animation: buk-tilt 6.4s ease-in-out infinite; }
-#buk-chat-btn .buk-bot-arm   { transform-origin: 90px 104px; animation: buk-wave 7s ease-in-out infinite; }
-#buk-chat-btn .buk-bot-eyes  { transform-origin: 60px 50px; animation: buk-blink 4.8s infinite; }
-#buk-chat-btn .buk-bot-ear   { animation: buk-ear 2.4s ease-in-out infinite; }
-#buk-chat-btn .buk-bot-halo  { transform-origin: 60px 98px; animation: buk-halo 3.2s ease-out infinite; }
-#buk-chat-btn:hover .buk-bot-head { animation-duration: 1.6s; }
-#buk-chat-btn:hover .buk-bot-arm  { animation: buk-wave-fast 1s ease-in-out infinite; }
-#buk-chat-btn:hover .buk-bot-mouth { d: path("M50 61q10 10 20 0"); }
+#buk-chat-btn .buk-bot-body    { animation: buk-bob 3.2s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-head    { transform-origin: 85px 96px; animation: buk-tilt 6.4s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-forearm { transform-origin: 141px 164px; animation: buk-wave 7s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-eyes    { transform-origin: 85px 54px; animation: buk-blink 4.8s infinite; }
+#buk-chat-btn .buk-bot-ear     { animation: buk-ear 2.4s ease-in-out infinite; }
+#buk-chat-btn:hover .buk-bot-head    { animation-duration: 1.6s; }
+#buk-chat-btn:hover .buk-bot-forearm { animation: buk-wave-fast 1s ease-in-out infinite; }
+#buk-chat-btn:hover .buk-bot-mouth   { d: path("M70 69q15 12 30 0"); }
 
 @keyframes buk-bob   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes buk-tilt  { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(3deg); } }
 @keyframes buk-blink { 0%,90%,100% { transform: scaleY(1); } 94% { transform: scaleY(.15); } }
 @keyframes buk-ear   { 0%,100% { stroke: #f5a623; } 50% { stroke: #ffd27a; } }
-@keyframes buk-halo  { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.22); opacity: 0; } }
 @keyframes buk-wave {
   0%,60%,100% { transform: rotate(0); }
   66% { transform: rotate(-16deg); } 72% { transform: rotate(10deg); }
@@ -65,8 +63,8 @@
 /* ── Greeting bubble ────────────────────────────────────────────────────── */
 #buk-chat-greet {
   position: fixed;
-  right: 102px;
-  bottom: 70px;
+  right: 150px;
+  bottom: 110px;
   z-index: 9998;
   display: flex;
   align-items: flex-start;
@@ -352,7 +350,7 @@
 /* ── Small screens ──────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   #buk-chat-panel { bottom: 0; right: 0; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; border-radius: 0; }
-  #buk-chat-btn { bottom: 10px; right: 10px; width: 76px; height: 89px; }
-  #buk-chat-btn .buk-bot { width: 76px; height: 89px; }
-  #buk-chat-greet { right: 84px; bottom: 58px; max-width: 180px; }
+  #buk-chat-btn { bottom: 8px; right: 6px; width: 102px; height: 120px; }
+  #buk-chat-btn .buk-bot { width: 102px; height: 120px; }
+  #buk-chat-greet { right: 106px; bottom: 80px; max-width: 170px; }
 }
