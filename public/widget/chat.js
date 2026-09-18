@@ -90,13 +90,21 @@
   panel.innerHTML = `
     <div id="buk-chat-header">
       <div id="buk-chat-header-info">
-        <img id="buk-chat-logo" src="${ENDPOINT}/widget/img/blake-uk-logo.png" alt="Blake UK" width="91" height="30">
+        <span id="buk-max-avatar" aria-hidden="true">
+          <picture><source srcset="${MAX_IMG}-head.webp" type="image/webp"><img src="${MAX_IMG}-head.png" alt="" width="46" height="57" draggable="false"></picture>
+          <span class="buk-av-eye buk-av-eye-l"></span><span class="buk-av-eye buk-av-eye-r"></span>
+          <span id="buk-max-mouth"></span>
+        </span>
         <div id="buk-chat-header-text">
           <div id="buk-chat-title">Max, AI Support</div>
           <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span><span id="buk-status-text">Online</span></div>
         </div>
       </div>
       <div id="buk-chat-header-actions">
+        <button id="buk-chat-voice" class="buk-icon-btn" type="button" aria-label="Mute Max's voice" title="Mute Max's voice" aria-pressed="false">
+          <svg class="buk-voice-on" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <svg class="buk-voice-off" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor"/><path d="M17 9.5l5 5M22 9.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
         <button id="buk-chat-refresh" class="buk-icon-btn" type="button" aria-label="Start new conversation" title="Start new conversation">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 4v5h5M20 20v-5h-5M4.5 15a8 8 0 0 0 14.1 3.4M19.5 9A8 8 0 0 0 5.4 5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -191,7 +199,7 @@
     open = show;
     panel.style.display = show ? 'flex' : 'none';
     btn.style.display   = show ? 'none' : 'block';
-    if (show) hideGreeting();
+    if (show) { hideGreeting(); unlockAudio(); } else { stopSpeech(); }
     if (show && !sessionId) initSession();
     if (show) input.focus();
   }
@@ -247,6 +255,7 @@
       sessionId = d.session_id;
       sessionStorage.setItem(STORAGE_KEY, sessionId);
       addMessage('assistant', "Hi, I'm Max, Blake UK's support assistant. How can I help you today?");
+      speak({ kind: 'welcome' });
       loadFaqSuggestions();
     } catch (e) {
       addMessage('assistant', 'Unable to connect. Please try again shortly.');
@@ -283,13 +292,116 @@
   }
 
   // ── Send ─────────────────────────────────────────────────────────────────────
-  sendBtn.addEventListener('click', sendMessage);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+  // ── Max's voice ────────────────────────────────────────────────────────
+  // Replies are spoken as a short summary (server: api/chat/speak.php).
+  // Browsers only allow audio once the visitor has interacted with the
+  // page, so the AudioContext is created/resumed inside real user gestures
+  // (opening the chat, sending a message). That is the browser's normal
+  // autoplay rule, not a permission prompt - nothing is shown to the user.
+  const VOICE_KEY = 'buk_voice_muted';
+  let voiceMuted = false;
+  try { voiceMuted = localStorage.getItem(VOICE_KEY) === '1'; } catch (e) {}
+  let audioCtx = null, speechSrc = null, speechSeq = 0, mouthRaf = 0;
+  const avatar = panel.querySelector('#buk-max-avatar');
+  const voiceBtn = panel.querySelector('#buk-chat-voice');
+
+  function renderVoiceBtn() {
+    voiceBtn.classList.toggle('buk-muted', voiceMuted);
+    voiceBtn.setAttribute('aria-pressed', voiceMuted ? 'true' : 'false');
+    const label = voiceMuted ? "Unmute Max's voice" : "Mute Max's voice";
+    voiceBtn.setAttribute('aria-label', label);
+    voiceBtn.title = label;
+  }
+  renderVoiceBtn();
+  voiceBtn.addEventListener('click', () => {
+    voiceMuted = !voiceMuted;
+    try { localStorage.setItem(VOICE_KEY, voiceMuted ? '1' : '0'); } catch (e) {}
+    renderVoiceBtn();
+    if (voiceMuted) stopSpeech(); else unlockAudio();
+  });
+
+  function unlockAudio() {
+    if (voiceMuted) return;
+    try {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtx = new Ctx();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      // iOS Safari only fully unlocks after a sound starts inside the gesture.
+      const b = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = b; src.connect(audioCtx.destination); src.start(0);
+    } catch (e) {}
+  }
+
+  function setMouth(level) {
+    avatar.style.setProperty('--buk-mouth', level.toFixed(3));
+  }
+
+  function stopSpeech() {
+    speechSeq++;
+    if (speechSrc) { try { speechSrc.stop(); } catch (e) {} speechSrc = null; }
+    cancelAnimationFrame(mouthRaf);
+    avatar.classList.remove('buk-speaking');
+    setMouth(0);
+  }
+
+  // what: { message_id } or { kind: 'welcome' }
+  async function speak(what) {
+    if (voiceMuted || !audioCtx || !sessionId) return;
+    stopSpeech();
+    const seq = speechSeq;
+    try {
+      const r = await fetch(API + '/speak.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ session_id: sessionId }, what)),
+      });
+      if (r.status !== 200 || seq !== speechSeq) return;
+      const buf = await r.arrayBuffer();
+      if (seq !== speechSeq || !open) return;
+      const audio = await new Promise((res, rej) => audioCtx.decodeAudioData(buf, res, rej));
+      if (seq !== speechSeq || !open || voiceMuted) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      const src = audioCtx.createBufferSource();
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      src.buffer = audio;
+      src.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      speechSrc = src;
+      avatar.classList.add('buk-speaking');
+      const data = new Uint8Array(analyser.fftSize);
+      let level = 0;
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+        const rms = Math.sqrt(sum / data.length);
+        // Fast open, slower close: reads as syllables rather than flicker.
+        const target = Math.min(1, rms * 5);
+        level = target > level ? target : level * 0.8 + target * 0.2;
+        setMouth(level);
+        mouthRaf = requestAnimationFrame(tick);
+      };
+      src.onended = () => { if (speechSrc === src) { speechSrc = null; cancelAnimationFrame(mouthRaf); avatar.classList.remove('buk-speaking'); setMouth(0); } };
+      src.start();
+      tick();
+    } catch (e) {
+      // Speech is an extra: any failure just leaves the text reply as is.
+    }
+  }
+
+  sendBtn.addEventListener('click', () => { unlockAudio(); sendMessage(); });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { unlockAudio(); sendMessage(); } });
 
   async function sendMessage() {
     const text = input.value.trim();
     if (!text || !sessionId) return;
     input.value = '';
+    stopSpeech();
     document.querySelector('.buk-faq-suggestions')?.remove();
     addMessage('user', text);
 
@@ -324,6 +436,7 @@
         }
       } else {
         addMessage('assistant', d.answer, d.products || []);
+        if (d.message_id) speak({ message_id: d.message_id });
         if (d.action === 'show_tracking_form') {
           showTrackingForm(d.tracking_no, d.carrier);
         } else if (d.escalate && !ticketRaised && !messages.querySelector('.buk-escalate-form') && !messages.querySelector('.buk-live-choice')) {

@@ -180,6 +180,7 @@ $pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time
 
 json_out([
     'answer'          => $answer,
+    'message_id'      => $bot_msg_id,
     'escalate'        => $escalate,
     'agent_available' => $escalate ? \Chat\LiveChat::isAgentAvailable() : false,
     'confidence'      => $confidence,

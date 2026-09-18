@@ -174,6 +174,49 @@ class Client
 
     private function post(string $path, string $body, string $model, int $timeoutSeconds): string
     {
+        return self::extractText($this->request($path, $body, $model, $timeoutSeconds));
+    }
+
+    // ── Text-to-speech ─────────────────────────────────────────────────────────
+
+    // Returns ['pcm' => raw 16-bit mono PCM bytes, 'rate' => sample rate].
+    // $prompt carries the style direction (accent, pace, tone) plus the
+    // words to speak - Gemini TTS models take delivery instructions in
+    // natural language. No thinking config: TTS models do not accept it.
+    public function speak(string $model, string $prompt, string $voice): array
+    {
+        $body = json_encode([
+            'contents'         => [['parts' => [['text' => $prompt]]]],
+            'generationConfig' => [
+                'responseModalities' => ['AUDIO'],
+                'speechConfig'       => ['voiceConfig' => ['prebuiltVoiceConfig' => ['voiceName' => $voice]]],
+            ],
+        ]);
+        $data = $this->request("models/{$model}:generateContent", $body, $model, 60);
+        return self::extractAudio($data);
+    }
+
+    public static function extractAudio(array $data): array
+    {
+        foreach ($data['candidates'][0]['content']['parts'] ?? [] as $part) {
+            $inline = $part['inlineData'] ?? $part['inline_data'] ?? null;
+            if (!empty($inline['data'])) {
+                $pcm  = base64_decode($inline['data'], true);
+                $mime = (string)($inline['mimeType'] ?? $inline['mime_type'] ?? '');
+                $rate = preg_match('/rate=(\d+)/', $mime, $m) ? (int)$m[1] : 24000;
+                if ($pcm !== false && $pcm !== '') {
+                    return ['pcm' => $pcm, 'rate' => $rate];
+                }
+            }
+        }
+        $reason = $data['promptFeedback']['blockReason'] ?? $data['candidates'][0]['finishReason'] ?? 'unknown';
+        throw new \RuntimeException("Gemini returned no audio (reason: {$reason})");
+    }
+
+    // Raw request with retry/backoff and usage logging; returns the decoded
+    // 200 response body.
+    private function request(string $path, string $body, string $model, int $timeoutSeconds): array
+    {
         // The retry loop below can take several seconds beyond a single
         // request's own timeout - make sure PHP's own execution limit
         // (30s by default under php-fpm) doesn't kill the request before
@@ -221,7 +264,7 @@ class Client
             ]);
 
             if ($resp !== false && $code === 200) {
-                return self::extractText($data);
+                return $data;
             }
 
             $lastCode = $code;

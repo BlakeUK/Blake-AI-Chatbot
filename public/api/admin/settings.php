@@ -20,7 +20,16 @@ if ($method === 'POST') {
     $body = json_body();
     \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
 
-    $allowed = ['gemini_chat_model', 'gemini_extract_model', 'site_sitemap_urls', 'site_refresh_days'];
+    $allowed = ['gemini_chat_model', 'gemini_extract_model', 'site_sitemap_urls', 'site_refresh_days', 'voice_enabled', 'tts_model', 'tts_voice', 'tts_style'];
+    if (isset($body['tts_voice']) && !in_array($body['tts_voice'], \Speech\Speaker::MALE_VOICES, true)) {
+        json_err('Unknown voice');
+    }
+    if (isset($body['voice_enabled'])) {
+        $body['voice_enabled'] = $body['voice_enabled'] ? '1' : '0';
+    }
+    if (isset($body['tts_style']) && mb_strlen((string)$body['tts_style']) > 600) {
+        json_err('Voice style too long (max 600 characters)');
+    }
     foreach ($allowed as $k) {
         if (isset($body[$k])) {
             $pdo->prepare('INSERT INTO settings (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at')

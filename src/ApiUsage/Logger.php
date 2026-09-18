@@ -16,6 +16,8 @@ class Logger
         'gemini-3.8-flash'      => ['in' => 0.75, 'out' => 3.75],
         'gemini-3.5-flash'      => ['in' => 1.50, 'out' => 9.00],
         'gemini-3.5-flash-lite' => ['in' => 0.30, 'out' => 2.50],
+        // TTS: text in, audio out (25 audio tokens per second of speech)
+        'gemini-3.1-flash-tts'  => ['in' => 1.00, 'out' => 20.00],
     ];
 
     private static ?array $pricingCache = null;
@@ -96,6 +98,7 @@ class Logger
             'Faq\\Builder'               => 'faq_build',
             'Knowledge\\Dedup'           => 'dedup',
             'Html\\TextCleaner'          => 'text_clean',
+            'Speech\\Speaker'            => 'voice',
         ];
         foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 12) as $fr) {
             $c = $fr['class'] ?? null;

@@ -94,21 +94,24 @@
 @keyframes buk-eye-talk  { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.25); } }
 @keyframes buk-shine { 0%,55% { background-position: 150% 0; } 85%,100% { background-position: -50% 0; } }
 /* Wave: every 14 s the upper arm lifts out slightly and the forearm swings
-   up from the elbow, waves three times, then drops back. */
+   up from the elbow, waves three times, then drops back. The forearm is
+   mirrored about its own axis while raised (scaleX(-1)) so the palm faces
+   the viewer with the thumb inward, as a real raised hand would; the
+   mirror flip mid-swing reads as the wrist turning. */
 @keyframes buk-uarm {
   0%,78%,100% { transform: rotate(0); }
   81.5%,94%   { transform: rotate(-16deg); }
   97%         { transform: rotate(-4deg); }
 }
 @keyframes buk-farm {
-  0%,78%,100% { transform: rotate(0); }
-  81.5% { transform: rotate(-150deg); }
-  84%   { transform: rotate(-175deg); }
-  86.5% { transform: rotate(-145deg); }
-  89%   { transform: rotate(-175deg); }
-  91.5% { transform: rotate(-145deg); }
-  94%   { transform: rotate(-160deg); }
-  97%   { transform: rotate(-30deg); }
+  0%,78%,100% { transform: rotate(0) scaleX(1); }
+  81.5% { transform: rotate(-162deg) scaleX(-1); }
+  84%   { transform: rotate(-188deg) scaleX(-1); }
+  86.5% { transform: rotate(-160deg) scaleX(-1); }
+  89%   { transform: rotate(-188deg) scaleX(-1); }
+  91.5% { transform: rotate(-160deg) scaleX(-1); }
+  94%   { transform: rotate(-172deg) scaleX(-1); }
+  97%   { transform: rotate(-30deg) scaleX(1); }
 }
 @keyframes buk-uarm-now {
   0%,100% { transform: rotate(0); }
@@ -116,14 +119,14 @@
   92%     { transform: rotate(-4deg); }
 }
 @keyframes buk-farm-now {
-  0%,100% { transform: rotate(0); }
-  15% { transform: rotate(-150deg); }
-  28% { transform: rotate(-175deg); }
-  41% { transform: rotate(-145deg); }
-  54% { transform: rotate(-175deg); }
-  67% { transform: rotate(-145deg); }
-  78% { transform: rotate(-160deg); }
-  92% { transform: rotate(-30deg); }
+  0%,100% { transform: rotate(0) scaleX(1); }
+  15% { transform: rotate(-162deg) scaleX(-1); }
+  28% { transform: rotate(-188deg) scaleX(-1); }
+  41% { transform: rotate(-160deg) scaleX(-1); }
+  54% { transform: rotate(-188deg) scaleX(-1); }
+  67% { transform: rotate(-160deg) scaleX(-1); }
+  78% { transform: rotate(-172deg) scaleX(-1); }
+  92% { transform: rotate(-30deg) scaleX(1); }
 }
 
 /* ── Greeting bubble ────────────────────────────────────────────────────── */
@@ -434,3 +437,38 @@
   #buk-chat-btn { bottom: 8px; right: 6px; width: 131px; height: 123px; }
   #buk-chat-greet { right: 131px; bottom: 88px; max-width: 170px; }
 }
+
+/* ── Max avatar in the chat header (speaks replies) ─────────────────────── */
+#buk-max-avatar {
+  --buk-mouth: 0;
+  position: relative; flex-shrink: 0;
+  width: 46px; height: 57px; margin: -6px 0 -8px;
+}
+#buk-max-avatar picture, #buk-max-avatar img { display: block; width: 100%; height: 100%; }
+#buk-max-avatar .buk-av-eye {
+  position: absolute; top: 35.3%; width: 16%; height: 7%; margin: -3.5% 0 0 -8%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #e8f4ff 0, #6fb6ff 45%, rgba(61,99,255,0) 100%);
+  mix-blend-mode: screen; opacity: .8;
+  animation: buk-eye-glow 2.4s ease-in-out infinite, buk-eye-blink 4.8s infinite;
+}
+#buk-max-avatar .buk-av-eye-l { left: 36.4%; }
+#buk-max-avatar .buk-av-eye-r { left: 62.4%; }
+/* Mouth: a lit slit on the face plate that opens with the speech level. */
+#buk-max-mouth {
+  position: absolute; left: 50.4%; top: 58%;
+  width: 15%; height: calc(1.5px + var(--buk-mouth) * 5px);
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: #0b1224;
+  box-shadow: 0 0 0 .5px rgba(111,182,255,calc(.25 + var(--buk-mouth) * .6)),
+              0 0 calc(2px + var(--buk-mouth) * 6px) rgba(86,168,255,calc(var(--buk-mouth) * .9));
+  opacity: .55;
+  transition: opacity .2s;
+}
+#buk-max-avatar.buk-speaking #buk-max-mouth { opacity: 1; }
+#buk-max-avatar.buk-speaking .buk-av-eye { opacity: 1; }
+#buk-chat-voice .buk-voice-off { display: none; }
+#buk-chat-voice.buk-muted .buk-voice-on { display: none; }
+#buk-chat-voice.buk-muted .buk-voice-off { display: block; }
+@media (prefers-reduced-motion: reduce) { #buk-max-avatar .buk-av-eye { animation: none; } }
