@@ -14,6 +14,12 @@
 
     file_server
 
+    # Widget artwork is used as a CSS mask-image by the embedded chat
+    # widget on other sites (blake-uk.com, blakegroup.uk); mask images are
+    # fetched in CORS mode, so they need this or the effect silently fails.
+    @widgetimg path /widget/img/*
+    header @widgetimg Access-Control-Allow-Origin "*"
+
     header {
         X-Content-Type-Options nosniff
         Referrer-Policy strict-origin-when-cross-origin
@@ -63,6 +69,8 @@ blakegroup.uk, www.blakegroup.uk {
     # link" already means.
     @downloads path /downloads/*
     header @downloads Access-Control-Allow-Origin "*"
+    @widgetimg path /widget/img/*
+    header @widgetimg Access-Control-Allow-Origin "*"
 
     handle {
         root * /var/www/chat/public
