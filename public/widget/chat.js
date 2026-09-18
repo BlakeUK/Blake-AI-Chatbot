@@ -34,63 +34,18 @@
   style.href = ENDPOINT + '/widget/chat.css';
   document.head.appendChild(style);
 
-  // Max: animated android mascot launcher. The artwork is cut into four
-  // layers on one shared 380x503 canvas (widget/img/max-body, -uarm, -farm;
-  // webp with PNG fallback): body, upper arm (pivots at the shoulder, under
-  // the shoulder plate) and forearm+hand (pivots at the elbow), so the arm
-  // can be raised to wave. The fade is a CSS mask on the whole figure, so a
-  // raised arm is never faded while the resting arm and waist are.
+  // Max: animated android mascot launcher. A single cut-out image
+  // (widget/img/max.webp, PNG fallback) with the edge fade baked in; the
+  // motion (gentle bob and sway, eye glow and blink, shine sweep) is CSS.
   const MAX_IMG = ENDPOINT + '/widget/img/max';
-  const maxLayer = (name, cls) => `<picture class="${cls}"><source srcset="${MAX_IMG}-${name}.webp" type="image/webp"><img src="${MAX_IMG}-${name}.png" alt="" draggable="false"></picture>`;
-  // The artwork only shows the back of the hanging hand, which reads as a
-  // back-to-front hand once the arm is raised. For the wave the hand
-  // cross-fades to this open palm facing the viewer (drawn fingers-down in
-  // the canvas's 380x503 space at the wrist, so the forearm's ~170 degree
-  // swing turns it fingers-up with the thumb towards the head).
-  const PALM_SVG = `
-<svg class="buk-max-palm" viewBox="0 0 380 503" aria-hidden="true" focusable="false">
-  <defs>
-    <linearGradient id="buk-palm-metal" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#7f8794"/><stop offset=".5" stop-color="#dfe3e9"/><stop offset="1" stop-color="#8c939f"/>
-    </linearGradient>
-  </defs>
-  <g transform="translate(298 395) rotate(-10) scale(1.3)" stroke="#3f4551" stroke-width=".9" stroke-linejoin="round">
-    <rect x="-13" y="-5" width="26" height="10" rx="3" fill="#353a44"/>
-    <path d="M-12 -1h24" stroke="#6f86e0" stroke-width="1.6"/>
-    <g fill="url(#buk-palm-metal)">
-      <rect x="-15.5" y="38" width="7" height="24" rx="3.5" transform="rotate(9 -12 38)"/>
-      <rect x="-7.5"  y="39" width="7" height="30" rx="3.5" transform="rotate(3 -4 39)"/>
-      <rect x="0.5"   y="39" width="7" height="29" rx="3.5" transform="rotate(-3 4 39)"/>
-      <rect x="8.5"   y="38" width="7" height="24" rx="3.5" transform="rotate(-9 12 38)"/>
-      <rect x="14" y="12" width="7.5" height="24" rx="3.7" transform="rotate(-38 17 14)"/>
-      <path d="M-17 8q0-5 5-5h24q5 0 5 5v27q0 6-6 6h-22q-6 0-6-6Z"/>
-    </g>
-    <g fill="none" stroke="#3a3f4a" stroke-width="1" stroke-linecap="round">
-      <path d="M-14 49l5 1M-6 50h5.5M1.5 50h5.5M9 50l5-1"/>
-      <path d="M-14.5 57l4.5 .8M-6 59h5.5M1.5 59h5.5M9.5 57.6l4.3-.8"/>
-      <path d="M20 26l4 3"/>
-    </g>
-    <rect x="-8" y="13" width="16" height="15" rx="4" fill="#2b303a" stroke="#6f86e0" stroke-width="1"/>
-    <circle cx="0" cy="20.5" r="2.6" fill="#8fc1ff" stroke="none"/>
-  </g>
-</svg>`;
-
   const ROBOT_SVG = `
 <span class="buk-max" aria-hidden="true">
   <span class="buk-max-body">
-    <span class="buk-max-uarm">${maxLayer('uarm', 'buk-max-layer')}</span>
-    ${maxLayer('body', 'buk-max-layer')}
-    <!-- Forearm sits above the body (so the raised hand is never hidden
-         behind the shoulder plate) but follows the upper arm by running
-         the identical shoulder animation on its own wrapper. -->
-    <span class="buk-max-uarm buk-max-uarm-follow">
-      <span class="buk-max-farm">
-        ${maxLayer('farm', 'buk-max-layer')}
-        ${maxLayer('hand', 'buk-max-layer buk-max-hand')}
-        ${PALM_SVG}
-      </span>
-    </span>
-    <span class="buk-max-shine" style="-webkit-mask-image:url('${MAX_IMG}-body.png');mask-image:url('${MAX_IMG}-body.png')"></span>
+    <picture>
+      <source srcset="${MAX_IMG}.webp" type="image/webp">
+      <img src="${MAX_IMG}.png" alt="" width="140" height="165" draggable="false">
+    </picture>
+    <span class="buk-max-shine" style="-webkit-mask-image:url('${MAX_IMG}.png');mask-image:url('${MAX_IMG}.png')"></span>
     <span class="buk-max-eye buk-max-eye-l"></span>
     <span class="buk-max-eye buk-max-eye-r"></span>
   </span>
