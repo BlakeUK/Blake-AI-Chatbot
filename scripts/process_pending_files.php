@@ -14,6 +14,7 @@ require dirname(__DIR__) . '/src/bootstrap.php';
 
 const BATCH_LIMIT   = 20;   // files per run
 const TIME_BUDGET_S = 240;  // stop picking up new files after this long
+const PACE_SECONDS  = 2;    // gap between Gemini calls to stay under per-minute limits
 
 $pdo   = db();
 $start = time();
@@ -47,10 +48,19 @@ foreach ($rows as $row) {
         continue;
     }
 
+    if ($done > 0) {
+        sleep(PACE_SECONDS);
+    }
     $err = \Knowledge\FileExtractor::extract((int)$row['id'], $row['stored_path'], $row['mime_type']);
     if ($err) {
-        $pdo->prepare('UPDATE knowledge_files SET status=?, error=? WHERE id=?')
-            ->execute(['error', $err, $row['id']]);
+        $status = \Knowledge\FileQueue::recordFailure($pdo, (int)$row['id'], $err);
+        if ($status === 'pending') {
+            // Rate limited: the file stays queued. Stop this run so the
+            // rest of the batch doesn't hammer the limit; next minute's
+            // run picks up where this one left off.
+            echo "File {$row['id']}: Gemini rate limit, left queued; stopping this run.\n";
+            break;
+        }
         echo "File {$row['id']}: error - {$err}\n";
     } else {
         // Near-duplicate check (flagged for review, never auto-deleted) -

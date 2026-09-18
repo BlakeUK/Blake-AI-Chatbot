@@ -223,7 +223,7 @@ class Client
             $detail  = $errData['error']['message'] ?? null;
         }
         $detail = $detail !== null ? $detail : ($lastResp !== false && $lastResp !== null ? $lastResp : 'no response from Gemini');
-        $detail = mb_substr($detail, 0, 300);
+        $detail = mb_substr($detail, 0, 600);
 
         throw new \RuntimeException("Gemini API error {$lastCode} (model: {$model}): {$detail}");
     }

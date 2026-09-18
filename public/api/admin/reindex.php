@@ -32,7 +32,10 @@ $pdo->prepare('UPDATE knowledge_files SET status=?, error=NULL WHERE id=?')->exe
 $err = \Knowledge\FileExtractor::extract($fileId, $file['stored_path'], $file['mime_type']);
 
 if ($err) {
-    $pdo->prepare('UPDATE knowledge_files SET status=?, error=? WHERE id=?')->execute(['error', $err, $fileId]);
+    $status = \Knowledge\FileQueue::recordFailure($pdo, $fileId, $err);
+    if ($status === 'pending') {
+        json_out(['ok' => true, 'queued' => true, 'message' => \Knowledge\FileQueue::RATE_LIMIT_NOTE], 202);
+    }
     json_out(['ok' => false, 'error' => $err], 207);
 }
 

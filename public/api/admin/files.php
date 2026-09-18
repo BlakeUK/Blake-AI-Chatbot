@@ -73,8 +73,10 @@ if ($method === 'POST') {
 
     $err = \Knowledge\FileExtractor::extract($fileId, $destPath, $mime);
     if ($err) {
-        $pdo->prepare('UPDATE knowledge_files SET status=?, error=? WHERE id=?')
-            ->execute(['error', $err, $fileId]);
+        $status = \Knowledge\FileQueue::recordFailure($pdo, $fileId, $err);
+        if ($status === 'pending') {
+            json_out(['id' => $fileId, 'status' => 'queued', 'message' => \Knowledge\FileQueue::RATE_LIMIT_NOTE], 202);
+        }
         json_out(['id' => $fileId, 'status' => 'error', 'error' => $err], 207);
     }
 

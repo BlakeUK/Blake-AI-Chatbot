@@ -379,7 +379,10 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     <div class="card">
       <h2 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Indexed Files</span>
-        <button class="btn btn-secondary" id="scan-all-btn" style="display:none" onclick="scanAllFiles()">↻ Scan All (<span id="scan-all-count">0</span>)</button>
+        <span style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" id="retry-failed-btn" style="display:none" onclick="retryAllFailedFiles()">↻ Retry all failed (<span id="retry-failed-count">0</span>)</button>
+          <button class="btn btn-secondary" id="scan-all-btn" style="display:none" onclick="scanAllFiles()">↻ Scan All (<span id="scan-all-count">0</span>)</button>
+        </span>
       </h2>
       <div id="scan-all-progress" style="margin-top:10px;max-height:220px;overflow-y:auto"></div>
       <div id="scan-all-cancel-row" style="display:none;margin-top:8px"><button class="btn btn-danger" onclick="cancelScanAll()">Cancel remaining</button></div>
@@ -857,10 +860,28 @@ async function loadFiles(){
   const rows=await get(API+'/files.php');
   filesRows=Array.isArray(rows)?rows:[];
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=filesRows.length?filesRows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status)}</span>${r.error?`<br><small style="color:#f5a3a3">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
+  tb.innerHTML=filesRows.length?filesRows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status==='pending'?'queued':r.status)}</span>${r.error?`<br><small style="color:${r.status==='pending'?'#e0c46c':'#f5a3a3'}">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
   updateScanAllButton();
 }
+async function retryAllFailedFiles(){
+  const n=filesRows.filter(r=>r.status==='error').length;
+  if(!n)return flash('No failed files');
+  const btn=document.getElementById('retry-failed-btn');
+  btn.disabled=true;
+  const r=await post(API+'/files_retry_failed.php',{csrf});
+  btn.disabled=false;
+  if(r.error)return flash(r.error,true);
+  flash(`Queued ${r.queued} file(s) for background re-indexing`+(r.skipped_missing?`; ${r.skipped_missing} skipped (stored file missing)`:''));
+  await loadFiles();
+  pollPendingFiles();
+}
 function updateScanAllButton(){
+  const rb=document.getElementById('retry-failed-btn');
+  if(rb){
+    const failed=filesRows.filter(r=>r.status==='error').length;
+    rb.style.display=canEdit()&&failed?'':'none';
+    document.getElementById('retry-failed-count').textContent=failed;
+  }
   const btn=document.getElementById('scan-all-btn');
   if(!btn)return;
   const scannable=filesRows.filter(r=>r.status==='pending'||r.status==='error');
@@ -900,7 +921,9 @@ async function scanAllFiles(){
     try{
       const r=await post(API+'/reindex.php',{csrf,file_id:f.id});
       const el=document.getElementById(rowId);
-      if(!r.error){
+      if(r.queued){
+        if(el){el.className='alert alert-warn';el.textContent=`${f.filename}: ${r.message}`;}
+      }else if(!r.error){
         okCount++;
         if(el){el.className='alert alert-ok';el.textContent=`${f.filename}: indexed — ${r.chunks} chunk(s)`;}
       }else{
@@ -934,7 +957,7 @@ async function uploadFiles(files){
       const r=await fetch(API+'/files.php',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd});
       const d=await r.json();const el=document.getElementById(sid);
       if(d.error){if(el){el.className='alert alert-err';el.textContent=f.name+': '+d.error;}}
-      else if(d.status==='duplicate'){if(el){el.className='alert alert-warn';el.textContent=f.name+': '+d.message;}}
+      else if(d.status==='duplicate'||d.status==='queued'){if(el){el.className='alert alert-warn';el.textContent=f.name+': '+d.message;}if(d.status==='queued')pollPendingFiles();}
       else{if(el){el.className='alert alert-ok';el.textContent=f.name+': '+(d.status==='indexed'?'Indexed ✓':'Error');}}
     }catch(e){prog.innerHTML+=`<div class="alert alert-err">${esc(f.name)}: upload failed</div>`;}
   }
@@ -1222,6 +1245,7 @@ async function deleteFile(id){
 }
 async function retryFile(id){
   const r=await post(API+'/reindex.php',{csrf,file_id:id});
+  if(r.queued){flash(r.message);loadFiles();pollPendingFiles();return;}
   if(!r.error){flash('Re-indexed: '+r.chunks+' chunks');loadFiles();loadDuplicates();}else flash(r.error,true);
 }
 
