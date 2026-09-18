@@ -3,6 +3,9 @@
 // FULL 429 error body (quota metric, quotaId, limit) that Client truncates.
 // Never prints the key itself, only its last 4 characters.
 require dirname(__DIR__, 2) . '/src/bootstrap.php';
+if (in_array('--requeue-failed', $argv ?? [], true)) {
+    print_r(\Knowledge\FileQueue::requeueFailed(db()));
+}
 $key = \Gemini\Client::getStoredApiKey();
 echo "key configured: " . ($key ? 'yes, ends ...' . substr($key, -4) . ' (len ' . strlen($key) . ')' : 'NO') . "\n";
 $chat = \Gemini\Client::getModel('gemini_chat_model', 'gemini_flash');

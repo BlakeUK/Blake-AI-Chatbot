@@ -2,6 +2,11 @@ name: Diagnose Gemini quota
 
 on:
   workflow_dispatch:
+    inputs:
+      requeue_failed:
+        description: "Also re-queue every failed knowledge file for background re-indexing"
+        type: boolean
+        default: false
 
 jobs:
   diag:
@@ -14,6 +19,6 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            cd /var/www/chat && sudo -u www-data php scripts/diag/gemini_quota.php 2>&1 || php scripts/diag/gemini_quota.php 2>&1
+            cd /var/www/chat && php scripts/diag/gemini_quota.php ${{ github.event.inputs.requeue_failed == 'true' && '--requeue-failed' || '' }} 2>&1
             echo "--- last queue log lines"
             tail -n 15 /var/www/chat/logs/import_queue.log 2>/dev/null || true
