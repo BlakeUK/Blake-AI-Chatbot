@@ -18,26 +18,90 @@
   --buk-danger:     #f87171;
 }
 
+/* ── Robot launcher ─────────────────────────────────────────────────────── */
 #buk-chat-btn {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 16px;
+  right: 16px;
   z-index: 9998;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: var(--buk-accent);
-  color: #fff;
+  width: 88px;
+  height: 103px;
+  padding: 0;
+  margin: 0;
+  background: none;
   border: none;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(61,99,255,.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background .15s, transform .15s;
+  display: block;
+  line-height: 0;
+  filter: drop-shadow(0 8px 14px rgba(28,50,179,.35));
+  -webkit-tap-highlight-color: transparent;
 }
-#buk-chat-btn:hover { background: var(--buk-accent-hov); transform: translateY(-1px); }
-#buk-chat-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#buk-chat-btn:focus-visible { outline: 2px solid #3d63ff; outline-offset: 2px; border-radius: 12px; }
+#buk-chat-btn .buk-bot { display: block; overflow: visible; }
+#buk-chat-btn .buk-bot * { transform-box: view-box; }
+
+#buk-chat-btn .buk-bot-body  { animation: buk-bob 3.2s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-head  { transform-origin: 60px 88px; animation: buk-tilt 6.4s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-arm   { transform-origin: 90px 104px; animation: buk-wave 7s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-eyes  { transform-origin: 60px 50px; animation: buk-blink 4.8s infinite; }
+#buk-chat-btn .buk-bot-ear   { animation: buk-ear 2.4s ease-in-out infinite; }
+#buk-chat-btn .buk-bot-halo  { transform-origin: 60px 98px; animation: buk-halo 3.2s ease-out infinite; }
+#buk-chat-btn:hover .buk-bot-head { animation-duration: 1.6s; }
+#buk-chat-btn:hover .buk-bot-arm  { animation: buk-wave-fast 1s ease-in-out infinite; }
+#buk-chat-btn:hover .buk-bot-mouth { d: path("M50 61q10 10 20 0"); }
+
+@keyframes buk-bob   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes buk-tilt  { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(3deg); } }
+@keyframes buk-blink { 0%,90%,100% { transform: scaleY(1); } 94% { transform: scaleY(.15); } }
+@keyframes buk-ear   { 0%,100% { stroke: #f5a623; } 50% { stroke: #ffd27a; } }
+@keyframes buk-halo  { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.22); opacity: 0; } }
+@keyframes buk-wave {
+  0%,60%,100% { transform: rotate(0); }
+  66% { transform: rotate(-16deg); } 72% { transform: rotate(10deg); }
+  78% { transform: rotate(-16deg); } 84% { transform: rotate(10deg); } 90% { transform: rotate(0); }
+}
+@keyframes buk-wave-fast { 0%,100% { transform: rotate(-16deg); } 50% { transform: rotate(10deg); } }
+
+/* ── Greeting bubble ────────────────────────────────────────────────────── */
+#buk-chat-greet {
+  position: fixed;
+  right: 102px;
+  bottom: 70px;
+  z-index: 9998;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 220px;
+  padding: 10px 8px 10px 14px;
+  background: #fff;
+  color: #1a2338;
+  border: 1px solid #dbe3ff;
+  border-radius: 16px 16px 4px 16px;
+  box-shadow: 0 10px 28px rgba(28,50,179,.18);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px) scale(.96);
+  transform-origin: bottom right;
+  transition: opacity .25s, transform .25s, visibility .25s;
+}
+#buk-chat-greet.buk-show { opacity: 1; visibility: visible; transform: none; }
+#buk-greet-open {
+  all: unset;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+#buk-greet-close {
+  all: unset;
+  cursor: pointer;
+  font: 16px/1 sans-serif;
+  color: #98a2b8;
+  padding: 0 4px;
+}
+#buk-greet-open:focus-visible, #buk-greet-close:focus-visible { outline: 2px solid #3d63ff; border-radius: 4px; }
 
 #buk-chat-panel {
   display: none;
@@ -59,7 +123,7 @@
   font-size: 14px;
 }
 @media (prefers-reduced-motion: reduce) {
-  #buk-chat-btn, .buk-typing span { transition: none; animation: none; }
+  #buk-chat-btn, #buk-chat-btn *, #buk-chat-greet, .buk-typing span { transition: none !important; animation: none !important; }
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -288,5 +352,7 @@
 /* ── Small screens ──────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   #buk-chat-panel { bottom: 0; right: 0; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; border-radius: 0; }
-  #buk-chat-btn { bottom: 16px; right: 16px; }
+  #buk-chat-btn { bottom: 10px; right: 10px; width: 76px; height: 89px; }
+  #buk-chat-btn .buk-bot { width: 76px; height: 89px; }
+  #buk-chat-greet { right: 84px; bottom: 58px; max-width: 180px; }
 }

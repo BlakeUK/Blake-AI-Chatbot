@@ -34,10 +34,80 @@
   style.href = ENDPOINT + '/widget/chat.css';
   document.head.appendChild(style);
 
+  // Animated robot mascot launcher (inline SVG, no external assets).
+  // All ids are buk-prefixed so they cannot collide with the host page.
+  const ROBOT_SVG = `
+<svg class="buk-bot" viewBox="0 0 120 140" width="88" height="103" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="buk-bot-disc" cx="50%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#5b7cff"/><stop offset="1" stop-color="#1c32b3"/>
+    </radialGradient>
+    <linearGradient id="buk-bot-shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe4ee"/>
+    </linearGradient>
+    <clipPath id="buk-bot-clip"><circle cx="60" cy="98" r="40"/></clipPath>
+    <filter id="buk-bot-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <circle class="buk-bot-halo" cx="60" cy="98" r="40" fill="none" stroke="#3d63ff" stroke-width="2"/>
+  <circle cx="60" cy="98" r="40" fill="url(#buk-bot-disc)"/>
+  <g class="buk-bot-body">
+    <g clip-path="url(#buk-bot-clip)">
+      <path d="M22 142C22 110 36 95 60 95s38 15 38 47Z" fill="url(#buk-bot-shell)"/>
+      <path d="M31 142c0-22 5-34 14-40M89 142c0-22-5-34-14-40" fill="none" stroke="#3d63ff" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M36 118c8 3 40 3 48 0" fill="none" stroke="#f5a623" stroke-width="1.4" stroke-linecap="round" opacity=".8"/>
+      <rect x="42" y="104" width="36" height="11" rx="4" fill="#fff" stroke="#cfd6e4"/>
+      <circle cx="60" cy="109.5" r="4.2" fill="#2f4fd6"/>
+      <text x="60" y="111.3" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="4.6" fill="#fff">UK</text>
+    </g>
+    <g class="buk-bot-arm">
+      <path d="M90 104 104 82" stroke="#e7ebf3" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="97" cy="93" r="3.2" fill="#2a2f3a"/>
+      <g fill="#fff" stroke="#2a2f3a" stroke-width="1.2">
+        <rect x="100.5" y="64" width="3.6" height="10" rx="1.8"/>
+        <rect x="104.6" y="62.5" width="3.6" height="11" rx="1.8"/>
+        <rect x="108.7" y="64" width="3.6" height="10" rx="1.8"/>
+        <rect x="112.4" y="69" width="3.4" height="8" rx="1.7" transform="rotate(25 114 73)"/>
+        <ellipse cx="106" cy="77" rx="7" ry="6"/>
+      </g>
+    </g>
+    <g class="buk-bot-head">
+      <rect x="51" y="82" width="18" height="12" rx="3" fill="#2a2f3a"/>
+      <circle class="buk-bot-ear" cx="24" cy="51" r="9" fill="#1f3fd1" stroke="#f5a623" stroke-width="2.4"/>
+      <circle class="buk-bot-ear" cx="96" cy="51" r="9" fill="#1f3fd1" stroke="#f5a623" stroke-width="2.4"/>
+      <circle cx="24" cy="51" r="3.6" fill="#8fb4ff"/>
+      <circle cx="96" cy="51" r="3.6" fill="#8fb4ff"/>
+      <rect x="26" y="15" width="68" height="70" rx="32" fill="url(#buk-bot-shell)" stroke="#c9d1e0" stroke-width="1"/>
+      <path d="M46 19c8-3 20-3 28 0" fill="none" stroke="#c9d1e0" stroke-width="1.2" stroke-linecap="round"/>
+      <rect x="33" y="27" width="54" height="47" rx="22" fill="#0a0e1a"/>
+      <path d="M40 38c4-6 12-9 22-9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".16"/>
+      <g filter="url(#buk-bot-glow)" fill="none" stroke-linecap="round">
+        <path d="M42 41q5-3 10-1M68 40q5-2 10 1" stroke="#f5a623" stroke-width="1.8"/>
+        <g class="buk-bot-eyes" stroke="#56a8ff" stroke-width="3.6">
+          <path d="M42 53q6-9 12 0"/>
+          <path d="M66 53q6-9 12 0"/>
+        </g>
+        <path class="buk-bot-mouth" d="M52 62q8 7 16 0" stroke="#56a8ff" stroke-width="2.6"/>
+      </g>
+    </g>
+  </g>
+</svg>`;
+
   const btn = document.createElement('button');
   btn.id = 'buk-chat-btn';
+  btn.type = 'button';
   btn.setAttribute('aria-label', 'Open Blake UK chat');
-  btn.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 1 1 3.2 6.4L4 20l1.1-3.5A7.96 7.96 0 0 1 4 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  btn.innerHTML = ROBOT_SVG;
+
+  // One-off greeting bubble beside the robot, shown once per browser session.
+  const GREET_KEY = 'buk_greeted';
+  const greet = document.createElement('div');
+  greet.id = 'buk-chat-greet';
+  greet.setAttribute('role', 'status');
+  greet.innerHTML = '<button type="button" id="buk-greet-open">Hi! \u{1F44B}<br>How can I help you today?</button>'
+    + '<button type="button" id="buk-greet-close" aria-label="Dismiss">\u00D7</button>';
 
   const panel = document.createElement('div');
   panel.id = 'buk-chat-panel';
@@ -70,6 +140,7 @@
   `;
 
   document.body.appendChild(btn);
+  document.body.appendChild(greet);
   document.body.appendChild(panel);
 
   const messages = panel.querySelector('#buk-chat-messages');
@@ -78,13 +149,27 @@
 
   // ── Toggle ───────────────────────────────────────────────────────────────────
   btn.addEventListener('click', () => togglePanel(true));
+  greet.querySelector('#buk-greet-open').addEventListener('click', () => togglePanel(true));
+  greet.querySelector('#buk-greet-close').addEventListener('click', hideGreeting);
+
+  function hideGreeting() {
+    greet.classList.remove('buk-show');
+    try { sessionStorage.setItem(GREET_KEY, '1'); } catch (e) {}
+  }
+  let greeted = false;
+  try { greeted = sessionStorage.getItem(GREET_KEY) === '1'; } catch (e) {}
+  if (!greeted) {
+    setTimeout(() => { if (!open) greet.classList.add('buk-show'); }, 2500);
+    setTimeout(() => { if (greet.classList.contains('buk-show')) hideGreeting(); }, 14000);
+  }
   panel.querySelector('#buk-chat-close').addEventListener('click', () => togglePanel(false));
   panel.querySelector('#buk-chat-refresh').addEventListener('click', startNewConversation);
 
   function togglePanel(show) {
     open = show;
     panel.style.display = show ? 'flex' : 'none';
-    btn.style.display   = show ? 'none' : 'flex';
+    btn.style.display   = show ? 'none' : 'block';
+    if (show) hideGreeting();
     if (show && !sessionId) initSession();
     if (show) input.focus();
   }
