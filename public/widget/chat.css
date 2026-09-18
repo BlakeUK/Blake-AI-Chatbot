@@ -24,7 +24,7 @@
   bottom: 16px;
   right: 16px;
   z-index: 9998;
-  width: 140px;
+  width: 177px;
   height: 165px;
   padding: 0;
   margin: 0;
@@ -38,29 +38,42 @@
 }
 #buk-chat-btn:focus-visible { outline: 2px solid #3d63ff; outline-offset: 2px; border-radius: 12px; }
 #buk-chat-btn .buk-max { position: relative; display: block; width: 100%; height: 100%; }
+/* Figure canvas is 380x503; the button shows the top 353 rows (head to
+   waist). The rest hangs below the button and is masked out, so the full
+   forearm and hand exist for the wave. */
 #buk-chat-btn .buk-max-body {
-  position: absolute; inset: 0;
-  transform-origin: 50% 100%;
+  position: absolute; left: 0; top: 0;
+  width: 100%; height: 142.5%;
+  transform-origin: 50% 70%;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 46%, transparent 70%), linear-gradient(to right, transparent 0, #000 6%, #000 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 0, #000 46%, transparent 70%), linear-gradient(to right, transparent 0, #000 6%, #000 100%);
+  mask-composite: intersect;
   animation: buk-bob 3.2s ease-in-out infinite, buk-sway 7s ease-in-out infinite;
 }
-#buk-chat-btn .buk-max picture, #buk-chat-btn .buk-max img {
-  display: block; width: 100%; height: 100%;
-  -webkit-user-select: none; user-select: none; pointer-events: none;
+#buk-chat-btn .buk-max-layer, #buk-chat-btn .buk-max-layer img,
+#buk-chat-btn .buk-max-uarm, #buk-chat-btn .buk-max-farm {
+  position: absolute; inset: 0; display: block; width: 100%; height: 100%;
+  -webkit-user-select: none; user-select: none;
 }
-/* Eye glow, positioned over the eyes in the artwork (% of the image box). */
+#buk-chat-btn .buk-max-uarm { transform-origin: 66.8% 39.2%; animation: buk-uarm 14s ease-in-out infinite; }
+#buk-chat-btn .buk-max-farm { transform-origin: 73.4% 57.1%; animation: buk-farm 14s ease-in-out infinite; }
+#buk-chat-btn.buk-talk .buk-max-uarm, #buk-chat-btn:hover .buk-max-uarm { animation: buk-uarm-now 2.6s ease-in-out 1; }
+#buk-chat-btn.buk-talk .buk-max-farm, #buk-chat-btn:hover .buk-max-farm { animation: buk-farm-now 2.6s ease-in-out 1; }
+/* Eye glow over the eyes in the artwork (% of the 380x503 canvas). */
 #buk-chat-btn .buk-max-eye {
-  position: absolute; top: 13.8%;
-  width: 9%; height: 4%;
-  margin: -2% 0 0 -4.5%;
+  position: absolute; top: 9.64%;
+  width: 7.1%; height: 2.8%;
+  margin: -1.4% 0 0 -3.55%;
   border-radius: 50%;
   background: radial-gradient(closest-side, #e8f4ff 0, #6fb6ff 45%, rgba(61,99,255,0) 100%);
   mix-blend-mode: screen;
   animation: buk-eye-glow 2.4s ease-in-out infinite, buk-eye-blink 4.8s infinite;
-  pointer-events: none;
 }
-#buk-chat-btn .buk-max-eye-l { left: 43%; }
-#buk-chat-btn .buk-max-eye-r { left: 54.2%; }
-/* Light sweep across the body, clipped to the robot's silhouette. */
+#buk-chat-btn .buk-max-eye-l { left: 33.95%; }
+#buk-chat-btn .buk-max-eye-r { left: 42.76%; }
+/* Light sweep across the body, clipped to the body silhouette. */
 #buk-chat-btn .buk-max-shine {
   position: absolute; inset: 0;
   -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
@@ -69,7 +82,6 @@
   background-position: 150% 0;
   mix-blend-mode: screen;
   animation: buk-shine 7s ease-in-out infinite;
-  pointer-events: none;
 }
 #buk-chat-btn:hover .buk-max-body { animation-duration: 1.6s, 3s; }
 #buk-chat-btn:hover .buk-max-eye  { animation-duration: .9s, 4.8s; }
@@ -81,11 +93,43 @@
 @keyframes buk-eye-blink { 0%,90%,100% { transform: scaleY(1); } 94% { transform: scaleY(.1); } }
 @keyframes buk-eye-talk  { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.25); } }
 @keyframes buk-shine { 0%,55% { background-position: 150% 0; } 85%,100% { background-position: -50% 0; } }
+/* Wave: every 14 s the upper arm lifts out slightly and the forearm swings
+   up from the elbow, waves three times, then drops back. */
+@keyframes buk-uarm {
+  0%,78%,100% { transform: rotate(0); }
+  81.5%,94%   { transform: rotate(-16deg); }
+  97%         { transform: rotate(-4deg); }
+}
+@keyframes buk-farm {
+  0%,78%,100% { transform: rotate(0); }
+  81.5% { transform: rotate(-150deg); }
+  84%   { transform: rotate(-175deg); }
+  86.5% { transform: rotate(-145deg); }
+  89%   { transform: rotate(-175deg); }
+  91.5% { transform: rotate(-145deg); }
+  94%   { transform: rotate(-160deg); }
+  97%   { transform: rotate(-30deg); }
+}
+@keyframes buk-uarm-now {
+  0%,100% { transform: rotate(0); }
+  15%,78% { transform: rotate(-16deg); }
+  92%     { transform: rotate(-4deg); }
+}
+@keyframes buk-farm-now {
+  0%,100% { transform: rotate(0); }
+  15% { transform: rotate(-150deg); }
+  28% { transform: rotate(-175deg); }
+  41% { transform: rotate(-145deg); }
+  54% { transform: rotate(-175deg); }
+  67% { transform: rotate(-145deg); }
+  78% { transform: rotate(-160deg); }
+  92% { transform: rotate(-30deg); }
+}
 
 /* ── Greeting bubble ────────────────────────────────────────────────────── */
 #buk-chat-greet {
   position: fixed;
-  right: 146px;
+  right: 183px;
   bottom: 116px;
   z-index: 9998;
   display: flex;
@@ -387,6 +431,6 @@
 /* ── Small screens ──────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   #buk-chat-panel { bottom: 0; right: 0; width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; border-radius: 0; }
-  #buk-chat-btn { bottom: 8px; right: 6px; width: 104px; height: 123px; }
-  #buk-chat-greet { right: 104px; bottom: 88px; max-width: 170px; }
+  #buk-chat-btn { bottom: 8px; right: 6px; width: 131px; height: 123px; }
+  #buk-chat-greet { right: 131px; bottom: 88px; max-width: 170px; }
 }

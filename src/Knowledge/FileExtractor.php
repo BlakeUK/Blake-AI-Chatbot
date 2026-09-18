@@ -1,6 +1,6 @@
 <?php
 // src/Knowledge/FileExtractor.php
-// Sends file to Gemini for text extraction, then chunks and indexes result.
+// Extracts text (PDF text layer locally, otherwise Gemini), then chunks and indexes it.
 
 declare(strict_types=1);
 
@@ -8,24 +8,89 @@ namespace Knowledge;
 
 class FileExtractor
 {
+    public const PROMPT_VERBATIM = 'Extract all readable text from this document. Return plain text only, preserving structure where helpful. No commentary.';
+    public const PROMPT_NOTES    = 'Rewrite the full content of this document as detailed technical notes in your own words. Keep every specification, model and part number, measurement, setting, step, warning and table value exactly. Plain text only, no commentary.';
+
+    // Minimum text-layer size (non-whitespace characters) for a PDF to be
+    // treated as a real text PDF rather than a scan with stray OCR noise.
+    public const MIN_TEXT_LAYER_CHARS = 200;
+
+    public static function isRecitation(string $err): bool
+    {
+        return str_contains($err, 'RECITATION');
+    }
+
+    // Plain text from a PDF's embedded text layer, or null when there is
+    // none worth using (scanned PDF) or pdftotext is not installed.
+    public static function pdfTextLayer(string $path): ?string
+    {
+        // shell_exec can be listed in disable_functions under php-fpm; in
+        // PHP 8 calling a disabled function is a fatal Error, not a warning.
+        if (!function_exists('shell_exec')) {
+            return null;
+        }
+        $bin = trim((string)@shell_exec('command -v pdftotext 2>/dev/null'));
+        if ($bin === '') {
+            return null;
+        }
+        $out = @shell_exec(escapeshellcmd($bin) . ' -layout -enc UTF-8 ' . escapeshellarg($path) . ' - 2>/dev/null');
+        if (!is_string($out)) {
+            return null;
+        }
+        return self::usableText($out);
+    }
+
+    // Normalises pdftotext output; null if it is too thin to be a text PDF.
+    public static function usableText(string $text): ?string
+    {
+        $text = str_replace("\f", "\n\n", $text);                 // page breaks
+        $text = preg_replace('/[ \t]{3,}/', '  ', $text);            // -layout column padding
+        $text = preg_replace("/\n{3,}/", "\n\n", $text);
+        $text = trim($text);
+        $chars = preg_match_all('/\S/u', $text);
+        $letters = preg_match_all('/\p{L}/u', $text);
+        if ($chars < self::MIN_TEXT_LAYER_CHARS || $letters < $chars * 0.4) {
+            return null;
+        }
+        return $text;
+    }
+
     // Returns null on success, error string on failure
     public static function extract(int $fileId, string $path, string $mime): ?string
     {
         try {
-            $apiKey = self::getApiKey();
-            if (!$apiKey) {
-                return 'Gemini API key not configured';
-            }
-
             $raw  = file_get_contents($path);
             if ($raw === false) {
                 return 'Cannot read file';
             }
 
-            $b64    = base64_encode($raw);
-            $prompt = 'Extract all readable text from this document. Return plain text only, preserving structure where helpful. No commentary.';
-            $model  = \Gemini\Client::getModel('gemini_extract_model', 'gemini_pro');
-            $text   = (new \Gemini\Client($apiKey))->extractFile($model, $b64, $mime, $prompt);
+            // PDFs with a real text layer are read locally (pdftotext): no
+            // Gemini cost, no rate limit, no output-length cap on long
+            // manuals, and no RECITATION refusals (Gemini declines to
+            // reproduce text it recognises from published material, which
+            // manufacturer manuals often are). Scanned/image-only PDFs have
+            // no usable text layer and still go to Gemini.
+            $text = ($mime === 'application/pdf') ? self::pdfTextLayer($path) : null;
+
+            if ($text === null) {
+                $apiKey = self::getApiKey();
+                if (!$apiKey) {
+                    return 'Gemini API key not configured';
+                }
+                $b64    = base64_encode($raw);
+                $model  = \Gemini\Client::getModel('gemini_extract_model', 'gemini_pro');
+                $gemini = new \Gemini\Client($apiKey);
+                try {
+                    $text = $gemini->extractFile($model, $b64, $mime, self::PROMPT_VERBATIM);
+                } catch (\RuntimeException $e) {
+                    if (!self::isRecitation($e->getMessage())) {
+                        throw $e;
+                    }
+                    // Verbatim output was blocked; ask for the same content
+                    // rewritten as notes, which the recitation check allows.
+                    $text = $gemini->extractFile($model, $b64, $mime, self::PROMPT_NOTES);
+                }
+            }
 
             if (trim($text) === '') {
                 return 'No text extracted from file';

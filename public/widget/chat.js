@@ -34,18 +34,23 @@
   style.href = ENDPOINT + '/widget/chat.css';
   document.head.appendChild(style);
 
-  // Max: animated android mascot launcher. The artwork is a cut-out raster
-  // (widget/img/max.webp, PNG fallback) with the fade baked in; the motion
-  // (bob, sway, eye glow/blink, shine sweep) is CSS on top of it.
+  // Max: animated android mascot launcher. The artwork is cut into three
+  // layers on one shared 380x503 canvas (widget/img/max-body, -uarm, -farm;
+  // webp with PNG fallback): body, upper arm (pivots at the shoulder, under
+  // the shoulder plate) and forearm+hand (pivots at the elbow), so the arm
+  // can be raised to wave. The fade is a CSS mask on the whole figure, so a
+  // raised arm is never faded while the resting arm and waist are.
   const MAX_IMG = ENDPOINT + '/widget/img/max';
+  const maxLayer = (name, cls) => `<picture class="${cls}"><source srcset="${MAX_IMG}-${name}.webp" type="image/webp"><img src="${MAX_IMG}-${name}.png" alt="" draggable="false"></picture>`;
   const ROBOT_SVG = `
 <span class="buk-max" aria-hidden="true">
   <span class="buk-max-body">
-    <picture>
-      <source srcset="${MAX_IMG}.webp" type="image/webp">
-      <img src="${MAX_IMG}.png" alt="" width="140" height="165" draggable="false">
-    </picture>
-    <span class="buk-max-shine" style="-webkit-mask-image:url('${MAX_IMG}.png');mask-image:url('${MAX_IMG}.png')"></span>
+    <span class="buk-max-uarm">
+      <span class="buk-max-farm">${maxLayer('farm', 'buk-max-layer')}</span>
+      ${maxLayer('uarm', 'buk-max-layer')}
+    </span>
+    ${maxLayer('body', 'buk-max-layer')}
+    <span class="buk-max-shine" style="-webkit-mask-image:url('${MAX_IMG}-body.png');mask-image:url('${MAX_IMG}-body.png')"></span>
     <span class="buk-max-eye buk-max-eye-l"></span>
     <span class="buk-max-eye buk-max-eye-r"></span>
   </span>
@@ -172,7 +177,7 @@
     void greet.offsetWidth; // restart the pop transition
     greet.classList.add('buk-show');
     btn.classList.add('buk-talk');
-    greetTimers.push(setTimeout(() => btn.classList.remove('buk-talk'), 1200));
+    greetTimers.push(setTimeout(() => btn.classList.remove('buk-talk'), 2600));
     greetTimers.push(setTimeout(() => {
       hideBubble();
       if (!st.done) scheduleGreeting();

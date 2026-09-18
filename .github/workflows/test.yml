@@ -18,5 +18,8 @@ jobs:
           php-version: '8.2'
           extensions: sqlite3, pdo_sqlite, curl, mbstring, xml, intl, fileinfo
 
+      - name: Install pdftotext (PDF text-layer extraction tests)
+        run: sudo apt-get install -y -qq poppler-utils
+
       - name: Run fast regression suite
         run: php tests/run.php

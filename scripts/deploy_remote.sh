@@ -43,6 +43,9 @@ info "Using PHP $PHP_VERSION"
 # ── SQLite ────────────────────────────────────────────────────────────────────
 command -v sqlite3 >/dev/null 2>&1 || apt-get install -y -qq sqlite3
 
+# ── pdftotext (local PDF text extraction, see Knowledge\\FileExtractor) ──────
+command -v pdftotext >/dev/null 2>&1 || apt-get install -y -qq poppler-utils
+
 # ── Cron ─────────────────────────────────────────────────────────────────────
 if ! command -v crontab >/dev/null 2>&1; then
     info "Installing cron..."
