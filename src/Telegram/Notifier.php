@@ -140,11 +140,20 @@ class Notifier
             CURLOPT_CONNECTTIMEOUT => 5,
         ]);
 
+        $t0    = microtime(true);
         $resp  = curl_exec($ch);
         $errno = curl_errno($ch);
         $err   = curl_error($ch);
         $code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+        $tgOk  = $errno === 0 && $code === 200;
+        \ApiUsage\Logger::log('telegram', [
+            'operation'  => 'sendMessage',
+            'http_code'  => $code,
+            'ok'         => $tgOk,
+            'error'      => $tgOk ? null : ($errno !== 0 ? "Network error: {$err}" : (json_decode((string)$resp, true)['description'] ?? "HTTP $code")),
+            'latency_ms' => (int)((microtime(true) - $t0) * 1000),
+        ]);
 
         if ($errno !== 0) {
             return ['ok' => false, 'error' => "Network error: {$err}"];

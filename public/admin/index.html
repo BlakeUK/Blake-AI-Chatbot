@@ -177,6 +177,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
   <button onclick="switchTab('products',this)">Products</button>
   <button data-role="admin" onclick="switchTab('apikeys',this)">API Keys</button>
   <button data-role="admin" onclick="switchTab('models',this)">Model Settings</button>
+  <button data-role="admin" onclick="switchTab('apiusage',this)">API Usage</button>
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
@@ -519,6 +520,68 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     </div>
   </div>
 
+  <!-- ── API USAGE ── -->
+  <div id="tab-apiusage" class="tab">
+    <div class="card">
+      <h2 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>API Usage &amp; Costs</span>
+        <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="au-days" onchange="loadApiUsage()" style="width:auto">
+            <option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option>
+          </select>
+          <button class="btn btn-secondary" onclick="loadApiUsage()">↺ Refresh</button>
+          <button class="btn btn-secondary" onclick="auLiveCheck()">Live Gemini check</button>
+        </span>
+      </h2>
+      <div id="au-live"></div>
+      <p style="color:#adb4ba;font-size:12px;margin:8px 0 0">Every outbound API call is logged here (Gemini, carrier tracking, postcodes.io, Telegram, website fetches). Gemini costs are estimated from the token counts Google returns multiplied by the prices below; Google only bills successful (200) calls. Google does not expose remaining credit or quota to an API key, so for billed figures use <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" style="color:#8fb0ec">Cloud Billing</a> and for live rate limits <a href="https://ai.dev/rate-limit" target="_blank" rel="noopener" style="color:#8fb0ec">AI Studio rate limits</a>.</p>
+    </div>
+
+    <div class="card">
+      <h2>This month: <span id="au-month-name"></span></h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="au-mtd">—</div><div class="l">Spent so far (est.)</div></div>
+        <div class="stat"><div class="n" id="au-proj">—</div><div class="l">Projected month end</div></div>
+        <div class="stat"><div class="n" id="au-budget">—</div><div class="l">Monthly budget</div></div>
+        <div class="stat"><div class="n" id="au-left">—</div><div class="l">Budget left</div></div>
+      </div>
+      <div style="background:#2c3137;border-radius:6px;height:12px;overflow:hidden"><div id="au-bar" style="height:100%;width:0;background:#3d8a5a;transition:width .3s"></div></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+        <div><label>Monthly budget (USD)</label><input type="number" id="au-budget-in" min="0" step="1" style="width:140px"></div>
+        <div><label>USD → GBP rate</label><input type="number" id="au-gbp-in" min="0.01" max="5" step="0.01" style="width:120px"></div>
+        <button class="btn btn-primary" onclick="saveApiUsageSettings()">Save</button>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat"><div class="n" id="au-calls">—</div><div class="l">API calls</div></div>
+      <div class="stat"><div class="n" id="au-errors">—</div><div class="l">Errors</div></div>
+      <div class="stat"><div class="n" id="au-429">—</div><div class="l">Rate limited (429)</div></div>
+      <div class="stat"><div class="n" id="au-cost">—</div><div class="l">Est. Gemini cost</div></div>
+      <div class="stat"><div class="n" id="au-tin">—</div><div class="l">Input tokens</div></div>
+      <div class="stat"><div class="n" id="au-tout">—</div><div class="l">Output tokens</div></div>
+      <div class="stat"><div class="n" id="au-tthink">—</div><div class="l">Thinking tokens</div></div>
+      <div class="stat"><div class="n" id="au-lat">—</div><div class="l">Avg latency</div></div>
+    </div>
+
+    <div class="card"><h2>Daily cost and calls</h2><div id="au-chart" style="overflow-x:auto"></div></div>
+
+    <div class="card"><h2>By service</h2><div style="overflow-x:auto"><table id="au-services"><thead><tr><th>Service</th><th>Calls</th><th>Errors</th><th>429s</th><th>Avg latency</th><th>Est. cost</th><th>Last call</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h2>Gemini by model</h2><div style="overflow-x:auto"><table id="au-models"><thead><tr><th>Model</th><th>Calls</th><th>Errors</th><th>429s</th><th>Input</th><th>Output</th><th>Thinking</th><th>Est. cost</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h2>Gemini by feature</h2><div style="overflow-x:auto"><table id="au-ops"><thead><tr><th>Feature</th><th>Calls</th><th>Errors</th><th>Tokens</th><th>Est. cost</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h2>Recent errors</h2><div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table id="au-errs"><thead><tr><th>When</th><th>Service</th><th>Feature</th><th>Model</th><th>HTTP</th><th>Error</th></tr></thead><tbody></tbody></table></div></div>
+
+    <div class="card">
+      <h2>Gemini prices (USD per 1M tokens)</h2>
+      <p style="color:#adb4ba;font-size:12px;margin-bottom:8px">Thinking tokens are billed at the output rate. Update these when Google changes prices; new models can be added. Costs already logged are not recalculated.</p>
+      <table id="au-pricing"><thead><tr><th>Model (prefix)</th><th>Input</th><th>Output</th><th></th></tr></thead><tbody></tbody></table>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-secondary" onclick="auAddPriceRow()">+ Add model</button>
+        <button class="btn btn-primary" onclick="saveApiPricing()">Save prices</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── WIDGET CLIENTS ── -->
   <div id="tab-clients" class="tab">
     <div class="card">
@@ -773,6 +836,100 @@ function switchTab(name,el){
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
+  if(name==='apiusage')loadApiUsage();
+}
+
+// ── API Usage ────────────────────────────────────────────────────────────────
+let auData=null;
+const auNum=n=>Number(n||0).toLocaleString('en-GB');
+function auMoney(usd){
+  if(usd===null||usd===undefined)return '—';
+  const r=auData?auData.gbp_rate:0.75;
+  const d=Math.abs(usd)<1?4:2;
+  return `$${Number(usd).toFixed(d)}<small style="font-size:12px;color:#adb4ba;display:block">£${(usd*r).toFixed(d)}</small>`;
+}
+function auMoneyInline(usd){const r=auData?auData.gbp_rate:0.75;const d=Math.abs(usd)<1?4:2;return `$${Number(usd||0).toFixed(d)} <span style="color:#adb4ba">(£${((usd||0)*r).toFixed(d)})</span>`;}
+function auErrCell(n){return n?`<span style="color:#f5a3a3">${auNum(n)}</span>`:'0';}
+async function loadApiUsage(){
+  const days=document.getElementById('au-days').value;
+  const d=await get(API+'/api_usage.php?days='+days);
+  if(!d||d.error){flash((d&&d.error)||'Could not load API usage',true);return;}
+  auData=d;
+  const t=d.totals,m=d.month;
+  const set=(id,h)=>{document.getElementById(id).innerHTML=h;};
+  set('au-month-name',esc(m.month));
+  set('au-mtd',auMoney(m.cost_usd));
+  set('au-proj',auMoney(m.projected_usd));
+  set('au-budget',m.budget_usd?auMoney(m.budget_usd):'<small style="font-size:13px">Not set</small>');
+  set('au-left',m.remaining_usd===null?'—':auMoney(m.remaining_usd));
+  const pct=Math.min(m.used_pct||0,100);
+  const bar=document.getElementById('au-bar');
+  bar.style.width=pct+'%';
+  bar.style.background=pct>=90?'#c0392b':pct>=70?'#d4a017':'#3d8a5a';
+  document.getElementById('au-budget-in').value=m.budget_usd||'';
+  document.getElementById('au-gbp-in').value=d.gbp_rate;
+  set('au-calls',auNum(t.calls));
+  set('au-errors',auErrCell(t.errors)+(t.calls?`<small style="font-size:12px;color:#adb4ba;display:block">${(t.errors/t.calls*100).toFixed(1)}%</small>`:''));
+  set('au-429',auErrCell(t.rate_limited));
+  set('au-cost',auMoney(t.cost_usd));
+  set('au-tin',auNum(t.input_tokens));
+  set('au-tout',auNum(t.output_tokens));
+  set('au-tthink',auNum(t.thinking_tokens));
+  set('au-lat',auNum(t.avg_latency_ms)+'<small style="font-size:13px"> ms</small>');
+  const empty=c=>`<tr><td colspan="${c}" style="color:#adb4ba">No calls in this period.</td></tr>`;
+  document.querySelector('#au-services tbody').innerHTML=d.by_service.length?d.by_service.map(r=>`<tr><td>${esc(r.service)}</td><td>${auNum(r.calls)}</td><td>${auErrCell(r.errors)}</td><td>${auErrCell(r.rate_limited)}</td><td>${auNum(r.avg_latency_ms)} ms</td><td>${r.service==='gemini'?auMoneyInline(r.cost_usd):'<span style="color:#adb4ba">n/a</span>'}</td><td>${fmtDate(r.last_call)}</td></tr>`).join(''):empty(7);
+  document.querySelector('#au-models tbody').innerHTML=d.by_model.length?d.by_model.map(r=>`<tr><td><code>${esc(r.model)}</code></td><td>${auNum(r.calls)}</td><td>${auErrCell(r.errors)}</td><td>${auErrCell(r.rate_limited)}</td><td>${auNum(r.input_tokens)}</td><td>${auNum(r.output_tokens)}</td><td>${auNum(r.thinking_tokens)}</td><td>${auMoneyInline(r.cost_usd)}</td></tr>`).join(''):empty(8);
+  document.querySelector('#au-ops tbody').innerHTML=d.by_operation.length?d.by_operation.map(r=>`<tr><td>${esc((r.operation||'other').replace(/_/g,' '))}</td><td>${auNum(r.calls)}</td><td>${auErrCell(r.errors)}</td><td>${auNum(r.tokens)}</td><td>${auMoneyInline(r.cost_usd)}</td></tr>`).join(''):empty(5);
+  document.querySelector('#au-errs tbody').innerHTML=d.recent_errors.length?d.recent_errors.map(r=>`<tr><td style="white-space:nowrap">${fmtDate(r.created_at)}</td><td>${esc(r.service)}</td><td>${esc(r.operation||'')}</td><td>${r.model?`<code>${esc(r.model)}</code>`:''}</td><td>${r.http_code||'—'}</td><td style="color:#f5a3a3;font-size:12px;max-width:520px">${esc(r.error||'')}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No errors in this period.</td></tr>';
+  auRenderChart(d.daily);
+  auRenderPricing(d.pricing);
+}
+function auRenderChart(rows){
+  const el=document.getElementById('au-chart');
+  if(!rows.length){el.innerHTML='<p style="color:#adb4ba">No calls in this period.</p>';return;}
+  const W=Math.max(rows.length*34,300),H=170,top=12,base=H-28;
+  const maxC=Math.max(...rows.map(r=>r.cost_usd),0.0001),maxN=Math.max(...rows.map(r=>r.calls),1);
+  const bw=Math.min(22,W/rows.length-8);
+  let bars='',line='';
+  rows.forEach((r,i)=>{
+    const x=i*(W/rows.length)+(W/rows.length-bw)/2;
+    const h=(r.cost_usd/maxC)*(base-top);
+    bars+=`<rect x="${x.toFixed(1)}" y="${(base-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="#5b7fd1"><title>${r.day}: $${r.cost_usd.toFixed(4)}, ${r.calls} calls, ${r.errors} errors</title></rect>`;
+    if(r.errors)bars+=`<circle cx="${(x+bw/2).toFixed(1)}" cy="${(base-h-6).toFixed(1)}" r="3" fill="#e0665a"><title>${r.errors} errors</title></circle>`;
+    const cy=base-(r.calls/maxN)*(base-top);
+    line+=`${i?'L':'M'}${(x+bw/2).toFixed(1)} ${cy.toFixed(1)}`;
+    if(rows.length<=31&&(rows.length<=10||i%Math.ceil(rows.length/10)===0))bars+=`<text x="${(x+bw/2).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="10" fill="#adb4ba">${r.day.slice(5)}</text>`;
+  });
+  el.innerHTML=`<svg width="${W}" height="${H}" style="display:block">${bars}<path d="${line}" fill="none" stroke="#e0c46c" stroke-width="1.5"/></svg>
+  <div style="font-size:12px;color:#adb4ba;margin-top:4px"><span style="color:#5b7fd1">■</span> Est. cost per day &nbsp; <span style="color:#e0c46c">━</span> Calls &nbsp; <span style="color:#e0665a">●</span> Day with errors (hover for detail)</div>`;
+}
+function auRenderPricing(p){
+  document.querySelector('#au-pricing tbody').innerHTML=Object.entries(p).map(([m,r])=>auPriceRowHtml(m,r.in,r.out)).join('');
+}
+function auPriceRowHtml(m,i,o){return `<tr><td><input class="au-pm" value="${esc(m)}" placeholder="gemini-x.y-flash"></td><td><input class="au-pi" type="number" min="0" step="0.01" value="${i}"></td><td><input class="au-po" type="number" min="0" step="0.01" value="${o}"></td><td><button class="btn btn-danger" onclick="this.closest('tr').remove()">Remove</button></td></tr>`;}
+function auAddPriceRow(){document.querySelector('#au-pricing tbody').insertAdjacentHTML('beforeend',auPriceRowHtml('','',''));}
+async function saveApiPricing(){
+  const pricing={};
+  for(const tr of document.querySelectorAll('#au-pricing tbody tr')){
+    const m=tr.querySelector('.au-pm').value.trim();if(!m)continue;
+    pricing[m]={in:parseFloat(tr.querySelector('.au-pi').value),out:parseFloat(tr.querySelector('.au-po').value)};
+  }
+  const r=await post(API+'/api_usage.php',{csrf,pricing});
+  if(r.error)return flash(r.error,true);
+  flash('Prices saved');loadApiUsage();
+}
+async function saveApiUsageSettings(){
+  const r=await post(API+'/api_usage.php',{csrf,budget_usd:document.getElementById('au-budget-in').value||0,gbp_rate:document.getElementById('au-gbp-in').value});
+  if(r.error)return flash(r.error,true);
+  flash('Saved');loadApiUsage();
+}
+async function auLiveCheck(){
+  const el=document.getElementById('au-live');
+  el.innerHTML='<div class="alert alert-warn">Checking Gemini…</div>';
+  const r=await get(API+'/gemini_health.php');
+  const row=(label,x)=>x?`<div class="alert ${x.ok?'alert-ok':'alert-err'}" style="margin-bottom:6px">${label} <code>${esc(x.model||'')}</code>: ${x.ok?`OK (${x.latency_ms} ms)`:esc(x.error)}</div>`:'';
+  el.innerHTML=row('Chat model',r.chat)+(r.extract&&r.extract.model!==(r.chat&&r.chat.model)?row('Extraction model',r.extract):'');
+  loadApiUsage();
 }
 function switchImportSubtab(name){
   document.querySelectorAll('.import-subtab').forEach(t=>t.style.display='none');

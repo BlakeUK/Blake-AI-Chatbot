@@ -20,3 +20,8 @@ foreach (array_unique([$ext, $chat, 'gemini-2.5-flash']) as $m) {
     echo "\n== $m -> HTTP $code\n";
     if ($code !== 200) echo str_replace($key, '[KEY]', (string)$resp), "\n";
 }
+try {
+    foreach (db()->query("SELECT service, COUNT(*) c, SUM(ok=0) e, ROUND(SUM(cost_usd),6) cost FROM api_usage_log WHERE created_at > unixepoch()-86400 GROUP BY service") as $r) {
+        echo "usage 24h {$r['service']}: calls {$r['c']}, errors {$r['e']}, cost \${$r['cost']}\n";
+    }
+} catch (\Throwable $e) { echo "api_usage_log: " . $e->getMessage() . "\n"; }

@@ -87,9 +87,18 @@ class Dispatcher
             CURLOPT_HTTPHEADER     => array_merge(['Accept: application/json'], $headers),
             CURLOPT_USERAGENT      => 'Blake-UK-Chatbot/1.0',
         ]);
+        $t0   = microtime(true);
         $resp = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cerr = curl_error($ch);
         curl_close($ch);
+        \ApiUsage\Logger::log('tracking', [
+            'operation'  => parse_url($url, PHP_URL_HOST),
+            'http_code'  => $code,
+            'ok'         => $resp !== false && $code < 400,
+            'error'      => ($resp === false || $code >= 400) ? ($cerr ?: "HTTP $code") : null,
+            'latency_ms' => (int)((microtime(true) - $t0) * 1000),
+        ]);
 
         if ($resp === false || $code >= 400) {
             throw new \RuntimeException("Carrier API returned HTTP $code");

@@ -51,9 +51,17 @@ class SafeFetcher
                 CURLOPT_USERAGENT      => $userAgent,
                 CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             ]);
+            $t0   = microtime(true);
             $body = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $err  = curl_error($ch);
+            \ApiUsage\Logger::log('web_fetch', [
+                'operation'  => parse_url($current, PHP_URL_HOST),
+                'http_code'  => $code,
+                'ok'         => $body !== false && $code >= 200 && $code < 400,
+                'error'      => ($body === false || $code >= 400 || $code === 0) ? ($err ?: "HTTP $code") : null,
+                'latency_ms' => (int)((microtime(true) - $t0) * 1000),
+            ]);
 
             if (in_array($code, [301, 302, 303, 307, 308], true)) {
                 $location = curl_getinfo($ch, CURLINFO_REDIRECT_URL) ?: null;

@@ -194,12 +194,34 @@ class Client
                 CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
                 CURLOPT_TIMEOUT        => $timeoutSeconds,
             ]);
+            $t0   = microtime(true);
             $resp = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $cerr = curl_error($ch);
             curl_close($ch);
+            $ms   = (int)((microtime(true) - $t0) * 1000);
+
+            $data = ($resp !== false) ? (json_decode($resp, true) ?: []) : [];
+            $u    = $data['usageMetadata'] ?? [];
+            $in   = (int)($u['promptTokenCount'] ?? 0);
+            $out  = (int)($u['candidatesTokenCount'] ?? 0);
+            $th   = (int)($u['thoughtsTokenCount'] ?? 0);
+            \ApiUsage\Logger::log('gemini', [
+                'operation'       => \ApiUsage\Logger::callerOperation(),
+                'model'           => $model,
+                'http_code'       => $code,
+                'ok'              => $resp !== false && $code === 200,
+                'error'           => $code === 200 ? null : ($data['error']['message'] ?? ($cerr ?: 'no response')),
+                'input_tokens'    => $in,
+                'output_tokens'   => $out,
+                'thinking_tokens' => $th,
+                'latency_ms'      => $ms,
+                // Google only bills 200 responses.
+                'cost_usd'        => $code === 200 ? \ApiUsage\Logger::geminiCost($model, $in, $out, $th) : 0,
+            ]);
 
             if ($resp !== false && $code === 200) {
-                return self::extractText(json_decode($resp, true) ?: []);
+                return self::extractText($data);
             }
 
             $lastCode = $code;

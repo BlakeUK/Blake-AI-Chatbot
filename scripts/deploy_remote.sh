@@ -313,6 +313,13 @@ else
     warn "Live-chat/presence schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='api_usage_log';" | grep -q api_usage_log; then
+    info "Applying API-usage schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_api_usage.sql"
+else
+    warn "API-usage schema already applied — skipping."
+fi
+
 if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='reception_postcodes';" | grep -q reception_postcodes; then
     info "Applying reception-predictor schema migration..."
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_reception.sql"

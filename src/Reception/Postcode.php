@@ -77,9 +77,18 @@ class Postcode
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_USERAGENT      => 'BlakeUKChatbot/1.0',
         ]);
+        $t0   = microtime(true);
         $body = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cerr = curl_error($ch);
         curl_close($ch);
+        \ApiUsage\Logger::log('postcodes', [
+            'operation'  => 'lookup',
+            'http_code'  => $code,
+            'ok'         => $body !== false && ($code === 200 || $code === 404),
+            'error'      => ($body === false || ($code !== 200 && $code !== 404)) ? ($cerr ?: "HTTP $code") : null,
+            'latency_ms' => (int)((microtime(true) - $t0) * 1000),
+        ]);
         if ($body === false || $code >= 500 || $code === 0) return false;
         if ($code === 404) return ['result' => null];
         $d = json_decode($body, true);
