@@ -383,54 +383,116 @@
   function stopSpeech() {
     speechSeq++;
     if (speechSrc) { try { speechSrc.stop(); } catch (e) {} speechSrc = null; }
+    stopElement();
+    avatar.classList.remove('buk-voice-loading');
     cancelAnimationFrame(mouthRaf);
     avatar.classList.remove('buk-speaking');
     setMouth(0);
   }
 
+  // Report what happened to speech back to the server log (fire and
+  // forget) so "I hear nothing" can be diagnosed from the server side.
+  function reportSpeech(event, detail) {
+    try {
+      fetch(API + '/speak.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, client_event: event, detail: String(detail || '').slice(0, 200) }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
+  let speechEl = null;
+  function stopElement() {
+    if (speechEl) { try { speechEl.pause(); } catch (e) {} URL.revokeObjectURL(speechEl.src); speechEl = null; }
+  }
+
+  // Resolve within ms even if the browser leaves resume() pending.
+  function resumeCtx(ms) {
+    if (!audioCtx || audioCtx.state === 'running') return Promise.resolve();
+    return Promise.race([audioCtx.resume().catch(() => {}), new Promise(r => setTimeout(r, ms))]);
+  }
+
+  function startMouth(readLevel, isDone) {
+    avatar.classList.add('buk-speaking');
+    let level = 0;
+    const tick = () => {
+      if (isDone()) { avatar.classList.remove('buk-speaking'); setMouth(0); return; }
+      // Fast open, slower close: reads as syllables rather than flicker.
+      const target = Math.min(1, readLevel() * 5);
+      level = target > level ? target : level * 0.8 + target * 0.2;
+      setMouth(level);
+      mouthRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
   // what: { message_id } or { kind: 'welcome' }
   async function speak(what) {
-    if (voiceMuted || !audioCtx || !sessionId) return;
+    if (voiceMuted || !sessionId) return;
     stopSpeech();
     const seq = speechSeq;
+    avatar.classList.add('buk-voice-loading');
     try {
       const r = await fetch(API + '/speak.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.assign({ session_id: sessionId }, what)),
       });
-      if (r.status !== 200 || seq !== speechSeq) return;
+      if (seq !== speechSeq) return;
+      if (r.status !== 200) { if (r.status !== 204) reportSpeech('http_error', r.status); return; }
       const buf = await r.arrayBuffer();
-      if (seq !== speechSeq || !open) return;
-      const audio = await new Promise((res, rej) => audioCtx.decodeAudioData(buf, res, rej));
       if (seq !== speechSeq || !open || voiceMuted) return;
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-      const src = audioCtx.createBufferSource();
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      src.buffer = audio;
-      src.connect(analyser);
-      analyser.connect(audioCtx.destination);
-      speechSrc = src;
-      avatar.classList.add('buk-speaking');
-      const data = new Uint8Array(analyser.fftSize);
-      let level = 0;
-      const tick = () => {
-        analyser.getByteTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
-        const rms = Math.sqrt(sum / data.length);
-        // Fast open, slower close: reads as syllables rather than flicker.
-        const target = Math.min(1, rms * 5);
-        level = target > level ? target : level * 0.8 + target * 0.2;
-        setMouth(level);
-        mouthRaf = requestAnimationFrame(tick);
-      };
-      src.onended = () => { if (speechSrc === src) { speechSrc = null; cancelAnimationFrame(mouthRaf); avatar.classList.remove('buk-speaking'); setMouth(0); } };
-      src.start();
-      tick();
+
+      // Preferred path: Web Audio, which also drives the mouth from the
+      // real speech level.
+      await resumeCtx(400);
+      if (audioCtx && audioCtx.state === 'running') {
+        const audio = await new Promise((res, rej) => audioCtx.decodeAudioData(buf.slice(0), res, rej));
+        if (seq !== speechSeq || !open || voiceMuted) return;
+        const src = audioCtx.createBufferSource();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        src.buffer = audio;
+        src.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        speechSrc = src;
+        const data = new Uint8Array(analyser.fftSize);
+        let done = false;
+        src.onended = () => { done = true; if (speechSrc === src) speechSrc = null; };
+        src.start();
+        startMouth(() => {
+          analyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+          return Math.sqrt(sum / data.length);
+        }, () => done || seq !== speechSeq);
+        reportSpeech('played', 'webaudio');
+        return;
+      }
+
+      // Fallback: a plain audio element (no Web Audio, or the context
+      // could not be started). The mouth is animated without level data.
+      const el = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+      speechEl = el;
+      try {
+        await el.play();
+      } catch (e) {
+        reportSpeech('blocked', (e && e.name) + ' ctx=' + (audioCtx ? audioCtx.state : 'none'));
+        stopElement();
+        return;
+      }
+      const t0 = performance.now();
+      startMouth(() => 0.12 + 0.1 * Math.abs(Math.sin((performance.now() - t0) / 90)),
+                 () => el.ended || el.paused || seq !== speechSeq);
+      el.onended = () => { if (speechEl === el) stopElement(); };
+      reportSpeech('played', 'element ctx=' + (audioCtx ? audioCtx.state : 'none'));
     } catch (e) {
-      // Speech is an extra: any failure just leaves the text reply as is.
+      // Speech is an extra: any failure leaves the text reply as it is.
+      reportSpeech('error', (e && (e.name + ': ' + e.message)) || e);
+    } finally {
+      if (seq === speechSeq) avatar.classList.remove('buk-voice-loading');
     }
   }
 

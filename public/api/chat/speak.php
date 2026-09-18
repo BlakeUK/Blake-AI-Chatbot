@@ -30,6 +30,14 @@ if (!$s->fetchColumn()) {
     json_err('Invalid session', 404);
 }
 
+// Widget-side outcome report (played / blocked / error) for diagnosis.
+if (isset($body['client_event'])) {
+    \Speech\Speaker::log($sessionId, 'client:' . preg_replace('/[^a-z_]/', '', (string)$body['client_event']), (string)($body['detail'] ?? ''));
+    http_response_code(204);
+    exit;
+}
+$t0 = microtime(true);
+
 try {
     if (($body['kind'] ?? '') === 'welcome') {
         $text = \Speech\Speaker::WELCOME;
@@ -48,8 +56,10 @@ try {
     }
     $wav = \Speech\Speaker::synthesise($text);
 } catch (\Throwable $e) {
+    \Speech\Speaker::log($sessionId, 'server:error', $e->getMessage());
     json_err('Speech unavailable', 502);
 }
+\Speech\Speaker::log($sessionId, 'server:ok', (($body['kind'] ?? '') === 'welcome' ? 'welcome' : 'msg ' . (int)($body['message_id'] ?? 0)) . ' ' . strlen($wav) . 'B ' . (int)((microtime(true) - $t0) * 1000) . 'ms');
 
 header('Content-Type: audio/wav');
 header('Content-Length: ' . strlen($wav));

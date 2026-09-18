@@ -143,6 +143,20 @@ class Speaker
             . 'data' . pack('V', strlen($pcm)) . $pcm;
     }
 
+    // One line per speech request/outcome in logs/speech.log (rotated at 1 MB).
+    public static function log(string $sessionId, string $event, string $detail = ''): void
+    {
+        try {
+            $dir = ROOT . '/logs';
+            if (!is_dir($dir)) @mkdir($dir, 0770, true);
+            $f = "$dir/speech.log";
+            if (is_file($f) && filesize($f) > 1_000_000) @rename($f, "$f.1");
+            $ua = substr(preg_replace('/\s+/', ' ', (string)($_SERVER['HTTP_USER_AGENT'] ?? '')), 0, 140);
+            $line = gmdate('Y-m-d H:i:s') . ' ' . substr($sessionId, 0, 8) . " {$event} " . str_replace(["\n", "\r"], ' ', mb_substr($detail, 0, 200)) . " | {$ua}\n";
+            @file_put_contents($f, $line, FILE_APPEND | LOCK_EX);
+        } catch (\Throwable $e) {}
+    }
+
     public static function pruneCache(): void
     {
         foreach (glob(self::cacheDir() . '/*.wav') ?: [] as $f) {

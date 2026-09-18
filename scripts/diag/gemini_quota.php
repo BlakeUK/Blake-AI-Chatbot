@@ -51,3 +51,5 @@ foreach (glob('/var/log/caddy/*.log') ?: [] as $f) {
         echo gmdate('H:i:s', (int)($j['ts'] ?? 0)) . ' ' . ($r['method'] ?? '') . ' ' . ($r['uri'] ?? '') . ' ' . ($j['status'] ?? '') . ' ua=' . substr($r['headers']['User-Agent'][0] ?? '', 0, 90) . ' ip=' . substr(md5($r['remote_ip'] ?? ''), 0, 6) . "\n";
     }
 }
+echo "--- speech.log tail\n";
+foreach (array_slice(@file(dirname(__DIR__, 2) . '/logs/speech.log') ?: [], -40) as $l) echo $l;

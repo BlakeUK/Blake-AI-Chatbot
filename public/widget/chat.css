@@ -480,3 +480,6 @@
 #buk-chat-voice.buk-muted .buk-voice-on { display: none; }
 #buk-chat-voice.buk-muted .buk-voice-off { display: block; }
 @media (prefers-reduced-motion: reduce) { #buk-max-avatar .buk-av-eye { animation: none; } }
+/* While Max's speech is being generated (a few seconds): mouth glows softly. */
+#buk-max-avatar.buk-voice-loading #buk-max-mouth { opacity: 1; animation: buk-mouth-wait 1.1s ease-in-out infinite; }
+@keyframes buk-mouth-wait { 0%,100% { box-shadow: 0 0 0 .5px rgba(111,182,255,.3); } 50% { box-shadow: 0 0 0 .5px rgba(111,182,255,.9), 0 0 5px rgba(86,168,255,.8); } }
