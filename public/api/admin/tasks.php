@@ -11,7 +11,7 @@
 // rather than a per-board custom-field system.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 const VALID_STATUSES = ['to_do', 'in_progress', 'done'];

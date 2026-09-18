@@ -40,10 +40,10 @@ if ($existing->fetch()) {
 
 // Build subject from session context if not provided
 if (!$subject) {
-    $lastMsg = $pdo->prepare('SELECT content FROM chat_messages WHERE session_id=? AND role=? ORDER BY created_at DESC LIMIT 1');
+    $lastMsg = $pdo->prepare('SELECT content FROM chat_messages WHERE session_id=? AND role=? ORDER BY id DESC LIMIT 1');
     $lastMsg->execute([$session_id, 'user']);
     $lastQuestion = $lastMsg->fetchColumn() ?: 'Customer support request';
-    $subject = substr($lastQuestion, 0, 100);
+    $subject = mb_substr($lastQuestion, 0, 100);
 }
 
 // Department routing - classify from the conversation itself. Wrapped like
@@ -52,7 +52,7 @@ if (!$subject) {
 // resolves to 'sales' inside the classifier, so this never leaves a ticket
 // unrouted - it either lands correctly or lands somewhere a human sees it.
 try {
-    $recent = $pdo->prepare("SELECT role, content FROM chat_messages WHERE session_id=? AND role IN ('user','assistant') ORDER BY created_at ASC");
+    $recent = $pdo->prepare("SELECT role, content FROM chat_messages WHERE session_id=? AND role IN ('user','assistant') ORDER BY id ASC");
     $recent->execute([$session_id]);
     $routing = \Chat\DepartmentClassifier::classify($recent->fetchAll());
 } catch (\Throwable $e) {

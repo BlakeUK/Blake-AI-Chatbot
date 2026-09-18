@@ -52,3 +52,48 @@ test('an unrelated message is not flagged as tracking', function () {
     $r = \Tracking\Detector::analyse('what colours does this cable come in?');
     assert_false($r['is_tracking']);
 });
+
+suite('Tracking\Detector — aerial/RF false positives');
+
+test('signal fault language is not treated as a tracking query', function () {
+    foreach ([
+        'BBC channels not received since the retune',
+        'Channel 5 is not received on my TV',
+        'the LNB power is not delivered to the second tuner',
+        'DAB signal has not arrived since the storm',
+    ] as $msg) {
+        $r = \Tracking\Detector::analyse($msg);
+        assert_false($r['is_tracking'], "false positive: {$msg}");
+    }
+});
+
+test('ambiguous phrases still count when an order noun is present', function () {
+    assert_true(\Tracking\Detector::analyse('I have not received my order')['is_tracking']);
+    assert_true(\Tracking\Detector::analyse('My parcel has not arrived')['is_tracking']);
+});
+
+test('bare digit runs without tracking context are not carrier numbers', function () {
+    foreach (['Product 1234567890 spec?', 'Is 15501234567890 in stock', 'what is 123456789 used for'] as $msg) {
+        $r = \Tracking\Detector::analyse($msg);
+        assert_false($r['is_tracking'], "false positive: {$msg}");
+        assert_null($r['tracking_no']);
+    }
+});
+
+test('a message that is only a number is treated as a tracking reply', function () {
+    $r = \Tracking\Detector::analyse('1550 1234 5678 90');
+    assert_true($r['is_tracking']);
+    assert_equal('dpd', $r['carrier']);
+    assert_equal('15501234567890', $r['tracking_no']);
+});
+
+test('a 10-digit DPD number with carrier context is detected', function () {
+    $r = \Tracking\Detector::analyse('DPD consignment 1234567890');
+    assert_equal('dpd', $r['carrier']);
+    assert_equal('1234567890', $r['tracking_no']);
+});
+
+test('a DX sales order number needs no context', function () {
+    $r = \Tracking\Detector::analyse('SO201350-1');
+    assert_equal('dx', $r['carrier']);
+});

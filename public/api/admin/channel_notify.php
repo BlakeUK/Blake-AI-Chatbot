@@ -9,7 +9,7 @@
 // ordered by id).
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {

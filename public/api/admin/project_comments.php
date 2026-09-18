@@ -6,7 +6,7 @@
 // either project-level or - with task_id - task-level) | DELETE
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];

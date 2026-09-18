@@ -3,7 +3,7 @@
 // GET (list, with ?id= for one project + its tickets) | POST (create) | PUT (update)
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];

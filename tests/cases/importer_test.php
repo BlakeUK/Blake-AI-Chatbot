@@ -184,3 +184,65 @@ test('HTML in a description is stripped before it reaches the RAG prompt', funct
     assert_false(str_contains($desc, '<b>'));
     assert_str_contains('Plain text only.', $desc);
 });
+
+suite('Products\Importer — flexible feed shapes');
+
+test('scalar and currency-string prices, link/permalink URLs and stock variants import', function () {
+    \Products\Importer::import([
+        ['sku' => 'FLEX-001', 'name' => 'Flex Aerial', 'price' => '£1,024.99', 'link' => '/flex-001.html', 'availability' => 'in stock'],
+        ['sku' => 'FLEX-002', 'name' => 'Flex LNB', 'price' => 12.5, 'permalink' => 'https://www.blake-uk.com/flex-002.html', 'in_stock' => true, 'stock_quantity' => 7],
+        ['id' => 'FLEX-003', 'title' => 'Flex Cable', 'regular_price' => '9.99', 'sale_price' => '8.49', 'stock' => 0],
+    ]);
+    $a = \Knowledge\Search::byCode('FLEX-001');
+    assert_equal(1024.99, (float)$a['price_inc_vat']);
+    assert_equal('https://www.blake-uk.com/flex-001.html', $a['url']);
+    assert_equal('in stock', $a['stock_status']);
+    $b = \Knowledge\Search::byCode('FLEX-002');
+    assert_equal(12.5, (float)$b['price_inc_vat']);
+    assert_equal('In stock (7 available)', $b['stock_status']);
+    $c = \Knowledge\Search::byCode('FLEX-003');
+    assert_equal(8.49, (float)$c['price_inc_vat']);
+    assert_equal('Out of stock', $c['stock_status']);
+});
+
+test('ex-VAT only price derives inc VAT only when the feed states a VAT rate', function () {
+    \Products\Importer::import([
+        ['code' => 'FLEX-004', 'name' => 'With rate', 'price_exc_vat' => '10.00', 'vat_rate' => 20],
+        ['code' => 'FLEX-005', 'name' => 'No rate', 'price_exc_vat' => '10.00'],
+    ]);
+    assert_equal(12.0, (float)\Knowledge\Search::byCode('FLEX-004')['price_inc_vat']);
+    assert_null(\Knowledge\Search::byCode('FLEX-005')['price_inc_vat']);
+});
+
+test('extractProductList finds products under any common JSON root', function () {
+    assert_equal(2, count(\Products\Importer::extractProductList(['data' => ['items' => [['sku' => 'X'], ['sku' => 'Y']]]])));
+    assert_equal(1, count(\Products\Importer::extractProductList(['products' => [['sku' => 'X']]])));
+    assert_equal(1, count(\Products\Importer::extractProductList([['sku' => 'X']])));
+    assert_equal(1, count(\Products\Importer::extractProductList(['sku' => 'X', 'name' => 'single'])));
+    assert_equal(0, count(\Products\Importer::extractProductList(['meta' => 'nothing'])));
+});
+
+test('Google Merchant RSS with g: namespaced fields imports', function () {
+    $xml = simplexml_load_string('<?xml version="1.0"?><rss xmlns:g="http://base.google.com/ns/1.0"><channel><item>'
+        . '<g:id>FLEX-GM1</g:id><title>Flex Mast</title><g:price>19.99 GBP</g:price>'
+        . '<link>https://www.blake-uk.com/flex-gm1.html</link><g:availability>in_stock</g:availability>'
+        . '<g:image_link>https://www.blake-uk.com/img/gm1.jpg</g:image_link></item></channel></rss>');
+    \Products\Importer::import(\Products\Importer::parseXml($xml));
+    $p = \Knowledge\Search::byCode('FLEX-GM1');
+    assert_equal('Flex Mast', $p['name']);
+    assert_equal(19.99, (float)$p['price_inc_vat']);
+    assert_equal('https://www.blake-uk.com/flex-gm1.html', $p['url']);
+    assert_equal('in_stock', $p['stock_status']);
+    assert_equal('https://www.blake-uk.com/img/gm1.jpg', $p['image_url']);
+});
+
+test('feed base_url absolutises relative links', function () {
+    \Products\Importer::import([['sku' => 'FLEX-006', 'name' => 'Rel', 'url' => 'rel.html']], 'https://example.test/');
+    assert_equal('https://example.test/rel.html', \Knowledge\Search::byCode('FLEX-006')['url']);
+    assert_equal('https://example.test', \Products\Importer::feedBaseUrl(['base_url' => 'https://example.test']));
+});
+
+test('javascript: links are rejected', function () {
+    \Products\Importer::import([['sku' => 'FLEX-007', 'name' => 'Bad', 'url' => 'javascript:alert(1)']]);
+    assert_null(\Knowledge\Search::byCode('FLEX-007')['url']);
+});

@@ -9,14 +9,33 @@ namespace Tracking;
 
 class Detector
 {
-    // Tracking/order intent keywords
+    // Unambiguous tracking/order intent phrases - enough on their own.
     private const TRACKING_KEYWORDS = [
-        'where is my order', 'track my order', 'tracking number',
-        'where is my parcel', 'where is my package', 'has it shipped',
-        'has it been dispatched', 'when will it arrive', 'delivery update',
-        'still not arrived', 'not received', 'not delivered', 'missing order',
-        'order status', 'dispatch status', 'delivery status',
+        'where is my order', 'track my order', 'tracking number', 'track my parcel',
+        'where is my parcel', 'where is my package', 'where is my delivery',
+        'has it shipped', 'has it been dispatched', 'has my order', 'when will it arrive',
+        'when will my order', 'delivery update', 'missing order', 'order status',
+        'dispatch status', 'delivery status',
     ];
+
+    // Phrases that are ALSO everyday aerial/RF support language ("channels
+    // not received", "LNB power not delivered"). They only count as tracking
+    // intent when the message also mentions an order/delivery noun - see
+    // ORDER_NOUN_PATTERN.
+    private const AMBIGUOUS_KEYWORDS = [
+        'not received', 'not delivered', 'not arrived', 'still not arrived',
+        "hasn't arrived", 'has not arrived', "didn't arrive", 'did not arrive',
+        "haven't received", 'have not received', 'not turned up',
+    ];
+
+    private const ORDER_NOUN_PATTERN =
+        '/\\b(order|orders|parcel|package|delivery|shipment|consignment|courier|goods|purchase|dpd|royal mail|dx)\\b/i';
+
+    // Context needed before a bare run of digits is treated as a tracking
+    // number. Without it, product/part numbers, EANs and stock queries
+    // ("is 1234567890 in stock?") were classified as DPD/Royal Mail.
+    private const NUMBER_CONTEXT_PATTERN =
+        '/\\b(track|tracking|consignment|parcel|package|order|delivery|dispatch|despatch|shipped|courier|dpd|royal ?mail|dx)\\b/i';
 
     // Carrier tracking number patterns, checked in order - the first match
     // across any carrier wins. Royal Mail's bare 9-digit domestic pattern
@@ -36,11 +55,9 @@ class Detector
         // prefix. The 14-digit patterns below predate that confirmation -
         // not proven wrong, just unconfirmed - kept as fallbacks rather
         // than removed outright.
-        'dpd' => [
-            '/\b(\d{10})\b/',                        // Blake's DPD consignment number
-            '/\b(\d{14})\b/',                        // 14-digit DPD
-            '/\b(1[56]\d{12})\b/',                   // DPD parcel ID
-        ],
+        // DPD numbers are bare digits - see BARE_NUMERIC_PATTERNS, only used
+        // with tracking context.
+        'dpd' => [],
         // Not a DX-issued consignment code - Blake's DX tracking page (see
         // Tracking\LinkBuilder::dx()) looks orders up by Blake's own Sales
         // Order number instead, shown on sales orders (top right) and
@@ -48,6 +65,17 @@ class Detector
         // to hand, so that's what this detects.
         'dx' => [
             '/\b(SO\d{4,8}(?:-\d{1,3})?)\b/i',
+        ],
+    ];
+
+    // Bare-digit carrier formats. Only applied when the message has
+    // tracking context (NUMBER_CONTEXT_PATTERN / intent keyword) or is
+    // nothing but the number itself (a reply to the tracking form prompt).
+    private const BARE_NUMERIC_PATTERNS = [
+        'dpd' => [
+            '/\b(1[56]\d{12})\b/',                   // DPD parcel ID
+            '/\b(\d{14})\b/',                        // 14-digit DPD
+            '/\b(\d{10})\b/',                        // Blake's DPD consignment number
         ],
     ];
 
@@ -68,23 +96,43 @@ class Detector
                 break;
             }
         }
-
-        // Also flag if a tracking number pattern is found
-        $trackingNo = null;
-        $carrier    = null;
-
-        foreach (self::CARRIER_PATTERNS as $c => $patterns) {
-            foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $message, $m)) {
-                    $trackingNo = $m[1];
-                    $carrier    = $c;
+        if (!$isTracking && preg_match(self::ORDER_NOUN_PATTERN, $lower)) {
+            foreach (self::AMBIGUOUS_KEYWORDS as $kw) {
+                if (str_contains($lower, $kw)) {
                     $isTracking = true;
-                    break 2;
+                    break;
                 }
             }
         }
 
-        if ($trackingNo === null && preg_match(self::ROYALMAIL_FALLBACK_PATTERN, $message, $m)) {
+        $trackingNo = null;
+        $carrier    = null;
+
+        // Self-identifying formats (GB-suffixed Royal Mail, SO-prefixed DX).
+        foreach (self::CARRIER_PATTERNS as $c => $patterns) {
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $message, $m)) {
+                    return ['is_tracking' => true, 'tracking_no' => $m[1], 'carrier' => $c];
+                }
+            }
+        }
+
+        $numberOnly = (bool)preg_match('/^[\d\s]+$/', trim($message));
+        $hasContext = $isTracking || $numberOnly || preg_match(self::NUMBER_CONTEXT_PATTERN, $message);
+        if (!$hasContext) {
+            return ['is_tracking' => false, 'tracking_no' => null, 'carrier' => null];
+        }
+
+        $compact = $numberOnly ? preg_replace('/\s+/', '', $message) : $message;
+        foreach (self::BARE_NUMERIC_PATTERNS as $c => $patterns) {
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $compact, $m)) {
+                    return ['is_tracking' => true, 'tracking_no' => $m[1], 'carrier' => $c];
+                }
+            }
+        }
+
+        if (preg_match(self::ROYALMAIL_FALLBACK_PATTERN, $compact, $m)) {
             $trackingNo = $m[1];
             $carrier    = 'royalmail';
             $isTracking = true;

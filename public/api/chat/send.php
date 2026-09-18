@@ -99,7 +99,7 @@ if ($tracking['is_tracking']) {
 $hist = $pdo->prepare('
     SELECT role, content FROM chat_messages
     WHERE session_id = ? AND role IN (\'user\',\'assistant\') AND id != ?
-    ORDER BY created_at DESC LIMIT 6
+    ORDER BY id DESC LIMIT 6
 ');
 $hist->execute([$session_id, $user_msg_id]);
 $history = array_reverse($hist->fetchAll());
@@ -121,6 +121,7 @@ $full_prompt = \Chat\Responder::buildPrompt($ctx, $session['product_code'], $ses
 
 $api_key = getApiKey('gemini');
 if (!$api_key) {
+    $pdo->prepare('DELETE FROM chat_messages WHERE id = ?')->execute([$user_msg_id]);
     json_err('Gemini API key not configured', 503);
 }
 
@@ -135,6 +136,9 @@ try {
     $answer = $gemini->chat(\Gemini\Client::getModel('gemini_chat_model', 'gemini_flash'), $messages, $full_prompt);
 } catch (\Throwable $e) {
     error_log('Gemini error: ' . $e->getMessage());
+    // Drop the unanswered turn so a retry doesn't leave two consecutive
+    // user messages in the history sent to Gemini.
+    $pdo->prepare('DELETE FROM chat_messages WHERE id = ?')->execute([$user_msg_id]);
     json_err('AI service unavailable', 503);
 }
 
@@ -157,7 +161,7 @@ if (!$escalate) {
 // Save sources
 foreach ($knowledge_hits as $h) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
-        ->execute([$bot_msg_id, $h['source_type'], $h['source_id'], $h['url'], substr($h['chunk_text'], 0, 200)]);
+        ->execute([$bot_msg_id, $h['source_type'], $h['source_id'], $h['url'], mb_substr($h['chunk_text'], 0, 200)]);
 }
 foreach ($context_products as $p) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url) VALUES (?,?,?,?)')
@@ -172,7 +176,7 @@ if (!empty($reception['found']) && !empty($reception['recommendation'])) {
     $t = $reception['recommendation']['transmitter'];
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
         ->execute([$bot_msg_id, 'reception', null, \Reception\Advisor::FREEVIEW_CHECKER,
-            substr("{$reception['postcode']}: {$t['name']} {$t['distance_km']}km {$t['bearing_deg']}deg {$reception['recommendation']['aerial']['type']}", 0, 200)]);
+            mb_substr("{$reception['postcode']}: {$t['name']} {$t['distance_km']}km {$t['bearing_deg']}deg {$reception['recommendation']['aerial']['type']}", 0, 200)]);
 }
 
 // Update session timestamp

@@ -42,7 +42,7 @@ class LiveChat
             return ['ok' => false, 'error' => 'Already in a live chat', 'mode' => $session['mode']];
         }
 
-        $recent = $pdo->prepare("SELECT role, content FROM chat_messages WHERE session_id=? AND role IN ('user','assistant') ORDER BY created_at ASC");
+        $recent = $pdo->prepare("SELECT role, content FROM chat_messages WHERE session_id=? AND role IN ('user','assistant') ORDER BY id ASC");
         $recent->execute([$sessionId]);
         $history = $recent->fetchAll();
 
@@ -55,7 +55,7 @@ class LiveChat
         $subject = 'Live chat request';
         foreach (array_reverse($history) as $m) {
             if ($m['role'] === 'user') {
-                $subject = substr($m['content'], 0, 100);
+                $subject = mb_substr($m['content'], 0, 100);
                 break;
             }
         }

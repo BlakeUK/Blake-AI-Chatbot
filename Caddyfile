@@ -96,19 +96,10 @@ blakegroup.uk, www.blakegroup.uk {
     }
 }
 
-admin.blakegroup.uk {
-    redir / /admin/
-
-    @robots path /robots.txt
-    handle @robots {
-        root * /var/www/blakegroup/robots-admin
-        file_server
-    }
-
-    handle {
-        import chat_app
-    }
-}
+# admin.blakegroup.uk removed: the name has no DNS record (NXDOMAIN on
+# 1.1.1.1 and 8.8.8.8), so Caddy was retrying ACME for it indefinitely.
+# The admin panel is served at https://blakegroup.uk/admin/. Re-add a block
+# only after creating the DNS record.
 
 # No content at /chat yet - this just makes the routing exist ahead of it,
 # so dropping an index.html at /var/www/chat/public/chat/ later is all

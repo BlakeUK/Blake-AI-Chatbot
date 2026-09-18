@@ -4,7 +4,7 @@
 // the passive last_active-derived flag agents.php already exposes.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];

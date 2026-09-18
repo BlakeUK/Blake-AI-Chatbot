@@ -4,7 +4,7 @@
 // GET (?session_id=..): full message thread + sources for one session
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -23,7 +23,7 @@ if ($sessionId) {
         SELECT id, role, content, confidence, escalated, created_at
         FROM chat_messages
         WHERE session_id = ?
-        ORDER BY created_at ASC
+        ORDER BY id ASC
     ');
     $stmt->execute([$sessionId]);
     $messages = $stmt->fetchAll();

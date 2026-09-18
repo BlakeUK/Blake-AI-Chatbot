@@ -49,3 +49,16 @@ test('throws and reports the finish reason when a candidate has no parts', funct
     }
     assert_true($threw, 'expected a no-parts candidate to throw');
 });
+
+suite('Gemini\Client::encode');
+
+test('invalid UTF-8 is substituted, never returns an empty body', function () {
+    $body = \Gemini\Client::encode(['contents' => [['parts' => [['text' => substr('£££', 0, 3)]]]]]);
+    assert_true($body !== '' && json_decode($body, true) !== null);
+});
+
+test('the API key is never put in the request URL', function () {
+    $src = file_get_contents(ROOT . '/src/Gemini/Client.php') . file_get_contents(ROOT . '/public/api/admin/models.php');
+    assert_false(str_contains($src, '?key='));
+    assert_true(str_contains($src, 'x-goog-api-key'));
+});

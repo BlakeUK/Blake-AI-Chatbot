@@ -15,12 +15,12 @@ if (!$apiKey) {
     json_err('Gemini API key not configured', 503);
 }
 
-$url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' . urlencode($apiKey);
+$url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000';
 $ch  = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT        => 10,
-    CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+    CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'x-goog-api-key: ' . $apiKey],
 ]);
 $resp = curl_exec($ch);
 $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);

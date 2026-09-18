@@ -6,7 +6,7 @@
 // PUT                -> {id, acknowledged:true} or {id, snooze_hours:N}
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];

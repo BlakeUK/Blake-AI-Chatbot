@@ -100,3 +100,17 @@ test('buildPrompt always carries the "do not invent" and "never make up" guardra
     assert_str_contains('Answer ONLY using the context provided below', $prompt);
     assert_str_contains('Never make up product codes, prices or specifications', $prompt);
 });
+
+suite('UTF-8 safe truncation');
+
+test('chat, escalation, live chat and correction paths never byte-truncate text', function () {
+    foreach (['public/api/chat/send.php', 'public/api/chat/escalate.php', 'src/Chat/LiveChat.php', 'public/api/admin/corrections.php'] as $f) {
+        $src = file_get_contents(ROOT . '/' . $f);
+        assert_false((bool)preg_match('/(?<![_a-z])substr\(/', $src), "{$f} uses byte substr()");
+    }
+});
+
+test('json_out output survives invalid UTF-8', function () {
+    $src = file_get_contents(ROOT . '/src/bootstrap.php');
+    assert_true(str_contains($src, 'JSON_INVALID_UTF8_SUBSTITUTE'));
+});

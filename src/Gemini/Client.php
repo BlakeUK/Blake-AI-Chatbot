@@ -94,13 +94,13 @@ class Client
         if ($thinkingConfig !== null) {
             $genConfig['thinkingConfig'] = $thinkingConfig;
         }
-        $body = json_encode(['contents' => $contents, 'generationConfig' => $genConfig]);
+        $body = self::encode(['contents' => $contents, 'generationConfig' => $genConfig]);
 
         try {
             return $this->post("models/{$model}:generateContent", $body, $model, $timeoutSeconds);
         } catch (\RuntimeException $e) {
             if ($thinkingConfig !== null && stripos($e->getMessage(), 'thinking') !== false) {
-                $bodyRetry = json_encode(['contents' => $contents, 'generationConfig' => $extraGenConfig]);
+                $bodyRetry = self::encode(['contents' => $contents, 'generationConfig' => $extraGenConfig]);
                 return $this->post("models/{$model}:generateContent", $bodyRetry, $model, $timeoutSeconds);
             }
             throw $e;
@@ -185,7 +185,7 @@ class Client
     // natural language. No thinking config: TTS models do not accept it.
     public function speak(string $model, string $prompt, string $voice): array
     {
-        $body = json_encode([
+        $body = self::encode([
             'contents'         => [['parts' => [['text' => $prompt]]]],
             'generationConfig' => [
                 'responseModalities' => ['AUDIO'],
@@ -213,6 +213,15 @@ class Client
         throw new \RuntimeException("Gemini returned no audio (reason: {$reason})");
     }
 
+    // Invalid UTF-8 (e.g. text extracted from a PDF, or a byte-truncated
+    // snippet) makes plain json_encode() return false, which under
+    // strict_types then fails request()'s string parameter. Substitute
+    // instead so one bad byte can't take the chat down.
+    public static function encode(array $payload): string
+    {
+        return (string)json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    }
+
     // Raw request with retry/backoff and usage logging; returns the decoded
     // 200 response body.
     private function request(string $path, string $body, string $model, int $timeoutSeconds): array
@@ -223,7 +232,7 @@ class Client
         // those retries get a chance to run.
         @set_time_limit(max(200, $timeoutSeconds * self::MAX_ATTEMPTS + 20));
 
-        $url = "https://generativelanguage.googleapis.com/v1beta/{$path}?key={$this->apiKey}";
+        $url = "https://generativelanguage.googleapis.com/v1beta/{$path}";
 
         $lastCode = 0;
         $lastResp = null;
@@ -234,7 +243,10 @@ class Client
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => $body,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                // Key in a header, not the query string, so it never appears in
+                // proxy/access logs or curl error output.
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'x-goog-api-key: ' . $this->apiKey],
+                CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_TIMEOUT        => $timeoutSeconds,
             ]);
             $t0   = microtime(true);

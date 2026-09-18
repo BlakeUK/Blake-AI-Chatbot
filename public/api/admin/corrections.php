@@ -41,13 +41,13 @@ if ($promote) {
     // Get the question that triggered this answer
     $qStmt = $pdo->prepare('
         SELECT content FROM chat_messages
-        WHERE session_id=? AND role=? AND created_at < (SELECT created_at FROM chat_messages WHERE id=?)
-        ORDER BY created_at DESC LIMIT 1
+        WHERE session_id=? AND role=? AND id < ?
+        ORDER BY id DESC LIMIT 1
     ');
     $qStmt->execute([$row['session_id'], 'user', $messageId]);
     $question = $qStmt->fetchColumn() ?: 'Customer question';
 
-    $title = 'Corrected: ' . substr($question, 0, 80);
+    $title = 'Corrected: ' . mb_substr($question, 0, 80);
 
     $pdo->prepare('
         INSERT INTO knowledge_entries (title, body, category, active)

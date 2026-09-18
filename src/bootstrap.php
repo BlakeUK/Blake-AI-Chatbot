@@ -39,7 +39,7 @@ function db(): PDO {
 function json_out(mixed $data, int $code = 200): never {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
 
@@ -87,6 +87,32 @@ function cors(): void {
         http_response_code(204);
         exit;
     }
+}
+
+// Admin API CORS. Deliberately narrower than cors(): only Blake UK Group's
+// own site origins and the Tauri operator console. Widget-client origins
+// must never be reflected here - an active widget client with an empty
+// allowed_origins list means "allow all", which through cors() would let
+// any website make credentialed, readable requests to the admin API from
+// a logged-in admin's browser (SameSite=None session cookie).
+function admin_cors(): void {
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if (admin_origin_allowed($origin)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
+        header('Access-Control-Allow-Credentials: true');
+        header('Vary: Origin');
+    }
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+        http_response_code(204);
+        exit;
+    }
+}
+
+function admin_origin_allowed(string $origin): bool {
+    return $origin !== ''
+        && (in_array($origin, FIRST_PARTY_SITE_ORIGINS, true) || in_array($origin, TAURI_APP_ORIGINS, true));
 }
 
 // Mirrors the origin allowlist widget/init.php already enforces before issuing

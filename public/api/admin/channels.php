@@ -5,7 +5,7 @@
 // PUT {id, add_member_id} | {id, remove_member_id} | {id, mark_read:true}
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 
 $method = $_SERVER['REQUEST_METHOD'];

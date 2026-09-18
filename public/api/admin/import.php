@@ -38,13 +38,15 @@ $products = [];
 if ($ext === 'json' || str_contains($mime, 'json')) {
     $data = json_decode($raw, true);
     if (!$data) json_err('Invalid JSON');
-    $products = $data['products'] ?? $data;
+    $products = \Products\Importer::extractProductList($data);
+    $baseUrl  = \Products\Importer::feedBaseUrl($data);
 } else {
     // XML
     libxml_use_internal_errors(true);
     $xml = simplexml_load_string($raw, \SimpleXMLElement::class, LIBXML_NONET);
     if (!$xml) json_err('Invalid XML');
     $products = \Products\Importer::parseXml($xml);
+    $baseUrl  = \Products\Importer::feedBaseUrl($xml);
 }
 
 if (empty($products) || !is_array($products)) {
@@ -52,7 +54,7 @@ if (empty($products) || !is_array($products)) {
 }
 
 // ── Import ────────────────────────────────────────────────────────────────────
-$result = \Products\Importer::import($products);
+$result = \Products\Importer::import($products, $baseUrl ?? null);
 
 $pdo = db();
 $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')

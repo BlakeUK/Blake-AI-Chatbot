@@ -4,7 +4,7 @@
 // wrapper around it, same shape as telegram.php's action-based endpoint.
 
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
-cors();
+admin_cors();
 \Auth\Admin::check();
 \Auth\Admin::requireRole('admin', 'editor');
 
