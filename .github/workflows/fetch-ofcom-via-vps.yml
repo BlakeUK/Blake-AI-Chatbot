@@ -26,6 +26,6 @@ jobs:
             head -c 2 "$F" | grep -q PK || { echo "not an xlsx"; head -c 300 "$F"; rm -f "$F"; exit 1; }
             echo "XLSX_SHA256 $(sha256sum "$F" | cut -d' ' -f1)"
             echo "XLSX_B64_BEGIN"
-            base64 -w 0 "$F"; echo
+            base64 -w 76 "$F"
             echo "XLSX_B64_END"
             rm -f "$F"
