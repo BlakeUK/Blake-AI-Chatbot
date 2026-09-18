@@ -64,3 +64,13 @@ test('settings(): defaults to enabled, male Charon voice, Yorkshire style', func
     assert_true(str_contains($c['style'], 'Yorkshire'));
     assert_true(in_array($c['voice'], \Speech\Speaker::MALE_VOICES, true));
 });
+
+test('settings(): a stored earlier default style is upgraded; a custom style is kept', function () {
+    $pdo = db();
+    \ApiUsage\Stats::saveSetting($pdo, 'tts_style', \Speech\Speaker::OLD_STYLES[0]);
+    assert_equal(\Speech\Speaker::DEFAULT_STYLE, \Speech\Speaker::settings()['style']);
+    \ApiUsage\Stats::saveSetting($pdo, 'tts_style', 'Custom style');
+    assert_equal('Custom style', \Speech\Speaker::settings()['style']);
+    $pdo->exec("DELETE FROM settings WHERE key = 'tts_style'");
+    assert_true(str_contains(\Speech\Speaker::DEFAULT_STYLE, 'professional'));
+});

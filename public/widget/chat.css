@@ -61,6 +61,10 @@
 #buk-chat-btn .buk-max-farm { transform-origin: 73.4% 57.1%; animation: buk-farm 14s ease-in-out infinite; }
 #buk-chat-btn.buk-talk .buk-max-uarm, #buk-chat-btn:hover .buk-max-uarm { animation: buk-uarm-now 2.6s ease-in-out 1; }
 #buk-chat-btn.buk-talk .buk-max-farm, #buk-chat-btn:hover .buk-max-farm { animation: buk-farm-now 2.6s ease-in-out 1; }
+#buk-chat-btn .buk-max-palm { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; opacity: 0; animation: buk-hand-palm 14s linear infinite; }
+#buk-chat-btn .buk-max-hand { animation: buk-hand-img 14s linear infinite; }
+#buk-chat-btn.buk-talk .buk-max-palm, #buk-chat-btn:hover .buk-max-palm { animation: buk-hand-palm-now 2.6s linear 1; }
+#buk-chat-btn.buk-talk .buk-max-hand, #buk-chat-btn:hover .buk-max-hand { animation: buk-hand-img-now 2.6s linear 1; }
 /* Eye glow over the eyes in the artwork (% of the 380x503 canvas). */
 #buk-chat-btn .buk-max-eye {
   position: absolute; top: 9.64%;
@@ -94,40 +98,44 @@
 @keyframes buk-eye-talk  { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.25); } }
 @keyframes buk-shine { 0%,55% { background-position: 150% 0; } 85%,100% { background-position: -50% 0; } }
 /* Wave: every 14 s the upper arm lifts out slightly and the forearm swings
-   up from the elbow, waves three times, then drops back. The forearm is
-   mirrored about its own axis while raised (scaleX(-1)) so the palm faces
-   the viewer with the thumb inward, as a real raised hand would; the
-   mirror flip mid-swing reads as the wrist turning. */
+   up from the elbow, waves three times, then drops back. While raised the
+   hanging-hand artwork (back of the hand) is swapped for an open palm
+   facing the viewer, thumb towards the head. */
 @keyframes buk-uarm {
   0%,78%,100% { transform: rotate(0); }
   81.5%,94%   { transform: rotate(-16deg); }
   97%         { transform: rotate(-4deg); }
 }
 @keyframes buk-farm {
-  0%,78%,100% { transform: rotate(0) scaleX(1); }
-  81.5% { transform: rotate(-162deg) scaleX(-1); }
-  84%   { transform: rotate(-188deg) scaleX(-1); }
-  86.5% { transform: rotate(-160deg) scaleX(-1); }
-  89%   { transform: rotate(-188deg) scaleX(-1); }
-  91.5% { transform: rotate(-160deg) scaleX(-1); }
-  94%   { transform: rotate(-172deg) scaleX(-1); }
-  97%   { transform: rotate(-30deg) scaleX(1); }
+  0%,78%,100% { transform: rotate(0); }
+  81.5% { transform: rotate(-150deg); }
+  84%   { transform: rotate(-170deg); }
+  86.5% { transform: rotate(-146deg); }
+  89%   { transform: rotate(-170deg); }
+  91.5% { transform: rotate(-146deg); }
+  94%   { transform: rotate(-158deg); }
+  97%   { transform: rotate(-30deg); }
 }
+/* Hanging-hand artwork out, open palm in, while the arm is up. */
+@keyframes buk-hand-img  { 0%,79%,96.5%,100% { opacity: 1; } 80.5%,95% { opacity: 0; } }
+@keyframes buk-hand-palm { 0%,79%,96.5%,100% { opacity: 0; } 80.5%,95% { opacity: 1; } }
 @keyframes buk-uarm-now {
   0%,100% { transform: rotate(0); }
   15%,78% { transform: rotate(-16deg); }
   92%     { transform: rotate(-4deg); }
 }
 @keyframes buk-farm-now {
-  0%,100% { transform: rotate(0) scaleX(1); }
-  15% { transform: rotate(-162deg) scaleX(-1); }
-  28% { transform: rotate(-188deg) scaleX(-1); }
-  41% { transform: rotate(-160deg) scaleX(-1); }
-  54% { transform: rotate(-188deg) scaleX(-1); }
-  67% { transform: rotate(-160deg) scaleX(-1); }
-  78% { transform: rotate(-172deg) scaleX(-1); }
-  92% { transform: rotate(-30deg) scaleX(1); }
+  0%,100% { transform: rotate(0); }
+  15% { transform: rotate(-150deg); }
+  28% { transform: rotate(-170deg); }
+  41% { transform: rotate(-146deg); }
+  54% { transform: rotate(-170deg); }
+  67% { transform: rotate(-146deg); }
+  78% { transform: rotate(-158deg); }
+  92% { transform: rotate(-30deg); }
 }
+@keyframes buk-hand-img-now  { 0%,5%,90%,100% { opacity: 1; } 11%,84% { opacity: 0; } }
+@keyframes buk-hand-palm-now { 0%,5%,90%,100% { opacity: 0; } 11%,84% { opacity: 1; } }
 
 /* ── Greeting bubble ────────────────────────────────────────────────────── */
 #buk-chat-greet {

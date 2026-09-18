@@ -19,6 +19,11 @@
     # fetched in CORS mode, so they need this or the effect silently fails.
     @widgetimg path /widget/img/*
     header @widgetimg Access-Control-Allow-Origin "*"
+    # Widget files keep the same URLs across deploys, so make browsers
+    # revalidate (cheap 304 via ETag) instead of heuristically caching a
+    # stale chat.js/chat.css/artwork for hours after a release.
+    @widget path /widget/*
+    header @widget Cache-Control "no-cache"
 
     header {
         X-Content-Type-Options nosniff
@@ -71,6 +76,11 @@ blakegroup.uk, www.blakegroup.uk {
     header @downloads Access-Control-Allow-Origin "*"
     @widgetimg path /widget/img/*
     header @widgetimg Access-Control-Allow-Origin "*"
+    # Widget files keep the same URLs across deploys, so make browsers
+    # revalidate (cheap 304 via ETag) instead of heuristically caching a
+    # stale chat.js/chat.css/artwork for hours after a release.
+    @widget path /widget/*
+    header @widget Cache-Control "no-cache"
 
     handle {
         root * /var/www/chat/public

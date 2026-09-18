@@ -9,8 +9,11 @@ class Speaker
 {
     public const DEFAULT_MODEL = 'gemini-3.1-flash-tts-preview';
     public const DEFAULT_VOICE = 'Charon';   // male
-    public const DEFAULT_STYLE = 'Read this aloud as Max, a warm, friendly, down-to-earth man from Yorkshire in the north of England, with a natural broad Yorkshire accent, speaking at a relaxed conversational pace';
-    public const WELCOME       = "Now then! I'm Max, Blake UK's support assistant. What can I help you with today?";
+    public const DEFAULT_STYLE = 'Read this aloud as Max, a professional customer support advisor for Blake UK. Speak clearly and confidently in a polished, courteous business tone with a light, natural Yorkshire accent: warm and approachable but never casual, exaggerated or comedic. Measured pace, crisp diction, natural pauses at full stops';
+    // Earlier defaults: a stored copy of one of these is treated as "not
+    // customised" and upgraded to the current default.
+    public const OLD_STYLES    = ['Read this aloud as Max, a warm, friendly, down-to-earth man from Yorkshire in the north of England, with a natural broad Yorkshire accent, speaking at a relaxed conversational pace'];
+    public const WELCOME       = "Hello, I'm Max, Blake UK's support assistant. How can I help you today?";
     public const LINKS_LINE    = "I've included the links below.";
     public const MAX_WORDS     = 60;
     public const CACHE_DAYS    = 30;
@@ -32,7 +35,7 @@ class Speaker
             'enabled' => $get('voice_enabled', '1') === '1',
             'model'   => $get('tts_model', self::DEFAULT_MODEL),
             'voice'   => $get('tts_voice', self::DEFAULT_VOICE),
-            'style'   => $get('tts_style', self::DEFAULT_STYLE),
+            'style'   => in_array($style = $get('tts_style', self::DEFAULT_STYLE), self::OLD_STYLES, true) ? self::DEFAULT_STYLE : $style,
         ];
     }
 
@@ -85,7 +88,7 @@ class Speaker
             $key = \Gemini\Client::getStoredApiKey();
             if (!$key) return self::fallbackSummary($reply);
             $prompt = "You are Max, Blake UK's friendly support assistant. Rewrite the chat reply below as what you would say out loud in one to three short sentences (no more than " . self::MAX_WORDS . " words). "
-                . "Give the key point or answer only. Never read out web addresses, URLs, long product codes or lists; do not use markdown, emojis or symbols. Use plain spoken British English."
+                . "Give the key point or answer only. Never read out web addresses, URLs, long product codes or lists; do not use markdown, emojis or symbols. Use clear, polished, professional British English suitable for a customer support advisor: courteous and helpful, no slang or dialect words."
                 . ($links ? " The reply contains links, so end with exactly: \"" . self::LINKS_LINE . "\"" : '')
                 . " Output only the words to speak.\n\nREPLY:\n" . $clean;
             $out = (new \Gemini\Client($key))->chat(
