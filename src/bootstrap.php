@@ -64,9 +64,20 @@ function json_body(): array {
 // macOS/Linux (WebKitGTK/WKWebView).
 const TAURI_APP_ORIGINS = ['http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost'];
 
+// Blake UK Group's own site origins. Fixed properties of this deployment
+// (the Caddyfile serves the app on these hosts), not per-server config, so
+// they live in code like TAURI_APP_ORIGINS. Lets the widget embedded on the
+// blakegroup.uk intro site open first-party sessions without a widget token.
+const FIRST_PARTY_SITE_ORIGINS = ['https://blakegroup.uk', 'https://www.blakegroup.uk', 'https://chat.blakegroup.uk'];
+
+function is_first_party_origin(string $origin): bool {
+    if ($origin === '') return false;
+    return in_array($origin, CFG['cors_origins'], true) || in_array($origin, FIRST_PARTY_SITE_ORIGINS, true);
+}
+
 function cors(): void {
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if (in_array($origin, CFG['cors_origins'], true) || in_array($origin, TAURI_APP_ORIGINS, true) || widget_origin_allowed($origin)) {
+    if (is_first_party_origin($origin) || in_array($origin, TAURI_APP_ORIGINS, true) || widget_origin_allowed($origin)) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
         header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');

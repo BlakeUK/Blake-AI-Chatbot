@@ -204,5 +204,8 @@ class Component extends DCLogic {
   }
 }
 </script>
+<!-- Blake AI support widget (testing). Same-origin endpoint: /api and /widget on this host route to the chatbot app. -->
+<script>window.BlakeUKWidget = { endpoint: location.origin };</script>
+<script src="/widget/chat.js" defer></script>
 </body>
 </html>

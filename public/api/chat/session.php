@@ -25,7 +25,7 @@ $pdo  = db();
 $origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
 $appKey  = $_SERVER['HTTP_X_APP_KEY'] ?? '';
 $isMobileApp  = $origin === '' && $appKey !== '' && hash_equals(CFG['mobile_app_key'], $appKey);
-$isFirstParty = in_array($origin, CFG['cors_origins'], true) || $isMobileApp;
+$isFirstParty = is_first_party_origin($origin) || $isMobileApp;
 
 if (!empty($body['token'])) {
     $tok = $pdo->prepare('SELECT * FROM widget_tokens WHERE token = ?');
