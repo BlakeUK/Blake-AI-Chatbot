@@ -1,0 +1,17 @@
+name: Diagnose Gemini quota
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run diagnostic on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /var/www/chat && php scripts/diag/gemini_quota.php 2>&1 | sed 's/^/DIAG| /'
