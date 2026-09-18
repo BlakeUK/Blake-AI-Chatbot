@@ -122,19 +122,25 @@
   btn.setAttribute('aria-label', 'Open Blake UK chat');
   btn.innerHTML = ROBOT_SVG;
 
-  // Speech bubble beside the robot. Pops up on every page load and
-  // repeats a few times with rotating prompts while the chat is closed.
-  // Dismissing it (x) or opening the chat stops it for the browser session.
-  const GREET_KEY = 'buk_greeted';
+  // Speech bubble beside the robot. Schedule per browser session:
+  // appears 10 s after first load, stays 5 s, hides 60 s, appears once
+  // more for 5 s, then stops for the session. The schedule is kept in
+  // sessionStorage so it carries across page navigations. Dismissing (x)
+  // or opening the chat stops it immediately for the session.
+  const GREET_KEY = 'buk_greet_v2';
+  const GREET_FIRST_MS = 10000;
+  const GREET_SHOW_MS  = 5000;
+  const GREET_GAP_MS   = 60000;
+  const GREET_MAX      = 2;
   const GREET_LINES = [
     'Hi! \u{1F44B}<br>Can I help you?',
-    'Need help choosing<br>the right aerial?',
-    'Looking for a product?<br>I can find it for you.',
-    'Question about an order?<br>Just ask me.'
+    'Still looking?<br>Ask me anything.'
   ];
   const greet = document.createElement('div');
   greet.id = 'buk-chat-greet';
   greet.setAttribute('role', 'status');
+  // Inline hidden so it cannot flash before chat.css has loaded.
+  greet.style.display = 'none';
   greet.innerHTML = '<button type="button" id="buk-greet-open">' + GREET_LINES[0] + '</button>'
     + '<button type="button" id="buk-greet-close" aria-label="Dismiss">\u00D7</button>';
 
@@ -168,6 +174,14 @@
     </div>
   `;
 
+  // Keep everything hidden until chat.css has loaded, otherwise the
+  // unstyled panel and robot flash onto the host page for a moment.
+  panel.style.display = 'none';
+  btn.style.visibility = 'hidden';
+  const revealLauncher = () => { btn.style.visibility = ''; };
+  style.addEventListener('load', revealLauncher);
+  style.addEventListener('error', revealLauncher);
+  if (style.sheet) revealLauncher();
   document.body.appendChild(btn);
   document.body.appendChild(greet);
   document.body.appendChild(panel);
@@ -182,31 +196,54 @@
   greet.querySelector('#buk-greet-close').addEventListener('click', hideGreeting);
 
   const greetTimers = [];
-  function stopGreeting() {
+  function greetState() {
+    try { return JSON.parse(sessionStorage.getItem(GREET_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveGreetState(st) {
+    try { sessionStorage.setItem(GREET_KEY, JSON.stringify(st)); } catch (e) {}
+  }
+  function hideBubble() {
+    greet.classList.remove('buk-show');
+    greetTimers.push(setTimeout(() => { greet.style.display = 'none'; }, 300));
+  }
+  function hideGreeting() {
     greetTimers.forEach(clearTimeout);
     greetTimers.length = 0;
     greet.classList.remove('buk-show');
+    greet.style.display = 'none';
+    const st = greetState();
+    st.done = true;
+    saveGreetState(st);
   }
-  function hideGreeting() {
-    stopGreeting();
-    try { sessionStorage.setItem(GREET_KEY, '1'); } catch (e) {}
+  function scheduleGreeting() {
+    const st = greetState();
+    if (st.done || (st.shown || 0) >= GREET_MAX) return;
+    const now = Date.now();
+    if (!st.next) { st.next = now + GREET_FIRST_MS; saveGreetState(st); }
+    // Never pop instantly on a fresh page even if the slot passed mid-navigation.
+    greetTimers.push(setTimeout(popGreeting, Math.max(st.next - now, 3000)));
   }
-  function popGreeting(i) {
+  function popGreeting() {
     if (open) return;
-    greet.querySelector('#buk-greet-open').innerHTML = GREET_LINES[i % GREET_LINES.length];
+    const st = greetState();
+    if (st.done) return;
+    const n = st.shown || 0;
+    st.shown = n + 1;
+    st.next = Date.now() + GREET_SHOW_MS + GREET_GAP_MS;
+    if (st.shown >= GREET_MAX) st.done = true;
+    saveGreetState(st);
+    greet.querySelector('#buk-greet-open').innerHTML = GREET_LINES[Math.min(n, GREET_LINES.length - 1)];
+    greet.style.display = 'flex';
+    void greet.offsetWidth; // restart the pop transition
     greet.classList.add('buk-show');
     btn.classList.add('buk-talk');
     greetTimers.push(setTimeout(() => btn.classList.remove('buk-talk'), 1200));
-    greetTimers.push(setTimeout(() => greet.classList.remove('buk-show'), 9000));
+    greetTimers.push(setTimeout(() => {
+      hideBubble();
+      if (!st.done) scheduleGreeting();
+    }, GREET_SHOW_MS));
   }
-  let greeted = false;
-  try { greeted = sessionStorage.getItem(GREET_KEY) === '1'; } catch (e) {}
-  if (!greeted) {
-    // 2.5 s after load, then every 40 s, 4 times in total per page.
-    for (let i = 0; i < 4; i++) {
-      greetTimers.push(setTimeout(() => popGreeting(i), 2500 + i * 40000));
-    }
-  }
+  scheduleGreeting();
   panel.querySelector('#buk-chat-close').addEventListener('click', () => togglePanel(false));
   panel.querySelector('#buk-chat-refresh').addEventListener('click', startNewConversation);
 
