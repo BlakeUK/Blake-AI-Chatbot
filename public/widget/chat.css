@@ -71,11 +71,11 @@
   gap: 4px;
   max-width: 220px;
   padding: 10px 8px 10px 14px;
-  background: #fff;
-  color: #1a2338;
-  border: 1px solid #dbe3ff;
+  background: #415ba5; /* Blake UK logo blue */
+  color: #fff;
+  border: 1px solid #415ba5;
   border-radius: 16px 16px 4px 16px;
-  box-shadow: 0 10px 28px rgba(28,50,179,.18);
+  box-shadow: 0 10px 28px rgba(65,91,165,.35);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.35;
@@ -93,9 +93,9 @@
   bottom: 14px;
   width: 16px;
   height: 16px;
-  background: #fff;
-  border-right: 1px solid #dbe3ff;
-  border-bottom: 1px solid #dbe3ff;
+  background: #415ba5;
+  border-right: 1px solid #415ba5;
+  border-bottom: 1px solid #415ba5;
   transform: rotate(-45deg);
   border-bottom-right-radius: 3px;
 }
@@ -112,10 +112,11 @@
   all: unset;
   cursor: pointer;
   font: 16px/1 sans-serif;
-  color: #98a2b8;
+  color: rgba(255,255,255,.75);
   padding: 0 4px;
 }
-#buk-greet-open:focus-visible, #buk-greet-close:focus-visible { outline: 2px solid #3d63ff; border-radius: 4px; }
+#buk-greet-open:focus-visible, #buk-greet-close:focus-visible { outline: 2px solid #fff; border-radius: 4px; }
+#buk-greet-close:hover { color: #fff; }
 
 #buk-chat-panel {
   display: none;
