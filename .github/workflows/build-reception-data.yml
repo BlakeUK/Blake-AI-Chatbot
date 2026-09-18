@@ -3,8 +3,10 @@ name: Build reception data
 # Builds the TV reception predictor's data (Ofcom transmitter list +
 # compressed terrain tiles) on the runner and copies it to the VPS at
 # /var/www/chat/data/reception/. Not part of deploy.yml: the source data
-# changes rarely, and the terrain build downloads ~0.5 GB that must never
-# touch the VPS disk. Run manually when Ofcom updates its spreadsheet.
+# changes rarely, and the terrain build downloads ~0.2 GB that must never
+# touch the VPS disk. Ofcom blocks CI runners, so its spreadsheet is kept in
+# scripts/reception/source/ (OGL v3.0); replace that file when Ofcom updates
+# it, then run this workflow.
 
 on:
   workflow_dispatch:
@@ -24,18 +26,8 @@ jobs:
       - name: Install tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin php-cli php-zip
 
-      - name: Fetch Ofcom transmitter spreadsheet
-        run: bash scripts/reception/fetch_ofcom.sh build/ofcom.xlsx
-
-      - name: Keep source spreadsheet
-        uses: actions/upload-artifact@v4
-        with:
-          name: ofcom-xlsx
-          path: build/ofcom.xlsx
-          retention-days: 14
-
       - name: Build transmitters.json
-        run: php scripts/reception/build_transmitters.php build/ofcom.xlsx build/reception/transmitters.json
+        run: php scripts/reception/build_transmitters.php scripts/reception/source/ofcom-dtt-transmitters.xlsx build/reception/transmitters.json
 
       - name: Build terrain tiles
         run: bash scripts/reception/build_terrain.sh build/work build/reception/terrain

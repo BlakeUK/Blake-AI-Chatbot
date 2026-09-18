@@ -91,14 +91,6 @@ if ($tracking['is_tracking']) {
 // Shared with tests/eval/run.php via \Chat\Responder so the RAG pipeline
 // under test is the exact code path production runs, not a reimplementation.
 
-$ctx = \Chat\Responder::buildContext($message, $session['product_code']);
-$knowledge_hits    = $ctx['knowledge_hits'];
-$product_hits      = $ctx['product_hits'];
-$context_products  = $ctx['context_products'];
-$keyword_links     = $ctx['keyword_links'];
-
-$full_prompt = \Chat\Responder::buildPrompt($ctx, $session['product_code'], $session['page_url']);
-
 // Load previous messages (last 6), excluding the one just inserted above.
 // Excluded by id rather than by matching role+content against $message -
 // the old content-match approach also stripped any earlier message that
@@ -111,6 +103,19 @@ $hist = $pdo->prepare('
 ');
 $hist->execute([$session_id, $user_msg_id]);
 $history = array_reverse($hist->fetchAll());
+
+// Recent customer messages only - lets a bare postcode reply ("S3 9PT")
+// be recognised as part of an earlier TV-aerial question.
+$recent_text = implode("\n", array_map(fn($m) => $m['content'], array_filter($history, fn($m) => $m['role'] === 'user')));
+
+$ctx = \Chat\Responder::buildContext($message, $session['product_code'], $recent_text);
+$knowledge_hits    = $ctx['knowledge_hits'];
+$product_hits      = $ctx['product_hits'];
+$context_products  = $ctx['context_products'];
+$keyword_links     = $ctx['keyword_links'];
+$reception         = $ctx['reception'];
+
+$full_prompt = \Chat\Responder::buildPrompt($ctx, $session['product_code'], $session['page_url']);
 
 // ── Call Gemini ───────────────────────────────────────────────────────────────
 
@@ -134,7 +139,7 @@ try {
 }
 
 // ── Confidence heuristic ──────────────────────────────────────────────────────
-$confidence = \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links);
+$confidence = \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links, $reception);
 $escalate   = \Chat\Responder::shouldEscalate($confidence);
 
 // Save assistant message
@@ -161,6 +166,13 @@ foreach ($context_products as $p) {
 foreach ($keyword_links as $k) {
     $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
         ->execute([$bot_msg_id, 'keyword_link', $k['id'], $k['url'], $k['title']]);
+}
+
+if (!empty($reception['found']) && !empty($reception['recommendation'])) {
+    $t = $reception['recommendation']['transmitter'];
+    $pdo->prepare('INSERT INTO answer_sources (message_id, source_type, source_id, url, snippet) VALUES (?,?,?,?,?)')
+        ->execute([$bot_msg_id, 'reception', null, \Reception\Advisor::FREEVIEW_CHECKER,
+            substr("{$reception['postcode']}: {$t['name']} {$t['distance_km']}km {$t['bearing_deg']}deg {$reception['recommendation']['aerial']['type']}", 0, 200)]);
 }
 
 // Update session timestamp

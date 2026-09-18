@@ -74,16 +74,10 @@
   flex-shrink: 0;
 }
 #buk-chat-header-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
-#buk-chat-avatar {
+#buk-chat-logo {
   flex-shrink: 0;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: var(--buk-accent);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .02em;
-  display: flex; align-items: center; justify-content: center;
+  height: 30px; width: auto;
+  display: block;
 }
 #buk-chat-header-text { min-width: 0; }
 #buk-chat-title { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -124,11 +118,7 @@
   flex-shrink: 0;
   width: 24px; height: 24px;
   border-radius: 50%;
-  background: var(--buk-accent);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
+  display: block;
 }
 
 .buk-bubble {

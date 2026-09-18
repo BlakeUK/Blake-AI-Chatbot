@@ -45,7 +45,7 @@
   panel.innerHTML = `
     <div id="buk-chat-header">
       <div id="buk-chat-header-info">
-        <div id="buk-chat-avatar" aria-hidden="true">UK</div>
+        <img id="buk-chat-logo" src="${ENDPOINT}/widget/img/blake-uk-logo.png" alt="Blake UK" width="91" height="30">
         <div id="buk-chat-header-text">
           <div id="buk-chat-title">Blake AI Support</div>
           <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span><span id="buk-status-text">Online</span></div>
@@ -468,10 +468,10 @@
   // ── DOM helpers ───────────────────────────────────────────────────────────────
   // Shared avatar+bubble row markup for every assistant-side message
   // (regular replies, the typing indicator, tracking/escalate forms) so the
-  // "UK" avatar appears consistently rather than only on plain text replies.
+  // Blake UK badge appears consistently rather than only on plain text replies.
   function assistantRowHtml(bubbleInnerHtml) {
     return `<div class="buk-msg-row">
-      <div class="buk-avatar-sm" aria-hidden="true">UK</div>
+      <img class="buk-avatar-sm" src="${ENDPOINT}/widget/img/blake-uk-badge.png" alt="" aria-hidden="true" width="24" height="24">
       <div class="buk-bubble">${bubbleInnerHtml}</div>
     </div>`;
   }

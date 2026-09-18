@@ -313,6 +313,13 @@ else
     warn "Live-chat/presence schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='reception_postcodes';" | grep -q reception_postcodes; then
+    info "Applying reception-predictor schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_reception.sql"
+else
+    warn "Reception-predictor schema already applied — skipping."
+fi
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

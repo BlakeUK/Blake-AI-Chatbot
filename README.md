@@ -473,6 +473,16 @@ Every tracking request is logged to `tracking_requests` regardless of carrier, w
 
 ---
 
+## TV Reception Predictor
+
+When a customer gives a postcode with a TV/aerial question, the bot predicts the best transmitter, bearing, polarisation, aerial group and aerial type (log-periodic, Yagi, high-gain, masthead amplifier) and links the matching Blake UK category plus the Freeview checker for confirmation. Code: `src/Reception/`.
+
+- Transmitters: Ofcom DTT transmitter data, stored in `scripts/reception/source/` (Ofcom blocks CI downloads). Contains Ofcom data, Open Government Licence v3.0.
+- Terrain: Copernicus DEM GLO-90, resampled to ~185 m, ~10 MB of gzip tiles. Produced using Copernicus WorldDEM-90 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA.
+- Postcodes: postcodes.io, cached in `reception_postcodes`.
+- Model: free space, empirical ground loss, Deygout diffraction (ITU-R P.526) over the terrain profile. Buildings and trees are not modelled.
+- Data build: run the **Build reception data** workflow. It builds on the runner and installs to `/var/www/chat/data/reception/` on the VPS. Without that data the bot behaves as before.
+
 ## Support Tickets & Live Chat
 
 When the bot can't answer with enough confidence, the customer is offered a choice: raise a ticket, or talk to a person right now — but live chat is only offered if a staff member has actually set their status to **Online** (My Account / operator console topbar). Busy or Offline, and it's ticket-only.

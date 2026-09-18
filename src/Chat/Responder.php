@@ -14,7 +14,9 @@ class Responder
 {
     // Retrieves knowledge + product context for a message, given the
     // customer's current page context (product-aware chat).
-    public static function buildContext(string $message, ?string $productCode): array
+    // $recentText: the customer's recent messages, used only to tell whether
+    // a bare postcode reply belongs to a TV-reception conversation.
+    public static function buildContext(string $message, ?string $productCode, string $recentText = ''): array
     {
         $currentProduct = $productCode ? \Knowledge\Search::byCode($productCode) : null;
 
@@ -27,6 +29,27 @@ class Responder
 
         $knowledgeHits = \Knowledge\Search::query($message, 5, $categoryHint);
         $productHits   = \Knowledge\Search::products($message, 3, $categoryHint);
+
+        // Postcode + TV reception question -> transmitter/terrain prediction
+        // (see src/Reception/). Its recommended aerial type drives an extra
+        // product search so real Blake UK aerials appear as cards. Failures
+        // here must never break chat, so they degrade to "no prediction".
+        $reception = null;
+        try {
+            $reception = \Reception\Advisor::forMessage($message, $recentText);
+        } catch (\Throwable $e) {
+            error_log('Reception predictor error: ' . $e->getMessage());
+        }
+        if (!empty($reception['search'])) {
+            $seen = array_column($productHits, 'product_code');
+            foreach (\Knowledge\Search::products($reception['search'], 3) as $p) {
+                if (!in_array($p['product_code'], $seen, true)) {
+                    array_unshift($productHits, $p);
+                    $seen[] = $p['product_code'];
+                }
+            }
+            $productHits = array_slice($productHits, 0, 4);
+        }
 
         // Admin-curated word/phrase -> page pins (see KeywordLinks). Unlike
         // the FTS hits above, a match here is a deliberate editorial
@@ -65,6 +88,7 @@ class Responder
             'related_codes'     => $relatedCodes,
             'alternative_codes' => $alternativeCodes,
             'keyword_links'     => $keywordLinks,
+            'reception'         => $reception,
         ];
     }
 
@@ -72,6 +96,10 @@ class Responder
     public static function buildPrompt(array $ctx, ?string $currentCode, ?string $pageUrl): string
     {
         $contextParts = [];
+
+        if (!empty($ctx['reception']['prompt'])) {
+            $contextParts[] = $ctx['reception']['prompt'];
+        }
 
         if ($ctx['knowledge_hits']) {
             $contextParts[] = "KNOWLEDGE BASE:\n" . implode("\n---\n", array_map(
@@ -109,6 +137,8 @@ RULES:
 - Products tagged [Alternative product] are substitutes for what the customer is viewing (e.g. if it's out of stock or they want a different spec) — mention one if the customer asks about alternatives, other options, or if the current product is out of stock.
 - If you cannot answer from the context, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
 - Never make up product codes, prices or specifications.
+- If a TV RECEPTION PREDICTION is provided, base any aerial recommendation on it: give the transmitter, the direction to point the aerial, horizontal or vertical mounting, the aerial type and group, the category link and the Freeview checker link. Say it is an estimate. Do not use the "I don't have enough information" reply when a prediction is provided.
+- If the customer asks which TV aerial they need, or about weak signal, and no TV RECEPTION PREDICTION is provided, give brief general guidance and ask for their full postcode so you can check their local transmitter.
 
 {$pageCtx}
 PROMPT;
@@ -145,8 +175,12 @@ PROMPT;
     // regardless of relevance) - see buildContext()'s comment. $keywordLinkHits
     // defaults to [] so existing callers/tests written before keyword links
     // existed don't need updating.
-    public static function confidence(array $knowledgeHits, array $productHits, array $keywordLinkHits = []): float
+    // A successful reception prediction is grounded data too ($reception).
+    public static function confidence(array $knowledgeHits, array $productHits, array $keywordLinkHits = [], ?array $reception = null): float
     {
+        if (!empty($reception['found'])) {
+            return 0.75;
+        }
         return (count($knowledgeHits) + count($productHits) + count($keywordLinkHits)) > 0 ? 0.75 : 0.3;
     }
 
