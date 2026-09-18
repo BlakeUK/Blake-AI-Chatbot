@@ -1,0 +1,92 @@
+name: Build reception data
+
+# Builds the TV reception predictor's data (Ofcom transmitter list +
+# compressed terrain tiles) on the runner and copies it to the VPS at
+# /var/www/chat/data/reception/. Not part of deploy.yml: the source data
+# changes rarely, and the terrain build downloads ~0.5 GB that must never
+# touch the VPS disk. Run manually when Ofcom updates its spreadsheet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Copy the built data to the VPS"
+        required: false
+        default: "true"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin php-cli php-zip
+
+      - name: Fetch Ofcom transmitter spreadsheet
+        run: bash scripts/reception/fetch_ofcom.sh build/ofcom.xlsx
+
+      - name: Keep source spreadsheet
+        uses: actions/upload-artifact@v4
+        with:
+          name: ofcom-xlsx
+          path: build/ofcom.xlsx
+          retention-days: 14
+
+      - name: Build transmitters.json
+        run: php scripts/reception/build_transmitters.php build/ofcom.xlsx build/reception/transmitters.json
+
+      - name: Build terrain tiles
+        run: bash scripts/reception/build_terrain.sh build/work build/reception/terrain
+
+      - name: Stamp version
+        run: |
+          date -u +%Y%m%dT%H%M%SZ > build/reception/VERSION
+          du -sh build/reception build/reception/terrain
+          ls build/reception/terrain | wc -l
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reception-data
+          path: build/reception
+          retention-days: 14
+
+      - name: Package for VPS
+        if: ${{ github.event.inputs.upload != 'false' }}
+        run: tar -C build -czf reception.tar.gz reception
+
+      - name: Copy to VPS
+        if: ${{ github.event.inputs.upload != 'false' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "reception.tar.gz"
+          target: "/tmp"
+          overwrite: true
+
+      - name: Install on VPS
+        if: ${{ github.event.inputs.upload != 'false' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            D=/var/www/chat/data
+            rm -rf "$D/reception.new"
+            mkdir -p "$D/reception.new"
+            tar -xzf /tmp/reception.tar.gz -C "$D/reception.new" --strip-components=1
+            rm -f /tmp/reception.tar.gz
+            test -s "$D/reception.new/transmitters.json"
+            rm -rf "$D/reception.old"
+            if [ -d "$D/reception" ]; then mv "$D/reception" "$D/reception.old"; fi
+            mv "$D/reception.new" "$D/reception"
+            rm -rf "$D/reception.old"
+            chown -R www-data:www-data "$D/reception"
+            du -sh "$D/reception"
+            df -h "$D" | tail -1
