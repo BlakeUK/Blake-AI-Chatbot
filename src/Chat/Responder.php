@@ -16,6 +16,15 @@ class Responder
     // customer's current page context (product-aware chat).
     // $recentText: the customer's recent messages, used only to tell whether
     // a bare postcode reply belongs to a TV-reception conversation.
+    public static function retrievalQuery(string $message, string $recentText): string
+    {
+        $words = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($message), -1, PREG_SPLIT_NO_EMPTY);
+        $content = array_filter($words, fn($w) => mb_strlen($w) > 2 && !in_array($w, ['the', 'and', 'you', 'have', 'how', 'much', 'what', 'does', 'can', 'any', 'this', 'that', 'one', 'ones', 'got', 'for', 'with', 'about', 'there', 'they', 'them', 'its', 'too', 'also', 'please', 'thanks', 'thank', 'yes', 'yeah', 'okay'], true));
+        $recentLines = array_values(array_filter(array_map('trim', explode("\n", $recentText))));
+        if (count($content) >= 3 || !$recentLines) return $message;
+        return $message . ' ' . end($recentLines);
+    }
+
     public static function buildContext(string $message, ?string $productCode, string $recentText = ''): array
     {
         $currentProduct = $productCode ? \Knowledge\Search::byCode($productCode) : null;
@@ -27,8 +36,12 @@ class Responder
         // searches below toward that range.
         $categoryHint = $currentProduct ? (json_decode($currentProduct['category_path'] ?? '[]', true) ?: []) : [];
 
-        $knowledgeHits = \Knowledge\Search::query($message, 5, $categoryHint);
-        $productHits   = \Knowledge\Search::products($message, 3, $categoryHint);
+        // Short follow-ups ("how much is it?", "and in black?") carry little
+        // to search on by themselves, so the retrieval query also includes
+        // the customer's previous message (conversation-aware retrieval).
+        $searchText = self::retrievalQuery($message, $recentText);
+        $knowledgeHits = \Knowledge\Search::query($searchText, 5, $categoryHint);
+        $productHits   = \Knowledge\Search::products($searchText, 3, $categoryHint);
 
         // Postcode + TV reception question -> transmitter/terrain prediction
         // (see src/Reception/). Its recommended aerial type drives an extra
@@ -234,6 +247,68 @@ PROMPT;
             }
             return '[link removed]';
         }, $answer) ?? $answer;
+    }
+
+    // Post-processing check (Confluent RAG guide, step 4): a Blake UK link
+    // in the answer must point at a page we actually know about - one given
+    // to the model in this prompt, or a product/document/page/keyword link
+    // in the database, or a core site page. Invented URLs (plausible-looking
+    // but non-existent paths) are removed: a markdown link keeps its label,
+    // a bare URL is dropped. Returns the cleaned answer; $removed lists what
+    // was taken out so it can be logged for review.
+    public const CORE_PAGES = ['/', '/support.html', '/delivery.html', '/warranty.html', '/contact-us.html', '/faq.html',
+        '/guides.html', '/terms.html', '/instruction-manuals.html', '/gdpr.html', '/manufacturing-quality.html'];
+
+    public static function normaliseUrl(string $url): string
+    {
+        $p = parse_url(trim($url, " \t\n\r.,;:!?"));
+        if (!$p || empty($p['host'])) return '';
+        $host = preg_replace('/^www\./', '', strtolower($p['host']));
+        $path = rtrim($p['path'] ?? '/', '/') ?: '/';
+        return $host . strtolower($path);
+    }
+
+    public static function verifyBlakeLinks(string $answer, string $referenceText = '', ?array &$removed = null): string
+    {
+        $removed = [];
+        $known = [];
+        if (preg_match_all('#https?://[^\s<>"\')\]]+#i', $referenceText, $m)) {
+            foreach ($m[0] as $u) $known[self::normaliseUrl($u)] = true;
+        }
+        $isKnown = function (string $url) use (&$known): bool {
+            $n = self::normaliseUrl($url);
+            if ($n === '' || isset($known[$n])) return true;
+            [$host, $path] = [strstr($n, '/', true) ?: $n, strstr($n, '/') ?: '/'];
+            if (!in_array($host, ['blake-uk.com'], true)) return true;   // only Blake UK product-site paths are verified
+            if (in_array($path, self::CORE_PAGES, true)) return true;
+            if (preg_match('#^/category/[a-z0-9\-]+\.html$#', $path)) return true;  // category pages: stable, many
+            $like = '%' . $path;
+            try {
+                foreach (['SELECT 1 FROM products WHERE lower(url) LIKE ? LIMIT 1',
+                          'SELECT 1 FROM knowledge_chunks WHERE lower(url) LIKE ? LIMIT 1',
+                          'SELECT 1 FROM keyword_links WHERE lower(url) LIKE ? LIMIT 1',
+                          'SELECT 1 FROM product_documents WHERE lower(url) LIKE ? LIMIT 1'] as $sql) {
+                    $q = db()->prepare($sql);
+                    $q->execute([$like]);
+                    if ($q->fetchColumn()) { $known[$n] = true; return true; }
+                }
+            } catch (\Throwable $e) {
+                return true; // can't verify (e.g. table missing): don't damage the answer
+            }
+            return false;
+        };
+        // Markdown links first: [label](url) -> label when the url is unknown.
+        $answer = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/i', function ($mm) use ($isKnown, &$removed) {
+            if ($isKnown($mm[2])) return $mm[0];
+            $removed[] = $mm[2];
+            return $mm[1];
+        }, $answer) ?? $answer;
+        $answer = preg_replace_callback('#(?<!\()\bhttps?://[^\s<>"\')\]]+#i', function ($mm) use ($isKnown, &$removed) {
+            if ($isKnown($mm[0])) return $mm[0];
+            $removed[] = $mm[0];
+            return '';
+        }, $answer) ?? $answer;
+        return preg_replace('/[ \t]{2,}/', ' ', $answer);
     }
 
     public static function shouldEscalate(float $confidence): bool

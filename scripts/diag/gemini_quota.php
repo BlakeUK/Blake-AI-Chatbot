@@ -71,3 +71,6 @@ foreach (array_merge(glob('/var/log/php*-fpm.log') ?: [], glob(dirname(__DIR__, 
     echo basename($f) . ': ' . count($lines) . " lines, " . count($hits) . " error-like\n";
     foreach (array_slice(array_unique(array_map(fn($l) => preg_replace('/^\[[^\]]*\]\s*/', '', substr(trim($l), 0, 220)), $hits)), -12) as $h) echo "   $h\n";
 }
+echo "--- embedding models\n";
+$ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=$key"); curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+foreach ((json_decode((string)curl_exec($ch), true)['models'] ?? []) as $m) if (in_array('embedContent', $m['supportedGenerationMethods'] ?? [], true) || in_array('batchEmbedContents', $m['supportedGenerationMethods'] ?? [], true)) echo $m['name'] . ' ' . implode(',', $m['supportedGenerationMethods']) . ' dims:' . ($m['outputTokenLimit'] ?? '') . "\n";

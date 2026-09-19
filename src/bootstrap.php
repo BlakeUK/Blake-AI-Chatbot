@@ -45,6 +45,10 @@ function db(): PDO {
         $pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [\Db\Statement::class, []]);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->exec('PRAGMA journal_mode=WAL');
+        // Wait (not fail) while a long cron write (product sync, indexing)
+        // holds the write lock; NORMAL is the safe, faster WAL setting.
+        $pdo->exec('PRAGMA busy_timeout=20000');
+        $pdo->exec('PRAGMA synchronous=NORMAL');
         $pdo->exec('PRAGMA foreign_keys=ON');
     }
     return $pdo;

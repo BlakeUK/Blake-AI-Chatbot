@@ -178,7 +178,8 @@ class TicketIntake
         if (!$key || !$msgs) return $fallback;
         $transcript = '';
         foreach (array_slice($msgs, -20) as $m) {
-            $transcript .= ($m['role'] === 'user' ? 'Customer' : 'Blake UK') . ': ' . mb_substr($m['content'], 0, 600) . "\n";
+            $text = $m['role'] === 'user' ? \Support\Pii::mask($m['content']) : $m['content'];
+            $transcript .= ($m['role'] === 'user' ? 'Customer' : 'Blake UK') . ': ' . mb_substr($text, 0, 600) . "\n";
         }
         try {
             $raw = (new \Gemini\Client($key))->chat(

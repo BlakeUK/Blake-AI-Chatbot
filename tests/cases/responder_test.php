@@ -153,3 +153,37 @@ test('small talk is recognised; real questions are not', function () {
         assert_false(\Chat\Responder::isSmallTalk($m), "not small talk: {$m}");
     }
 });
+
+test('verifyBlakeLinks keeps links given in the prompt, core pages and category pages; drops invented Blake UK paths', function () {
+    $ref = 'Product: https://www.blake-uk.com/0-25m-white-slimline-cat6-patch-lead.html';
+    $a = \Chat\Responder::verifyBlakeLinks(
+        "See [the lead](https://www.blake-uk.com/0-25m-white-slimline-cat6-patch-lead.html), [our range](https://www.blake-uk.com/category/networking.html), https://www.blake-uk.com/support.html and [this](https://www.blake-uk.com/made-up-product-9999.html) or https://www.blake-uk.com/fake-page.html. Freeview: https://www.freeview.co.uk/x",
+        $ref, $removed);
+    assert_true(str_contains($a, '(https://www.blake-uk.com/0-25m-white-slimline-cat6-patch-lead.html)'));
+    assert_true(str_contains($a, '(https://www.blake-uk.com/category/networking.html)'));
+    assert_true(str_contains($a, 'https://www.blake-uk.com/support.html'));
+    assert_true(!str_contains($a, 'made-up-product-9999') && str_contains($a, 'and this or'), 'markdown label kept, url dropped');
+    assert_true(!str_contains($a, 'fake-page'));
+    assert_true(str_contains($a, 'freeview.co.uk/x'), 'other hosts are sanitiseLinks\' job, untouched here');
+    assert_equal(2, count($removed));
+});
+
+test('verifyBlakeLinks accepts Blake UK pages known in the database', function () {
+    db()->prepare("INSERT INTO products (product_code, name, url) VALUES ('VBL-1', 'Test', 'https://www.blake-uk.com/known-product-page.html')")->execute();
+    $a = \Chat\Responder::verifyBlakeLinks('Try https://blake-uk.com/known-product-page.html/', '', $removed);
+    assert_true(str_contains($a, 'known-product-page'));
+    assert_equal([], $removed);
+});
+
+test('retrievalQuery adds the previous customer message to short follow-ups only', function () {
+    assert_equal('how much is it? Do you sell SR10WB amplifiers', \Chat\Responder::retrievalQuery('how much is it?', "hello\nDo you sell SR10WB amplifiers"));
+    assert_equal('Which masthead amplifier suits a weak signal', \Chat\Responder::retrievalQuery('Which masthead amplifier suits a weak signal', 'earlier'));
+    assert_equal('and in black?', \Chat\Responder::retrievalQuery('and in black?', ''));
+});
+
+test('Pii::mask hides emails, phone and card numbers but keeps postcodes, order numbers and product codes', function () {
+    assert_equal('mail [email address] or ring [phone number]', \Support\Pii::mask('mail dave@example.com or ring 07700 900123'));
+    assert_equal('card [card number] ok', \Support\Pii::mask('card 4111 1111 1111 1111 ok'));
+    assert_equal('order 55123 at S3 9PT for SR10WB', \Support\Pii::mask('order 55123 at S3 9PT for SR10WB'));
+    assert_equal('landline [phone number]', \Support\Pii::mask('landline +44 114 234 5678'));
+});

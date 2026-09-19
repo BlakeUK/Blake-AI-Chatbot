@@ -139,23 +139,34 @@ if (!$api_key) {
 }
 
 $gemini   = new \Gemini\Client($api_key);
+// Customer text reaches the model with emails, phone and card numbers
+// masked (stored unmasked for staff). Nothing in answering needs them.
 $messages = array_values(array_map(
-    fn($m) => ['role' => $m['role'] === 'assistant' ? 'model' : 'user', 'content' => $m['content']],
+    fn($m) => ['role' => $m['role'] === 'assistant' ? 'model' : 'user', 'content' => $m['role'] === 'user' ? \Support\Pii::mask($m['content']) : $m['content']],
     $history
 ));
-$messages[] = ['role' => 'user', 'content' => $message];
+$messages[] = ['role' => 'user', 'content' => \Support\Pii::mask($message)];
 
 try {
     $answer = $gemini->chat(\Gemini\Client::getModel('gemini_chat_model', 'gemini_flash'), $messages, $full_prompt);
 } catch (\Throwable $e) {
     error_log('Gemini error: ' . $e->getMessage());
     // Drop the unanswered turn so a retry doesn't leave two consecutive
-    // user messages in the history sent to Gemini.
-    $pdo->prepare('DELETE FROM chat_messages WHERE id = ?')->execute([$user_msg_id]);
+    // user messages in the history sent to Gemini. Best effort: a locked
+    // database here must still return the 503 below, not a fatal error.
+    try {
+        $pdo->prepare('DELETE FROM chat_messages WHERE id = ?')->execute([$user_msg_id]);
+    } catch (\Throwable $e2) {
+        error_log('send.php: could not remove unanswered turn: ' . $e2->getMessage());
+    }
     json_err('AI service unavailable', 503);
 }
 
 $answer = \Chat\Responder::sanitiseLinks($answer, $full_prompt);
+$answer = \Chat\Responder::verifyBlakeLinks($answer, $full_prompt, $removedLinks);
+if ($removedLinks) {
+    error_log('send.php: removed unverified Blake UK link(s) from answer: ' . implode(', ', $removedLinks));
+}
 
 // ── Confidence heuristic ──────────────────────────────────────────────────────
 $smallTalk  = \Chat\Responder::isSmallTalk($message);
