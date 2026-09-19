@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Blake UK Group — Control System</title>
+<title>Blake UK Support Desk</title>
 <style>
   :root {
     --bg: #0e0f16; --surface: #171923; --surface-2: #1e2130; --surface-3: #262a3d;
@@ -256,13 +256,74 @@
   .tk-kcard .kc-title { font-weight: 600; margin-bottom: 4px; cursor: pointer; }
   .tk-kcard .kc-title:hover { text-decoration: underline; }
   .tk-kcard .kc-field { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  /* ── Support desk: chats ── */
+  #content.full { padding: 8px 20px 16px; overflow: hidden; }
+  #page-chats.active { display: grid; grid-template-columns: 330px 1fr; gap: 16px; height: 100%; }
+  #page-admin.active { display: block; height: 100%; }
+  #chat-list-col { display: flex; flex-direction: column; min-height: 0; }
+  #chat-list-col h1 { margin: 0; }
+  .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  #chat-list { overflow-y: auto; flex: 1; padding-right: 4px; }
+  .cl-section { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); font-weight: 700; margin: 14px 0 6px; }
+  .cl-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; margin-bottom: 7px; cursor: pointer; }
+  .cl-item:hover { border-color: var(--accent); }
+  .cl-item.active { border-color: var(--accent-bright); background: var(--surface-2); }
+  .cl-item.waiting { border-left: 4px solid var(--err); }
+  .cl-item.intake { border-left: 4px solid var(--warn); }
+  .cl-item.live { border-left: 4px solid var(--ok); }
+  .cl-item .row1 { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; }
+  .cl-item .who { font-weight: 600; font-size: 13px; margin: 4px 0 2px; }
+  .cl-item .msg { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cl-timer { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .cl-timer.late { color: var(--err); }
+  .nav-badge { margin-left: auto; background: var(--err); color: #fff; border-radius: 10px; font-size: 11px; font-weight: 700; padding: 1px 7px; }
+  #chat-detail { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .cd-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .cd-head h2 { margin: 0 0 4px; font-size: 17px; }
+  .cd-head .sub { font-size: 12px; color: var(--text-dim); }
+  .cd-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .cd-body { flex: 1; display: grid; grid-template-columns: 1fr 290px; min-height: 0; }
+  .cd-main { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
+  #cd-transcript { flex: 1; overflow-y: auto; padding: 14px 18px; }
+  .cm { max-width: 78%; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+  .cm .meta { font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+  .cm-user { background: var(--surface-3); }
+  .cm-ai { background: #1d2440; margin-left: auto; }
+  .cm-agent { background: #1c3327; margin-left: auto; }
+  .cm-note { text-align: center; color: var(--text-dim); font-size: 12px; margin: 8px 0 12px; font-style: italic; }
+  .cd-reply { padding: 10px 14px 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; padding-right: 84px; }
+  .cd-reply textarea { min-height: 42px; max-height: 120px; resize: vertical; }
+  .cd-banner { padding: 10px 14px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 13px; padding-right: 84px; }
+  .cd-side { overflow-y: auto; padding: 14px; }
+  .cd-side h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin: 0 0 8px; }
+  .cd-side section { margin-bottom: 18px; }
+  .cd-side input, .cd-side textarea { margin-bottom: 6px; }
+  .note-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; margin-bottom: 6px; font-size: 12px; white-space: pre-wrap; }
+  .note-item .meta { color: var(--text-dim); font-size: 11px; margin-bottom: 3px; }
+  .hours-pill { font-size: 11px; padding: 3px 9px; border-radius: 12px; font-weight: 600; }
+  .hours-open { background: #1c3327; color: var(--ok); }
+  .hours-closed { background: #3a1f1f; color: var(--err); }
+
+  /* ── Incoming chat alert ── */
+  #alert-overlay { position: fixed; inset: 0; background: rgba(120,0,0,.45); z-index: 200; display: flex; align-items: center; justify-content: center; animation: alert-bg 1s ease-in-out infinite; }
+  @keyframes alert-bg { 0%,100% { background: rgba(120,0,0,.35); } 50% { background: rgba(200,20,20,.6); } }
+  #alert-box { width: 560px; max-width: 92vw; background: var(--surface); border: 3px solid var(--err); border-radius: 16px; padding: 26px 28px; box-shadow: 0 0 0 6px rgba(234,95,95,.35), 0 20px 60px rgba(0,0,0,.6); animation: alert-pulse 1s ease-in-out infinite; }
+  @keyframes alert-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+  #alert-box .kicker { color: var(--err); font-weight: 800; letter-spacing: .08em; font-size: 13px; text-transform: uppercase; }
+  #alert-box h2 { font-size: 26px; margin: 6px 0 10px; }
+  #alert-box .q { background: var(--surface-2); border-radius: 8px; padding: 12px 14px; font-size: 15px; margin: 12px 0; max-height: 140px; overflow: auto; }
+  #alert-box .meta { color: var(--text-dim); font-size: 13px; }
+  #alert-box .btns { display: flex; gap: 10px; margin-top: 18px; }
+  #alert-box .btns .btn { padding: 12px 18px; font-size: 15px; }
+  #alert-box .btn-accept { background: var(--ok); border-color: var(--ok); color: #06210f; font-weight: 700; flex: 1; }
 </style>
 </head>
 <body>
 
 <div id="login-screen">
   <div id="login-box">
-    <h1>Blake UK Group Control System</h1>
+    <h1>Blake UK Support Desk</h1>
     <p class="sub">Sign in with your admin panel account</p>
     <div id="login-fields">
       <label for="login-user">Username</label>
@@ -287,16 +348,12 @@
   <div id="sidebar">
     <div id="sidebar-brand">
       <div class="title">Blake UK Group</div>
-      <div class="sub">Control System</div>
+      <div class="sub">Support Desk</div>
     </div>
     <div id="nav">
-      <div class="nav-item" data-page="dashboard">
-        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        Dashboard
-      </div>
-      <div class="nav-item" data-page="projects">
-        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
-        Projects
+      <div class="nav-item active" data-page="chats">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5Z"/></svg>
+        Chats <span class="nav-badge hidden" id="nav-chats-badge">0</span>
       </div>
       <div class="nav-item" data-page="tickets">
         <svg class="icon" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z"/></svg>
@@ -305,6 +362,10 @@
       <div class="nav-item" data-page="team">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.6"/><path d="M15.5 14.2c2.6.3 4.5 2.6 4.5 5.3"/></svg>
         Team
+      </div>
+      <div class="nav-item" data-page="admin">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        Admin
       </div>
     </div>
     <div id="version-row">
@@ -343,49 +404,16 @@
 
     <div id="content">
 
-      <div class="page" id="page-dashboard">
-        <h1 id="dash-greeting">Good day</h1>
-        <div class="page-meta" id="dash-date"></div>
-
-        <div id="stat-grid">
-          <div class="stat-card" style="cursor:pointer" onclick="showPage('projects')"><div class="label">Active Projects</div><div class="value" id="stat-projects">—</div></div>
-          <div class="stat-card" style="cursor:pointer" onclick="goToTickets('')"><div class="label">Open Tickets</div><div class="value" id="stat-open-tickets">—</div></div>
-          <div class="stat-card" style="cursor:pointer" onclick="goToTickets('')"><div class="label">Due Today</div><div class="value" id="stat-due-today">—</div></div>
-          <div class="stat-card" style="cursor:pointer" onclick="focusReminders()"><div class="label">Due Reminders</div><div class="value" id="stat-alerts">—</div></div>
+      <div class="page active" id="page-chats">
+        <div id="chat-list-col">
+          <div class="cl-head"><h1>Chats</h1><span id="hours-pill" class="hours-pill"></span></div>
+          <div id="my-depts" style="font-size:12px;color:var(--text-dim)"></div>
+          <div id="chat-list"><div class="empty-note">Loading…</div></div>
         </div>
-
-        <div id="dash-panels" style="grid-template-columns:1fr 1fr 1fr">
-          <div class="card">
-            <h2>My Tasks</h2>
-            <div id="dash-tasks"><div class="empty-note">Loading…</div></div>
-          </div>
-          <div class="card">
-            <h2>My Reminders</h2>
-            <div id="dash-reminders"><div class="empty-note">Loading…</div></div>
-          </div>
-          <div class="card">
-            <h2>Recent Activity</h2>
-            <div id="dash-activity"><div class="empty-note">Loading…</div></div>
-          </div>
-        </div>
-
-        <div class="page-header-row" style="margin-bottom:12px">
-          <h2 style="font-size:16px;margin:0">Your Tickets</h2>
-        </div>
-        <div class="card-grid" id="dash-tickets"></div>
+        <div id="chat-detail"><div class="empty-note" style="margin:auto">Select a chat on the left. New chats for your department pop up automatically.</div></div>
       </div>
 
-      <div class="page" id="page-projects">
-        <div class="page-header-row" id="projects-header-row">
-          <h1>Projects</h1>
-          <button class="btn btn-primary" id="new-project-btn">+ New Project</button>
-        </div>
-        <div class="page-meta" id="projects-page-meta">&nbsp;</div>
-        <div class="card-grid" id="projects-grid"><div class="empty-note">Loading…</div></div>
-        <div id="project-detail-view" class="hidden"></div>
-      </div>
-
-      <div class="page active" id="page-tickets">
+      <div class="page" id="page-tickets">
         <div class="page-header-row">
           <h1>Tickets</h1>
           <button class="btn btn-primary" id="new-ticket-btn">+ New Ticket</button>
@@ -422,6 +450,10 @@
         <div class="card-grid" id="team-grid"></div>
       </div>
 
+      <div class="page" id="page-admin" style="padding:0">
+        <iframe id="admin-frame" title="Admin" style="width:100%;height:100%;border:0;background:#2b3035"></iframe>
+      </div>
+
     </div>
   </div>
 </div>
@@ -455,32 +487,6 @@
   </div>
 </div>
 
-<div id="new-project-modal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <h2>New project</h2>
-    <label for="np-name">Name</label>
-    <input id="np-name" placeholder="e.g. Client Portal Revamp">
-    <label for="np-desc">Description</label>
-    <textarea id="np-desc" style="min-height:60px" placeholder="What is this project about?"></textarea>
-    <label for="np-dept">Department</label>
-    <select id="np-dept">
-      <option value="">Unassigned</option>
-      <option value="sales">Sales</option>
-      <option value="technical">Technical</option>
-      <option value="accounts">Accounts</option>
-    </select>
-    <label for="np-due">Due date (optional)</label>
-    <input id="np-due" type="date">
-    <label for="np-color">Header colour (optional)</label>
-    <input id="np-color" type="color" value="#7c6ef2" style="width:60px;height:32px;padding:2px;cursor:pointer">
-    <div class="err" id="np-err"></div>
-    <div class="modal-actions">
-      <button class="btn" id="np-cancel">Cancel</button>
-      <button class="btn btn-primary" id="np-submit">Create</button>
-    </div>
-  </div>
-</div>
-
 <div id="new-channel-modal" class="modal-overlay hidden">
   <div class="modal-box">
     <h2>New channel</h2>
@@ -496,16 +502,51 @@
   </div>
 </div>
 
-<div id="task-detail-modal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <h2><input id="td-title" style="font-size:15px;font-weight:700;background:none;border:1px solid transparent;padding:2px 4px"></h2>
-    <div class="td-tabs">
-      <button class="active" id="td-tab-btn-details">Details</button>
-      <button id="td-tab-btn-comments">Comments</button>
+
+<div id="transfer-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:420px">
+    <h2>Transfer chat</h2>
+    <label for="tr-dept">To department</label>
+    <select id="tr-dept"></select>
+    <label for="tr-staff">Or to a colleague</label>
+    <select id="tr-staff"></select>
+    <label for="tr-note">Note for them (staff only)</label>
+    <textarea id="tr-note" style="min-height:60px" placeholder="What have you covered so far?"></textarea>
+    <div class="err" id="tr-err"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('transfer-modal')">Cancel</button><button class="btn btn-primary" id="tr-submit">Transfer</button></div>
+  </div>
+</div>
+
+<div id="ticket-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:480px">
+    <h2>Create support ticket</h2>
+    <label for="tk-subject">Subject</label><input id="tk-subject">
+    <label for="tk-details">Details</label><textarea id="tk-details" style="min-height:80px"></textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
+      <div><label for="tk-name">Customer name</label><input id="tk-name"></div>
+      <div><label for="tk-phone">Telephone</label><input id="tk-phone"></div>
     </div>
-    <div id="td-body"></div>
-    <div class="modal-actions">
-      <button class="btn" id="td-close">Close</button>
+    <label for="tk-email">Customer email (gets a confirmation with the ticket number)</label><input id="tk-email" type="email">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
+      <div><label for="tk-dept">Department</label><select id="tk-dept"></select></div>
+      <div><label for="tk-priority">Priority</label><select id="tk-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+    </div>
+    <div class="err" id="tk-err"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('ticket-modal')">Cancel</button><button class="btn btn-primary" id="tk-submit">Create ticket</button></div>
+  </div>
+</div>
+
+<div id="alert-overlay" class="hidden">
+  <div id="alert-box">
+    <div class="kicker" id="al-kicker">New chat</div>
+    <h2 id="al-title"></h2>
+    <div class="meta" id="al-meta"></div>
+    <div class="q" id="al-question"></div>
+    <div class="meta" id="al-more"></div>
+    <div class="btns">
+      <button class="btn btn-accept" id="al-accept">Accept chat</button>
+      <button class="btn" id="al-view">View</button>
+      <button class="btn" id="al-dismiss">Dismiss</button>
     </div>
   </div>
 </div>
@@ -540,9 +581,6 @@ let myUsername = '';
 let myRole = '';
 let tickets = [];
 let agents = [];
-let allProjects = [];
-let knownMyProjectIds = null; // null until first check, so history never fires a notification
-let knownMyTaskIds = null;
 let knownTicketState = new Map();
 let liveHandoffIds = new Set(); // tickets just transferred to me, not yet opened/acknowledged
 let currentTicketId = null;
@@ -557,7 +595,7 @@ async function apiSend(method, path, body) {
   return r.json();
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
-function fmtTime(ts) { return ts ? new Date(ts * 1000).toLocaleString() : ''; }
+function fmtTime(ts) { return ts ? new Date(ts * 1000).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''; }
 function fmtRelative(ts) {
   if (!ts) return '';
   const diff = Math.floor(Date.now() / 1000) - ts;
@@ -571,76 +609,336 @@ function fmtRelative(ts) {
 function ticketCode(t) { return 'TCK-' + (1000 + t.id); }
 function mailtoReply(email, subject) { return email ? ('mailto:' + email + '?subject=' + encodeURIComponent('Re: ' + (subject || 'your enquiry'))) : ''; }
 
-// ── Live chat (claim / converse / end) ──────────────────────────────────────
-function liveChatPanelHtml(t) {
-  if (t.channel !== 'live_chat') return '';
-  if (t.session_mode === 'live_requested') {
-    return `<div class="live-chat-box live-chat-waiting">
-      <p>🔴 <strong>Live chat waiting to be claimed</strong> - a customer is waiting right now.</p>
-      <button class="btn btn-primary btn-sm" onclick="claimLiveChat('${esc(t.session_id)}',${t.id})">Claim this chat</button>
-    </div>`;
+function stopLiveChatPolling() {} // chats are handled on the Chats page now
+
+
+// ── Support desk: chat queue, chat detail, alerts ───────────────────────────
+let supportState = { chats: [], staff: [], departments: {}, myDepts: [], openNow: true };
+let currentChatId = null;
+let currentChatLastId = 0;
+let supportTimer = null;
+const dismissedAlerts = new Set();     // session + handoff time, so a transfer alerts again
+let alertShowing = null;
+let lastCustomerSeen = new Map();       // my live chats: session -> last customer message time
+const DEPT_OPTIONS = () => Object.entries(supportState.departments).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+
+function fmtWait(secs) { if (secs == null) return ''; const m = Math.floor(secs / 60), s = secs % 60; return m + ':' + String(s).padStart(2, '0'); }
+function chatWho(c) { return c.customer_name || (c.customer_email || c.customer_phone) || 'Website visitor'; }
+function modeLabel(c) {
+  if (c.mode === 'live_requested') return c.target_username ? ('Waiting for ' + c.target_username) : ('Waiting for ' + c.department_label);
+  if (c.mode === 'intake') return 'Max is taking ticket details';
+  if (c.mode === 'live_active') return (Number(c.claimed_by) === Number(myAdminId) ? 'You are chatting' : (c.claimed_username || 'Staff') + ' is chatting');
+  return 'Max (AI) is chatting';
+}
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function startSupportPolling() {
+  loadChatQueue();
+  clearInterval(supportTimer);
+  supportTimer = setInterval(() => { loadChatQueue(); if (currentChatId) refreshChat(false); }, 3000);
+}
+
+async function loadChatQueue() {
+  let d;
+  try { d = await apiGet('/api/admin/support.php?queue=1'); } catch (e) { return; }
+  if (!d || !Array.isArray(d.chats)) return;
+  supportState = { chats: d.chats, staff: d.staff || [], departments: d.departments || {}, myDepts: d.my_departments || [], openNow: d.open_now };
+  const hp = document.getElementById('hours-pill');
+  hp.textContent = d.open_now ? 'Open' : 'Closed';
+  hp.className = 'hours-pill ' + (d.open_now ? 'hours-open' : 'hours-closed');
+  hp.title = d.hours || '';
+  document.getElementById('my-depts').textContent = supportState.myDepts.length
+    ? 'Your departments: ' + supportState.myDepts.map(k => supportState.departments[k] || k).join(', ')
+    : 'You are not in a department, so you see every chat (set departments in Admin > Users).';
+  renderChatList();
+  handleAlerts();
+  watchMyChats();
+}
+
+function renderChatList() {
+  const el = document.getElementById('chat-list');
+  const groups = [
+    ['Waiting for the team', c => c.mode === 'live_requested', 'waiting'],
+    ['Max taking ticket details', c => c.mode === 'intake', 'intake'],
+    ['Live with staff', c => c.mode === 'live_active', 'live'],
+    ['Max chatting (last hour)', c => c.mode === 'ai' || c.mode === 'live_ended', ''],
+  ];
+  let html = '';
+  for (const [title, fn, cls] of groups) {
+    const rows = supportState.chats.filter(fn);
+    if (!rows.length) continue;
+    html += `<div class="cl-section">${title} (${rows.length})</div>` + rows.map(c => `
+      <div class="cl-item ${cls} ${c.id === currentChatId ? 'active' : ''}" onclick="openChat('${esc(c.id)}')">
+        <div class="row1"><span class="pill pill-dept">${esc(c.department ? c.department_label : 'No department')}</span>
+          ${c.waiting_secs != null && (c.mode === 'live_requested' || c.mode === 'intake') ? `<span class="cl-timer ${c.waiting_secs >= 120 ? 'late' : ''}">${fmtWait(c.waiting_secs)}</span>` : ''}
+          ${c.alert ? '<span class="pill-livechat">FOR YOU</span>' : ''}</div>
+        <div class="who">${esc(chatWho(c))}</div>
+        <div class="msg">${esc(c.last_message || c.first_message || '')}</div>
+        <div class="msg" style="font-size:11px">${esc(modeLabel(c))}${Number(c.note_count) ? ' · ' + c.note_count + ' note' + (c.note_count == 1 ? '' : 's') : ''}${c.ticket_code ? ' · ' + esc(c.ticket_code) : ''}</div>
+      </div>`).join('');
   }
-  if (t.session_mode === 'live_active') {
-    if (myAdminId != null && Number(t.session_claimed_by) === Number(myAdminId)) {
-      return `<div class="live-chat-box">
-        <p class="live-chat-status">🟢 You're live with this customer.</p>
-        <div class="live-chat-reply-row">
-          <input type="text" id="live-chat-input" placeholder="Type a reply…" onkeydown="if(event.key==='Enter'){event.preventDefault();sendLiveChatMessage('${esc(t.session_id)}');}">
-          <button class="btn btn-primary btn-sm" onclick="sendLiveChatMessage('${esc(t.session_id)}')">Send</button>
+  el.innerHTML = html || '<div class="empty-note">No chats in the last hour.</div>';
+  const waiting = supportState.chats.filter(c => c.alert).length;
+  const badge = document.getElementById('nav-chats-badge');
+  badge.textContent = waiting; badge.classList.toggle('hidden', !waiting);
+}
+
+async function openChat(id) {
+  showPage('chats');
+  currentChatId = id; currentChatLastId = 0;
+  renderChatList();
+  await refreshChat(true);
+}
+
+async function refreshChat(full) {
+  const id = currentChatId;
+  if (!id) return;
+  let d;
+  try { d = await apiGet('/api/admin/support.php?session_id=' + encodeURIComponent(id)); } catch (e) { return; }
+  if (id !== currentChatId || !d || !d.session) return;
+  const s = d.session;
+  const lastId = d.messages.length ? d.messages[d.messages.length - 1].id : 0;
+  const box = document.getElementById('chat-detail');
+  const signature = s.mode + '|' + s.claimed_by + '|' + s.department + '|' + d.notes.length + '|' + d.tickets.length + '|' + s.customer_name + s.customer_email + s.customer_phone;
+  if (full || box.dataset.sig !== signature) {
+    box.dataset.sig = signature;
+    const mine = s.mode === 'live_active' && Number(s.claimed_by) === Number(myAdminId);
+    const canAccept = ['live_requested', 'intake', 'ai', 'live_ended'].includes(s.mode);
+    const canTransfer = ['live_requested', 'intake'].includes(s.mode) || mine || (s.mode === 'live_active' && myRole === 'admin');
+    const replyDraft = document.getElementById('cd-reply-input')?.value || '';
+    box.innerHTML = `
+      <div class="cd-head">
+        <div>
+          <h2>${esc(s.customer_name || 'Website visitor')}</h2>
+          <div class="sub">${esc(s.department_label)} · ${esc(modeLabel(Object.assign({}, s, { claimed_username: s.claimed_username, department_label: s.department_label })))}${s.page_url ? ' · <span title="' + esc(s.page_url) + '">' + esc(s.page_url.replace(/^https?:\/\//, '').slice(0, 60)) + '</span>' : ''}</div>
         </div>
-        <button class="btn btn-sm" onclick="endLiveChat('${esc(t.session_id)}',${t.id})">End chat</button>
+        <div class="cd-actions">
+          ${canAccept ? `<button class="btn btn-primary" onclick="acceptChat('${esc(s.id)}')">${s.mode === 'ai' || s.mode === 'live_ended' ? 'Take over from Max' : 'Accept chat'}</button>` : ''}
+          ${canTransfer ? `<button class="btn" onclick="openTransfer()">Transfer</button>` : ''}
+          <button class="btn" onclick="openTicketModal()">Create ticket</button>
+          ${mine || (s.mode === 'live_active' && myRole === 'admin') ? `<button class="btn" onclick="endChat()">End chat</button>` : ''}
+        </div>
+      </div>
+      <div class="cd-body">
+        <div class="cd-main">
+          <div id="cd-transcript"></div>
+          ${mine ? `<div class="cd-reply"><textarea id="cd-reply-input" placeholder="Type your reply to the customer… (Enter to send, Shift+Enter for a new line)"></textarea><button class="btn btn-primary" onclick="sendReply()">Send</button></div>`
+                 : `<div class="cd-banner">${s.mode === 'live_active' ? esc((s.claimed_username || 'A colleague') + ' is handling this chat. Add a note for them on the right.') : 'Accept the chat to reply to the customer.'}</div>`}
+        </div>
+        <div class="cd-side">
+          <section>
+            <h3>Customer</h3>
+            <input id="cd-c-name" placeholder="Name" value="${esc(s.customer_name || '')}">
+            <input id="cd-c-email" placeholder="Email" value="${esc(s.customer_email || '')}">
+            <input id="cd-c-phone" placeholder="Telephone" value="${esc(s.customer_phone || '')}">
+            <button class="btn btn-sm" onclick="saveCustomer()">Save details</button>
+          </section>
+          <section>
+            <h3>Staff notes (not seen by the customer)</h3>
+            <div>${d.notes.length ? d.notes.map(n => `<div class="note-item"><div class="meta">${esc(n.username || 'Max (system)')} · ${fmtTime(n.created_at)}</div>${esc(n.note)}</div>`).join('') : '<div class="empty-note" style="padding:4px 0">No notes yet.</div>'}</div>
+            <textarea id="cd-note-input" placeholder="Add a note for the team…" style="min-height:54px"></textarea>
+            <button class="btn btn-sm" onclick="addChatNote()">Add note</button>
+          </section>
+          <section>
+            <h3>Tickets</h3>
+            ${d.tickets.length ? d.tickets.map(t => `<div class="note-item" style="cursor:pointer" onclick="goToTickets('');setTimeout(()=>openTicket(${t.id}),600)"><b>${esc(t.code)}</b> · ${esc(STATUS_LABELS[t.status] || t.status)}<br>${esc(t.subject || '')}</div>`).join('') : '<div class="empty-note" style="padding:4px 0">None yet.</div>'}
+          </section>
+        </div>
       </div>`;
+    const ri = document.getElementById('cd-reply-input');
+    if (ri) {
+      ri.value = replyDraft;
+      ri.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); } });
+      if (full) ri.focus();
     }
-    return `<div class="live-chat-box"><p class="live-chat-status">🟢 Claimed by ${esc(t.claimer_username || 'another admin')}.</p></div>`;
+    currentChatLastId = -1; // force transcript render below
   }
-  return '';
+  if (lastId !== currentChatLastId) {
+    currentChatLastId = lastId;
+    const tr = document.getElementById('cd-transcript');
+    const atBottom = tr.scrollHeight - tr.scrollTop - tr.clientHeight < 60;
+    tr.innerHTML = d.messages.map(m => {
+      if (m.role === 'system') return `<div class="cm-note">${esc(m.content)} · ${fmtTime(m.created_at)}</div>`;
+      const who = m.role === 'user' ? 'Customer' : m.role === 'agent' ? 'Staff' : 'Max (AI)';
+      const cls = m.role === 'user' ? 'cm-user' : m.role === 'agent' ? 'cm-agent' : 'cm-ai';
+      return `<div class="cm ${cls}"><div class="meta">${who} · ${fmtTime(m.created_at)}</div>${esc(m.content)}</div>`;
+    }).join('') || '<div class="empty-note">No messages yet.</div>';
+    if (atBottom || full) tr.scrollTop = tr.scrollHeight;
+  }
 }
-let liveChatPollTimer = null;
-async function refreshLiveChatTranscript(sessionId) {
-  let messages = [];
-  try {
-    const conv = await apiGet('/api/admin/chats.php?session_id=' + encodeURIComponent(sessionId));
-    messages = Array.isArray(conv) ? conv : (conv.messages || []);
-  } catch (e) { return; }
-  const el = document.getElementById('transcript');
-  if (!el) return;
-  el.innerHTML = messages.length ? messages.map(m => m.role === 'system'
-    ? `<div class="msg-system">${esc(m.content || '')}</div>`
-    : `<div class="msg msg-${m.role === 'user' ? 'customer' : 'assistant'}">
-      <div class="msg-meta">${m.role === 'user' ? 'Customer' : m.role === 'agent' ? 'Support Agent' : 'Assistant'} · ${fmtTime(m.created_at)}</div>
-      ${esc(m.content || m.message || '')}
-    </div>`).join('') : '<div class="empty-note">No conversation transcript available.</div>';
-  el.scrollTop = el.scrollHeight;
+
+async function supportAction(action, extra) {
+  const r = await apiSend('POST', '/api/admin/support.php', Object.assign({ csrf, action, session_id: currentChatId }, extra || {}));
+  if (!r.ok) { alert(r.error || 'That did not work'); return null; }
+  await loadChatQueue(); await refreshChat(true);
+  return r;
 }
-function startLiveChatPolling(sessionId) {
-  stopLiveChatPolling();
-  liveChatPollTimer = setInterval(() => refreshLiveChatTranscript(sessionId), 4000);
+async function acceptChat(id) {
+  currentChatId = id;
+  stopAlert();
+  const r = await supportAction('claim');
+  if (r) { showPage('chats'); renderChatList(); }
 }
-function stopLiveChatPolling() {
-  if (liveChatPollTimer) { clearInterval(liveChatPollTimer); liveChatPollTimer = null; }
-}
-async function claimLiveChat(sessionId, ticketId) {
-  const r = await apiSend('POST', '/api/admin/live_chat.php', { csrf, action: 'claim', session_id: sessionId });
-  if (r.error) { notify('Could not claim chat', r.error); return; }
-  await loadTickets();
-  if (currentTicketId === ticketId) openTicket(ticketId);
-}
-async function sendLiveChatMessage(sessionId) {
-  const inputEl = document.getElementById('live-chat-input');
-  const text = (inputEl.value || '').trim();
+async function sendReply() {
+  const el = document.getElementById('cd-reply-input');
+  const text = (el.value || '').trim();
   if (!text) return;
-  inputEl.value = '';
-  const r = await apiSend('POST', '/api/admin/live_chat.php', { csrf, action: 'send', session_id: sessionId, message: text });
-  if (r.error) { notify('Could not send message', r.error); return; }
-  refreshLiveChatTranscript(sessionId);
+  el.value = '';
+  const r = await apiSend('POST', '/api/admin/support.php', { csrf, action: 'send', session_id: currentChatId, message: text });
+  if (!r.ok) { el.value = text; alert(r.error || 'Could not send'); return; }
+  refreshChat(false);
 }
-async function endLiveChat(sessionId, ticketId) {
-  if (!confirm('End this live chat? The customer will see it has ended.')) return;
-  const r = await apiSend('POST', '/api/admin/live_chat.php', { csrf, action: 'end', session_id: sessionId });
-  if (r.error) { notify('Could not end chat', r.error); return; }
-  stopLiveChatPolling();
-  await loadTickets();
-  if (currentTicketId === ticketId) openTicket(ticketId);
+async function endChat() {
+  if (!confirm('End this chat? The customer is told and goes back to Max.')) return;
+  supportAction('end');
+}
+async function addChatNote() {
+  const el = document.getElementById('cd-note-input');
+  const note = el.value.trim();
+  if (!note) return;
+  if (await supportAction('note', { note })) el.value = '';
+}
+async function saveCustomer() {
+  await supportAction('set_customer', { name: document.getElementById('cd-c-name').value, email: document.getElementById('cd-c-email').value, phone: document.getElementById('cd-c-phone').value });
+}
+function openTransfer() {
+  const c = supportState.chats.find(x => x.id === currentChatId) || {};
+  document.getElementById('tr-dept').innerHTML = '<option value="">(keep department)</option>' + DEPT_OPTIONS();
+  document.getElementById('tr-staff').innerHTML = '<option value="">(anyone in the department)</option>' + supportState.staff.filter(a => Number(a.id) !== Number(myAdminId)).map(a =>
+    `<option value="${a.id}">${esc(a.username)}${a.departments.length ? ' (' + a.departments.map(k => supportState.departments[k] || k).join(', ') + ')' : ''} · ${esc(a.presence_status)}</option>`).join('');
+  document.getElementById('tr-dept').value = '';
+  document.getElementById('tr-note').value = '';
+  document.getElementById('tr-err').textContent = '';
+  document.getElementById('transfer-modal').classList.remove('hidden');
+}
+document.getElementById('tr-submit').onclick = async () => {
+  const department = document.getElementById('tr-dept').value;
+  const admin_id = document.getElementById('tr-staff').value;
+  if (!department && !admin_id) { document.getElementById('tr-err').textContent = 'Choose a department or a colleague.'; return; }
+  const r = await apiSend('POST', '/api/admin/support.php', { csrf, action: 'transfer', session_id: currentChatId, department, admin_id, note: document.getElementById('tr-note').value });
+  if (!r.ok) { document.getElementById('tr-err').textContent = r.error || 'Could not transfer'; return; }
+  closeModal('transfer-modal');
+  // Don't pop the chat I've just passed on back up at me.
+  const id = currentChatId;
+  const q = await apiGet('/api/admin/support.php?queue=1');
+  (q.chats || []).filter(c => c.id === id).forEach(c => dismissedAlerts.add(alertKey(c)));
+  loadChatQueue(); refreshChat(true);
+};
+function openTicketModal() {
+  const c = supportState.chats.find(x => x.id === currentChatId) || {};
+  document.getElementById('tk-dept').innerHTML = DEPT_OPTIONS();
+  document.getElementById('tk-dept').value = c.department || 'sales';
+  document.getElementById('tk-subject').value = (c.first_message || '').slice(0, 100);
+  document.getElementById('tk-details').value = '';
+  document.getElementById('tk-name').value = document.getElementById('cd-c-name')?.value || c.customer_name || '';
+  document.getElementById('tk-email').value = document.getElementById('cd-c-email')?.value || c.customer_email || '';
+  document.getElementById('tk-phone').value = document.getElementById('cd-c-phone')?.value || c.customer_phone || '';
+  document.getElementById('tk-priority').value = 'medium';
+  document.getElementById('tk-err').textContent = '';
+  document.getElementById('ticket-modal').classList.remove('hidden');
+}
+document.getElementById('tk-submit').onclick = async () => {
+  const f = { subject: document.getElementById('tk-subject').value.trim(), details: document.getElementById('tk-details').value.trim(),
+    name: document.getElementById('tk-name').value.trim(), email: document.getElementById('tk-email').value.trim(), phone: document.getElementById('tk-phone').value.trim(),
+    department: document.getElementById('tk-dept').value, priority: document.getElementById('tk-priority').value };
+  if (!f.subject) { document.getElementById('tk-err').textContent = 'A subject is required.'; return; }
+  const r = await apiSend('POST', '/api/admin/support.php', Object.assign({ csrf, action: 'create_ticket', session_id: currentChatId }, f));
+  if (!r.ok) { document.getElementById('tk-err').textContent = r.error || 'Could not create the ticket'; return; }
+  closeModal('ticket-modal');
+  loadTickets(); loadChatQueue(); refreshChat(true);
+  alert('Ticket ' + r.code + ' created.' + (f.email ? ' A confirmation is being emailed to ' + f.email + '.' : ''));
+};
+
+// ── Alerts: pop-up, beep, bring window to front ─────────────────────────────
+let audioCtx = null;
+function unlockAudio() {
+  try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
+}
+function beep(urgent) {
+  try {
+    unlockAudio();
+    if (!audioCtx) return;
+    const tones = urgent ? [[988, 0], [784, 0.22], [988, 0.44], [784, 0.66]] : [[880, 0], [1175, 0.18]];
+    for (const [f, at] of tones) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square'; o.frequency.value = f;
+      const t = audioCtx.currentTime + at;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(urgent ? 0.35 : 0.2, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.19);
+      o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t + 0.2);
+    }
+  } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio, { once: false });
+
+let beepTimer = null;
+async function bringToFront(onTop) {
+  try {
+    const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow;
+    if (!w) return;
+    if (onTop) {
+      await w.show(); await w.unminimize(); await w.setAlwaysOnTop(true); await w.setFocus();
+      try { await w.requestUserAttention(1); } catch (e) {}
+    } else {
+      await w.setAlwaysOnTop(false);
+    }
+  } catch (e) {}
+}
+function alertKey(c) { return c.id + '@' + (c.handoff_at || '') + '@' + (c.target_admin_id || ''); }
+function handleAlerts() {
+  const pending = supportState.chats.filter(c => c.alert && !dismissedAlerts.has(alertKey(c)));
+  if (alertShowing && !pending.some(c => alertKey(c) === alertShowing)) stopAlert();
+  if (alertShowing || !pending.length) {
+    if (alertShowing) updateAlertMore(pending);
+    return;
+  }
+  const c = pending[0];
+  alertShowing = alertKey(c);
+  document.getElementById('al-kicker').textContent = c.target_admin_id ? 'Chat passed to you' : (c.mode === 'intake' ? 'Customer waiting - nobody answered' : 'New chat for your team');
+  document.getElementById('al-title').textContent = c.target_admin_id ? chatWho(c) + ' needs you' : c.department_label + ' - ' + chatWho(c);
+  document.getElementById('al-meta').textContent = (c.page_url ? c.page_url.replace(/^https?:\/\//, '') + ' · ' : '') + 'waiting ' + fmtWait(c.waiting_secs);
+  document.getElementById('al-question').textContent = c.last_message || c.first_message || '(no message)';
+  updateAlertMore(pending);
+  document.getElementById('al-accept').onclick = () => { dismissedAlerts.add(alertKey(c)); acceptChat(c.id); };
+  document.getElementById('al-view').onclick = () => { dismissedAlerts.add(alertKey(c)); stopAlert(); openChat(c.id); };
+  document.getElementById('al-dismiss').onclick = () => { dismissedAlerts.add(alertKey(c)); stopAlert(); handleAlerts(); };
+  document.getElementById('alert-overlay').classList.remove('hidden');
+  notify(document.getElementById('al-kicker').textContent, (c.department_label || '') + ': ' + (c.first_message || ''));
+  bringToFront(true);
+  beep(true);
+  clearInterval(beepTimer);
+  beepTimer = setInterval(() => beep(true), 2500);
+}
+function updateAlertMore(pending) {
+  const others = pending.length - 1;
+  document.getElementById('al-more').textContent = others > 0 ? others + ' more chat' + (others === 1 ? '' : 's') + ' waiting.' : '';
+}
+function stopAlert() {
+  alertShowing = null;
+  clearInterval(beepTimer); beepTimer = null;
+  document.getElementById('alert-overlay').classList.add('hidden');
+  bringToFront(false);
+}
+
+// A customer replying in one of my chats: short beep + notification when
+// I'm not looking at that chat.
+function watchMyChats() {
+  for (const c of supportState.chats) {
+    if (c.mode !== 'live_active' || Number(c.claimed_by) !== Number(myAdminId)) continue;
+    const prev = lastCustomerSeen.get(c.id);
+    const nowAt = Number(c.last_customer_at || 0);
+    lastCustomerSeen.set(c.id, nowAt);
+    if (prev !== undefined && nowAt > prev && (c.id !== currentChatId || !document.hasFocus())) {
+      beep(false);
+      notify('Customer replied', chatWho(c) + ': ' + (c.last_message || ''));
+    }
+  }
+}
+
+// ── Admin (full web admin panel, embedded) ──────────────────────────────────
+function loadAdminFrame() {
+  const f = document.getElementById('admin-frame');
+  const url = serverUrl.replace(/\/$/, '') + '/admin/?embedded=1';
+  if (f.dataset.src !== url) { f.src = url; f.dataset.src = url; }
 }
 
 // ── Presence ─────────────────────────────────────────────────────────────────
@@ -670,11 +968,12 @@ function showPage(name) {
   document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
-  if (name === 'dashboard') loadDashboard();
+  document.getElementById('content').classList.toggle('full', name === 'chats' || name === 'admin');
   if (name === 'team') loadTeam();
-  if (name === 'projects') loadProjectsPage();
+  if (name === 'chats') loadChatQueue();
+  if (name === 'admin') loadAdminFrame();
 }
-document.getElementById('bell').onclick = () => showPage('dashboard');
+document.getElementById('bell').onclick = () => goToTickets('');
 
 function goToTickets(statusFilter) {
   showPage('tickets');
@@ -682,15 +981,6 @@ function goToTickets(statusFilter) {
   document.getElementById('filter-dept').value = '';
   loadTickets();
 }
-function focusReminders() {
-  showPage('dashboard');
-  const card = document.getElementById('dash-reminders');
-  if (!card) return;
-  card.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  card.closest('.card').classList.add('flash-highlight');
-  setTimeout(() => card.closest('.card').classList.remove('flash-highlight'), 1800);
-}
-
 // ── Version + self-update ────────────────────────────────────────────────────
 const DOWNLOAD_BASE = 'https://blakegroup.uk/downloads/';
 const UPDATE_CHECK_MS = 5 * 60 * 1000;
@@ -752,7 +1042,7 @@ document.getElementById('server-url-input').onchange = (e) => {
   localStorage.setItem('opconsole_server', serverUrl);
 };
 let awaitingTfa = false;
-document.getElementById('login-btn').onclick = doLogin;
+document.getElementById('login-btn').onclick = () => { unlockAudio(); doLogin(); };
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('login-code').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 async function doLogin() {
@@ -787,7 +1077,6 @@ async function checkDueReminders() {
     const due = await apiGet('/api/admin/reminders.php?due=1');
     dueReminderCount = due.length;
     document.getElementById('bell-dot').classList.toggle('hidden', dueReminderCount === 0);
-    document.getElementById('stat-alerts').textContent = dueReminderCount;
     for (const r of due) {
       if (!notifiedReminderIds.has(r.id)) {
         notifiedReminderIds.add(r.id);
@@ -806,14 +1095,13 @@ function enterApp() {
   document.getElementById('app').style.display = 'flex';
   loadAgents();
   loadTickets();
-  loadProjects();
   checkDueReminders();
   checkChannelNotifications();
-  checkAssignmentNotifications();
   checkForUpdate();
-  loadDashboard();
   loadPresence();
-  pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); checkAssignmentNotifications(); refreshOpenChannel(); refreshTeamIfOpen(); }, POLL_MS);
+  showPage('chats');
+  startSupportPolling();
+  pollTimer = setInterval(() => { loadAgents(); loadTickets(); checkDueReminders(); checkChannelNotifications(); refreshOpenChannel(); refreshTeamIfOpen(); }, POLL_MS);
   setInterval(checkForUpdate, UPDATE_CHECK_MS);
 }
 
@@ -826,136 +1114,6 @@ document.getElementById('logout-btn').onclick = async () => {
   try { await fetch(api('/api/admin/login.php'), { method: 'DELETE', credentials: 'include' }); } catch (e) {}
   location.reload();
 };
-
-// ── Dashboard ────────────────────────────────────────────────────────────────
-// Detects "newly assigned to me" for projects and tasks, same isFirstLoad-
-// guard pattern as ticket reassignment - compares this poll's set against
-// the last one, notifies only on genuinely new membership, and never fires
-// on whatever was already assigned when the app started.
-async function checkAssignmentNotifications() {
-  await loadProjects();
-  const currentProjectIds = new Set(allProjects.filter(p => (p.assignees || []).some(a => a.id === myAdminId)).map(p => p.id));
-  if (knownMyProjectIds !== null) {
-    for (const pid of currentProjectIds) {
-      if (!knownMyProjectIds.has(pid)) {
-        const p = allProjects.find(x => x.id === pid);
-        notify('Assigned to project', p ? p.name : 'Project #' + pid);
-      }
-    }
-  }
-  knownMyProjectIds = currentProjectIds;
-
-  try {
-    const myTasks = await apiGet('/api/admin/tasks.php?mine=1');
-    const currentTaskIds = new Set((Array.isArray(myTasks) ? myTasks : []).map(t => t.id));
-    if (knownMyTaskIds !== null) {
-      for (const tid of currentTaskIds) {
-        if (!knownMyTaskIds.has(tid)) {
-          const t = myTasks.find(x => x.id === tid);
-          notify('Assigned to task', t ? (t.title + ' (' + t.project_name + ')') : 'Task #' + tid);
-        }
-      }
-    }
-    knownMyTaskIds = currentTaskIds;
-  } catch (e) {}
-}
-
-async function loadDashboard() {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  document.getElementById('dash-greeting').textContent = greeting + ', ' + (myUsername || 'there');
-  document.getElementById('dash-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  await loadProjects();
-  document.getElementById('stat-projects').textContent = allProjects.filter(p => p.status === 'active').length;
-
-  let all = [];
-  try { all = await apiGet('/api/admin/tickets.php?status=&limit=200'); if (!Array.isArray(all)) all = []; } catch (e) {}
-  const openCount = all.filter(t => !['resolved','closed'].includes(t.status)).length;
-  document.getElementById('stat-open-tickets').textContent = openCount;
-  const todayStr = new Date().toDateString();
-  const dueToday = all.filter(t => t.sla_deadline && new Date(t.sla_deadline * 1000).toDateString() === todayStr).length;
-  document.getElementById('stat-due-today').textContent = dueToday;
-
-  const dashTickets = document.getElementById('dash-tickets');
-  const mine = all.filter(t => t.assigned_admin_id === myAdminId && !['resolved','closed'].includes(t.status)).slice(0, 6);
-  dashTickets.innerHTML = mine.length ? mine.map(projectCardLikeTicket).join('') : '<div class="empty-note">No open tickets assigned to you.</div>';
-
-  try {
-    const myTasks = await apiGet('/api/admin/tasks.php?mine=1&limit=6');
-    const el = document.getElementById('dash-tasks');
-    el.innerHTML = Array.isArray(myTasks) && myTasks.length ? myTasks.map(t => {
-      const overdue = t.due_date && (t.due_date * 1000) < Date.now();
-      return `
-      <div class="list-item">
-        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
-        <div>
-          <div class="main">${esc(t.title)}</div>
-          <div class="sub" style="${overdue ? 'color:var(--err)' : ''}">${t.due_date ? (overdue ? 'Overdue — ' : 'Due ') + new Date(t.due_date*1000).toLocaleDateString() : 'No due date'} · ${esc(t.project_name)}</div>
-        </div>
-      </div>`;
-    }).join('') : '<div class="empty-note">No open tasks assigned to you.</div>';
-  } catch (e) {}
-
-  try {
-    const rem = await apiGet('/api/admin/reminders.php?mine=1&limit=6');
-    const el = document.getElementById('dash-reminders');
-    el.innerHTML = Array.isArray(rem) && rem.length ? rem.map(r => `
-      <div class="list-item">
-        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <div>
-          <div class="main">${esc(r.note || r.ticket_subject || 'Reminder')}</div>
-          <div class="sub">${fmtTime(r.remind_at)} · Ticket: ${esc(r.ticket_subject || '#' + r.ticket_id)}</div>
-        </div>
-      </div>`).join('') : '<div class="empty-note">No upcoming reminders.</div>';
-  } catch (e) {}
-
-  try {
-    const rows = await apiGet('/api/admin/activity.php?limit=8');
-    const el = document.getElementById('dash-activity');
-    el.innerHTML = Array.isArray(rows) && rows.length ? rows.map(a => `
-      <div class="list-item">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
-        <div>
-          <div class="main">${esc(describeActivity(a))}</div>
-          <div class="sub">${fmtRelative(a.created_at)}</div>
-        </div>
-      </div>`).join('') : '<div class="empty-note">No recent activity.</div>';
-  } catch (e) {}
-}
-
-function describeActivity(a) {
-  const who = a.username || 'Someone';
-  const map = {
-    ticket_status_change: who + ' changed a ticket to ' + (STATUS_LABELS[a.detail] || a.detail),
-    ticket_department_change: who + ' routed a ticket to ' + (a.detail || 'unassigned'),
-    ticket_priority_change: who + ' set a ticket to ' + a.detail + ' priority',
-    ticket_reassigned: who + ' assigned a ticket to ' + a.detail,
-    ticket_created_manually: who + ' created ticket "' + a.detail + '"',
-    ticket_project_link: who + ' linked a ticket to ' + a.detail,
-    project_created: who + ' created project "' + a.detail + '"',
-    project_updated: who + ' updated a project',
-    user_created: who + ' created an account for ' + a.target,
-    user_updated: who + " updated a user's role",
-    user_departments_updated: who + ' updated department membership',
-    login_unlocked_by_admin: who + ' unlocked an account',
-    '2fa_reset_by_admin': who + " reset someone's 2FA",
-  };
-  return map[a.action] || (who + ' — ' + a.action);
-}
-
-function projectCardLikeTicket(t) {
-  const overdue = t.sla_deadline && !['resolved','closed'].includes(t.status) && (t.sla_deadline * 1000) < Date.now();
-  return `
-  <div class="project-card" onclick="openTicket(${t.id})" style="cursor:pointer">
-    <div class="top-row">
-      ${t.department ? `<span class="pill pill-dept">${esc(t.department)}</span>` : '<span></span>'}
-      ${liveHandoffIds.has(t.id) ? '<span class="pill-live">LIVE</span>' : overdue ? '<span class="pill pill-overdue">overdue</span>' : ''}
-    </div>
-    <h3>${esc(t.subject || ticketCode(t))}</h3>
-    <p>${esc(ticketCode(t))} · ${STATUS_LABELS[t.status] || t.status}</p>
-    <div class="project-footer"><span class="pill pill-priority-${esc(t.priority || 'medium')}">${esc(t.priority || 'medium')}</span><span>${t.sla_deadline ? fmtTime(t.sla_deadline) : ''}</span></div>
-  </div>`;
-}
 
 // ── Team ─────────────────────────────────────────────────────────────────────
 async function loadTeam() {
@@ -1101,13 +1259,10 @@ async function openTicket(id) {
         <div class="group"><label>Assign to</label>
           <select id="ctl-assignee"><option value="">Unassigned</option>${agents.map(a => `<option value="${a.id}" ${a.id===ticket.assigned_admin_id?'selected':''}>${esc(a.username)}${a.departments && a.departments.length ? ' (' + a.departments.map(esc).join(', ') + ')' : ''} — ${esc(a.effective_status)}</option>`).join('')}</select>
         </div>
-        <div class="group"><label>Project</label>
-          <select id="ctl-project"><option value="">None</option>${allProjects.map(p => `<option value="${p.id}" ${p.id===ticket.project_id?'selected':''}>${p.parent_id ? '— ' : ''}${esc(p.name)}</option>`).join('')}</select>
-        </div>
         <button class="btn btn-primary btn-sm" id="ctl-save">Save</button>
         <span id="save-status"></span>
       </div>
-      <div id="live-chat-panel">${liveChatPanelHtml(ticket)}</div>
+      ${ticket.session_id ? `<div style="margin:0 0 12px"><button class="btn btn-sm" onclick="closeSlideOver();openChat('${esc(ticket.session_id)}')">Open this chat in Chats</button>${ticket.customer_name || ticket.customer_phone ? ` <span style="color:var(--text-dim);font-size:12px;margin-left:8px">${esc(ticket.customer_name || '')}${ticket.customer_phone ? ' · ' + esc(ticket.customer_phone) : ''}</span>` : ''}</div>` : ''}
       <div id="transcript">
         ${messages.length ? messages.map(m => m.role === 'system'
           ? `<div class="msg-system">${esc(m.content || '')}</div>`
@@ -1137,9 +1292,6 @@ async function openTicket(id) {
     </div>`;
   document.body.appendChild(overlay);
 
-  if (ticket.channel === 'live_chat' && ticket.session_mode === 'live_active' && myAdminId != null && Number(ticket.session_claimed_by) === Number(myAdminId)) {
-    startLiveChatPolling(ticket.session_id);
-  }
 
   overlay.querySelector('.slide-close').onclick = closeSlideOver;
   document.getElementById('ctl-save').onclick = () => saveTicketRouting(ticket.id);
@@ -1248,12 +1400,10 @@ async function saveTicketRouting(id) {
   const priority = document.getElementById('ctl-priority').value;
   const assigneeRaw = document.getElementById('ctl-assignee').value;
   const assigned_admin_id = assigneeRaw === '' ? null : parseInt(assigneeRaw, 10);
-  const projectRaw = document.getElementById('ctl-project').value;
-  const project_id = projectRaw === '' ? null : parseInt(projectRaw, 10);
   const statusEl = document.getElementById('save-status');
   statusEl.textContent = 'Saving…';
   try {
-    const r = await apiSend('PUT', '/api/admin/tickets.php', { id, status, department, priority, assigned_admin_id, project_id, csrf });
+    const r = await apiSend('PUT', '/api/admin/tickets.php', { id, status, department, priority, assigned_admin_id, csrf });
     statusEl.textContent = r.ok ? 'Saved ✓' : (r.error || 'Failed');
     statusEl.style.color = r.ok ? 'var(--ok)' : 'var(--err)';
     if (r.ok) loadTickets();
@@ -1270,450 +1420,6 @@ async function saveNote(id) {
     const r = await apiSend('POST', '/api/admin/tickets.php', { id, note, csrf });
     if (r.ok) { input.value = ''; await loadTickets(); const t = tickets.find(x => x.id === id); if (t) document.getElementById('notes-existing').textContent = t.notes || 'No notes yet.'; }
   } catch (e) {}
-}
-
-// ── Projects ─────────────────────────────────────────────────────────────────
-async function loadProjects() {
-  try { allProjects = await apiGet('/api/admin/projects.php?all=1'); if (!Array.isArray(allProjects)) allProjects = []; } catch (e) {}
-}
-
-function projectCard(p) {
-  const overdue = p.due_date && p.status !== 'completed' && (p.due_date * 1000) < Date.now();
-  const color = p.color || tcColor(p.name);
-  return `
-  <div class="project-card" onclick="openProject(${p.id})" style="cursor:pointer;border-top:4px solid ${color}">
-    <div class="top-row">
-      ${p.department ? `<span class="pill pill-dept">${esc(p.department)}</span>` : '<span></span>'}
-      ${overdue ? '<span class="pill pill-overdue">overdue</span>' : `<span class="pill pill-dept">${esc(p.status)}</span>`}
-    </div>
-    <h3>${esc(p.name)}</h3>
-    <p>${esc(p.description || 'No description yet.')}</p>
-    <div class="progress-track"><div class="progress-fill" style="width:${p.progress_pct||0}%"></div></div>
-    <div class="project-footer">
-      <span>${p.due_date ? 'Due ' + new Date(p.due_date*1000).toLocaleDateString() : 'No due date'}</span>
-      <span class="counts"><span>💬 ${p.comment_count||0}</span><span>🎫 ${p.ticket_count||0}</span>${p.child_count ? `<span>📁 ${p.child_count}</span>` : ''}${p.open_task_count ? `<span>☑ ${p.open_task_count}</span>` : ''}</span>
-    </div>
-    ${p.assignees && p.assignees.length ? `<div class="avatar-row" style="margin-top:10px">${p.assignees.map(a => `<span class="avatar-badge" title="${esc(a.username)}">${esc(initials(a.username))}</span>`).join('')}</div>` : ''}
-  </div>`;
-}
-
-async function loadProjectsPage() {
-  await loadProjects();
-  const el = document.getElementById('projects-grid');
-  const topLevel = allProjects.filter(p => !p.parent_id);
-  el.innerHTML = topLevel.length ? topLevel.map(projectCard).join('') : '<div class="empty-note">No projects yet. Create one to get started.</div>';
-}
-
-const PROJECT_COLOR_PALETTE = ['#7c6ef2', '#4f9dde', '#3fbf7f', '#e0a13e', '#e0607a', '#6ec7c7', '#c76ee0'];
-let newProjectParentId = null;
-function openNewProjectModal(parentId) {
-  newProjectParentId = parentId || null;
-  document.getElementById('np-name').value = '';
-  document.getElementById('np-desc').value = '';
-  document.getElementById('np-dept').value = '';
-  document.getElementById('np-due').value = '';
-  document.getElementById('np-color').value = PROJECT_COLOR_PALETTE[Math.floor(Math.random() * PROJECT_COLOR_PALETTE.length)];
-  document.getElementById('np-err').textContent = '';
-  document.querySelector('#new-project-modal h2').textContent = parentId ? 'New sub-project' : 'New project';
-  document.getElementById('new-project-modal').classList.remove('hidden');
-  document.getElementById('np-name').focus();
-}
-document.getElementById('new-project-btn').onclick = () => openNewProjectModal(null);
-document.getElementById('np-cancel').onclick = () => document.getElementById('new-project-modal').classList.add('hidden');
-document.getElementById('np-submit').onclick = async () => {
-  const errEl = document.getElementById('np-err');
-  const name = document.getElementById('np-name').value.trim();
-  if (!name) { errEl.textContent = 'Name is required.'; return; }
-  const dueVal = document.getElementById('np-due').value;
-  try {
-    const r = await apiSend('POST', '/api/admin/projects.php', {
-      name, description: document.getElementById('np-desc').value.trim(),
-      department: document.getElementById('np-dept').value,
-      due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
-      parent_id: newProjectParentId,
-      color: document.getElementById('np-color').value,
-      csrf,
-    });
-    if (!r.ok) { errEl.textContent = r.error || 'Could not create project'; return; }
-    document.getElementById('new-project-modal').classList.add('hidden');
-    if (newProjectParentId) openProject(newProjectParentId);
-    else loadProjectsPage();
-  } catch (e) { errEl.textContent = 'Could not reach the server.'; }
-};
-
-async function openProject(id) {
-  let project;
-  try { project = await apiGet('/api/admin/projects.php?id=' + id); } catch (e) { return; }
-  if (project.error) { alert(project.error); return; }
-
-  const color = project.color || tcColor(project.name);
-  document.getElementById('projects-grid').classList.add('hidden');
-  document.getElementById('projects-header-row').classList.add('hidden');
-  document.getElementById('projects-page-meta').classList.add('hidden');
-  const detail = document.getElementById('project-detail-view');
-  detail.classList.remove('hidden');
-  detail.innerHTML = `
-    <div class="project-detail" style="border-top:4px solid ${color}">
-      <div class="slide-header">
-        <div>
-          ${project.parent_id ? `<div class="sub" style="margin-bottom:4px"><span style="cursor:pointer;text-decoration:underline" onclick="openProject(${project.parent_id})">← ${esc(project.parent_name)}</span></div>` : ''}
-          <h2>${esc(project.name)}</h2>
-          <div class="sub">Created by ${esc(project.created_by_username || 'unknown')} · ${fmtTime(project.created_at)}</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-sm" id="pctl-assigned">Assigned (${project.assignees.length})</button>
-          <button class="btn btn-sm" id="pctl-delete" style="color:var(--err)">Delete</button>
-          <button class="btn btn-sm" id="pctl-back">← Back to Projects</button>
-        </div>
-      </div>
-      <div class="slide-controls">
-        <div class="group"><label>Status</label>
-          <select id="pctl-status">${['active','on_hold','completed','archived'].map(s => `<option value="${s}" ${s===project.status?'selected':''}>${s.replace('_',' ')}</option>`).join('')}</select>
-        </div>
-        <div class="group"><label>Department</label>
-          <select id="pctl-dept"><option value="">Unassigned</option>${['sales','technical','accounts'].map(d => `<option value="${d}" ${d===project.department?'selected':''}>${d}</option>`).join('')}</select>
-        </div>
-        <div class="group"><label>Due date</label>
-          <input type="date" id="pctl-due" value="${project.due_date ? new Date(project.due_date*1000).toISOString().slice(0,10) : ''}">
-        </div>
-        <div class="group"><label>Colour</label>
-          <input type="color" id="pctl-color" value="${color}" style="width:44px;height:32px;padding:2px;cursor:pointer">
-        </div>
-        <div class="group" style="flex:1"><label>Progress: <span id="pctl-progress-val">${project.progress_pct}</span>%</label>
-          <input type="range" min="0" max="100" id="pctl-progress" value="${project.progress_pct}" oninput="document.getElementById('pctl-progress-val').textContent=this.value">
-        </div>
-        <button class="btn btn-primary btn-sm" id="pctl-save">Save</button>
-        <span id="psave-status"></span>
-      </div>
-      <div id="notes-panel">
-        <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px">${esc(project.description || 'No description yet.')}</div>
-        <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Linked tickets (${project.tickets.length})</h3>
-        ${project.tickets.length ? project.tickets.map(t => `<div class="linked-ticket"><span>${esc(t.subject || 'Ticket #'+t.id)}</span><span class="pill pill-status-${esc(t.status)}">${esc(STATUS_LABELS[t.status]||t.status)}</span></div>`).join('') : "<div class=\"empty-note\">No tickets linked yet — link one from a ticket's detail panel.</div>"}
-      </div>
-      <div class="panel-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <h3 style="margin:0;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Sub-projects (${project.children.length})</h3>
-          <button class="btn btn-xs" id="pctl-add-sub">+ Add sub-project</button>
-        </div>
-        ${project.children.length ? project.children.map(c => `<div class="linked-ticket" style="cursor:pointer" onclick="openProject(${c.id})"><span>${esc(c.name)}</span><span class="pill pill-dept">${c.progress_pct||0}%</span></div>`).join('') : '<div class="empty-note">No sub-projects yet.</div>'}
-      </div>
-      <div class="panel-section">
-        <h3 style="margin:0 0 8px;font-size:12px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Tasks</h3>
-        <div id="task-list">Loading…</div>
-        <div id="task-add">
-          <input type="text" id="task-title" placeholder="New item…">
-          <input type="text" id="task-group" placeholder="Group (optional)" style="max-width:130px">
-          <input type="date" id="task-due">
-          <button class="btn btn-xs" id="task-assign-btn" type="button">Assign</button>
-          <button class="btn btn-sm" id="task-add-btn">Add</button>
-        </div>
-      </div>
-      <div id="reminders-panel">
-        <h3>Comments</h3>
-        <div id="project-comments">${project.comments.length ? project.comments.map(c => `
-          <div class="comment-item">
-            <span class="who" ${c.admin_id !== myAdminId ? `style="cursor:pointer;text-decoration:underline" onclick="openDM(${c.admin_id}, '${esc(c.username)}')"` : ''}>${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span>
-            ${(c.admin_id === myAdminId || myRole === 'admin') ? `<span style="float:right;cursor:pointer;color:var(--err);font-size:11px" onclick="deleteComment(${c.id}, ${project.id})">delete</span>` : ''}
-            <div>${esc(c.content)}</div>
-          </div>`).join('') : '<div class="empty-note">No comments yet.</div>'}</div>
-        <div style="display:flex;gap:6px;margin-top:10px">
-          <input id="pc-input" placeholder="Add a comment…">
-          <button class="btn btn-sm" id="pc-add">Post</button>
-        </div>
-      </div>
-    </div>`;
-
-  document.getElementById('pctl-back').onclick = closeProjectDetail;
-  document.getElementById('pctl-add-sub').onclick = () => openNewProjectModal(project.id);
-  document.getElementById('pctl-assigned').onclick = () => {
-    openAssigneePicker('Assign project to', project.assignees.map(a => a.id), async (ids) => {
-      await apiSend('PUT', '/api/admin/projects.php', { id: project.id, assignee_ids: ids, csrf });
-      openProject(project.id); loadProjectsPage();
-    });
-  };
-  document.getElementById('pctl-delete').onclick = async () => {
-    const warn = project.children.length
-      ? `Delete "${project.name}"? Its ${project.children.length} sub-project(s) will be promoted to top-level, not deleted. Linked tickets will be unlinked, not deleted.`
-      : `Delete "${project.name}"? Linked tickets will be unlinked, not deleted. This can't be undone.`;
-    if (!confirm(warn)) return;
-    const r = await apiSend('DELETE', '/api/admin/projects.php', { id: project.id, csrf });
-    if (r.ok) { closeProjectDetail(); loadDashboard(); }
-    else alert(r.error || 'Could not delete project');
-  };
-  document.getElementById('pctl-save').onclick = async () => {
-    const statusEl = document.getElementById('psave-status');
-    statusEl.textContent = 'Saving…';
-    const dueVal = document.getElementById('pctl-due').value;
-    const colorVal = document.getElementById('pctl-color').value;
-    const r = await apiSend('PUT', '/api/admin/projects.php', {
-      id: project.id, status: document.getElementById('pctl-status').value,
-      department: document.getElementById('pctl-dept').value,
-      due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
-      progress_pct: parseInt(document.getElementById('pctl-progress').value, 10),
-      color: colorVal, csrf,
-    });
-    statusEl.textContent = r.ok ? 'Saved ✓' : (r.error || 'Failed');
-    statusEl.style.color = r.ok ? 'var(--ok)' : 'var(--err)';
-    if (r.ok) {
-      const panel = document.querySelector('#project-detail-view .project-detail');
-      if (panel) panel.style.borderTop = `4px solid ${colorVal}`;
-      loadProjectsPage();
-    }
-  };
-  document.getElementById('pc-add').onclick = async () => {
-    const input = document.getElementById('pc-input');
-    const content = input.value.trim();
-    if (!content) return;
-    const r = await apiSend('POST', '/api/admin/project_comments.php', { project_id: project.id, content, csrf });
-    if (r.ok) { input.value = ''; openProject(project.id); }
-  };
-
-  let newTaskAssigneeIds = [];
-  document.getElementById('task-assign-btn').onclick = () => {
-    openAssigneePicker('Assign new task to', newTaskAssigneeIds, (ids) => {
-      newTaskAssigneeIds = ids;
-      document.getElementById('task-assign-btn').textContent = ids.length ? `Assign (${ids.length})` : 'Assign';
-    });
-  };
-  document.getElementById('task-add-btn').onclick = async () => {
-    const title = document.getElementById('task-title').value.trim();
-    if (!title) return;
-    const dueVal = document.getElementById('task-due').value;
-    const groupVal = document.getElementById('task-group').value.trim();
-    await apiSend('POST', '/api/admin/tasks.php', {
-      project_id: project.id, title,
-      group_label: groupVal || null,
-      due_date: dueVal ? Math.floor(new Date(dueVal + 'T17:00:00').getTime() / 1000) : null,
-      assignee_ids: newTaskAssigneeIds, csrf,
-    });
-    document.getElementById('task-title').value = '';
-    document.getElementById('task-group').value = '';
-    document.getElementById('task-due').value = '';
-    newTaskAssigneeIds = [];
-    document.getElementById('task-assign-btn').textContent = 'Assign';
-    loadProjectTasks(project.id);
-  };
-  loadProjectTasks(project.id);
-}
-
-function closeProjectDetail() {
-  const detail = document.getElementById('project-detail-view');
-  detail.classList.add('hidden');
-  detail.innerHTML = '';
-  document.getElementById('projects-grid').classList.remove('hidden');
-  document.getElementById('projects-header-row').classList.remove('hidden');
-  document.getElementById('projects-page-meta').classList.remove('hidden');
-  loadProjectsPage();
-}
-
-async function deleteComment(id, projectId) {
-  if (!confirm('Delete this comment?')) return;
-  const r = await apiSend('DELETE', '/api/admin/project_comments.php', { id, csrf });
-  if (r.ok) { openProject(projectId); }
-  else alert(r.error || 'Could not delete comment');
-}
-
-// Reusable checkbox picker for assigning people to a project or task -
-// same shape as the channel member picker, generalized rather than
-// duplicated a third time.
-function openAssigneePicker(title, currentIds, onSave) {
-  const box = document.createElement('div');
-  box.className = 'modal-overlay';
-  box.onclick = (e) => { if (e.target === box) box.remove(); };
-  box.innerHTML = `
-    <div class="modal-box">
-      <h2>${esc(title)}</h2>
-      <div class="assignee-picker-list">${agents.map(a => `<label><input type="checkbox" value="${a.id}" ${currentIds.includes(a.id) ? 'checked' : ''}> ${esc(a.username)}${a.departments && a.departments.length ? ' (' + a.departments.map(esc).join(', ') + ')' : ''}</label>`).join('') || '<div class="empty-note">No staff to assign yet.</div>'}</div>
-      <div class="modal-actions">
-        <button class="btn" id="ap-cancel">Cancel</button>
-        <button class="btn btn-primary" id="ap-save">Save</button>
-      </div>
-    </div>`;
-  document.body.appendChild(box);
-  box.querySelector('#ap-cancel').onclick = () => box.remove();
-  box.querySelector('#ap-save').onclick = () => {
-    const ids = [...box.querySelectorAll('.assignee-picker-list input:checked')].map(i => parseInt(i.value, 10));
-    box.remove();
-    onSave(ids);
-  };
-}
-
-// A task is a board item: which group it sits in (group_label), a status
-// (to_do|in_progress|done - the same three the web admin's Kanban view
-// uses), a timeline (start_date/due_date), assignees, a single reviewer,
-// an optional tag and optional billable hours - see
-// scripts/schema_project_board.sql. Kanban is the only view here (a
-// separate List view existed briefly but was confusing alongside it -
-// one clear way to work the board beats two), so every field is viewable
-// and editable either inline (status, via drag) or via the task detail
-// modal (everything else, plus comments).
-let taskListProjectId = null;
-let taskListCache = [];
-const TC_PALETTE = ['#7c6ef2', '#e0a83f', '#4fce8e', '#ea5f5f', '#5fb6e8', '#c07be0', '#e08f5f', '#5fe0c0'];
-function tcColor(str) {
-  let h = 0;
-  for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return TC_PALETTE[h % TC_PALETTE.length];
-}
-const TASK_STATUS_LABELS = { to_do: 'To do', in_progress: 'In progress', done: 'Done' };
-
-async function loadProjectTasks(projectId) {
-  taskListProjectId = projectId;
-  const el = document.getElementById('task-list');
-  if (!el) return; // panel closed before this resolved
-  let tasks;
-  try { tasks = await apiGet('/api/admin/tasks.php?project_id=' + projectId); } catch (e) { el.innerHTML = '<div class="empty-note">Could not load tasks.</div>'; return; }
-  taskListCache = Array.isArray(tasks) ? tasks : [];
-  renderTaskKanban(el);
-}
-
-// ── Kanban view (same three columns as the web admin's) ──
-const TASK_KANBAN_COLUMNS = [['to_do', 'To do', '#8b5cf6'], ['in_progress', 'In progress', '#d68910'], ['done', 'Done', '#27ae60']];
-function renderTaskKanban(el) {
-  if (!taskListCache.length) { el.innerHTML = '<div class="empty-note">No tasks yet.</div>'; return; }
-  el.innerHTML = `<div class="tk-kanban">${TASK_KANBAN_COLUMNS.map(([status, label, color]) => {
-    const items = taskListCache.filter(t => t.status === status);
-    return `<div class="tk-kcol" ondragover="tkDragOver(event)" ondragleave="tkDragLeave(event)" ondrop="tkDrop(event,'${status}')">
-      <div class="tk-kcol-head" style="background:${color}">${label} / ${items.length}</div>
-      ${items.map(tkKanbanCard).join('')}
-    </div>`;
-  }).join('')}</div>`;
-}
-function tkKanbanCard(t) {
-  return `<div class="tk-kcard" draggable="true" ondragstart="tkDragStart(event,${t.id})" ondragend="tkDragEnd(event)">
-    <div class="kc-title" onclick="openTaskDetail(${t.id})">${esc(t.title)}</div>
-    ${t.due_date ? `<div class="kc-field">${new Date(t.due_date * 1000).toLocaleDateString()}</div>` : ''}
-    ${t.tag ? `<div class="kc-field"><span class="task-tag-pill" style="background:${tcColor(t.tag)}">${esc(t.tag)}</span></div>` : ''}
-    ${t.billable_hours != null ? `<div class="kc-field">${t.billable_hours}h</div>` : ''}
-    <div class="kc-field">${t.assignees.length ? t.assignees.map(a => esc(a.username)).join(', ') : 'Unassigned'}</div>
-    ${t.reviewer ? `<div class="kc-field">reviewer: ${esc(t.reviewer.username)}</div>` : ''}
-  </div>`;
-}
-let tkDragTaskId = null;
-function tkDragStart(e, taskId) { tkDragTaskId = taskId; e.target.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
-function tkDragEnd(e) { e.target.classList.remove('dragging'); }
-function tkDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); }
-function tkDragLeave(e) { e.currentTarget.classList.remove('dragover'); }
-async function tkDrop(e, status) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('dragover');
-  if (tkDragTaskId === null) return;
-  const taskId = tkDragTaskId; tkDragTaskId = null;
-  await setTaskStatus(taskId, taskListProjectId, status);
-}
-
-async function setTaskStatus(id, projectId, status) {
-  const r = await apiSend('PUT', '/api/admin/tasks.php', { id, status, csrf });
-  if (r.error) alert(r.error);
-  loadProjectTasks(projectId);
-}
-async function deleteTask(id, projectId) {
-  if (!confirm('Delete this task?')) return;
-  const r = await apiSend('DELETE', '/api/admin/tasks.php', { id, csrf });
-  if (r.error) { alert(r.error); return; }
-  loadProjectTasks(projectId);
-  if (taskDetailId === id) closeTaskDetail();
-}
-// ── Task detail modal (Details + Comments) ──
-let taskDetailId = null;
-let taskDetailTab = 'details';
-function openTaskDetail(id) {
-  taskDetailId = id;
-  taskDetailTab = 'details';
-  document.getElementById('task-detail-modal').classList.remove('hidden');
-  renderTaskDetailTabs();
-}
-function closeTaskDetail() {
-  document.getElementById('task-detail-modal').classList.add('hidden');
-  taskDetailId = null;
-}
-document.getElementById('td-close').onclick = closeTaskDetail;
-document.getElementById('td-tab-btn-details').onclick = () => { taskDetailTab = 'details'; renderTaskDetailTabs(); };
-document.getElementById('td-tab-btn-comments').onclick = () => { taskDetailTab = 'comments'; renderTaskDetailTabs(); };
-function findTask(id) { return taskListCache.find(t => t.id === id); }
-function renderTaskDetailTabs() {
-  const t = findTask(taskDetailId);
-  if (!t) { closeTaskDetail(); return; }
-  document.getElementById('td-tab-btn-details').classList.toggle('active', taskDetailTab === 'details');
-  document.getElementById('td-tab-btn-comments').classList.toggle('active', taskDetailTab === 'comments');
-  document.getElementById('td-title').value = t.title;
-  if (taskDetailTab === 'details') renderTaskDetailFields(t); else renderTaskDetailComments(t);
-}
-function renderTaskDetailFields(t) {
-  document.getElementById('td-body').innerHTML = `
-    <div class="td-field"><label>Group</label><input id="td-group" value="${esc(t.group_label || '')}"></div>
-    <div class="td-field"><label>Status</label><select id="td-status">${Object.keys(TASK_STATUS_LABELS).map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${TASK_STATUS_LABELS[s]}</option>`).join('')}</select></div>
-    <div class="td-field"><label>Start date</label><input type="date" id="td-start" value="${t.start_date ? new Date(t.start_date * 1000).toISOString().slice(0, 10) : ''}"></div>
-    <div class="td-field"><label>Due date</label><input type="date" id="td-due" value="${t.due_date ? new Date(t.due_date * 1000).toISOString().slice(0, 10) : ''}"></div>
-    <div class="td-field"><label>Reviewer</label><select id="td-reviewer"><option value="">Unassigned</option>${agents.map(a => `<option value="${a.id}" ${t.reviewer && t.reviewer.id === a.id ? 'selected' : ''}>${esc(a.username)}</option>`).join('')}</select></div>
-    <div class="td-field"><label>Tag</label><input id="td-tag" value="${esc(t.tag || '')}"></div>
-    <div class="td-field"><label>Billable hrs</label><input type="number" step="0.5" min="0" id="td-billable" value="${t.billable_hours ?? ''}"></div>
-    <div class="td-field" style="align-items:flex-start;flex-direction:column"><label style="width:auto;margin-bottom:4px">Description</label><textarea id="td-desc" style="width:100%;min-height:60px">${esc(t.description || '')}</textarea></div>
-    <div class="modal-actions" style="justify-content:space-between">
-      <button class="btn" id="td-assign-btn" type="button">Assignees (${t.assignees.length})</button>
-      <div style="display:flex;gap:8px">
-        <button class="btn" id="td-delete-btn" style="color:var(--err)">Delete</button>
-        <button class="btn btn-primary" id="td-save-btn">Save</button>
-      </div>
-    </div>
-  `;
-  document.getElementById('td-delete-btn').onclick = () => deleteTask(t.id, taskListProjectId);
-  document.getElementById('td-assign-btn').onclick = () => {
-    openAssigneePicker('Assign task to', t.assignees.map(a => a.id), async (ids) => {
-      await apiSend('PUT', '/api/admin/tasks.php', { id: t.id, assignee_ids: ids, csrf });
-      await loadProjectTasks(taskListProjectId);
-      renderTaskDetailFields(findTask(t.id));
-    });
-  };
-  document.getElementById('td-save-btn').onclick = async () => {
-    const title = document.getElementById('td-title').value.trim();
-    if (!title) { alert('Title cannot be empty'); return; }
-    const startVal = document.getElementById('td-start').value;
-    const dueVal = document.getElementById('td-due').value;
-    const reviewerVal = document.getElementById('td-reviewer').value;
-    const billableVal = document.getElementById('td-billable').value;
-    const r = await apiSend('PUT', '/api/admin/tasks.php', {
-      id: t.id, csrf,
-      title,
-      group_label: document.getElementById('td-group').value.trim(),
-      status: document.getElementById('td-status').value,
-      start_date: startVal ? Math.floor(new Date(startVal + 'T12:00:00').getTime() / 1000) : null,
-      due_date: dueVal ? Math.floor(new Date(dueVal + 'T12:00:00').getTime() / 1000) : null,
-      reviewer_id: reviewerVal ? parseInt(reviewerVal, 10) : null,
-      tag: document.getElementById('td-tag').value.trim(),
-      billable_hours: billableVal === '' ? null : parseFloat(billableVal),
-      description: document.getElementById('td-desc').value.trim(),
-    });
-    if (r.error) { alert(r.error); return; }
-    await loadProjectTasks(taskListProjectId);
-    closeTaskDetail();
-  };
-}
-async function renderTaskDetailComments(t) {
-  document.getElementById('td-body').innerHTML = '<div class="empty-note">Loading…</div>';
-  let rows;
-  try { rows = await apiGet('/api/admin/project_comments.php?task_id=' + t.id); } catch (e) { rows = []; }
-  if (taskDetailId !== t.id) return; // modal moved on while this was in flight
-  const list = Array.isArray(rows) ? rows : [];
-  document.getElementById('td-body').innerHTML = `
-    <div id="td-comments-list">${list.length ? list.map(c => `
-      <div class="comment-item">
-        <span class="who">${esc(c.username)}</span><span class="when">${fmtTime(c.created_at)}</span>
-        <div>${esc(c.content)}</div>
-      </div>`).join('') : '<div class="empty-note">No comments yet.</div>'}</div>
-    <div style="display:flex;gap:6px;margin-top:10px">
-      <input id="td-comment-input" placeholder="Add a comment…">
-      <button class="btn btn-sm" id="td-comment-add">Post</button>
-    </div>
-  `;
-  document.getElementById('td-comment-add').onclick = async () => {
-    const input = document.getElementById('td-comment-input');
-    const content = input.value.trim();
-    if (!content) return;
-    await apiSend('POST', '/api/admin/project_comments.php', { task_id: t.id, content, csrf });
-    input.value = '';
-    renderTaskDetailComments(t);
-  };
 }
 
 // ── Team chat ────────────────────────────────────────────────────────────────

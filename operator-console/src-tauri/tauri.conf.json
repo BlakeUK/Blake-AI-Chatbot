@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "Blake UK Operator Console",
-    "version": "0.16.1"
+    "version": "0.17.0"
   },
   "tauri": {
     "bundle": {
@@ -20,24 +20,36 @@
         "icons/128x128@2x.png",
         "icons/icon.ico"
       ],
-      "targets": ["deb", "nsis"],
+      "targets": [
+        "deb",
+        "nsis"
+      ],
       "windows": {
         "nsis": {
           "installMode": "currentUser"
         }
       },
       "resources": [],
-      "shortDescription": "Ticket notifications and department routing for Blake UK support staff",
-      "longDescription": "Desktop console for Blake UK support staff: get notified when the chatbot needs a human, hand tickets off between sales/technical/accounts and specific colleagues, and review the conversation before replying."
+      "shortDescription": "Live chat and support ticket desk for Blake UK staff",
+      "longDescription": "Desktop support desk for Blake UK staff: chats routed to your department pop up with a sound, accept and reply, transfer to another department or colleague, add staff notes and raise support tickets."
     },
     "security": {
       "csp": null
     },
     "allowlist": {
       "all": false,
-      "notification": { "all": true },
-      "shell": { "open": true },
-      "app": { "all": true }
+      "notification": {
+        "all": true
+      },
+      "shell": {
+        "open": true
+      },
+      "app": {
+        "all": true
+      },
+      "window": {
+        "all": true
+      }
     },
     "systemTray": {
       "iconPath": "icons/32x32.png",
@@ -46,13 +58,14 @@
     "windows": [
       {
         "label": "main",
-        "title": "Blake UK Operator Console",
+        "title": "Blake UK Support Desk",
         "width": 1300,
         "height": 820,
         "minWidth": 900,
         "minHeight": 600,
         "resizable": true,
-        "center": true
+        "center": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --autoplay-policy=no-user-gesture-required"
       }
     ]
   }
