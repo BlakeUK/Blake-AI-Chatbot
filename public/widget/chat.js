@@ -34,20 +34,23 @@
   style.href = ENDPOINT + '/widget/chat.css';
   document.head.appendChild(style);
 
-  // Max: animated android mascot launcher. A single cut-out image
-  // (widget/img/max.webp, PNG fallback) with the edge fade baked in; the
-  // motion (gentle bob and sway, eye glow and blink, shine sweep) is CSS.
-  const MAX_IMG = ENDPOINT + '/widget/img/max';
+  // Max: animated robot mascot launcher. A single cut-out image
+  // (widget/img/max2.webp, PNG fallback; headset support robot with the
+  // Blake UK "UK" chest badge) with the edge fade baked in; the motion
+  // (gentle bob and sway, eye glow and blink, shine sweep) is CSS.
+  const MAX_IMG = ENDPOINT + '/widget/img/max2';
   const ROBOT_SVG = `
 <span class="buk-max" aria-hidden="true">
   <span class="buk-max-body">
     <picture>
       <source srcset="${MAX_IMG}.webp" type="image/webp">
-      <img src="${MAX_IMG}.png" alt="" width="140" height="165" draggable="false">
+      <img src="${MAX_IMG}.png" alt="" width="150" height="138" draggable="false">
     </picture>
     <span class="buk-max-shine" style="-webkit-mask-image:url('${MAX_IMG}.png');mask-image:url('${MAX_IMG}.png')"></span>
     <span class="buk-max-eye buk-max-eye-l"></span>
     <span class="buk-max-eye buk-max-eye-r"></span>
+    <span class="buk-max-lid buk-max-eye-l"></span>
+    <span class="buk-max-lid buk-max-eye-r"></span>
   </span>
 </span>`;
 
@@ -86,8 +89,10 @@
     <div id="buk-chat-header">
       <div id="buk-chat-header-info">
         <span id="buk-max-avatar" aria-hidden="true">
-          <picture><source srcset="${MAX_IMG}-head.webp" type="image/webp"><img src="${MAX_IMG}-head.png" alt="" width="46" height="57" draggable="false"></picture>
+          <picture><source srcset="${MAX_IMG}-head.webp" type="image/webp"><img src="${MAX_IMG}-head.png" alt="" width="52" height="48" draggable="false"></picture>
           <span class="buk-av-eye buk-av-eye-l"></span><span class="buk-av-eye buk-av-eye-r"></span>
+          <span class="buk-av-lid buk-av-eye-l"></span><span class="buk-av-lid buk-av-eye-r"></span>
+          <span id="buk-max-smile-cover"></span>
           <span id="buk-max-mouth"></span>
         </span>
         <div id="buk-chat-header-text">
