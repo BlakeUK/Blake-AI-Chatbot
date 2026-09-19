@@ -197,3 +197,10 @@ test('verifyBlakeLinks repairs a garbled copy of a product URL from the prompt',
     $b = \Chat\Responder::verifyBlakeLinks('See https://www.blake-uk.com/totally-different-thing.html', "Product: {$real}", $r2);
     assert_true(!str_contains($b, 'totally-different'), 'unrelated invented link is still removed');
 });
+
+test('verifyBlakeLinks repairs an invented product URL from the product code on the same line', function () {
+    db()->prepare("INSERT INTO products (product_code, name, url) VALUES ('BLAMHDTEST12V', '2-Way Amp', 'https://www.blake-uk.com/real-2-way-amp-page.html')")->execute();
+    $a = \Chat\Responder::verifyBlakeLinks("1. **2-Way Amp (Code: BLAMHDTEST12V)** - £18.60. View it here: https://www.blake-uk.com/class-1-2-way-garbled-garbled.html\n2. Other", '', $removed);
+    assert_true(str_contains($a, 'View it here: https://www.blake-uk.com/real-2-way-amp-page.html'), $a);
+    assert_equal(1, count($removed));
+});

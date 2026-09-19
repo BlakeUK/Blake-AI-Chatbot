@@ -323,11 +323,27 @@ PROMPT;
             $fix = $repair($mm[2]);
             return $fix ? "[{$mm[1]}]({$fix})" : $mm[1];
         }, $answer) ?? $answer;
-        $answer = preg_replace_callback('#(?<!\()\bhttps?://[^\s<>"\')\]]+#i', function ($mm) use ($isKnown, $repair, &$removed) {
-            if ($isKnown($mm[0])) return $mm[0];
-            $removed[] = $mm[0];
-            return $repair($mm[0]) ?? '';
-        }, $answer) ?? $answer;
+        // Best repair: the product code written on the same line (the model
+        // usually writes "... (Code: BLAMHD12V) ... view it here: <url>").
+        $byCode = function (string $line): ?string {
+            if (!preg_match_all('/\b[A-Z0-9][A-Z0-9\-]{4,}\b/', $line, $cm)) return null;
+            foreach (array_reverse($cm[0]) as $code) {
+                try {
+                    $q = db()->prepare('SELECT url FROM products WHERE product_code = ? AND url IS NOT NULL');
+                    $q->execute([$code]);
+                    if ($u = $q->fetchColumn()) return (string)$u;
+                } catch (\Throwable $e) { return null; }
+            }
+            return null;
+        };
+        $answer = preg_replace_callback('#(?<!\()\bhttps?://[^\s<>"\')\]]+#i', function ($mm) use ($isKnown, $repair, $byCode, &$removed, $answer) {
+            [$url, $pos] = $mm[0];
+            if ($isKnown($url)) return $url;
+            $removed[] = $url;
+            $lineStart = strrpos(substr($answer, 0, $pos), "\n");
+            $line = substr($answer, $lineStart === false ? 0 : $lineStart, $pos - ($lineStart === false ? 0 : $lineStart));
+            return $byCode($line) ?? $repair($url) ?? '';
+        }, $answer, -1, $cnt, PREG_OFFSET_CAPTURE) ?? $answer;
         return preg_replace('/[ \t]{2,}/', ' ', $answer);
     }
 
