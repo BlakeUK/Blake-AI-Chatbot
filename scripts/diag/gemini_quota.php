@@ -15,9 +15,9 @@ $db = db();
 foreach ($db->query("SELECT status, COUNT(*) c FROM knowledge_files GROUP BY status") as $r) echo "files {$r['status']}: {$r['c']}\n";
 if (!$key) exit;
 foreach (array_unique([$ext, $chat, 'gemini-2.5-flash']) as $m) {
-    $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$key");
+    $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent");
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_TIMEOUT => 60,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-goog-api-key: ' . $key],
         CURLOPT_POSTFIELDS => json_encode(['contents' => [['role' => 'user', 'parts' => [['text' => 'Reply OK']]]]])]);
     $resp = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
     echo "\n== $m -> HTTP $code\n";
