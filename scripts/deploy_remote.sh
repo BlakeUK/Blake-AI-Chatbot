@@ -364,6 +364,16 @@ else
     warn "Telegram update-polling cron job already installed — skipping."
 fi
 
+# ── Cap cron log sizes (VPS disk is tight) ────────────────────────────────────
+for LOGF in "$WEBROOT"/logs/*.log; do
+    [ -f "$LOGF" ] || continue
+    if [ "$(stat -c %s "$LOGF")" -gt 1048576 ]; then
+        tail -c 262144 "$LOGF" > "$LOGF.tmp" && cat "$LOGF.tmp" > "$LOGF" && rm -f "$LOGF.tmp"
+        info "Trimmed $(basename "$LOGF") to its last 256 KB"
+    fi
+done
+rm -f "$WEBROOT/data/chatbot.db.pre-rechunk"
+
 # ── Nightly product catalogue sync from blake-uk.com product pages ───────────
 # Script writes its own summary to logs/product_sync.log.
 CRON_LINE_PRODUCTS="30 2 * * * php $WEBROOT/scripts/sync_site_products.php > /dev/null 2>&1"

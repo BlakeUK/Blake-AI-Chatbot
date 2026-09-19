@@ -38,8 +38,11 @@ spl_autoload_register(function (string $class): void {
 function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
-        $pdo = new PDO('sqlite:' . CFG['db_path']);
+        $pdo = new PDO('sqlite:' . CFG['db_path'], null, null, [PDO::ATTR_TIMEOUT => 10]);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // See src/Db/Statement.php: recovers writes blocked by a stale read
+        // snapshot (SQLITE_BUSY_SNAPSHOT) when another process has written.
+        $pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, [\Db\Statement::class, []]);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->exec('PRAGMA journal_mode=WAL');
         $pdo->exec('PRAGMA foreign_keys=ON');

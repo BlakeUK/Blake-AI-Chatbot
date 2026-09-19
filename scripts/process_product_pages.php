@@ -24,7 +24,7 @@ $templateRow->execute(['product_extract_template']);
 $templateJson = $templateRow->fetchColumn();
 
 if (!$templateJson) {
-    echo "No confirmed template — nothing to apply. Confirm one under Products first.\n";
+    // Silent when idle (runs every minute; output is appended to a log).
     exit(0);
 }
 
@@ -48,7 +48,7 @@ $stmt->execute(['pending', BATCH_LIMIT]);
 $rows = $stmt->fetchAll();
 
 if (!$rows) {
-    echo "No pending product pages.\n";
+    // Silent when idle.
     exit(0);
 }
 

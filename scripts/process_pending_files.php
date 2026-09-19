@@ -31,7 +31,7 @@ $stmt->execute(['pending', BATCH_LIMIT]);
 $rows = $stmt->fetchAll();
 
 if (!$rows) {
-    echo "No pending files.\n";
+    // Silent when idle: this runs every minute and the output goes to a log.
     exit(0);
 }
 
