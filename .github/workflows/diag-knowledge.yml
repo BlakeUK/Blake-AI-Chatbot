@@ -19,4 +19,4 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           command_timeout: 10m
           script: |
-            cd /var/www/chat && sudo -n -u www-data php scripts/diag/knowledge_report.php "${{ github.event.inputs.recent }}" 2>&1 || php scripts/diag/knowledge_report.php "${{ github.event.inputs.recent }}" 2>&1
+            cd /var/www/chat && runuser -u www-data -- php scripts/diag/knowledge_report.php "${{ github.event.inputs.recent }}" 2>&1 || php scripts/diag/knowledge_report.php "${{ github.event.inputs.recent }}" 2>&1

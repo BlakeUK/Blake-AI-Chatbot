@@ -23,5 +23,7 @@ jobs:
             cd /var/www/chat
             LIMIT=$(printf '%d' "${{ github.event.inputs.limit }}" 2>/dev/null || echo 0)
             ARGS=""; [ "$LIMIT" -gt 0 ] && ARGS="--limit=$LIMIT"
-            sudo -n -u www-data php scripts/sync_site_products.php $ARGS 2>&1 | tail -40 || php scripts/sync_site_products.php $ARGS 2>&1 | tail -40
-            chown www-data:www-data data/chatbot.db 2>/dev/null || true
+            # Run as www-data so the DB, WAL files and logs stay owned by the web user.
+            if [ "$(id -u)" = "0" ]; then RUN="runuser -u www-data --"; else RUN=""; fi
+            $RUN php scripts/sync_site_products.php $ARGS 2>&1 | tail -40
+            chown www-data:www-data data/chatbot.db* logs/product_sync.log 2>/dev/null || true

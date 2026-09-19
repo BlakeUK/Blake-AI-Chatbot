@@ -23,5 +23,5 @@ jobs:
             cd /var/www/chat
             cp data/chatbot.db "data/chatbot.db.pre-rechunk" 2>/dev/null || true
             ARGS="${{ github.event.inputs.apply == 'true' && '--apply' || '' }}"
-            sudo -n -u www-data php scripts/rechunk_pdf_files.php $ARGS 2>&1 || php scripts/rechunk_pdf_files.php $ARGS 2>&1
+            runuser -u www-data -- php scripts/rechunk_pdf_files.php $ARGS 2>&1 || php scripts/rechunk_pdf_files.php $ARGS 2>&1
             chown www-data:www-data data/chatbot.db 2>/dev/null || true
