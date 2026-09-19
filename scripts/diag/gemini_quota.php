@@ -89,3 +89,5 @@ try {
         echo "Q: $q\n  chunks: " . implode(' | ', $cn) . "\n  products: " . implode(' | ', $pn) . "\n";
     }
 } catch (\Throwable $e) { echo 'embeddings: ' . $e->getMessage() . "\n"; }
+echo "--- php_errors tail\n";
+foreach (array_slice(@file(dirname(__DIR__, 2) . '/logs/php_errors.log') ?: [], -8) as $l) echo substr($l, 0, 400);
