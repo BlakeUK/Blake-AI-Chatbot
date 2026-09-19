@@ -3,16 +3,16 @@ namespace Speech;
 
 // Max's voice: turns a chat reply into a short spoken summary (links are
 // never read out, just mentioned) and synthesises it with Gemini TTS in a
-// male Yorkshire voice. Generated audio is cached on disk by content hash,
+// professional male radio-presenter voice. Generated audio is cached on disk by content hash,
 // so the same reply (or the fixed welcome line) is only paid for once.
 class Speaker
 {
     public const DEFAULT_MODEL = 'gemini-3.1-flash-tts-preview';
     public const DEFAULT_VOICE = 'Charon';   // male
-    public const DEFAULT_STYLE = 'Read this aloud as Max, a professional customer support advisor for Blake UK. Speak clearly and confidently in a polished, courteous business tone with a light, natural Yorkshire accent: warm and approachable but never casual, exaggerated or comedic. Measured pace, crisp diction, natural pauses at full stops';
+    public const DEFAULT_STYLE = 'Read this aloud as Max in the voice of a professional male radio presenter: a rich, warm, smooth and confident broadcast voice with clear, neutral standard British English (Received Pronunciation, no regional accent). Polished and authoritative yet friendly, measured pace, natural intonation and brief pauses at full stops. Never casual, theatrical or exaggerated';
     // Earlier defaults: a stored copy of one of these is treated as "not
     // customised" and upgraded to the current default.
-    public const OLD_STYLES    = ['Read this aloud as Max, a warm, friendly, down-to-earth man from Yorkshire in the north of England, with a natural broad Yorkshire accent, speaking at a relaxed conversational pace'];
+    public const OLD_STYLES    = ['Read this aloud as Max, a warm, friendly, down-to-earth man from Yorkshire in the north of England, with a natural broad Yorkshire accent, speaking at a relaxed conversational pace', 'Read this aloud as Max, a professional customer support advisor for Blake UK. Speak clearly and confidently in a polished, courteous business tone with a light, natural Yorkshire accent: warm and approachable but never casual, exaggerated or comedic. Measured pace, crisp diction, natural pauses at full stops'];
     public const WELCOME       = "Hello, I'm Max, Blake UK's support assistant. How can I help you today?";
     public const LINKS_LINE    = "I've included the links below.";
     public const MAX_WORDS     = 60;

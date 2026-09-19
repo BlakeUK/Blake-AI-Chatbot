@@ -1695,7 +1695,7 @@ async function loadModelSettings(){
   try{const s=await get(API+'/settings.php');setSelectValue('chat-model-select',s.gemini_chat_model);setSelectValue('extract-model-select',s.gemini_extract_model);loadVoiceSettings(s);}catch(_){}
 }
 const TTS_VOICES=['Charon','Puck','Fenrir','Orus','Enceladus','Iapetus','Algieba','Algenib','Rasalgethi','Alnilam','Schedar','Achird','Zubenelgenubi','Sadachbia','Sadaltager'];
-const TTS_DEFAULT_STYLE='Read this aloud as Max, a professional customer support advisor for Blake UK. Speak clearly and confidently in a polished, courteous business tone with a light, natural Yorkshire accent: warm and approachable but never casual, exaggerated or comedic. Measured pace, crisp diction, natural pauses at full stops';
+const TTS_DEFAULT_STYLE='Read this aloud as Max in the voice of a professional male radio presenter: a rich, warm, smooth and confident broadcast voice with clear, neutral standard British English (Received Pronunciation, no regional accent). Polished and authoritative yet friendly, measured pace, natural intonation and brief pauses at full stops. Never casual, theatrical or exaggerated';
 function loadVoiceSettings(s){
   const sel=document.getElementById('tts-voice');
   sel.innerHTML=TTS_VOICES.map(v=>`<option>${v}</option>`).join('');

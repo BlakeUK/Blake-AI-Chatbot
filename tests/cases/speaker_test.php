@@ -57,11 +57,13 @@ test('Client::extractAudio(): decodes inline PCM and sample rate, throws when ab
     assert_true($threw);
 });
 
-test('settings(): defaults to enabled, male Charon voice, Yorkshire style', function () {
+test('settings(): defaults to enabled, male Charon voice, radio-presenter style, no Yorkshire accent', function () {
     $c = \Speech\Speaker::settings();
     assert_true($c['enabled']);
     assert_equal('Charon', $c['voice']);
-    assert_true(str_contains($c['style'], 'Yorkshire'));
+    assert_true(str_contains($c['style'], 'radio presenter'));
+    assert_true(!str_contains($c['style'], 'Yorkshire'));
+    foreach (\Speech\Speaker::OLD_STYLES as $old) { assert_true($old !== \Speech\Speaker::DEFAULT_STYLE); }
     assert_true(in_array($c['voice'], \Speech\Speaker::MALE_VOICES, true));
 });
 
