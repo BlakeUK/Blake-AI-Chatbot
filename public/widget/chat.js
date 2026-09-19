@@ -765,7 +765,7 @@
     const productsHtml = productsToHtml(products);
 
     if (role === 'assistant') {
-      wrap.innerHTML = assistantRowHtml(linkify(esc(text))) + productsHtml + `<div class="buk-meta">${time}</div>`;
+      wrap.innerHTML = assistantRowHtml(linkify(basicMarkdown(esc(text)))) + productsHtml + `<div class="buk-meta">${time}</div>`;
     } else {
       wrap.innerHTML = `<div class="buk-bubble">${esc(text)}</div>` + productsHtml
         + `<div class="buk-meta">${time}<span class="buk-tick" aria-hidden="true">✓</span></div>`;
@@ -784,6 +784,15 @@
     el.textContent = text;
     messages.appendChild(el);
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  // Gemini replies use light markdown (**bold**, "* " bullets), which was
+  // showing as literal asterisks. Runs on already-escaped text and only
+  // emits <strong> and a bullet character, so it adds no injection surface.
+  function basicMarkdown(escaped) {
+    return escaped
+      .replace(/\*\*([^*\n]{1,200})\*\*/g, '<strong>$1</strong>')
+      .replace(/^[ \t]*[*-][ \t]+/gm, '• ');
   }
 
   // Turns a bare URL (e.g. the DX tracking link in a link_only tracking
