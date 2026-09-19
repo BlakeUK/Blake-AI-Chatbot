@@ -1,0 +1,22 @@
+name: Diagnose server errors
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tail PHP and app error logs (read-only)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /var/www/chat
+            echo "--- data dir"; ls -la data/ | head -20
+            for f in /var/log/php*-fpm.log /var/log/php/*.log logs/php_errors.log logs/error.log; do [ -f "$f" ] && { echo "--- $f"; tail -n 25 "$f"; }; done
+            echo "--- journal php-fpm"; journalctl -u 'php*-fpm*' -n 25 --no-pager 2>/dev/null | tail -25
+            echo "--- error_log setting"; php -r 'echo ini_get("error_log"),"\n";'
+            echo "--- recent app logs"; ls -lt logs | head -8; tail -n 5 logs/product_sync.log 2>/dev/null
