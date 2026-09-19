@@ -74,3 +74,18 @@ foreach (array_merge(glob('/var/log/php*-fpm.log') ?: [], glob(dirname(__DIR__, 
 echo "--- embedding models\n";
 $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=$key"); curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 foreach ((json_decode((string)curl_exec($ch), true)['models'] ?? []) as $m) if (in_array('embedContent', $m['supportedGenerationMethods'] ?? [], true) || in_array('batchEmbedContents', $m['supportedGenerationMethods'] ?? [], true)) echo $m['name'] . ' ' . implode(',', $m['supportedGenerationMethods']) . ' dims:' . ($m['outputTokenLimit'] ?? '') . "\n";
+echo "--- embeddings\n";
+try {
+    foreach (db()->query("SELECT source_type, model, COUNT(*) n FROM embeddings GROUP BY source_type, model") as $r) echo "{$r['source_type']} {$r['model']}: {$r['n']}\n";
+    foreach (['my tv picture keeps breaking up', 'how can I boost a weak signal', 'how long does delivery take', 'ethernet lead for my router', 'what is the weather in paris', 'tell me a joke about cats'] as $q) {
+        $qv = \Knowledge\Embeddings::queryVector($q);
+        if (!$qv) { echo "$q: no vector\n"; continue; }
+        $c = \Knowledge\Embeddings::nearest($qv, 'chunk', 3, 0.0);
+        $p = \Knowledge\Embeddings::nearest($qv, 'product', 3, 0.0);
+        $pn = [];
+        foreach ($p as $code => $sc) { $s = db()->prepare('SELECT name FROM products WHERE product_code = ?'); $s->execute([$code]); $pn[] = round($sc, 3) . ' ' . substr((string)$s->fetchColumn(), 0, 40); }
+        $cn = [];
+        foreach ($c as $id => $sc) { $s = db()->prepare('SELECT substr(chunk_text,1,50) FROM knowledge_chunks WHERE id = ?'); $s->execute([$id]); $cn[] = round($sc, 3) . ' ' . str_replace("\n", ' ', (string)$s->fetchColumn()); }
+        echo "Q: $q\n  chunks: " . implode(' | ', $cn) . "\n  products: " . implode(' | ', $pn) . "\n";
+    }
+} catch (\Throwable $e) { echo 'embeddings: ' . $e->getMessage() . "\n"; }

@@ -177,6 +177,26 @@ class Client
         return self::extractText($this->request($path, $body, $model, $timeoutSeconds));
     }
 
+    // ── Embeddings ─────────────────────────────────────────────────────────────
+
+    // Unit-length embedding vector for $text. $task: RETRIEVAL_DOCUMENT for
+    // indexed content, RETRIEVAL_QUERY for a customer question.
+    public function embed(string $model, string $text, string $task, int $dims = 768): array
+    {
+        $body = json_encode([
+            'model'                => "models/{$model}",
+            'content'              => ['parts' => [['text' => mb_substr($text, 0, 8000)]]],
+            'taskType'             => $task,
+            'outputDimensionality' => $dims,
+        ]);
+        $data = $this->request("models/{$model}:embedContent", $body, $model, 20);
+        $v = $data['embedding']['values'] ?? null;
+        if (!is_array($v) || !$v) {
+            throw new \RuntimeException('Gemini returned no embedding');
+        }
+        return $v;
+    }
+
     // ── Text-to-speech ─────────────────────────────────────────────────────────
 
     // Returns ['pcm' => raw 16-bit mono PCM bytes, 'rate' => sample rate].

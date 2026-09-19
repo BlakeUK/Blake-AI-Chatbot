@@ -14,7 +14,8 @@ class Search
     public static function query(string $query, int $limit = 5, array $categoryHint = []): array
     {
         $clean = self::naturalLanguageMatch($query);
-        if ($clean === '') {
+        $qv    = Embeddings::queryVector($query);
+        if ($clean === '' && $qv === null) {
             return [];
         }
 
@@ -23,17 +24,34 @@ class Search
         // whatever BM25 alone would have returned in the top $limit.
         $pool = $categoryHint ? max($limit * 3, 15) : $limit;
 
-        $stmt = db()->prepare('
-            SELECT kc.id, kc.source_type, kc.source_id, kc.chunk_text, kc.url, kc.category,
-                   rank
-            FROM knowledge_fts
-            JOIN knowledge_chunks kc ON kc.id = knowledge_fts.rowid
-            WHERE knowledge_fts MATCH ?
-            ORDER BY rank
-            LIMIT ?
-        ');
-        $stmt->execute([$clean, $pool]);
-        $rows = $stmt->fetchAll();
+        $cols = 'kc.id, kc.source_type, kc.source_id, kc.chunk_text, kc.url, kc.category';
+        $rows = [];
+        if ($clean !== '') {
+            $stmt = db()->prepare("SELECT {$cols}, rank FROM knowledge_fts JOIN knowledge_chunks kc ON kc.id = knowledge_fts.rowid
+                                   WHERE knowledge_fts MATCH ? ORDER BY rank LIMIT ?");
+            $stmt->execute([$clean, $qv ? max($pool, 20) : $pool]);
+            $rows = $stmt->fetchAll();
+        }
+
+        // Hybrid: fuse the keyword ranking with the semantic one.
+        if ($qv !== null) {
+            $byId = [];
+            foreach ($rows as $r) $byId[(string)$r['id']] = $r;
+            $bm25 = array_keys($byId);
+            $vec = Embeddings::nearest($qv, 'chunk', 20);
+            $missing = array_diff(array_keys($vec), array_keys($byId));
+            if ($missing) {
+                $in = implode(',', array_fill(0, count($missing), '?'));
+                $st = db()->prepare("SELECT {$cols}, 0 AS rank FROM knowledge_chunks kc WHERE kc.id IN ({$in})");
+                $st->execute(array_map('intval', $missing));
+                foreach ($st->fetchAll() as $r) $byId[(string)$r['id']] = $r;
+            }
+            $rows = [];
+            foreach (Embeddings::fuse($bm25, array_map('strval', array_keys($vec))) as $id) {
+                if (isset($byId[$id])) $rows[] = $byId[$id];
+                if (count($rows) >= max($pool, $limit)) break;
+            }
+        }
 
         return self::prioritiseByCategory($rows, $categoryHint, $limit, fn($row) =>
             $row['category'] !== null && $row['category'] !== ''
@@ -46,26 +64,42 @@ class Search
     public static function products(string $query, int $limit = 5, array $categoryHint = []): array
     {
         $clean = self::naturalLanguageMatch($query);
-        if ($clean === '') {
+        $qv    = Embeddings::queryVector($query);
+        if ($clean === '' && $qv === null) {
             return [];
         }
 
         $pool = $categoryHint ? max($limit * 3, 15) : $limit;
+        $cols = 'p.product_code, p.name, p.title, p.url, p.category_path,
+                 p.price_inc_vat, p.price_exc_vat, p.image_url,
+                 p.summary_bullets, p.description, p.tech_specs, p.stock_status,
+                 p.related_product_codes, p.alternative_product_codes, p.brand';
+        $rows = [];
+        if ($clean !== '') {
+            $stmt = db()->prepare("SELECT {$cols}, rank FROM products_fts JOIN products p ON p.id = products_fts.rowid
+                                   WHERE products_fts MATCH ? ORDER BY rank LIMIT ?");
+            $stmt->execute([$clean, $qv ? max($pool, 20) : $pool]);
+            $rows = $stmt->fetchAll();
+        }
 
-        $stmt = db()->prepare('
-            SELECT p.product_code, p.name, p.title, p.url, p.category_path,
-                   p.price_inc_vat, p.price_exc_vat, p.image_url,
-                   p.summary_bullets, p.description, p.tech_specs, p.stock_status,
-                   p.related_product_codes, p.alternative_product_codes, p.brand,
-                   rank
-            FROM products_fts
-            JOIN products p ON p.id = products_fts.rowid
-            WHERE products_fts MATCH ?
-            ORDER BY rank
-            LIMIT ?
-        ');
-        $stmt->execute([$clean, $pool]);
-        $rows = $stmt->fetchAll();
+        if ($qv !== null) {
+            $byCode = [];
+            foreach ($rows as $r) $byCode[$r['product_code']] = $r;
+            $bm25 = array_keys($byCode);
+            $vec = Embeddings::nearest($qv, 'product', 20);
+            $missing = array_values(array_diff(array_keys($vec), $bm25));
+            if ($missing) {
+                $in = implode(',', array_fill(0, count($missing), '?'));
+                $st = db()->prepare("SELECT {$cols}, 0 AS rank FROM products p WHERE p.product_code IN ({$in}) AND p.active = 1");
+                $st->execute($missing);
+                foreach ($st->fetchAll() as $r) $byCode[$r['product_code']] = $r;
+            }
+            $rows = [];
+            foreach (Embeddings::fuse($bm25, array_keys($vec)) as $code) {
+                if (isset($byCode[$code])) $rows[] = $byCode[$code];
+                if (count($rows) >= max($pool, $limit)) break;
+            }
+        }
 
         return self::prioritiseByCategory($rows, $categoryHint, $limit, fn($row) =>
             self::categoryPathOverlaps($row['category_path'] ?? null, $categoryHint)
