@@ -22,7 +22,7 @@ class Embeddings
     // Vector-only results must be at least this similar to be used at all,
     // so an unrelated question still finds nothing (and escalates) instead
     // of always getting the "nearest" chunk. Tunable: setting embed_min_score.
-    public const DEFAULT_MIN_SCORE = 0.62;
+    public const DEFAULT_MIN_SCORE = 0.60;
 
     private static array $queryCache = [];
     private static array $matrixCache = [];
