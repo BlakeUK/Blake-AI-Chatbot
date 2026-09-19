@@ -13,6 +13,18 @@ $configPath = getenv('BLAKE_UK_CONFIG') ?: ROOT . '/config/config.php';
 $cfg = require $configPath;
 define('CFG', $cfg);
 
+// PHP-FPM on the VPS has no error_log configured, so fatals behind a 500
+// were invisible. Log them to the app's own logs directory (rotated by
+// size below so a noisy error can't fill the disk).
+if (!getenv('BLAKE_UK_CONFIG')) {
+    $errLog = rtrim($cfg['log_path'] ?? (ROOT . '/logs/'), '/') . '/php_errors.log';
+    if (@is_file($errLog) && @filesize($errLog) > 2_000_000) {
+        @rename($errLog, $errLog . '.1');
+    }
+    ini_set('log_errors', '1');
+    ini_set('error_log', $errLog);
+}
+
 // ── Autoload (simple PSR-4 style without Composer) ───────────────────────────
 spl_autoload_register(function (string $class): void {
     $base = ROOT . '/src/';
