@@ -78,3 +78,19 @@ test('without an API key or embeddings the search is plain BM25', function () {
     $hits = \Knowledge\Search::query('masthead amplifier', 5);
     assert_true(count($hits) > 0 && str_contains($hits[0]['chunk_text'], 'masthead'));
 });
+
+test('regression: keyword + semantic hits mixed (vector-only ids not first) does not break the query', function () {
+    $pdo = db();
+    $pdo->prepare("INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES ('manual', 99903, 'Poor reception and a weak signal? Boost the picture: check the aerial cable and plugs first.')")->execute();
+    \Knowledge\Embeddings::sync(10000, fn($t) => emb_fake($t), 60);
+    \Knowledge\Embeddings::resetCaches();
+    \Knowledge\Embeddings::queryVector('boost my reception', fn($t) => emb_fake($t));
+    $vec = \Knowledge\Embeddings::nearest(\Knowledge\Embeddings::queryVector('boost my reception'), 'chunk', 20);
+    assert_true(count($vec) >= 2, 'need both a keyword+semantic and a semantic-only hit');
+    $firstId = array_key_first($vec);
+    assert_equal('Poor', substr((string)db()->query('SELECT chunk_text FROM knowledge_chunks WHERE id = ' . (int)$firstId)->fetchColumn(), 0, 4), 'keyword+semantic chunk must rank first so the semantic-only id is not at key 0');
+    $hits = \Knowledge\Search::query('boost my reception', 5);   // threw "column index out of range" before the fix
+    $texts = implode(' | ', array_column($hits, 'chunk_text'));
+    assert_true(str_contains($texts, 'Poor reception') && str_contains($texts, 'masthead amplifier'), $texts);
+    \Knowledge\Embeddings::resetCaches();
+});

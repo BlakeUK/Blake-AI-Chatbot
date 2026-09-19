@@ -43,7 +43,7 @@ class Search
             if ($missing) {
                 $in = implode(',', array_fill(0, count($missing), '?'));
                 $st = db()->prepare("SELECT {$cols}, 0 AS rank FROM knowledge_chunks kc WHERE kc.id IN ({$in})");
-                $st->execute(array_map('intval', $missing));
+                $st->execute(array_values(array_map('intval', $missing)));   // PDO needs 0-based keys
                 foreach ($st->fetchAll() as $r) $byId[(string)$r['id']] = $r;
             }
             $rows = [];
