@@ -293,7 +293,10 @@ class Search
             $line .= " — Brand: {$brand['name']}";
         }
         if (!empty($p['price_inc_vat'])) {
-            $line .= " — £{$p['price_inc_vat']} inc VAT";
+            $line .= ' — £' . number_format((float)$p['price_inc_vat'], 2) . ' inc VAT';
+            if (!empty($p['price_exc_vat'])) {
+                $line .= ' (£' . number_format((float)$p['price_exc_vat'], 2) . ' exc VAT)';
+            }
         }
         if (!empty($p['stock_status'])) {
             $line .= " — Stock: {$p['stock_status']}";
@@ -312,6 +315,18 @@ class Search
             $line .= "\nSpecs: " . implode(', ', array_map(
                 fn($k, $v) => "$k: $v", array_keys($specs), array_values($specs)
             ));
+        }
+        // Manuals/datasheets from the product page, so "where's the manual
+        // for X" can be answered with the actual download link.
+        try {
+            $docs = db()->prepare('SELECT title, url FROM product_documents WHERE product_code = ? AND url LIKE ? LIMIT 5');
+            $docs->execute([$p['product_code'], 'http%']);
+            $docList = $docs->fetchAll();
+            if ($docList) {
+                $line .= "\nDownloads: " . implode('; ', array_map(fn($d) => trim(($d['title'] ?: 'Document') . ': ' . $d['url']), $docList));
+            }
+        } catch (\Throwable $e) {
+            // Documents are optional context; never fail the answer over them.
         }
         return $line;
     }

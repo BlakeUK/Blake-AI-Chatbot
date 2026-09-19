@@ -1,0 +1,27 @@
+name: Sync products from blake-uk.com
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Only this many pages (0 = full catalogue)"
+        default: "0"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Run product sync on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 55m
+          script: |
+            cd /var/www/chat
+            LIMIT=$(printf '%d' "${{ github.event.inputs.limit }}" 2>/dev/null || echo 0)
+            ARGS=""; [ "$LIMIT" -gt 0 ] && ARGS="--limit=$LIMIT"
+            sudo -n -u www-data php scripts/sync_site_products.php $ARGS 2>&1 | tail -40 || php scripts/sync_site_products.php $ARGS 2>&1 | tail -40
+            chown www-data:www-data data/chatbot.db 2>/dev/null || true
