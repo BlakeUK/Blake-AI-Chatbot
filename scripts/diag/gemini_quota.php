@@ -53,3 +53,21 @@ foreach (glob('/var/log/caddy/*.log') ?: [] as $f) {
 }
 echo "--- speech.log tail\n";
 foreach (array_slice(@file(dirname(__DIR__, 2) . '/logs/speech.log') ?: [], -40) as $l) echo $l;
+echo "--- API errors by service/code (7 days)\n";
+foreach (db()->query("SELECT service, operation, http_code, COUNT(*) n, substr(MAX(error),1,160) e FROM api_usage_log WHERE ok=0 AND created_at > unixepoch()-7*86400 GROUP BY service, operation, http_code ORDER BY n DESC LIMIT 20") as $r) echo "{$r['service']}/{$r['operation']} {$r['http_code']} x{$r['n']} {$r['e']}\n";
+echo "--- email outbox\n";
+foreach (db()->query("SELECT status, COUNT(*) n FROM email_outbox GROUP BY status") as $r) echo "{$r['status']}: {$r['n']}\n";
+echo "--- sessions by mode\n";
+foreach (db()->query("SELECT mode, COUNT(*) n FROM chat_sessions GROUP BY mode") as $r) echo "{$r['mode']}: {$r['n']}\n";
+echo "--- knowledge stats\n";
+foreach (db()->query("SELECT source_type, COUNT(*) n, CAST(AVG(length(chunk_text)) AS INT) avg_len, MAX(length(chunk_text)) max_len FROM knowledge_chunks GROUP BY source_type") as $r) echo "{$r['source_type']}: {$r['n']} chunks, avg {$r['avg_len']} chars, max {$r['max_len']}\n";
+echo "products: " . db()->query("SELECT COUNT(*) FROM products")->fetchColumn() . "\n";
+echo "--- escalations/confidence (7 days)\n";
+try { foreach (db()->query("SELECT COUNT(*) n, SUM(escalated) esc, ROUND(AVG(confidence),2) conf FROM chat_messages WHERE role='assistant' AND created_at > unixepoch()-7*86400") as $r) echo json_encode($r) . "\n"; } catch (\Throwable $e) { echo $e->getMessage() . "\n"; }
+echo "--- PHP errors\n";
+foreach (array_merge(glob('/var/log/php*-fpm.log') ?: [], glob(dirname(__DIR__, 2) . '/logs/*.log') ?: []) as $f) {
+    $lines = @file($f) ?: [];
+    $hits = array_values(array_filter($lines, fn($l) => preg_match('/PHP (Fatal|Warning|Parse|Deprecated|Notice)|Uncaught|error/i', $l)));
+    echo basename($f) . ': ' . count($lines) . " lines, " . count($hits) . " error-like\n";
+    foreach (array_slice(array_unique(array_map(fn($l) => preg_replace('/^\[[^\]]*\]\s*/', '', substr(trim($l), 0, 220)), $hits)), -12) as $h) echo "   $h\n";
+}
