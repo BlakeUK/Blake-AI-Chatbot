@@ -309,6 +309,13 @@ else
     warn "FAQ schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(faq_entries);" | grep -q "approved"; then
+    info "Applying FAQ approval schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_faq_approval.sql"
+else
+    warn "FAQ approval schema already applied — skipping."
+fi
+
 if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(admin_users);" | grep -q "presence_status"; then
     info "Applying live-chat/presence schema migration..."
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_live_chat.sql"

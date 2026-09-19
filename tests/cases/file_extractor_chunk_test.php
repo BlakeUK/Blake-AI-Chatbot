@@ -60,3 +60,43 @@ test('overlap larger than the chunk size does not loop forever or throw', functi
     $chunks = \Knowledge\FileExtractor::chunk(chunk_test_words(600), 100, 500);
     assert_true(count($chunks) > 0 && count($chunks) < 1000, 'expected a bounded, sane chunk count');
 });
+
+suite('Knowledge\FileExtractor — chunkDocument()');
+
+function datasheet_pages(): string {
+    $pages = [];
+    foreach (['4U' => '250', '6U' => '370', '4U ' => '250', '9U' => '505'] as $u => $d) {
+        $u = trim($u);
+        $pages[] = "NETWORKING | TECHNICAL DATA\nBlake QuikCab {$u}\nBLA-QUIKCAB-{$u} | Wall cabinet\n"
+            . str_repeat("Flat-pack cabinet with lockable glass door and toolless sides. ", 6)
+            . "\nRack capacity {$u}\nInstalled size 600 x 450 x {$d}mm\nRack format 19-inch\n"
+            . "Blake UK Ltd | blake-uk.com | Issue 1 | Page 1";
+    }
+    return implode("\f", $pages);
+}
+
+test('one chunk per product page, labelled with document and page', function () {
+    $c = \Knowledge\FileExtractor::chunkDocument(datasheet_pages(), 'Blake_QuikCab_Data_Sheets.pdf');
+    assert_count(3, $c);   // duplicate 4U page dropped
+    assert_true(str_starts_with($c[0], '[Blake QuikCab Data Sheets, page 1] '));
+    assert_true(str_contains($c[0], 'Rack capacity 4U') && str_contains($c[0], 'x 250mm'));
+    assert_false(str_contains($c[0], '6U'), 'no bleed into next product');
+    assert_true(str_starts_with($c[2], '[Blake QuikCab Data Sheets, page 4] '));
+});
+
+test('running headers/footers are removed but repeated spec rows are kept', function () {
+    $c = \Knowledge\FileExtractor::chunkDocument(datasheet_pages(), 'x.pdf');
+    foreach ($c as $chunk) {
+        assert_false(str_contains($chunk, 'TECHNICAL DATA'), 'header removed');
+        assert_false(str_contains($chunk, 'Issue 1'), 'footer removed');
+        assert_true(str_contains($chunk, 'Rack format 19-inch'), 'spec row kept');
+    }
+});
+
+test('line-end hyphenation is rejoined and oversize chunks are split', function () {
+    $c = \Knowledge\FileExtractor::chunkDocument("Four-through-bolt self-\nassembly system.", 'd.pdf');
+    assert_true(str_contains($c[0], 'self-assembly'));
+    $long = \Knowledge\FileExtractor::chunkDocument(str_repeat(str_repeat('A', 40) . ' ', 300), 'd.pdf');
+    foreach ($long as $chunk) assert_true(mb_strlen($chunk) <= \Knowledge\FileExtractor::DOC_CHUNK_CHARS + 40);
+    assert_true(count($long) > 1);
+});

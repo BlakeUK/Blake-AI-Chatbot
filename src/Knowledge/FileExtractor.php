@@ -43,7 +43,9 @@ class FileExtractor
     // Normalises pdftotext output; null if it is too thin to be a text PDF.
     public static function usableText(string $text): ?string
     {
-        $text = str_replace("\f", "\n\n", $text);                 // page breaks
+        // Page breaks (\f) are kept: chunkDocument() uses them to keep
+        // chunks inside page boundaries and to strip running headers.
+        $text = preg_replace('/[ \t]*\f[ \t]*/', "\f", $text);
         $text = preg_replace('/[ \t]{3,}/', '  ', $text);            // -layout column padding
         $text = preg_replace("/\n{3,}/", "\n\n", $text);
         $text = trim($text);
@@ -96,9 +98,10 @@ class FileExtractor
                 return 'No text extracted from file';
             }
 
-            // Chunk into ~500-word pieces
-            $chunks = self::chunk($text, 500);
             $pdo    = db();
+            $nameRow = $pdo->prepare('SELECT filename FROM knowledge_files WHERE id = ?');
+            $nameRow->execute([$fileId]);
+            $chunks = self::chunkDocument($text, (string)($nameRow->fetchColumn() ?: basename($path)));
 
             // Read back the category files.php stored on this row at upload
             // time (rather than taking it as a param here) - one less thing
@@ -107,14 +110,23 @@ class FileExtractor
             $catRow->execute([$fileId]);
             $category = $catRow->fetchColumn() ?: null;
 
-            foreach ($chunks as $chunk) {
-                // FTS index updated automatically by trigger on knowledge_chunks
-                $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, category) VALUES (?,?,?,?)')
-                    ->execute(['file', $fileId, $chunk, $category]);
+            // One transaction, replacing any chunks from an earlier run, so a
+            // failure part-way can't leave a half-indexed file and a re-run
+            // can't duplicate chunks.
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare('DELETE FROM knowledge_chunks WHERE source_type = ? AND source_id = ?')->execute(['file', $fileId]);
+                $ins = $pdo->prepare('INSERT INTO knowledge_chunks (source_type, source_id, chunk_text, category) VALUES (?,?,?,?)');
+                foreach ($chunks as $chunk) {
+                    // FTS index updated automatically by trigger on knowledge_chunks
+                    $ins->execute(['file', $fileId, $chunk, $category]);
+                }
+                $pdo->prepare('UPDATE knowledge_files SET status=? WHERE id=?')->execute(['indexed', $fileId]);
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
             }
-
-            $pdo->prepare('UPDATE knowledge_files SET status=? WHERE id=?')
-                ->execute(['indexed', $fileId]);
 
             return null;
 
@@ -150,6 +162,123 @@ class FileExtractor
         }
 
         return $chunks;
+    }
+
+    public const DOC_CHUNK_WORDS  = 350;
+    public const DOC_CHUNK_CHARS  = 4000;
+    private const MIN_PAGE_WORDS  = 25;
+
+    // Document-aware chunking for uploaded files.
+    //  - Works page by page (\f from pdftotext): a chunk never mixes the end
+    //    of one page with the start of the next, so a data sheet with one
+    //    product per page can't pair one model's name with another's specs.
+    //    Very short pages are merged forward; long pages are split with
+    //    chunk()'s overlap.
+    //  - Drops running headers/footers: a line in the top/bottom two lines
+    //    of at least half the pages (page numbers ignored) that also looks
+    //    like a header/footer (page number, |, (c), web address, issue/rev,
+    //    or no lower-case letters). Spec rows that happen to repeat, such as
+    //    "Rack format 19-inch", are kept.
+    //  - Drops pages that repeat an earlier page exactly.
+    //  - Rejoins words split by a line-end hyphen ("self-\nassembly").
+    //  - Prefixes every chunk with "[Document name, page N]" so search can
+    //    match the document/product name and the answer can say which
+    //    manual it came from.
+    public static function chunkDocument(string $text, string $docName): array
+    {
+        $name  = trim(preg_replace('/[_\s]+/', ' ', preg_replace('/\.[a-z0-9]{2,5}$/i', '', $docName)));
+        $pages = array_values(array_filter(array_map('trim', explode("\f", $text)), fn($p) => $p !== ''));
+        if (!$pages) {
+            return [];
+        }
+
+        $pageLines = array_map(fn($p) => array_values(array_filter(array_map('trim', explode("\n", $p)), fn($l) => $l !== '')), $pages);
+        $running = [];
+        if (count($pages) >= 3) {
+            $counts = [];
+            foreach ($pageLines as $lines) {
+                $edge = array_merge(array_slice($lines, 0, 2), array_slice($lines, -2));
+                $keys = [];
+                foreach ($edge as $l) {
+                    if (mb_strlen($l) <= 160 && self::looksLikeRunningLine($l)) $keys[self::lineKey($l)] = true;
+                }
+                foreach (array_keys($keys) as $k) {
+                    $counts[$k] = ($counts[$k] ?? 0) + 1;
+                }
+            }
+            foreach ($counts as $k => $c) {
+                if ($c >= max(2, (int)ceil(count($pages) * 0.5))) $running[$k] = true;
+            }
+        }
+
+        $units = [];   // [pageFrom, pageTo, text]
+        $seen  = [];
+        foreach ($pageLines as $i => $lines) {
+            $n = count($lines);
+            $keep = [];
+            foreach ($lines as $j => $l) {
+                $isEdge = $j < 2 || $j >= $n - 2;
+                if ($isEdge && isset($running[self::lineKey($l)])) continue;
+                $keep[] = $l;
+            }
+            $body = implode("\n", $keep);
+            $body = preg_replace('/(\p{L})-\n(\p{Ll})/u', '$1-$2', $body);
+            $body = trim(preg_replace('/\s+/u', ' ', $body));
+            if ($body === '') continue;
+            $hash = md5(mb_strtolower($body));
+            if (isset($seen[$hash])) continue;
+            $seen[$hash] = true;
+
+            $last = count($units) - 1;
+            if ($last >= 0 && str_word_count($units[$last][2]) < self::MIN_PAGE_WORDS
+                && str_word_count($units[$last][2]) + str_word_count($body) <= self::DOC_CHUNK_WORDS) {
+                $units[$last][1] = $i + 1;
+                $units[$last][2] .= ' ' . $body;
+            } else {
+                $units[] = [$i + 1, $i + 1, $body];
+            }
+        }
+
+        $multiPage = count($pages) > 1;
+        $out = [];
+        foreach ($units as [$from, $to, $body]) {
+            $label = $name . ($multiPage ? ($from === $to ? ", page {$from}" : ", pages {$from}-{$to}") : '');
+            foreach (self::chunk($body, self::DOC_CHUNK_WORDS, 40) as $piece) {
+                // Word count doesn't bound size for tables of long tokens.
+                foreach (self::splitByChars($piece, self::DOC_CHUNK_CHARS) as $part) {
+                    $out[] = "[{$label}] " . $part;
+                }
+            }
+        }
+        return $out;
+    }
+
+    private static function lineKey(string $line): string
+    {
+        $l = mb_strtolower($line);
+        $l = preg_replace('/\bpage\s*\d+(\s*(of|\/)\s*\d+)?/u', 'page #', $l);
+        $l = preg_replace('/^\d+(\s*(of|\/)\s*\d+)?$/u', '#', trim($l));
+        return trim(preg_replace('/\s+/u', ' ', $l));
+    }
+
+    private static function looksLikeRunningLine(string $line): bool
+    {
+        if (!preg_match('/\p{Ll}/u', $line)) return true;   // all caps / numbers only
+        return (bool)preg_match('/\bpage\s*\d|\||©|\(c\)|copyright|www\.|\.co\.uk|\.com\b|\bissue\s*\d|\brev(ision)?\.?\s*\d|e&oe/iu', $line);
+    }
+
+    private static function splitByChars(string $text, int $max): array
+    {
+        if (mb_strlen($text) <= $max) return [$text];
+        $parts = [];
+        while (mb_strlen($text) > $max) {
+            $cut = mb_strrpos(mb_substr($text, 0, $max), ' ');
+            $cut = ($cut === false || $cut < $max / 2) ? $max : $cut;
+            $parts[] = trim(mb_substr($text, 0, $cut));
+            $text = trim(mb_substr($text, $cut));
+        }
+        if ($text !== '') $parts[] = $text;
+        return $parts;
     }
 
     private static function getApiKey(): ?string

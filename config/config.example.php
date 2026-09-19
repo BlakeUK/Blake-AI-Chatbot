@@ -35,6 +35,7 @@ return [
     ],
 
     'rate_limit_chat'    => 20,
+    'rate_limit_chat_global' => 240,  // all visitors combined, per minute
     'rate_limit_admin'   => 60,
     'session_lifetime'   => 3600,
     'escalate_threshold' => 0.4,

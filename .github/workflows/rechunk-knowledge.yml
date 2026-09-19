@@ -1,0 +1,27 @@
+name: Re-chunk PDF knowledge files
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write changes (unticked = dry run)"
+        type: boolean
+        default: false
+
+jobs:
+  rechunk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-chunk text-layer PDFs (no Gemini calls)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 20m
+          script: |
+            cd /var/www/chat
+            cp data/chatbot.db "data/chatbot.db.pre-rechunk" 2>/dev/null || true
+            ARGS="${{ github.event.inputs.apply == 'true' && '--apply' || '' }}"
+            sudo -n -u www-data php scripts/rechunk_pdf_files.php $ARGS 2>&1 || php scripts/rechunk_pdf_files.php $ARGS 2>&1
+            chown www-data:www-data data/chatbot.db 2>/dev/null || true

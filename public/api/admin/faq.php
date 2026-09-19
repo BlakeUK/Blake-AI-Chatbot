@@ -12,9 +12,9 @@ $pdo    = db();
 
 if ($method === 'GET') {
     $rows = $pdo->query('
-        SELECT id, question, answer, hit_count, created_at, updated_at
+        SELECT id, question, answer, hit_count, approved, created_at, updated_at
         FROM faq_entries
-        ORDER BY hit_count DESC, updated_at DESC
+        ORDER BY approved ASC, hit_count DESC, updated_at DESC
     ')->fetchAll();
     json_out($rows);
 }
@@ -24,6 +24,16 @@ if ($method === 'GET') {
 \Auth\Admin::requireRole('admin', 'editor');
 $body = json_body();
 \Auth\Admin::verifyCsrf($body['csrf'] ?? '');
+
+if ($method === 'PUT' && array_key_exists('approved', $body) && !isset($body['question'])) {
+    $id = (int)($body['id'] ?? 0);
+    if (!$id) json_err('id required');
+    $approved = !empty($body['approved']) ? 1 : 0;
+    $pdo->prepare('UPDATE faq_entries SET approved=?, updated_at=? WHERE id=?')->execute([$approved, time(), $id]);
+    $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')
+        ->execute([$_SESSION['admin_id'], $approved ? 'faq_approved' : 'faq_unapproved', (string)$id]);
+    json_out(['ok' => true]);
+}
 
 if ($method === 'PUT') {
     $id       = (int)($body['id'] ?? 0);
@@ -40,7 +50,8 @@ if ($method === 'PUT') {
     $norm = trim(preg_replace('/\s+/', ' ', preg_replace('/[^\p{L}\p{N}\s]/u', ' ', mb_strtolower($question)) ?? '') ?? '');
     if ($norm === '') json_err('question must contain some text');
 
-    $pdo->prepare('UPDATE faq_entries SET question=?, question_norm=?, answer=?, updated_at=? WHERE id=?')
+    // Staff-edited wording counts as reviewed.
+    $pdo->prepare('UPDATE faq_entries SET question=?, question_norm=?, answer=?, approved=1, updated_at=? WHERE id=?')
         ->execute([$question, $norm, $answer, time(), $id]);
 
     $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')

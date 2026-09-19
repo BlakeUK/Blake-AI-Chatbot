@@ -83,6 +83,7 @@ file_put_contents($configPath, '<?php return ' . var_export([
     'gemini_pro'         => getenv('BLAKE_UK_TEST_GEMINI_MODEL') ?: 'gemini-3.6-flash',
     'cors_origins'       => [],
     'rate_limit_chat'    => 999999,
+    'rate_limit_chat_global' => 999999,
     'rate_limit_admin'   => 999999,
     'session_lifetime'   => 3600,
     'escalate_threshold' => 0.4,

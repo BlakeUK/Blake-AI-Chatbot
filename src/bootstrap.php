@@ -136,8 +136,11 @@ function widget_origin_allowed(string $origin): bool {
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
-function rate_limit(string $endpoint, int $limit): void {
-    $ip   = hash('sha256', $_SERVER['REMOTE_ADDR'] ?? '');
+// $global = true counts every caller together (one shared bucket) - a
+// ceiling on total Gemini spend per minute that per-IP limits can't give
+// when requests come from many addresses.
+function rate_limit(string $endpoint, int $limit, bool $global = false): void {
+    $ip   = $global ? '*' : hash('sha256', $_SERVER['REMOTE_ADDR'] ?? '');
     $win  = (int)(time() / 60);
     $pdo  = db();
 

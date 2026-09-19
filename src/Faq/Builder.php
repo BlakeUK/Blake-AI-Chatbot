@@ -83,15 +83,13 @@ class Builder
         ')->execute([$question, $norm, $answer, $messageId, $messageId]);
     }
 
-    // Top entries for the widget's quick-question chips. Deliberately no
-    // minimum hit_count - with a thin history that just returns the most
-    // recent grounded questions, which is still a reasonable starting set;
-    // as real usage accumulates, genuinely popular questions naturally sort
-    // to the top ahead of them.
+    // Top entries for the widget's quick-question chips. Only staff-approved
+    // entries: captured questions are raw visitor text, and publishing them
+    // unreviewed let any visitor put arbitrary text in front of everyone.
     public static function top(int $limit = 6): array
     {
         $limit = max(1, min($limit, 20));
-        $stmt  = db()->prepare('SELECT id, question, answer, hit_count FROM faq_entries ORDER BY hit_count DESC, id DESC LIMIT ?');
+        $stmt  = db()->prepare('SELECT id, question, answer, hit_count FROM faq_entries WHERE approved = 1 ORDER BY hit_count DESC, id DESC LIMIT ?');
         $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();

@@ -4,6 +4,10 @@
 require dirname(__DIR__, 3) . '/src/bootstrap.php';
 cors();
 rate_limit('chat', CFG['rate_limit_chat']);
+// Site-wide ceiling on chat messages per minute (all visitors),
+// bounding Gemini spend when abuse comes from many IP addresses.
+rate_limit('chat_gemini_global', (int)(CFG['rate_limit_chat_global'] ?? 240), true);
+
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_err('Method not allowed', 405);
@@ -142,8 +146,11 @@ try {
     json_err('AI service unavailable', 503);
 }
 
+$answer = \Chat\Responder::sanitiseLinks($answer, $full_prompt);
+
 // ── Confidence heuristic ──────────────────────────────────────────────────────
-$confidence = \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links, $reception);
+$smallTalk  = \Chat\Responder::isSmallTalk($message);
+$confidence = $smallTalk ? 0.75 : \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links, $reception);
 $escalate   = \Chat\Responder::shouldEscalate($confidence);
 
 // Save assistant message
@@ -154,7 +161,7 @@ $bot_msg_id = $pdo->lastInsertId();
 // Auto-build the FAQ list from grounded exchanges only - an escalated or
 // low-confidence answer isn't something we want surfacing to other
 // customers. See src/Faq/Builder.php for the dedup/matching logic.
-if (!$escalate) {
+if (!$escalate && !$smallTalk) {
     \Faq\Builder::capture($message, $answer, $bot_msg_id);
 }
 

@@ -97,3 +97,9 @@ test('a DX sales order number needs no context', function () {
     $r = \Tracking\Detector::analyse('SO201350-1');
     assert_equal('dx', $r['carrier']);
 });
+
+test('informal "wheres my parcel" variants are tracking queries', function () {
+    foreach (['Wheres my parcel', "Where's my order?", 'where’s my delivery'] as $m) {
+        assert_true(\Tracking\Detector::analyse($m)['is_tracking'], $m);
+    }
+});

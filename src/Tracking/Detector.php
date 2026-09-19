@@ -16,6 +16,9 @@ class Detector
         'has it shipped', 'has it been dispatched', 'has my order', 'when will it arrive',
         'when will my order', 'delivery update', 'missing order', 'order status',
         'dispatch status', 'delivery status',
+        "where's my order", 'wheres my order', "where's my parcel", 'wheres my parcel',
+        "where's my package", 'wheres my package', "where's my delivery", 'wheres my delivery',
+        'where is my stuff', 'track my delivery', 'track my package',
     ];
 
     // Phrases that are ALSO everyday aerial/RF support language ("channels
@@ -87,7 +90,7 @@ class Detector
      */
     public static function analyse(string $message): array
     {
-        $lower = strtolower(trim($message));
+        $lower = strtolower(trim(str_replace(['’', '‘'], "'", $message)));
 
         $isTracking = false;
         foreach (self::TRACKING_KEYWORDS as $kw) {

@@ -106,6 +106,7 @@ test('top() orders by hit_count descending', function () use ($mid) {
     \Faq\Builder::capture('popular question one', 'Answer one.', $mid);
     \Faq\Builder::capture('popular question one again', 'Answer one.', $mid);
     \Faq\Builder::capture('Rare question two?', 'Answer two.', $mid);
+    db()->exec('UPDATE faq_entries SET approved = 1');
 
     $top = \Faq\Builder::top(5);
     assert_equal('Popular question one?', $top[0]['question']);
@@ -124,6 +125,7 @@ test('top() respects and caps the limit', function () use ($mid) {
     foreach ($questions as $q) {
         \Faq\Builder::capture($q, 'An answer.', $mid);
     }
+    db()->exec('UPDATE faq_entries SET approved = 1');
     assert_count(2, \Faq\Builder::top(2));
     assert_count(5, \Faq\Builder::top(100)); // caps at 20, but only 5 topically distinct entries exist
 });
@@ -138,4 +140,21 @@ test('shouldEscalate() confidence gate matches what send.php uses to decide whet
     // which is out of scope for this fast suite (see tests/eval/ for that).
     assert_false(\Chat\Responder::shouldEscalate(0.75));
     assert_true(\Chat\Responder::shouldEscalate(0.3));
+});
+
+suite('Faq — approval gating');
+
+test('captured entries are not shown to customers until approved', function () {
+    $pdo = db();
+    $pdo->prepare("INSERT INTO chat_sessions (id) VALUES ('faqappr')")->execute();
+    $pdo->prepare("INSERT INTO chat_messages (session_id, role, content) VALUES ('faqappr','assistant','a')")->execute();
+    $mid = (int)$pdo->lastInsertId();
+    \Faq\Builder::capture('Do you sell zebra-striped aerial poles?', 'We sell galvanised poles.', $mid);
+    $id = (int)$pdo->query("SELECT id FROM faq_entries WHERE question LIKE 'Do you sell zebra%'")->fetchColumn();
+    assert_true($id > 0);
+    $ids = array_map(fn($r) => (int)$r['id'], \Faq\Builder::top(20));
+    assert_false(in_array($id, $ids, true), 'pending entry must not be public');
+    $pdo->prepare('UPDATE faq_entries SET approved = 1 WHERE id = ?')->execute([$id]);
+    $ids = array_map(fn($r) => (int)$r['id'], \Faq\Builder::top(20));
+    assert_true(in_array($id, $ids, true), 'approved entry is public');
 });
