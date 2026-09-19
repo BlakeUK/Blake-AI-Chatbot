@@ -46,7 +46,7 @@ if (!$session) {
 // Once a session has asked for (or is in) a live chat, the AI must never
 // also answer - the widget switches to live_send.php/live_poll.php once
 // it sees this, but this is the actual enforcement, not just a hint.
-if ($session['mode'] !== 'ai') {
+if (!in_array($session['mode'], ['ai', 'live_ended'], true)) {
     json_out(['error' => 'This chat is live - use live_send.php instead', 'mode' => $session['mode']], 409);
 }
 
@@ -70,6 +70,15 @@ if ($ctx_changed) {
 $pdo->prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)')
     ->execute([$session_id, 'user', $message]);
 $user_msg_id = $pdo->lastInsertId();
+
+// ── Customer asks for a person ─────────────────────────────────────────────────
+// Max hands the chat to the right department (or, out of hours / nobody
+// online, starts taking ticket details). The widget switches to live mode
+// and picks up the notices via live_poll.php.
+if (\Chat\Handoff::wantsHuman($message)) {
+    $h = \Chat\Handoff::start($session_id, 'customer_request');
+    json_out(['answer' => null, 'handoff' => true, 'mode' => $h['mode'] ?? 'ai', 'department' => $h['department'] ?? null, 'escalate' => false, 'products' => []]);
+}
 
 // ── Tracking intent ────────────────────────────────────────────────────────────
 // Short-circuit before calling Gemini — hand off to the tracking form/API instead.
@@ -189,10 +198,24 @@ if (!empty($reception['found']) && !empty($reception['recommendation'])) {
 // Update session timestamp
 $pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time(), $session_id]);
 
+// Max couldn't ground an answer: pass the chat to the relevant department
+// straight away (the customer still sees the answer above first).
+$handoff = null;
+if ($escalate) {
+    try {
+        $handoff = \Chat\Handoff::start($session_id, 'ai_unsure');
+    } catch (\Throwable $e) {
+        error_log('send.php: handoff failed: ' . $e->getMessage());
+    }
+}
+
 json_out([
     'answer'          => $answer,
     'message_id'      => $bot_msg_id,
     'escalate'        => $escalate,
+    'handoff'         => !empty($handoff['ok']) && ($handoff['mode'] ?? 'ai') !== 'ai',
+    'mode'            => $handoff['mode'] ?? 'ai',
+    'department'      => $handoff['department'] ?? null,
     'agent_available' => $escalate ? \Chat\LiveChat::isAgentAvailable() : false,
     'confidence'      => $confidence,
     'products'  => array_map(fn($p) => [

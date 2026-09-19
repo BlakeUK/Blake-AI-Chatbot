@@ -31,47 +31,9 @@ class LiveChat
     // silently creating a duplicate ticket.
     public static function requestLive(string $sessionId): array
     {
-        $pdo = db();
-        $stmt = $pdo->prepare('SELECT * FROM chat_sessions WHERE id = ?');
-        $stmt->execute([$sessionId]);
-        $session = $stmt->fetch();
-        if (!$session) {
-            return ['ok' => false, 'error' => 'Invalid session'];
-        }
-        if ($session['mode'] !== 'ai') {
-            return ['ok' => false, 'error' => 'Already in a live chat', 'mode' => $session['mode']];
-        }
-
-        $recent = $pdo->prepare("SELECT role, content FROM chat_messages WHERE session_id=? AND role IN ('user','assistant') ORDER BY id ASC");
-        $recent->execute([$sessionId]);
-        $history = $recent->fetchAll();
-
-        try {
-            $routing = \Chat\DepartmentClassifier::classify($history);
-        } catch (\Throwable $e) {
-            $routing = ['department' => 'sales', 'confident' => false];
-        }
-
-        $subject = 'Live chat request';
-        foreach (array_reverse($history) as $m) {
-            if ($m['role'] === 'user') {
-                $subject = mb_substr($m['content'], 0, 100);
-                break;
-            }
-        }
-
-        $now = time();
-        $pdo->prepare('
-            INSERT INTO support_tickets (session_id, status, subject, department, channel, priority, sla_deadline, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ')->execute([$sessionId, 'open', $subject, $routing['department'], 'live_chat', 'urgent', \Tickets\Sla::deadline('urgent', $now), $now, $now]);
-        $ticketId = (int)$pdo->lastInsertId();
-
-        $pdo->prepare("UPDATE chat_sessions SET mode='live_requested', updated_at=? WHERE id=?")->execute([$now, $sessionId]);
-
-        \Telegram\Notifier::sendLiveChatAlert($ticketId, $subject, $session['page_url'] ?? null, $routing['department']);
-
-        return ['ok' => true, 'ticket_id' => $ticketId];
+        // Routing, opening hours and the no-answer fallback live in
+        // Chat\Handoff; this remains the entry point used by the widget.
+        return \Chat\Handoff::start($sessionId, 'customer_request');
     }
 
     // Any currently-online admin can claim any department's live chat -
@@ -82,35 +44,7 @@ class LiveChat
     // match mode='live_requested'.
     public static function claim(string $sessionId, int $adminId): array
     {
-        $pdo = db();
-        $stmt = $pdo->prepare('SELECT mode, claimed_by FROM chat_sessions WHERE id = ?');
-        $stmt->execute([$sessionId]);
-        $session = $stmt->fetch();
-        if (!$session) {
-            return ['ok' => false, 'error' => 'Invalid session'];
-        }
-        if ($session['mode'] !== 'live_requested') {
-            return ['ok' => false, 'error' => $session['mode'] === 'live_active' ? 'Already claimed' : 'Not awaiting a live chat claim'];
-        }
-
-        $now = time();
-        $upd = $pdo->prepare("UPDATE chat_sessions SET mode='live_active', claimed_by=?, updated_at=? WHERE id=? AND mode='live_requested'");
-        $upd->execute([$adminId, $now, $sessionId]);
-        if ($upd->rowCount() === 0) {
-            return ['ok' => false, 'error' => 'Already claimed'];
-        }
-
-        $pdo->prepare("UPDATE support_tickets SET assigned_admin_id=?, status='in_progress', updated_at=? WHERE session_id=? AND channel='live_chat'")
-            ->execute([$adminId, $now, $sessionId]);
-
-        $nameStmt = $pdo->prepare('SELECT username FROM admin_users WHERE id=?');
-        $nameStmt->execute([$adminId]);
-        $name = $nameStmt->fetchColumn() ?: 'A team member';
-
-        $pdo->prepare("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'system', ?)")
-            ->execute([$sessionId, $name . ' has joined the chat.']);
-
-        return ['ok' => true];
+        return \Chat\Handoff::claim($sessionId, $adminId);
     }
 
     // $adminId must be whoever currently has this session claimed - a
@@ -157,35 +91,22 @@ class LiveChat
         if ($mode === false) {
             return ['ok' => false, 'error' => 'Invalid session'];
         }
-        if (!in_array($mode, ['live_requested', 'live_active'], true)) {
-            return ['ok' => false, 'error' => 'This chat is not live', 'mode' => $mode];
+        if (!in_array($mode, ['live_requested', 'live_active', 'intake'], true)) {
+            return ['ok' => false, 'error' => 'This chat is not live', 'mode' => $mode === 'live_ended' ? 'ai' : $mode];
         }
 
         $pdo->prepare("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'user', ?)")->execute([$sessionId, $text]);
         $pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time(), $sessionId]);
 
+        if ($mode === 'intake') {
+            \Chat\TicketIntake::handle($sessionId, $text);
+        }
         return ['ok' => true];
     }
 
     public static function endLive(string $sessionId, int $adminId): array
     {
-        $pdo = db();
-        $stmt = $pdo->prepare('SELECT mode, claimed_by FROM chat_sessions WHERE id = ?');
-        $stmt->execute([$sessionId]);
-        $session = $stmt->fetch();
-        if (!$session || $session['mode'] !== 'live_active') {
-            return ['ok' => false, 'error' => 'This chat is not live'];
-        }
-        if ((int)$session['claimed_by'] !== $adminId) {
-            return ['ok' => false, 'error' => 'Claimed by someone else'];
-        }
-
-        $now = time();
-        $pdo->prepare("UPDATE chat_sessions SET mode='live_ended', updated_at=? WHERE id=?")->execute([$now, $sessionId]);
-        $pdo->prepare("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'system', 'This live chat has ended.')")->execute([$sessionId]);
-        $pdo->prepare("UPDATE support_tickets SET status='resolved', updated_at=? WHERE session_id=? AND channel='live_chat'")->execute([$now, $sessionId]);
-
-        return ['ok' => true];
+        return \Chat\Handoff::end($sessionId, $adminId);
     }
 
     // Customer-facing poll (public/api/chat/live_poll.php): new agent/
@@ -195,6 +116,10 @@ class LiveChat
     // them back here would just duplicate what's already on screen.
     public static function newMessagesForCustomer(string $sessionId, int $afterId): array
     {
+        // Lazy 3-minute check for this chat, so the customer is told within
+        // one poll even between the per-minute cron runs.
+        try { \Chat\Handoff::sweepTimeouts(null, $sessionId); } catch (\Throwable $e) {}
+
         $pdo = db();
         $stmt = $pdo->prepare('SELECT mode FROM chat_sessions WHERE id = ?');
         $stmt->execute([$sessionId]);
@@ -205,11 +130,11 @@ class LiveChat
 
         $msgs = $pdo->prepare("
             SELECT id, role, content, created_at FROM chat_messages
-            WHERE session_id = ? AND id > ? AND role IN ('agent','system')
+            WHERE session_id = ? AND id > ? AND role IN ('agent','system','bot')
             ORDER BY id ASC
         ");
         $msgs->execute([$sessionId, $afterId]);
 
-        return ['ok' => true, 'mode' => $mode, 'messages' => $msgs->fetchAll()];
+        return ['ok' => true, 'mode' => $mode === 'live_ended' ? 'ai' : $mode, 'messages' => $msgs->fetchAll()];
     }
 }

@@ -209,7 +209,7 @@
     stopLivePolling();
     liveChatState.active = false;
     liveChatState.lastMessageId = 0;
-    updateHeaderForLiveChat(false);
+    updateHeaderForLiveChat('ai');
     sessionStorage.removeItem(STORAGE_KEY);
     messages.innerHTML = '';
     initSession();
@@ -486,24 +486,21 @@
           // The session moved into live chat some other way (another tab,
           // or after a page refresh reset this tab's own JS state) -
           // recover into live mode instead of showing a confusing error.
-          enterLiveMode();
-          addMessage('assistant', d.mode === 'live_ended' ? 'This chat has ended.' : "You're now connected with a member of our team.");
+          enterLiveMode(d.mode);
         } else {
           addMessage('assistant', 'Sorry, something went wrong. Please try again.');
         }
       } else {
-        addMessage('assistant', d.answer, d.products || []);
-        if (d.message_id) speak({ message_id: d.message_id });
+        if (d.answer) {
+          addMessage('assistant', d.answer, d.products || []);
+          if (d.message_id && !d.handoff) speak({ message_id: d.message_id });
+        }
         if (d.action === 'show_tracking_form') {
           showTrackingForm(d.tracking_no, d.carrier);
-        } else if (d.escalate && !ticketRaised && !messages.querySelector('.buk-escalate-form') && !messages.querySelector('.buk-live-choice')) {
-          if (d.agent_available) {
-            addMessage('assistant', "I don't want to guess on this one. Would you like to raise a support ticket, or talk to someone now?");
-            showEscalateChoice();
-          } else {
-            addMessage('assistant', "I don't want to guess on this one, so I'm passing it to our support team. What's your email address? They'll reply there.");
-            showEscalateForm();
-          }
+        } else if (d.handoff && d.mode && d.mode !== 'ai') {
+          // Max has passed the chat to the team (or is taking ticket
+          // details). Notices arrive via live_poll.php.
+          enterLiveMode(d.mode);
         }
       }
     } catch (e) {
@@ -602,18 +599,37 @@
         addMessage('assistant', d.error || 'Unable to start a live chat right now. Please try raising a support ticket instead.');
         return;
       }
-      ticketRaised = true; // a ticket was created for this too - don't also offer the ticket flow again
-      enterLiveMode();
+      enterLiveMode(d.mode);
     } catch (e) {
       addMessage('assistant', 'Unable to reach the server. Please try again shortly.');
     }
   }
 
-  function enterLiveMode() {
+  function enterLiveMode(mode) {
     liveChatState.active = true;
-    updateHeaderForLiveChat(true);
+    liveChatState.mode = mode || 'live_requested';
+    updateHeaderForLiveChat(liveChatState.mode);
     startLivePolling();
   }
+
+  function exitLiveMode() {
+    stopLivePolling();
+    liveChatState.active = false;
+    liveChatState.mode = 'ai';
+    updateHeaderForLiveChat('ai');
+  }
+
+  // While Max is handling the chat, check now and then whether a member of
+  // staff has joined from the Operator Console, so the customer sees them
+  // straight away rather than on their next message.
+  setInterval(async () => {
+    if (!open || liveChatState.active || !sessionId) return;
+    try {
+      const r = await fetch(API + '/live_poll.php?session_id=' + encodeURIComponent(sessionId) + '&after_id=' + liveChatState.lastMessageId);
+      const d = await r.json();
+      if (d.ok && d.mode && d.mode !== 'ai') enterLiveMode(d.mode);
+    } catch (e) {}
+  }, 10000);
 
   async function sendLiveMessage(text) {
     try {
@@ -659,19 +675,23 @@
         }
       });
 
-      if (d.mode === 'live_ended') {
-        stopLivePolling();
-        liveChatState.active = false;
-        updateHeaderForLiveChat(false);
+      if (d.mode === 'ai' || d.mode === 'live_ended') {
+        exitLiveMode();
+      } else if (d.mode && d.mode !== liveChatState.mode) {
+        liveChatState.mode = d.mode;
+        updateHeaderForLiveChat(d.mode);
       }
     } catch (e) {
       // Silent - the next tick just tries again.
     }
   }
 
-  function updateHeaderForLiveChat(active) {
+  function updateHeaderForLiveChat(mode) {
     const statusText = panel.querySelector('#buk-status-text');
-    if (statusText) statusText.textContent = active ? 'Live agent' : 'Online';
+    if (!statusText) return;
+    statusText.textContent = mode === 'live_active' ? 'Live agent'
+      : mode === 'live_requested' ? 'Connecting you to our team…'
+      : 'Online';
   }
 
   // ── Escalation ───────────────────────────────────────────────────────────────

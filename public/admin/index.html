@@ -131,6 +131,10 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 </style>
 </head>
 <body>
+<style>
+html.embedded header{display:none!important}
+html.embedded [data-embed-hide]{display:none!important}
+</style>
 
 <div id="login-overlay">
   <div id="login-box">
@@ -178,11 +182,12 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
   <button data-role="admin" onclick="switchTab('apikeys',this)">API Keys</button>
   <button data-role="admin" onclick="switchTab('models',this)">Model Settings</button>
   <button data-role="admin" onclick="switchTab('apiusage',this)">API Usage</button>
+  <button data-role="admin" onclick="switchTab('email',this)">Email</button>
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
-  <button onclick="switchTab('tickets',this)">Support Tickets</button>
-  <button onclick="switchTab('projects',this)">Project Planner</button>
+  <button data-embed-hide onclick="switchTab('tickets',this)">Support Tickets</button>
+  <button data-embed-hide onclick="switchTab('projects',this)">Project Planner</button>
   <button onclick="switchTab('account',this)">My Account</button>
 </nav>
 
@@ -536,6 +541,34 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
     </div>
   </div>
 
+  <!-- ── EMAIL ── -->
+  <div id="tab-email" class="tab">
+    <div class="card">
+      <h2>Email (ticket confirmations)</h2>
+      <p style="color:#adb4ba;font-size:13px;margin-bottom:12px">When a ticket is raised from a chat, a copy with the full details and transcript goes to the support inbox below, and a confirmation quoting the ticket number goes to the customer (when they gave an email). Enter your mail provider's SMTP details. Emails are queued and retried automatically every minute.</p>
+      <div id="em-status" style="margin-bottom:10px"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        <div><label>SMTP server</label><input type="text" id="em-host" placeholder="smtp.example.com"></div>
+        <div><label>Port</label><input type="text" id="em-port" placeholder="587"></div>
+        <div><label>Security</label><select id="em-security"><option value="tls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">None (25)</option></select></div>
+        <div><label>Username</label><input type="text" id="em-user" autocomplete="off"></div>
+        <div><label>Password <span id="em-pw-state" style="color:#adb4ba"></span></label><input type="password" id="em-pass" autocomplete="new-password" placeholder="leave blank to keep"></div>
+        <div><label>From address</label><input type="text" id="em-from" placeholder="support@blake-uk.com"></div>
+        <div><label>From name</label><input type="text" id="em-from-name" placeholder="Blake UK Support"></div>
+        <div><label>Support inbox (receives every ticket)</label><input type="text" id="em-notify" placeholder="sales@blake-uk.com"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
+        <button class="btn btn-primary" onclick="saveEmailSettings()">Save</button>
+        <div><label>Send a test to</label><input type="text" id="em-test-to" style="width:240px" placeholder="you@blake-uk.com"></div>
+        <button class="btn btn-secondary" onclick="testEmail()">Send test email</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:center">Recent emails <button class="btn btn-secondary" onclick="retryEmails()">Retry failed</button></h2>
+      <div style="overflow-x:auto"><table id="em-outbox"><thead><tr><th>Queued</th><th>To</th><th>Subject</th><th>Status</th><th>Error</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
   <!-- ── API USAGE ── -->
   <div id="tab-apiusage" class="tab">
     <div class="card">
@@ -853,6 +886,51 @@ function switchTab(name,el){
   document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
   if(name==='apiusage')loadApiUsage();
+  if(name==='email')loadEmailSettings();
+}
+
+// ── Email (SMTP) ─────────────────────────────────────────────────────────────
+async function loadEmailSettings(){
+  const d=await get(API+'/email_settings.php');
+  if(!d||d.error){flash((d&&d.error)||'Could not load email settings',true);return;}
+  const s=d.settings;
+  document.getElementById('em-host').value=s.host||'';
+  document.getElementById('em-port').value=s.port||587;
+  document.getElementById('em-security').value=s.security||'tls';
+  document.getElementById('em-user').value=s.username||'';
+  document.getElementById('em-pass').value='';
+  document.getElementById('em-pw-state').textContent=s.has_password?'(saved)':'(not set)';
+  document.getElementById('em-from').value=s.from_email||'';
+  document.getElementById('em-from-name').value=s.from_name||'';
+  document.getElementById('em-notify').value=s.notify||'sales@blake-uk.com';
+  document.getElementById('em-status').innerHTML=s.configured?'<div class="alert alert-ok">Email is configured.</div>':'<div class="alert alert-warn">Email is not configured yet: ticket emails are being queued and will be sent once the SMTP details are saved.</div>';
+  document.querySelector('#em-outbox tbody').innerHTML=d.outbox.length?d.outbox.map(r=>`<tr><td style="white-space:nowrap">${fmtDate(r.created_at)}</td><td>${esc(r.to_addr)}</td><td>${esc(r.subject)}</td><td>${r.status==='sent'?'<span style="color:#7fd19b">sent</span>':r.status==='failed'?'<span style="color:#f5a3a3">failed</span>':'queued'+(r.attempts?` (${r.attempts} tries)`:'')}</td><td style="color:#f5a3a3;font-size:12px">${esc(r.last_error||'')}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No emails yet.</td></tr>';
+}
+async function saveEmailSettings(){
+  const r=await post(API+'/email_settings.php',{csrf,host:document.getElementById('em-host').value.trim(),port:document.getElementById('em-port').value.trim(),security:document.getElementById('em-security').value,username:document.getElementById('em-user').value.trim(),password:document.getElementById('em-pass').value,from_email:document.getElementById('em-from').value.trim(),from_name:document.getElementById('em-from-name').value.trim(),notify_email:document.getElementById('em-notify').value.trim()});
+  if(r.error)return flash(r.error,true);
+  flash('Email settings saved');loadEmailSettings();
+}
+async function testEmail(){
+  const to=document.getElementById('em-test-to').value.trim();
+  if(!to)return flash('Enter an address to send the test to',true);
+  flash('Sending…');
+  const r=await post(API+'/email_settings.php',{csrf,action:'test',to});
+  if(r.error)return flash('Test failed: '+r.error,true);
+  flash('Test email sent to '+to);
+}
+async function retryEmails(){
+  const r=await post(API+'/email_settings.php',{csrf,action:'retry'});
+  if(r.error)return flash(r.error,true);
+  flash(`Re-queued ${r.requeued} email(s)`);loadEmailSettings();
+}
+
+// ── Embedded in the Operator Console ─────────────────────────────────────────
+// The desktop console shows this admin panel inside its Admin page; its own
+// header, sign-in controls and the pages the console already covers
+// (tickets, projects) are hidden there.
+if(new URLSearchParams(location.search).has('embedded')||window.top!==window){
+  document.documentElement.classList.add('embedded');
 }
 
 // ── API Usage ────────────────────────────────────────────────────────────────

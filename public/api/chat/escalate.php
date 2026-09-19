@@ -82,9 +82,12 @@ $pdo->prepare('UPDATE chat_messages SET escalated=1 WHERE session_id=? AND role=
 // never affect this response. If Telegram isn't configured or is down, the
 // customer still gets their normal escalation confirmation below.
 \Telegram\Notifier::sendTicketAlert($ticketId, $subject, $email, $session['page_url'] ?? null, $routing['department']);
+\Tickets\Mailer::sendConfirmations((int)$ticketId);
+$code = \Tickets\Mailer::code((int)$ticketId);
 
 json_out([
     'ok'        => true,
     'ticket_id' => $ticketId,
-    'message'   => "Thanks - I've raised ticket #{$ticketId} with our support team. They'll reply by email to {$email} as soon as they can. You can also reach us directly at https://www.blake-uk.com/support.html",
+    'code'      => $code,
+    'message'   => "Thanks - I've raised support ticket {$code} with our team and a confirmation is on its way to {$email}. They'll reply as soon as they can. Please quote {$code} if you contact us about this.",
 ]);

@@ -6,14 +6,16 @@
 
 declare(strict_types=1);
 
-function seed_live_chat_admin(int $id, string $presence = 'offline'): void
+function seed_live_chat_admin(int $id, string $presence = 'offline', string $role = 'admin'): void
 {
     db()->prepare('INSERT INTO admin_users (id, username, password, role, presence_status) VALUES (?, ?, ?, ?, ?)')
-        ->execute([$id, 'live-test-admin-' . $id, 'x', 'admin', $presence]);
+        ->execute([$id, 'live-test-admin-' . $id, 'x', $role, $presence]);
 }
+
 
 function seed_live_chat_session(string $id, string $question = 'Do you have this in stock?'): void
 {
+    \Support\Hours::$override = true; // handoff depends on opening hours: pin "open"
     db()->prepare('INSERT INTO chat_sessions (id, page_url) VALUES (?, ?)')->execute([$id, 'https://www.blake-uk.com/']);
     db()->prepare("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'user', ?)")->execute([$id, $question]);
     db()->prepare("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'assistant', 'I am not sure about that.')")->execute([$id]);
@@ -40,19 +42,20 @@ test('busy does not count as available', function () {
 
 suite('Chat\LiveChat — requestLive()');
 
-test('creates a live_chat ticket and moves the session to live_requested', function () {
+test('routes the chat to a department and moves the session to live_requested', function () {
+    seed_live_chat_admin(8100, 'online');
     seed_live_chat_session('live-test-1');
     $r = \Chat\LiveChat::requestLive('live-test-1');
     assert_true($r['ok']);
-    assert_true($r['ticket_id'] > 0);
+    assert_equal('live_requested', $r['mode']);
+    assert_equal('sales', $r['department']); // no API key in tests: classifier falls back to sales
 
-    $ticket = db()->prepare("SELECT channel, status FROM support_tickets WHERE id = ?");
-    $ticket->execute([$r['ticket_id']]);
-    $ticket = $ticket->fetch();
-    assert_equal('live_chat', $ticket['channel']);
-
-    $mode = db()->query("SELECT mode FROM chat_sessions WHERE id = 'live-test-1'")->fetchColumn();
-    assert_equal('live_requested', $mode);
+    $row = db()->query("SELECT mode, department, handoff_at FROM chat_sessions WHERE id = 'live-test-1'")->fetch();
+    assert_equal('live_requested', $row['mode']);
+    assert_equal('sales', $row['department']);
+    assert_true((int)$row['handoff_at'] > 0);
+    $notice = db()->query("SELECT content FROM chat_messages WHERE session_id = 'live-test-1' AND role = 'system' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    assert_true(str_contains($notice, 'Sales team'), 'customer told where the chat went');
 });
 
 test('rejects an invalid session', function () {
@@ -60,51 +63,49 @@ test('rejects an invalid session', function () {
     assert_false($r['ok']);
 });
 
-test('rejects a session that is already live', function () {
-    seed_live_chat_session('live-test-2');
-    \Chat\LiveChat::requestLive('live-test-2');
-    $r = \Chat\LiveChat::requestLive('live-test-2');
-    assert_false($r['ok']);
+test('a second request on a chat that is already with the team changes nothing', function () {
+    seed_live_chat_admin(8103, 'online');
+    seed_live_chat_session('live-test-3');
+    \Chat\LiveChat::requestLive('live-test-3');
+    $r = \Chat\LiveChat::requestLive('live-test-3');
+    assert_true($r['ok']);
+    assert_true(!empty($r['already']));
+    assert_equal('live_requested', $r['mode']);
 });
 
 suite('Chat\LiveChat — claim()');
 
-test('claiming a requested chat sets it active and assigns the ticket', function () {
+test('claiming a requested chat sets it active and announces the staff member', function () {
     seed_live_chat_admin(8110, 'online');
-    seed_live_chat_session('live-test-3');
-    $req = \Chat\LiveChat::requestLive('live-test-3');
-
-    $r = \Chat\LiveChat::claim('live-test-3', 8110);
+    seed_live_chat_session('live-test-4');
+    \Chat\LiveChat::requestLive('live-test-4');
+    $r = \Chat\LiveChat::claim('live-test-4', 8110);
     assert_true($r['ok']);
-
-    $row = db()->query("SELECT mode, claimed_by FROM chat_sessions WHERE id = 'live-test-3'")->fetch();
+    $row = db()->query("SELECT mode, claimed_by FROM chat_sessions WHERE id = 'live-test-4'")->fetch();
     assert_equal('live_active', $row['mode']);
     assert_equal(8110, (int)$row['claimed_by']);
-
-    $ticket = db()->prepare('SELECT assigned_admin_id, status FROM support_tickets WHERE id = ?');
-    $ticket->execute([$req['ticket_id']]);
-    $ticket = $ticket->fetch();
-    assert_equal(8110, (int)$ticket['assigned_admin_id']);
-    assert_equal('in_progress', $ticket['status']);
+    $notice = db()->query("SELECT content FROM chat_messages WHERE session_id = 'live-test-4' AND role = 'system' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    assert_true(str_contains($notice, 'has joined the chat'));
 });
 
 test('a second claim on an already-claimed chat is rejected', function () {
     seed_live_chat_admin(8111, 'online');
     seed_live_chat_admin(8112, 'online');
-    seed_live_chat_session('live-test-4');
-    \Chat\LiveChat::requestLive('live-test-4');
+    seed_live_chat_session('live-test-5');
+    \Chat\LiveChat::requestLive('live-test-5');
 
-    $first  = \Chat\LiveChat::claim('live-test-4', 8111);
-    $second = \Chat\LiveChat::claim('live-test-4', 8112);
+    $first  = \Chat\LiveChat::claim('live-test-5', 8111);
+    $second = \Chat\LiveChat::claim('live-test-5', 8112);
     assert_true($first['ok']);
     assert_false($second['ok']);
 });
 
-test('claiming a session that was never requested is rejected', function () {
-    seed_live_chat_admin(8113, 'online');
-    seed_live_chat_session('live-test-5');
-    $r = \Chat\LiveChat::claim('live-test-5', 8113);
-    assert_false($r['ok']);
+test('staff can take over a chat Max is still handling', function () {
+    seed_live_chat_admin(8119, 'online');
+    seed_live_chat_session('live-test-takeover');
+    $r = \Chat\LiveChat::claim('live-test-takeover', 8119);
+    assert_true($r['ok']);
+    assert_equal('live_active', db()->query("SELECT mode FROM chat_sessions WHERE id = 'live-test-takeover'")->fetchColumn());
 });
 
 suite('Chat\LiveChat — sendAgentMessage() / sendCustomerMessage()');
@@ -170,21 +171,18 @@ test('an empty message is rejected', function () {
 
 suite('Chat\LiveChat — endLive()');
 
-test('the claiming admin can end the chat, which resolves the ticket', function () {
+test('the claiming admin can end the chat, which hands the customer back to Max', function () {
     seed_live_chat_admin(8130, 'online');
     seed_live_chat_session('live-test-12');
-    $req = \Chat\LiveChat::requestLive('live-test-12');
+    \Chat\LiveChat::requestLive('live-test-12');
     \Chat\LiveChat::claim('live-test-12', 8130);
 
     $r = \Chat\LiveChat::endLive('live-test-12', 8130);
     assert_true($r['ok']);
-
     $mode = db()->query("SELECT mode FROM chat_sessions WHERE id = 'live-test-12'")->fetchColumn();
-    assert_equal('live_ended', $mode);
-
-    $status = db()->prepare('SELECT status FROM support_tickets WHERE id = ?');
-    $status->execute([$req['ticket_id']]);
-    assert_equal('resolved', $status->fetchColumn());
+    assert_equal('ai', $mode);
+    $notice = db()->query("SELECT content FROM chat_messages WHERE session_id = 'live-test-12' AND role = 'system' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    assert_true(str_contains($notice, 'has ended the chat'));
 });
 
 test('a session that is not live cannot be ended', function () {
@@ -194,8 +192,8 @@ test('a session that is not live cannot be ended', function () {
 });
 
 test('only the claiming admin can end the chat', function () {
-    seed_live_chat_admin(8131, 'online');
-    seed_live_chat_admin(8132, 'online');
+    seed_live_chat_admin(8131, 'online', 'editor');
+    seed_live_chat_admin(8132, 'online', 'editor');
     seed_live_chat_session('live-test-14');
     \Chat\LiveChat::requestLive('live-test-14');
     \Chat\LiveChat::claim('live-test-14', 8131);
@@ -246,5 +244,5 @@ test('reports the session mode alongside the messages', function () {
     \Chat\LiveChat::endLive('live-test-17', 8142);
 
     $r = \Chat\LiveChat::newMessagesForCustomer('live-test-17', 0);
-    assert_equal('live_ended', $r['mode']);
+    assert_equal('ai', $r['mode']);
 });

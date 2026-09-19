@@ -29,8 +29,13 @@
         X-Content-Type-Options nosniff
         Referrer-Policy strict-origin-when-cross-origin
         Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        X-Frame-Options SAMEORIGIN
     }
+    # The admin panel may be framed only by the Operator Console desktop app
+    # (its Admin page); everything else stays same-origin-only.
+    @adminui path /admin /admin/*
+    header @adminui Content-Security-Policy "frame-ancestors 'self' https://tauri.localhost http://tauri.localhost tauri://localhost"
+    @notadminui not path /admin /admin/*
+    header @notadminui X-Frame-Options SAMEORIGIN
 }
 
 # blakegroup.uk: standalone intro site at the apex, not connected to
@@ -92,8 +97,13 @@ blakegroup.uk, www.blakegroup.uk {
         X-Content-Type-Options nosniff
         Referrer-Policy strict-origin-when-cross-origin
         Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        X-Frame-Options SAMEORIGIN
     }
+    # The admin panel may be framed only by the Operator Console desktop app
+    # (its Admin page); everything else stays same-origin-only.
+    @adminui path /admin /admin/*
+    header @adminui Content-Security-Policy "frame-ancestors 'self' https://tauri.localhost http://tauri.localhost tauri://localhost"
+    @notadminui not path /admin /admin/*
+    header @notadminui X-Frame-Options SAMEORIGIN
 }
 
 # admin.blakegroup.uk removed: the name has no DNS record (NXDOMAIN on

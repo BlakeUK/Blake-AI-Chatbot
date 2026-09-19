@@ -323,6 +323,13 @@ else
     warn "Live-chat/presence schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(chat_sessions);" | grep -q "|department|"; then
+    info "Applying support-desk schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_support_desk.sql"
+else
+    warn "Support-desk schema already applied — skipping."
+fi
+
 if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='api_usage_log';" | grep -q api_usage_log; then
     info "Applying API-usage schema migration..."
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_api_usage.sql"
@@ -353,6 +360,15 @@ if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_product_pages.php")
     ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_PP" ) | crontab -u www-data -
 else
     warn "Product-page extraction cron job already installed — skipping."
+fi
+
+# ── Support desk cron (unanswered-chat timeouts, ticket emails) ──────────────
+CRON_LINE_SUP="* * * * * php $WEBROOT/scripts/process_support.php >> $WEBROOT/logs/support.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_support.php"); then
+    info "Installing support-desk cron job..."
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_SUP" ) | crontab -u www-data -
+else
+    warn "Support-desk cron job already installed — skipping."
 fi
 
 # ── Telegram update polling cron (ticket forward-button taps) ────────────────
