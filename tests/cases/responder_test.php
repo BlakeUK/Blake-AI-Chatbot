@@ -187,3 +187,13 @@ test('Pii::mask hides emails, phone and card numbers but keeps postcodes, order 
     assert_equal('order 55123 at S3 9PT for SR10WB', \Support\Pii::mask('order 55123 at S3 9PT for SR10WB'));
     assert_equal('landline [phone number]', \Support\Pii::mask('landline +44 114 234 5678'));
 });
+
+test('verifyBlakeLinks repairs a garbled copy of a product URL from the prompt', function () {
+    $real = 'https://www.blake-uk.com/class-1-2-way-variable-gain-uhf-masthead-amplifier-1-input-2-outputs.html';
+    $bad  = 'https://www.blake-uk.com/class-1-2-way-variable-gain-uhf-masthead-class-1-2-way-variable-gain-masthead.html';
+    $a = \Chat\Responder::verifyBlakeLinks("View it at {$bad} or [here]({$bad}).", "Product: {$real}", $removed);
+    assert_equal("View it at {$real} or [here]({$real}).", $a);
+    assert_equal(2, count($removed));
+    $b = \Chat\Responder::verifyBlakeLinks('See https://www.blake-uk.com/totally-different-thing.html', "Product: {$real}", $r2);
+    assert_true(!str_contains($b, 'totally-different'), 'unrelated invented link is still removed');
+});

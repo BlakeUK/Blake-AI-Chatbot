@@ -299,16 +299,34 @@ PROMPT;
             }
             return false;
         };
+        // A garbled copy of a real link (the model sometimes repeats or
+        // drops part of a long product URL) is repaired to the prompt URL
+        // it shares the longest start with, when that match is strong.
+        $candidates = [];
+        if (preg_match_all('#https?://(?:www\.)?blake-uk\.com/[^\s<>"\')\]]+#i', $referenceText, $cm)) {
+            $candidates = array_values(array_unique(array_map(fn($u) => rtrim($u, '.,;:!?'), $cm[0])));
+        }
+        $repair = function (string $url) use ($candidates): ?string {
+            $best = null; $bestLen = 0;
+            foreach ($candidates as $c) {
+                $n = min(strlen($c), strlen($url)); $i = 0;
+                while ($i < $n && strtolower($c[$i]) === strtolower($url[$i])) $i++;
+                if ($i > $bestLen) { $bestLen = $i; $best = $c; }
+            }
+            $path0 = strlen('https://www.blake-uk.com/');
+            return ($best !== null && $bestLen - $path0 >= 20 && $bestLen >= 0.6 * min(strlen($best), strlen($url))) ? $best : null;
+        };
         // Markdown links first: [label](url) -> label when the url is unknown.
-        $answer = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/i', function ($mm) use ($isKnown, &$removed) {
+        $answer = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/i', function ($mm) use ($isKnown, $repair, &$removed) {
             if ($isKnown($mm[2])) return $mm[0];
             $removed[] = $mm[2];
-            return $mm[1];
+            $fix = $repair($mm[2]);
+            return $fix ? "[{$mm[1]}]({$fix})" : $mm[1];
         }, $answer) ?? $answer;
-        $answer = preg_replace_callback('#(?<!\()\bhttps?://[^\s<>"\')\]]+#i', function ($mm) use ($isKnown, &$removed) {
+        $answer = preg_replace_callback('#(?<!\()\bhttps?://[^\s<>"\')\]]+#i', function ($mm) use ($isKnown, $repair, &$removed) {
             if ($isKnown($mm[0])) return $mm[0];
             $removed[] = $mm[0];
-            return '';
+            return $repair($mm[0]) ?? '';
         }, $answer) ?? $answer;
         return preg_replace('/[ \t]{2,}/', ' ', $answer);
     }
