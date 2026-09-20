@@ -94,3 +94,7 @@ foreach (array_slice(@file(dirname(__DIR__, 2) . '/logs/php_errors.log') ?: [], 
 echo "--- standards\n";
 try { foreach (db()->query("SELECT short, chunk_count FROM standards_documents") as $r) echo "{$r['short']}: {$r['chunk_count']}\n";
   echo 'standard embeddings: ' . db()->query("SELECT COUNT(*) FROM embeddings WHERE source_type='standard'")->fetchColumn() . "\n"; } catch (\Throwable $e) { echo $e->getMessage() . "\n"; }
+echo "--- reception data\n";
+foreach (['/var/www/chat/data/reception/transmitters.json'] as $f) echo basename($f) . ': ' . (is_file($f) ? filesize($f) . ' bytes' : 'MISSING') . "\n";
+echo 'terrain tiles: ' . count(glob('/var/www/chat/data/reception/terrain/*') ?: []) . "\n";
+echo 'postcode cache rows: ' . db()->query('SELECT COUNT(*) FROM reception_postcodes')->fetchColumn() . "\n";
