@@ -214,6 +214,7 @@ RULES:
 - Products tagged [Alternative product] are substitutes for what the customer is viewing (e.g. if it's out of stock or they want a different spec) — mention one if the customer asks about alternatives, other options, or if the current product is out of stock.
 - If you cannot answer from the reference data, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
 - Never make up product codes, prices or specifications.
+- Put links inside your sentences, as part of the product or page you mention. Never finish with a list of links or a "Sources" section.
 - TECHNICAL STANDARDS are only provided for very technical questions. Prefer Blake UK's own information where it answers the question. Use the standards to explain the technical detail in your own words (never copy more than a short phrase), cite them by number and clause (e.g. "ETSI EN 302 755 (DVB-T2), clause 8.3") and give the standard's link. Keep it practical for an installer or engineer. Write maths and symbols as plain text (e.g. "symbol rate Rs", "roll-off 0.20", "532 µs"), never LaTeX or $...$ markup, which the chat window cannot display.
 - Only mention products that fit what the customer is asking about. The reference data can include loosely related items; never bring up an unrelated product just because it has a price.
 - Short follow-ups such as "how much is it?" or "do you have it in black?" refer to the product or topic from the previous messages; answer about that, and if its price or details are not in the reference data, say so and give its product page link.
@@ -305,13 +306,21 @@ PROMPT;
         if ($referenceText !== '' && preg_match_all('#https?://([a-z0-9.-]+)#i', $referenceText, $m)) {
             foreach ($m[1] as $h) $allowed[] = strtolower($h);
         }
-        return preg_replace_callback('#\bhttps?://([a-z0-9.-]+)[^\s<>"\')\]]*#i', function ($mm) use ($allowed) {
-            $host = strtolower(rtrim($mm[1], '.'));
+        $ok = function (string $host) use ($allowed): bool {
+            $host = strtolower(rtrim($host, '.'));
             foreach ($allowed as $a) {
-                if ($host === $a || str_ends_with($host, '.' . ltrim($a, '.'))) return $mm[0];
+                if ($host === $a || str_ends_with($host, '.' . ltrim($a, '.'))) return true;
             }
-            return '[link removed]';
-        }, $answer) ?? $answer;
+            return false;
+        };
+        // A markdown link to somewhere we didn't provide keeps its words and
+        // loses the link; a bare one is dropped. Never leave a placeholder:
+        // "[link removed]" in a sentence reads like a broken answer.
+        $answer = preg_replace_callback('/\[([^\]]+)\]\(\s*(https?:\/\/([a-z0-9.-]+)[^)\s]*)\s*\)/i',
+            fn($mm) => $ok($mm[3]) ? $mm[0] : $mm[1], $answer) ?? $answer;
+        $answer = preg_replace_callback('#(?<!\()\bhttps?://([a-z0-9.-]+)[^\s<>"\')\]]*#i',
+            fn($mm) => $ok($mm[1]) ? $mm[0] : '', $answer) ?? $answer;
+        return preg_replace('/[ \t]{2,}/', ' ', $answer);
     }
 
     // Post-processing check (Confluent RAG guide, step 4): a Blake UK link
@@ -430,6 +439,18 @@ PROMPT;
             $t = str_replace(['{', '}', '\\'], '', $t);
             return trim(preg_replace('/\s{2,}/', ' ', $t));
         }, $answer) ?? $answer;
+    }
+
+    // Models sometimes finish by dumping every reference URL they were
+    // given. The links belong inside the sentences, so a run of bare URLs
+    // at the end (optionally under a "Sources:" heading) is removed.
+    public static function stripLinkDump(string $answer): string
+    {
+        $answer = preg_replace('/\n+\s*(sources?|references?|links?|further reading)\s*:?\s*\n(\s*[-*•]?\s*(\[[^\]]*\]\()?https?:\/\/\S+\)?\s*\n?)+\s*$/i', "\n", $answer) ?? $answer;
+        // Two or more bare URLs (any separator, including none) trailing the answer.
+        // Lines that are nothing but links, at the very end (2 or more).
+        $answer = preg_replace('/\n[ \t]*(?:https?:\/\/\S+[ \t]*(?:\n[ \t]*)?){2,}$/i', '', $answer) ?? $answer;
+        return rtrim($answer);
     }
 
     public static function shouldEscalate(float $confidence): bool

@@ -22,7 +22,11 @@ class Advisor
         'satellite'    => 'https://www.blake-uk.com/category/aerials-satellite.html',
     ];
 
-    private const TOPIC = '/\b(aerials?|antenna|tv|television|freeview|signal|reception|transmitter|channels?|pixelat\w*|dab|yagi|log.?periodic|high.?gain|recommend\w*)\b/i';
+    // Deliberately loose: customers misspell "aerial" constantly (aeraIL,
+    // ariel, arial, antena), so common misspellings are matched too.
+    private const TOPIC = '/\b(a[eé]ri[ae]l?s?|aera\w*|ari[ae]ls?|antenn?as?|antena|tv|television|freeview|saorview|signal|reception|transmitter|channels?|pixelat\w*|breaking up|dab|yagi|log.?periodic|high.?gain|mast|dish|recommend\w*)\b/i';
+    // A postcode in a delivery/billing question must never trigger an aerial answer.
+    private const NOT_RECEPTION = '/\b(deliver\w*|dispatch\w*|ship\w*|postage|courier|carrier|tracking|invoice|billing|account|collect\w*|returns?|refund\w*)\b/i';
 
     // Test seam for the data directory.
     public static ?string $dataDir = null;
@@ -34,7 +38,12 @@ class Advisor
     {
         $postcode = Postcode::extract($message);
         if (!$postcode) return null;
-        if (!preg_match(self::TOPIC, $message) && !preg_match(self::TOPIC, $recentText)) return null;
+        if (preg_match(self::NOT_RECEPTION, $message)) return null;
+        // Topic words, or a short message that is essentially just a postcode
+        // ("best aerial for WF3 1UG", "WF3 1UG?") - those are always about
+        // reception, whatever the spelling.
+        $shortEnough = str_word_count($message) <= 12;
+        if (!preg_match(self::TOPIC, $message) && !preg_match(self::TOPIC, $recentText) && !$shortEnough) return null;
 
         $predictor = Predictor::fromDataDir(self::$dataDir ?? dirname(__DIR__, 2) . '/data/reception');
         if (!$predictor) return null;

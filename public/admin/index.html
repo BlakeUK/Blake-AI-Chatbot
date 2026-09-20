@@ -203,6 +203,7 @@ html.embedded [data-embed-hide]{display:none!important}
       <div class="stat"><div class="n" id="s-products">—</div><div class="l">Products</div></div>
       <div class="stat"><div class="n" id="s-chats">—</div><div class="l">Chat Sessions</div></div>
     </div>
+    <div id="s-sub" style="color:#adb4ba;font-size:12px;margin:-6px 0 14px"></div>
     <div class="card">
       <h2 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Gemini Status</span>
@@ -1063,11 +1064,14 @@ function switchImportSubtab(name){
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 async function loadDashboard(){
   try{
-    const [kRows,fRows,pRows,lRows]=await Promise.all([get(API+'/knowledge.php'),get(API+'/files.php'),get(API+'/products.php'),get(API+'/chats.php')]);
-    document.getElementById('s-knowledge').textContent=Array.isArray(kRows)?kRows.length:'—';
-    document.getElementById('s-files').textContent=Array.isArray(fRows)?fRows.filter(r=>r.status==='indexed').length:'—';
-    document.getElementById('s-products').textContent=Array.isArray(pRows)?pRows.total||pRows.length:'—';
-    document.getElementById('s-chats').textContent=Array.isArray(lRows)?lRows.length:'—';
+    const [st,lRows]=await Promise.all([get(API+'/stats.php'),get(API+'/chats.php')]);
+    const fmt=v=>typeof v==='number'?v.toLocaleString('en-GB'):'—';
+    document.getElementById('s-knowledge').textContent=fmt(st.knowledge_entries);
+    document.getElementById('s-files').textContent=fmt(st.files_indexed);
+    document.getElementById('s-products').textContent=fmt(st.products);
+    document.getElementById('s-chats').textContent=fmt(st.chat_sessions);
+    const sub=document.getElementById('s-sub');
+    if(sub)sub.textContent=`${fmt(st.knowledge_chunks)} searchable sections · ${fmt(st.standard_chunks)} standards clauses · ${fmt(st.embeddings)} indexed for semantic search · ${fmt(st.open_tickets)} open tickets`;
     renderLogTable(lRows,'dash-logs-table',4);
   }catch(_){}
 }

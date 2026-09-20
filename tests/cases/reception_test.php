@@ -160,13 +160,24 @@ test('postcode + aerial question produces a prediction block', function () {
 
 test('bare postcode reply uses the earlier aerial question for context', function () {
     reception_stub();
-    assert_null(Advisor::forMessage('S3 9PT'));
+    // A short message that is essentially a postcode is treated as a
+    // reception question on its own (customers often reply with just that).
+    assert_true(Advisor::forMessage('S3 9PT')['found']);
     assert_true(Advisor::forMessage('S3 9PT', 'I want a TV aerial for a weak signal area')['found']);
+    // A long message with no reception words still does not trigger it.
+    assert_null(Advisor::forMessage('We are moving our office to S3 9PT next month and I need to update the billing records, purchase orders and the invoices you send us each quarter.'));
 });
 
 test('postcode in an unrelated question does not trigger a prediction', function () {
     reception_stub();
     assert_null(Advisor::forMessage('Do you deliver to S3 9PT?'));
+});
+
+test('misspelled aerial questions still trigger a prediction', function () {
+    reception_stub();
+    foreach (['Whats the best aeraIL FOR S3 9PT', 'which ariel do i need at S3 9PT', 'best antena for S3 9PT please'] as $m) {
+        assert_true(Advisor::forMessage($m)['found'], $m);
+    }
 });
 
 test('unknown postcode asks the customer to check it', function () {

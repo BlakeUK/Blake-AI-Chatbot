@@ -137,12 +137,29 @@ test('sanitiseLinks keeps Blake UK and reference links, removes others', functio
     assert_true(str_contains($a, 'https://www.freeview.co.uk/abc'));
     assert_false(str_contains($a, 'blake-uk-support.help'));
     assert_false(str_contains($a, 'evil.example'));
-    assert_equal(2, substr_count($a, '[link removed]'));
+    assert_true(!str_contains($a, '[link removed]'), 'no visible placeholder is left in the sentence');
 });
 
 test('a lookalike host ending in blake-uk.com text is not allowed', function () {
     $a = \Chat\Responder::sanitiseLinks('https://notblake-uk.com/x https://blake-uk.com.evil.io/y');
-    assert_equal(2, substr_count($a, '[link removed]'));
+    assert_true(!str_contains($a, 'notblake-uk.com') && !str_contains($a, 'evil.io'));
+});
+
+test('a markdown link we did not provide keeps its words and loses the link', function () {
+    $a = \Chat\Responder::sanitiseLinks('Check the [Freeview Checker](https://www.freeview.co.uk/x) for details.');
+    assert_equal('Check the Freeview Checker for details.', $a);
+    $b = \Chat\Responder::sanitiseLinks('Check the [Freeview Checker](https://www.freeview.co.uk/x).', 'ref https://www.freeview.co.uk/x');
+    assert_true(str_contains($b, '](https://www.freeview.co.uk/x)'));
+});
+
+test('stripLinkDump removes a trailing wall of links but keeps links in sentences', function () {
+    $a = "Use a masthead amplifier: https://www.blake-uk.com/a.html\n\nhttps://www.blake-uk.com/b.html https://www.blake-uk.com/c.html\nhttps://www.blake-uk.com/d.html";
+    $out = \Chat\Responder::stripLinkDump($a);
+    assert_equal('Use a masthead amplifier: https://www.blake-uk.com/a.html', $out);
+    $keep = "Sources are fine in prose: see https://www.blake-uk.com/a.html for details.";
+    assert_equal($keep, \Chat\Responder::stripLinkDump($keep));
+    $sec = "Answer text.\n\nSources:\n- https://www.blake-uk.com/a.html\n- https://www.blake-uk.com/b.html\n";
+    assert_equal('Answer text.', \Chat\Responder::stripLinkDump($sec));
 });
 
 test('small talk is recognised; real questions are not', function () {

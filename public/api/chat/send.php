@@ -165,6 +165,7 @@ try {
 $answer = \Chat\Responder::sanitiseLinks($answer, $full_prompt);
 $answer = \Chat\Responder::verifyBlakeLinks($answer, $full_prompt, $removedLinks);
 $answer = \Chat\Responder::plainMaths($answer);
+$answer = \Chat\Responder::stripLinkDump($answer);
 if ($removedLinks) {
     error_log('send.php: removed unverified Blake UK link(s) from answer: ' . implode(', ', $removedLinks));
 }
