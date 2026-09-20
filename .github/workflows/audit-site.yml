@@ -1,0 +1,22 @@
+name: Audit site coverage
+
+on:
+  workflow_dispatch:
+    inputs:
+      crawl:
+        description: "Listing pages to crawl for links missing from the sitemap"
+        default: "150"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit blake-uk.com coverage on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 30m
+          script: |
+            cd /var/www/chat && su -s /bin/sh www-data -c "php scripts/audit_site_coverage.php --crawl=${{ github.event.inputs.crawl }} --json=/var/www/chat/logs/site_audit.json" 2>&1
