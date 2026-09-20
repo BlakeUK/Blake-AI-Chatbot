@@ -79,6 +79,27 @@ class Responder
         return array_merge($withSize, $rest);
     }
 
+    // Keeps only products that are actually the recommended kind of aerial
+    // (and, when an amplifier is recommended, masthead amplifiers).
+    public static function matchingAerials(array $products, ?string $type, bool $allowAmplifier = false): array
+    {
+        $words = match ($type) {
+            'log-periodic' => ['log period', 'log-period', 'mini-log', 'mini log', 'minilog', 'log aerial'],
+            'yagi'         => ['yagi', 'contract aerial', 'digital contract'],
+            'high-gain'    => ['high gain', 'high-gain', 'xg', 'tri boom', 'tri-boom', 'grid'],
+            default        => null,
+        };
+        if ($words === null) return $products;
+        return array_values(array_filter($products, function ($p) use ($words, $allowAmplifier) {
+            $hay = mb_strtolower(($p['name'] ?? '') . ' ' . ($p['title'] ?? '') . ' ' . ($p['category_path'] ?? ''));
+            foreach ($words as $w) if (str_contains($hay, $w)) return true;
+            if ($allowAmplifier && str_contains($hay, 'masthead') && str_contains($hay, 'amplifier')) return true;
+            // An aerial of the right family is fine even if wording differs,
+            // but only if it is an aerial at all.
+            return false;
+        }));
+    }
+
     public static function retrievalQuery(string $message, string $recentText): string
     {
         $words = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($message), -1, PREG_SPLIT_NO_EMPTY);
@@ -129,16 +150,24 @@ class Responder
             error_log('Reception predictor error: ' . $e->getMessage());
         }
         if (!empty($reception['search'])) {
-            $seen = array_column($productHits, 'product_code');
-            $recProducts = self::orderBySize(
-                \Knowledge\Search::products($reception['search'], 6),
-                \Reception\Advisor::sizePreference($reception['recommendation'] ?? ['aerial' => []])
-            );
-            foreach (array_slice($recProducts, 0, 3) as $p) {
-                if (!in_array($p['product_code'], $seen, true)) {
-                    array_unshift($productHits, $p);
-                    $seen[] = $p['product_code'];
-                }
+            $type = $reception['recommendation']['aerial']['type'] ?? null;
+            $matched = self::matchingAerials(\Knowledge\Search::products($reception['search'], 10), $type);
+            if (!$matched && $type) {
+                // Nothing of the right family in the first search: ask for it directly.
+                $matched = self::matchingAerials(\Knowledge\Search::products(
+                    ['log-periodic' => 'log periodic aerial', 'yagi' => 'yagi aerial', 'high-gain' => 'high gain aerial'][$type] ?? 'tv aerial', 10), $type);
+            }
+            $recProducts = self::orderBySize($matched, \Reception\Advisor::sizePreference($reception['recommendation'] ?? ['aerial' => []]));
+            // On a reception question the cards must be aerials (plus an
+            // amplifier when one is recommended) - an HDMI cable that merely
+            // scored well on the wording is worse than no card at all.
+            $existing = self::matchingAerials($productHits, $type, !empty($reception['recommendation']['aerial']['amplifier']));
+            $productHits = [];
+            $seen = [];
+            foreach (array_merge($recProducts, $existing) as $p) {
+                if (in_array($p['product_code'], $seen, true)) continue;
+                $productHits[] = $p;
+                $seen[] = $p['product_code'];
             }
             $productHits = array_slice($productHits, 0, 4);
         }

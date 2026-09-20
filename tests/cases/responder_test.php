@@ -253,3 +253,17 @@ test('plainMaths turns LaTeX spans into plain text and leaves prices alone', fun
     assert_equal('symbol rate Rs matched to BW; α = 0.35, 0.25 or 0.20; Rs × (1+α); 5/2', \Chat\Responder::plainMaths('symbol rate $R_s$ matched to $BW$; $\alpha = 0.35$, 0.25 or 0.20; $R_s \times (1+\alpha)$; $\frac{5}{2}$'));
     assert_equal('costs $10 and $20 in the US', \Chat\Responder::plainMaths('costs $10 and $20 in the US'));
 });
+
+test('reception answers only show the recommended kind of aerial, never unrelated products', function () {
+    $hits = [
+        ['product_code' => 'LP20', 'name' => '20 Element Mini-Log Periodic Group K Aerial', 'title' => '', 'category_path' => '["Aerials","TV","Log"]'],
+        ['product_code' => 'LP56', 'name' => '56 Element Log Periodic Group K Aerial', 'title' => '', 'category_path' => '["Aerials","TV","Log"]'],
+        ['product_code' => 'YAG', 'name' => '19 Element Digital Contract Aerial Group K', 'title' => '', 'category_path' => '["Aerials","TV","Yagi"]'],
+        ['product_code' => 'HDMI', 'name' => '1m 8K HDMI Cable: Male to Male', 'title' => '', 'category_path' => '["Distribution","HDMI"]'],
+        ['product_code' => 'AMP', 'name' => '4-Way Variable Gain UHF Masthead Amplifier', 'title' => '', 'category_path' => '["Distribution","Amplifiers"]'],
+    ];
+    assert_equal(['LP20', 'LP56'], array_column(\Chat\Responder::matchingAerials($hits, 'log-periodic'), 'product_code'));
+    assert_equal(['YAG'], array_column(\Chat\Responder::matchingAerials($hits, 'yagi'), 'product_code'));
+    assert_equal(['LP20', 'LP56', 'AMP'], array_column(\Chat\Responder::matchingAerials($hits, 'log-periodic', true), 'product_code'));
+    assert_equal(5, count(\Chat\Responder::matchingAerials($hits, null)), 'no prediction: nothing is filtered');
+});
