@@ -1,0 +1,86 @@
+{
+  "note": "DVB/ETSI standards indexed as the technical-standards tier (Knowledge\\\\Standards). Only used for very technical questions. Rebuild chunks.json.gz with: php scripts/standards/build.php",
+  "documents": [
+    {
+      "key": "300744",
+      "code": "ETSI EN 300 744",
+      "version": "V1.6.2",
+      "short": "DVB-T",
+      "title": "DVB-T: framing structure, channel coding and modulation for digital terrestrial television",
+      "topic": "terrestrial",
+      "url": "https://www.etsi.org/deliver/etsi_en/300700_300799/300744/01.06.02_60/en_300744v010602p.pdf"
+    },
+    {
+      "key": "302755",
+      "code": "ETSI EN 302 755",
+      "version": "V1.4.1",
+      "short": "DVB-T2",
+      "title": "DVB-T2: frame structure, channel coding and modulation for second-generation digital terrestrial television",
+      "topic": "terrestrial",
+      "url": "https://www.etsi.org/deliver/etsi_en/302700_302799/302755/01.04.01_60/en_302755v010401p.pdf"
+    },
+    {
+      "key": "102831",
+      "code": "ETSI TS 102 831",
+      "version": "V1.2.1",
+      "short": "DVB-T2 guidelines",
+      "title": "Implementation guidelines for DVB-T2",
+      "topic": "terrestrial",
+      "url": "https://www.etsi.org/deliver/etsi_ts/102800_102899/102831/01.02.01_60/ts_102831v010201p.pdf"
+    },
+    {
+      "key": "30230701",
+      "code": "ETSI EN 302 307-1",
+      "version": "V1.4.1",
+      "short": "DVB-S2",
+      "title": "DVB-S2: second-generation satellite framing, channel coding and modulation",
+      "topic": "satellite",
+      "url": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf"
+    },
+    {
+      "key": "10237601",
+      "code": "ETSI TR 102 376-1",
+      "version": "V1.2.1",
+      "short": "DVB-S2 guidelines",
+      "title": "Implementation guidelines for DVB-S2",
+      "topic": "satellite",
+      "url": "https://www.etsi.org/deliver/etsi_tr/102300_102399/10237601/01.02.01_60/tr_10237601v010201p.pdf"
+    },
+    {
+      "key": "300468",
+      "code": "ETSI EN 300 468",
+      "version": "V1.20.1",
+      "short": "DVB-SI",
+      "title": "Service Information (SI) in DVB systems: tables, descriptors, LCN, EPG",
+      "topic": "signalling",
+      "url": "https://www.etsi.org/deliver/etsi_en/300400_300499/300468/01.20.01_60/en_300468v012001p.pdf"
+    },
+    {
+      "key": "101154",
+      "code": "ETSI TS 101 154",
+      "version": "V2.10.1",
+      "short": "DVB AV coding",
+      "title": "Use of video and audio coding (MPEG-2, H.264/AVC, HEVC, AAC, AC-3) in broadcast and broadband",
+      "topic": "coding",
+      "url": "https://www.etsi.org/deliver/etsi_ts/101100_101199/101154/02.10.01_60/ts_101154v021001p.pdf"
+    },
+    {
+      "key": "102034",
+      "code": "ETSI TS 102 034",
+      "version": "V2.1.1",
+      "short": "DVB-IPTV",
+      "title": "Transport of MPEG-2 TS based DVB services over IP networks (IPTV: multicast, RTP, FEC, service discovery)",
+      "topic": "iptv",
+      "url": "https://www.etsi.org/deliver/etsi_ts/102000_102099/102034/02.01.01_60/ts_102034v020101p.pdf"
+    },
+    {
+      "key": "300429",
+      "code": "ETSI EN 300 429",
+      "version": "V1.2.1",
+      "short": "DVB-C",
+      "title": "DVB-C: framing structure, channel coding and modulation for cable systems",
+      "topic": "cable",
+      "url": "https://www.etsi.org/deliver/etsi_en/300400_300499/300429/01.02.01_60/en_300429v010201p.pdf"
+    }
+  ]
+}

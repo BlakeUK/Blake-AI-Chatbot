@@ -170,7 +170,7 @@ if ($removedLinks) {
 
 // ── Confidence heuristic ──────────────────────────────────────────────────────
 $smallTalk  = \Chat\Responder::isSmallTalk($message);
-$confidence = $smallTalk ? 0.75 : \Chat\Responder::confidence($knowledge_hits, $product_hits, $keyword_links, $reception);
+$confidence = $smallTalk ? 0.75 : \Chat\Responder::confidence(array_merge($knowledge_hits, $ctx['standard_hits'] ?? []), $product_hits, $keyword_links, $reception);
 $escalate   = \Chat\Responder::shouldEscalate($confidence);
 
 // Save assistant message

@@ -323,6 +323,13 @@ else
     warn "Live-chat/presence schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='standards_documents';" | grep -q standards_documents; then
+    info "Applying standards schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_standards.sql"
+else
+    warn "Standards schema already applied — skipping."
+fi
+
 if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='embeddings';" | grep -q embeddings; then
     info "Applying embeddings schema migration..."
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_embeddings.sql"
@@ -368,6 +375,10 @@ if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_product_pages.php")
 else
     warn "Product-page extraction cron job already installed — skipping."
 fi
+
+# ── DVB/ETSI standards tier: (re)import when the bundled set changes ─────────
+info "Checking technical standards import..."
+su -s /bin/sh www-data -c "php $WEBROOT/scripts/import_standards.php" || warn "Standards import failed (chat unaffected)."
 
 # ── Embeddings cron (semantic search index, incremental) ─────────────────────
 CRON_LINE_EMB="* * * * * php $WEBROOT/scripts/process_embeddings.php >> $WEBROOT/logs/embeddings.log 2>&1"

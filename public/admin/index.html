@@ -292,6 +292,13 @@ html.embedded [data-embed-hide]{display:none!important}
 
   <!-- ── FILES / RAG ── -->
   <div id="tab-files" class="tab">
+    <div class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">Technical standards (DVB/ETSI) <button class="btn btn-secondary" data-role="admin" onclick="reimportStandards()">Re-import bundled set</button></h2>
+      <p style="color:#adb4ba;font-size:13px;margin-bottom:10px">Kept separate from Blake UK's own knowledge and only searched for very technical questions (e.g. FFT modes, code rates, MER, PIDs, multicast). Max explains them in his own words and cites the standard and clause. Blake UK content always takes priority.</p>
+      <div style="overflow-x:auto"><table id="std-table"><thead><tr><th>Standard</th><th>Covers</th><th>Version</th><th>Clauses</th><th>Indexed for search</th></tr></thead><tbody></tbody></table></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><input type="text" id="std-test-q" placeholder="Test a question, e.g. which FFT size and guard interval suit an SFN?" style="flex:1;min-width:260px"><button class="btn btn-secondary" onclick="testStandards()">Test</button></div>
+      <div id="std-test-out" style="margin-top:10px"></div>
+    </div>
     <div class="card" id="duplicates-card" style="display:none;background:#3a3020;border-color:#8a6d1f">
       <h2>⚠ Possible Duplicates (<span id="duplicates-count">0</span>)</h2>
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Flagged automatically when new content closely overlaps with something already indexed. Never deleted automatically — review each pair and decide.</p>
@@ -887,6 +894,27 @@ function switchTab(name,el){
   el.classList.add('active');
   if(name==='apiusage')loadApiUsage();
   if(name==='email')loadEmailSettings();
+  if(name==='files')loadStandards();
+}
+
+// ── Technical standards ──────────────────────────────────────────────────────
+async function loadStandards(){
+  const d=await get(API+'/standards.php');
+  const tb=document.querySelector('#std-table tbody'); if(!tb||!d||!d.documents)return;
+  tb.innerHTML=d.documents.length?d.documents.map(x=>`<tr><td><a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:#8fb0ec">${esc(x.code)}</a><br><small style="color:#adb4ba">${esc(x.short)}</small></td><td style="font-size:12px">${esc(x.title||'')}</td><td>${esc(x.version||'')}</td><td>${x.chunk_count}</td><td>${x.embedded>=x.chunk_count?'<span style="color:#7fd19b">complete</span>':`${x.embedded} / ${x.chunk_count}`}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">Not imported yet.</td></tr>';
+}
+async function reimportStandards(){
+  const r=await post(API+'/standards.php',{csrf,action:'reimport'});
+  if(r.error)return flash(r.error,true);
+  flash(`Imported ${r.documents} standards (${r.chunks} clauses); search indexing follows within a few minutes`);loadStandards();
+}
+async function testStandards(){
+  const q=document.getElementById('std-test-q').value.trim(); if(!q)return;
+  const out=document.getElementById('std-test-out'); out.innerHTML='<span style="color:#adb4ba">Searching…</span>';
+  const r=await post(API+'/standards.php',{csrf,action:'test',q});
+  if(r.error){out.innerHTML=`<div class="alert alert-err">${esc(r.error)}</div>`;return;}
+  out.innerHTML=`<div class="alert ${r.very_technical?'alert-ok':'alert-warn'}">${r.very_technical?'Very technical: Max will consult the standards for this.':'Not very technical: Max will NOT use the standards for this (below is what would match).'}</div>`
+    + r.hits.map(h=>`<div class="note-item" style="background:#262b31;border:1px solid #3a4048;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:12px;white-space:pre-wrap">${esc(h.text)}</div>`).join('');
 }
 
 // ── Email (SMTP) ─────────────────────────────────────────────────────────────

@@ -141,7 +141,14 @@ class Responder
             $contextProducts  = \Knowledge\Search::addRelated($contextProducts, $alternatives);
         }
 
+        // Very technical questions only: DVB/ETSI standards (Knowledge\Standards).
+        $standardHits = [];
+        if (\Knowledge\Standards::isVeryTechnical($message . ' ' . ($searchText !== $message ? $searchText : ''))) {
+            try { $standardHits = \Knowledge\Standards::search($searchText, 3); } catch (\Throwable $e) { $standardHits = []; }
+        }
+
         return [
+            'standard_hits'     => $standardHits,
             'knowledge_hits'    => $knowledgeHits,
             'product_hits'      => $productHits,
             'current_product'   => $currentProduct,
@@ -166,6 +173,13 @@ class Responder
             $contextParts[] = "KNOWLEDGE BASE:\n" . implode("\n---\n", array_map(
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
+            ));
+        }
+
+        if (!empty($ctx['standard_hits'])) {
+            $contextParts[] = "TECHNICAL STANDARDS (DVB/ETSI - for this very technical question only):\n" . implode("\n---\n", array_map(
+                fn($h) => $h['chunk_text'] . ($h['url'] ? "\nStandard: " . $h['url'] : ''),
+                $ctx['standard_hits']
             ));
         }
 
@@ -200,6 +214,7 @@ RULES:
 - Products tagged [Alternative product] are substitutes for what the customer is viewing (e.g. if it's out of stock or they want a different spec) — mention one if the customer asks about alternatives, other options, or if the current product is out of stock.
 - If you cannot answer from the reference data, say: "I don't have enough information to answer that. Please contact Blake UK support at https://www.blake-uk.com/support.html"
 - Never make up product codes, prices or specifications.
+- TECHNICAL STANDARDS are only provided for very technical questions. Prefer Blake UK's own information where it answers the question. Use the standards to explain the technical detail in your own words (never copy more than a short phrase), cite them by number and clause (e.g. "ETSI EN 302 755 (DVB-T2), clause 8.3") and give the standard's link. Keep it practical for an installer or engineer.
 - Only mention products that fit what the customer is asking about. The reference data can include loosely related items; never bring up an unrelated product just because it has a price.
 - Short follow-ups such as "how much is it?" or "do you have it in black?" refer to the product or topic from the previous messages; answer about that, and if its price or details are not in the reference data, say so and give its product page link.
 - If a TV RECEPTION PREDICTION is provided, base any aerial recommendation on it: give the transmitter, the direction to point the aerial, horizontal or vertical mounting, the aerial type and group, the category link and the Freeview checker link. Say it is an estimate. Do not use the "I don't have enough information" reply when a prediction is provided.

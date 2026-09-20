@@ -28,7 +28,7 @@ class Search
         $rows = [];
         if ($clean !== '') {
             $stmt = db()->prepare("SELECT {$cols}, rank FROM knowledge_fts JOIN knowledge_chunks kc ON kc.id = knowledge_fts.rowid
-                                   WHERE knowledge_fts MATCH ? ORDER BY rank LIMIT ?");
+                                   WHERE knowledge_fts MATCH ? AND kc.source_type != 'standard' ORDER BY rank LIMIT ?");
             $stmt->execute([$clean, $qv ? max($pool, 20) : $pool]);
             $rows = $stmt->fetchAll();
         }
@@ -42,7 +42,7 @@ class Search
             $missing = array_diff(array_keys($vec), array_keys($byId));
             if ($missing) {
                 $in = implode(',', array_fill(0, count($missing), '?'));
-                $st = db()->prepare("SELECT {$cols}, 0 AS rank FROM knowledge_chunks kc WHERE kc.id IN ({$in})");
+                $st = db()->prepare("SELECT {$cols}, 0 AS rank FROM knowledge_chunks kc WHERE kc.id IN ({$in}) AND kc.source_type != 'standard'");
                 $st->execute(array_values(array_map('intval', $missing)));   // PDO needs 0-based keys
                 foreach ($st->fetchAll() as $r) $byId[(string)$r['id']] = $r;
             }
@@ -287,6 +287,12 @@ class Search
     // plainly answers the question - natural language carries filler words
     // an exact-match KB chunk never will. Dropping stopwords first keeps OR
     // from matching on "is"/"the"/etc. against nearly everything.
+    // Public OR-match FTS expression for other retrievers (Knowledge\Standards).
+    public static function ftsOr(string $q): string
+    {
+        return self::naturalLanguageMatch($q);
+    }
+
     private static function naturalLanguageMatch(string $q): string
     {
         $words = array_filter(

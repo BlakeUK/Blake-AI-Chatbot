@@ -91,3 +91,6 @@ try {
 } catch (\Throwable $e) { echo 'embeddings: ' . $e->getMessage() . "\n"; }
 echo "--- php_errors tail\n";
 foreach (array_slice(@file(dirname(__DIR__, 2) . '/logs/php_errors.log') ?: [], -8) as $l) echo substr($l, 0, 400);
+echo "--- standards\n";
+try { foreach (db()->query("SELECT short, chunk_count FROM standards_documents") as $r) echo "{$r['short']}: {$r['chunk_count']}\n";
+  echo 'standard embeddings: ' . db()->query("SELECT COUNT(*) FROM embeddings WHERE source_type='standard'")->fetchColumn() . "\n"; } catch (\Throwable $e) { echo $e->getMessage() . "\n"; }

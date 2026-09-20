@@ -84,15 +84,21 @@ class Embeddings
             $client = new \Gemini\Client($key);
             $embedder = fn(string $t) => $client->embed($model, $t, 'RETRIEVAL_DOCUMENT', self::DIMS);
         }
-        $pdo->exec("DELETE FROM embeddings WHERE source_type = 'chunk' AND CAST(source_id AS INTEGER) NOT IN (SELECT id FROM knowledge_chunks)");
+        $pdo->exec("DELETE FROM embeddings WHERE source_type = 'chunk' AND CAST(source_id AS INTEGER) NOT IN (SELECT id FROM knowledge_chunks WHERE source_type != 'standard')");
+        $pdo->exec("DELETE FROM embeddings WHERE source_type = 'standard' AND CAST(source_id AS INTEGER) NOT IN (SELECT id FROM knowledge_chunks WHERE source_type = 'standard')");
         $pdo->exec("DELETE FROM embeddings WHERE source_type = 'product' AND source_id NOT IN (SELECT product_code FROM products WHERE active = 1)");
 
         $todo = [];
-        $chunks = $pdo->query("SELECT kc.id, kc.chunk_text, e.text_hash, e.model FROM knowledge_chunks kc
-                               LEFT JOIN embeddings e ON e.source_type = 'chunk' AND e.source_id = CAST(kc.id AS TEXT)");
+        // Blake UK knowledge first ('chunk'), then the technical standards
+        // tier ('standard', kept in its own vector set so ordinary searches
+        // never see it).
+        $chunks = $pdo->query("SELECT kc.id, kc.chunk_text, CASE WHEN kc.source_type = 'standard' THEN 'standard' ELSE 'chunk' END AS etype, e.text_hash, e.model
+                               FROM knowledge_chunks kc
+                               LEFT JOIN embeddings e ON e.source_type = (CASE WHEN kc.source_type = 'standard' THEN 'standard' ELSE 'chunk' END) AND e.source_id = CAST(kc.id AS TEXT)
+                               ORDER BY (kc.source_type = 'standard'), kc.id");
         foreach ($chunks as $c) {
             $h = sha1($c['chunk_text']);
-            if ($c['text_hash'] !== $h || $c['model'] !== $model) $todo[] = ['chunk', (string)$c['id'], $c['chunk_text'], $h];
+            if ($c['text_hash'] !== $h || $c['model'] !== $model) $todo[] = [$c['etype'], (string)$c['id'], $c['chunk_text'], $h];
             if (count($todo) >= $limit) break;
         }
         if (count($todo) < $limit) {
