@@ -44,6 +44,41 @@ function pcm_stats(string $pcm, int $rate): array
     return ['dur' => $n / $rate, 'rms' => (int)sqrt($sumSq / max(1, $n)), 'zcr' => $zc / max(1, $n),
             'f0' => $mean, 'f0sd' => $mid ? sqrt($sd / count($mid)) : 0];
 }
+// Rough voice fingerprint: duration, loudness and pitch (autocorrelation
+// F0 per 40 ms frame, 70-320 Hz). Two different voices differ clearly in
+// median pitch; identical numbers mean the voice name was ignored.
+function analyse(string $pcm, int $rate): array
+{
+    $n = intdiv(strlen($pcm), 2);
+    $s = unpack('s*', substr($pcm, 0, $n * 2));
+    $frame = (int)($rate * 0.04);
+    $f0s = [];
+    $sumsq = 0.0;
+    for ($i = 1; $i + $frame < $n; $i += $frame) {
+        $win = array_slice($s, $i, $frame);
+        $energy = 0.0;
+        foreach ($win as $x) { $energy += $x * $x; }
+        $rms = sqrt($energy / $frame);
+        $sumsq += $energy;
+        if ($rms < 600) continue;                        // silence / unvoiced
+        $best = 0.0; $bestLag = 0;
+        $minLag = (int)($rate / 320); $maxLag = (int)($rate / 70);
+        for ($lag = $minLag; $lag <= $maxLag; $lag++) {
+            $acc = 0.0;
+            for ($k = 0; $k + $lag < $frame; $k += 2) $acc += $win[$k] * $win[$k + $lag];
+            if ($acc > $best) { $best = $acc; $bestLag = $lag; }
+        }
+        if ($bestLag && $best > 0.3 * $energy) $f0s[] = $rate / $bestLag;
+    }
+    sort($f0s);
+    $pick = fn(float $q) => $f0s ? $f0s[max(0, min(count($f0s) - 1, (int)round($q * (count($f0s) - 1))))] : 0.0;
+    return [
+        'seconds'   => $n / $rate,
+        'rms'       => $n ? sqrt($sumsq / $n) : 0.0,
+        'f0_median' => $pick(0.5), 'f0_p10' => $pick(0.1), 'f0_p90' => $pick(0.9),
+    ];
+}
+
 foreach ($voices as $v) {
     $v = trim($v);
     try {
