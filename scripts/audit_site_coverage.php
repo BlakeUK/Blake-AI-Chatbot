@@ -75,28 +75,39 @@ $noPrice = (int)$pdo->query("SELECT COUNT(*) FROM products WHERE active=1 AND (p
 $noDesc  = (int)$pdo->query("SELECT COUNT(*) FROM products WHERE active=1 AND (description IS NULL OR length(description) < 50)")->fetchColumn();
 $staleP  = (int)$pdo->query("SELECT COUNT(*) FROM knowledge_entries WHERE active=1 AND url LIKE '%blake-uk.com%' AND updated_at < unixepoch()-14*86400")->fetchColumn();
 
-// 4. Crawl listing pages for internal links missing from the sitemap
-$toCrawl = [$base . '/'];
-foreach ($sitemap as $n => $orig) if (in_array($type($n), ['category', 'brand', 'guides', 'blog/news'], true)) $toCrawl[] = $orig;
-$toCrawl = array_slice(array_values(array_unique($toCrawl)), 0, $crawlMax);
-$orphans = []; $crawled = 0; $crawlFail = 0;
-foreach ($toCrawl as $u) {
+// 4. Crawl the homepage and every category/listing page it leads to
+// (including ?p= pagination) for internal links NOT in the sitemap.
+$queue = [$base . '/']; $queued = [$base . '/' => true];
+$orphans = []; $crawled = 0; $crawlFail = []; $categoryPages = [];
+while ($queue && $crawled < $crawlMax) {
+    $u = array_shift($queue);
     $f = $get($u);
     $crawled++;
-    if (!$f['ok']) { $crawlFail++; continue; }
-    if (preg_match_all('#href=["\']([^"\'\#]+)["\']#i', (string)$f['body'], $m)) {
-        foreach ($m[1] as $h) {
-            if (str_starts_with($h, '/')) $h = $base . $h;
-            if (!preg_match('#^https?://(www\.)?blake-uk\.com/#i', $h)) continue;
-            $n = $norm($h);
-            $path = substr($n, strpos($n, '/'));
-            if (!preg_match('#\.html$#', $path) || preg_match('#/(customer|checkout|cart|account|wishlist|login|search)#i', $path)) continue;
-            if (!isset($sitemap[$n])) $orphans[$n] = ($orphans[$n] ?? 0) + 1;
+    if (!$f['ok']) { $crawlFail[] = $u . ' (' . ($f['error'] ?: $f['code']) . ')'; continue; }
+    if (!preg_match_all('#href=["\']([^"\'\#]+)["\']#i', (string)$f['body'], $m)) continue;
+    foreach ($m[1] as $h) {
+        $h = html_entity_decode($h);
+        if (str_starts_with($h, '/')) $h = $base . $h;
+        if (!preg_match('#^https?://(www\.)?blake-uk\.com/#i', $h)) continue;
+        $n = $norm($h);
+        $path = substr($n, strpos($n, '/'));
+        if (!preg_match('#\.html$#', $path) || preg_match('#/(customer|checkout|cart|account|wishlist|login|search|compare)#i', $path)) continue;
+        // follow category listings and their pagination
+        if (preg_match('#^/category/#', $path)) {
+            $categoryPages[$n] = true;
+            $q = (string)parse_url($h, PHP_URL_QUERY);
+            $key = $base . $path . (preg_match('/(?:^|&)p=(\d+)/', $q, $pm) ? '?p=' . $pm[1] : '');
+            if (!isset($queued[$key])) { $queued[$key] = true; $queue[] = $key; }
         }
+        if (!isset($sitemap[$n])) $orphans[$n] = ($orphans[$n] ?? 0) + 1;
     }
     usleep(150000);
 }
-$orphanHeld = 0; foreach (array_keys($orphans) as $n) if (isset($products[$n]) || isset($pages[$n])) $orphanHeld++;
+$orphanHeld = 0; $orphanNotHeld = [];
+foreach (array_keys($orphans) as $n) { if (isset($products[$n]) || isset($pages[$n])) $orphanHeld++; else $orphanNotHeld[] = $n; }
+$catNotHeld = array_values(array_filter(array_keys($categoryPages), fn($n) => !isset($pages[$n])));
+// thin pages that are not product pages (product detail lives in the products table)
+$thinNonProduct = array_values(array_filter($thinPages, fn($t) => !isset($products[$norm(explode(' ', $t)[0])])));
 
 $r = [
     'sitemap_files' => $sitemapFiles,
@@ -111,9 +122,11 @@ $r = [
     'thin_pages' => count($thinPages), 'thin_sample' => array_slice($thinPages, 0, 10),
     'products_without_price' => $noPrice, 'products_without_description' => $noDesc,
     'pages_older_than_14_days' => $staleP,
-    'crawled_listing_pages' => $crawled, 'crawl_failures' => $crawlFail,
+    'thin_non_product_pages' => count($thinNonProduct), 'thin_non_product_sample' => array_slice($thinNonProduct, 0, 15),
+    'crawled_pages' => $crawled, 'crawl_failures' => count($crawlFail), 'crawl_failure_sample' => array_slice($crawlFail, 0, 10),
+    'category_pages_found' => count($categoryPages), 'category_pages_not_indexed' => count($catNotHeld), 'category_not_indexed_sample' => array_slice($catNotHeld, 0, 20),
     'linked_but_not_in_sitemap' => count($orphans), 'of_which_already_held' => $orphanHeld,
-    'orphan_sample' => array_slice(array_keys($orphans), 0, 30),
+    'not_in_sitemap_and_not_held' => count($orphanNotHeld), 'not_held_sample' => array_slice($orphanNotHeld, 0, 40),
 ];
-if (!empty($opts['json'])) file_put_contents($opts['json'], json_encode(['missing' => $missing, 'orphans' => array_keys($orphans)], JSON_PRETTY_PRINT));
+if (!empty($opts['json'])) file_put_contents($opts['json'], json_encode(['missing' => $missing, 'orphans_not_held' => $orphanNotHeld, 'categories_not_indexed' => $catNotHeld], JSON_PRETTY_PRINT));
 echo json_encode($r, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), "\n";
