@@ -93,10 +93,15 @@ function build(string $raw, string $band, bool $dumpHeader): array
     $cSite  = col($header, ['site']) ?? col($header, ['station']);
     $cNgr   = col($header, ['ngr']);
     $cFreq  = col($header, ['freq']);
-    $cSiteH = col($header, ['site', 'height']);
-    $cAntH  = col($header, ['aerial', 'height']) ?? col($header, ['antenna', 'height']);
-    $cErpH  = col($header, ['in-use', 'erp', 'hp']) ?? col($header, ['erp', 'hp']) ?? col($header, ['erp', 'h']);
-    $cErpV  = col($header, ['in-use', 'erp', 'vp']) ?? col($header, ['erp', 'vp']) ?? col($header, ['erp', 'v']);
+    // Column names differ between the two files ("Site Ht" vs "Site Height",
+    // "In-Use Aerial Ht" vs "In-Use AeHt", per-polarisation ERP vs total).
+    $cSiteH = col($header, ['site', 'height']) ?? col($header, ['site', 'ht']);
+    $cAntH  = col($header, ['aerial', 'ht']) ?? col($header, ['aerial', 'height']) ?? col($header, ['ae', 'ht']) ?? col($header, ['antenna', 'height']);
+    $cErpH  = col($header, ['in-use', 'erp', 'hp']) ?? col($header, ['erp', 'hp']);
+    $cErpV  = col($header, ['in-use', 'erp', 'vp']) ?? col($header, ['erp', 'vp']);
+    $cErpT  = col($header, ['erp', 'total']) ?? col($header, ['erp', 'kw']);
+    $cLat   = col($header, ['lat']);
+    $cLon   = col($header, ['long']);
     $cName  = col($header, ['station']) ?? col($header, ['ensemble']) ?? col($header, ['service']);
     $cArea  = col($header, ['area']);
     $cEns   = col($header, ['ensemble']) ?? col($header, ['multiplex']) ?? col($header, ['emb']);
@@ -109,16 +114,28 @@ function build(string $raw, string $band, bool $dumpHeader): array
     $sites = [];
     foreach ($rows as $r) {
         $site = trim((string)($r[$cSite] ?? ''));
-        $en   = ngr_to_en((string)($r[$cNgr] ?? ''));
-        if ($site === '' || !$en) continue;
+        if ($site === '') continue;
+        $en = ngr_to_en((string)($r[$cNgr] ?? ''));
+        $lat = $lon = null;
+        if ($en) {
+            [$lat, $lon] = \Reception\Geo::gridToWgs84((float)$en[0], (float)$en[1]);
+        } elseif ($cLat !== null && $cLon !== null) {
+            $lat = num($r[$cLat] ?? ''); $lon = num($r[$cLon] ?? '');
+            if ($lat < 49 || $lat > 61) continue;
+        } else {
+            continue;
+        }
         $erpH = $cErpH !== null ? num($r[$cErpH] ?? '') : 0.0;
         $erpV = $cErpV !== null ? num($r[$cErpV] ?? '') : 0.0;
+        if ($erpH <= 0 && $erpV <= 0 && $cErpT !== null) {
+            // DAB publishes a single total ERP; DAB is vertical only.
+            $erpV = num($r[$cErpT] ?? '');
+        }
         if ($band === 'dab' && $erpV <= 0 && $erpH > 0) { $erpV = $erpH; $erpH = 0.0; }
         $erp = max($erpH, $erpV);
         if ($erp <= 0) continue;
         $freq = $cFreq !== null ? num($r[$cFreq] ?? '') : 0.0;
         if ($band === 'fm' && ($freq < 87 || $freq > 109)) continue;    // skip MF/other rows
-        [$lat, $lon] = \Reception\Geo::gridToWgs84((float)$en[0], (float)$en[1]);
 
         $key = $site . '|' . round($lat, 4) . '|' . round($lon, 4);
         $service = trim((string)($r[$cName ?? $cSite] ?? ''));
