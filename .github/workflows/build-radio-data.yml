@@ -1,0 +1,23 @@
+name: Build FM/DAB transmitter data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 3 1 * *'   # monthly: Ofcom refreshes TxParams regularly
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build fm.json and dab.json on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 20m
+          script: |
+            set -e
+            cd /var/www/chat
+            su -s /bin/sh www-data -c "php scripts/reception/build_radio.php /var/www/chat/data/reception --dump-header" 2>&1
+            ls -la /var/www/chat/data/reception/fm.json /var/www/chat/data/reception/dab.json

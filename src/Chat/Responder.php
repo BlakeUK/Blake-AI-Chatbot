@@ -87,6 +87,8 @@ class Responder
             'log-periodic' => ['log period', 'log-period', 'mini-log', 'mini log', 'minilog', 'log aerial'],
             'yagi'         => ['yagi', 'contract aerial', 'digital contract'],
             'high-gain'    => ['high gain', 'high-gain', 'xg', 'tri boom', 'tri-boom', 'grid'],
+            'fm'           => ['fm aerial', 'fm radio', ' fm ', 'vhf', 'band ii', 'dipole'],
+            'dab'          => ['dab'],
             default        => null,
         };
         if ($words === null) return $products;

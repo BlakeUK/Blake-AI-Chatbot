@@ -32,6 +32,20 @@ function reception_fixture(bool $ridge): string
          'lat' => 53.25, 'lon' => -1.02, 'site_height' => 50, 'ant_height' => 20, 'polarisation' => 'V', 'aerial_group' => 'B',
          'muxes' => array_map(fn($m, $ch) => ['mux' => $m, 'ch' => $ch, 'erp_kw' => 0.01], ['PSB1','PSB2','PSB3'], [40,43,46])],
     ]]));
+    // FM and DAB sites for the radio predictor: one big regional transmitter
+    // and one low-power vertical relay.
+    file_put_contents("$dir/fm.json", json_encode(['band' => 'fm', 'sites' => [
+        ['name' => 'Bigmast FM', 'area' => 'Testshire', 'lat' => 53.25, 'lon' => -1.45, 'site_height' => 50, 'ant_height' => 100,
+         'polarisation' => 'M', 'erp_kw' => 120, 'freq_mhz' => 98.5, 'services' => ['BBC Radio 2 98.5 FM', 'Test FM 102.1 FM']],
+        ['name' => 'Smallrelay FM', 'area' => 'Testtown', 'lat' => 53.25, 'lon' => -1.02, 'site_height' => 50, 'ant_height' => 20,
+         'polarisation' => 'V', 'erp_kw' => 0.05, 'freq_mhz' => 106.9, 'services' => ['Town Radio 106.9 FM']],
+    ]]));
+    file_put_contents("$dir/dab.json", json_encode(['band' => 'dab', 'sites' => [
+        ['name' => 'Bigmast DAB', 'area' => 'Testshire', 'lat' => 53.25, 'lon' => -1.45, 'site_height' => 50, 'ant_height' => 90,
+         'polarisation' => 'V', 'erp_kw' => 10, 'freq_mhz' => 225.648, 'services' => ['BBC National DAB (225.648 MHz)', 'Digital One (222.064 MHz)']],
+        ['name' => 'Smallrelay DAB', 'area' => 'Testtown', 'lat' => 53.25, 'lon' => -1.02, 'site_height' => 50, 'ant_height' => 20,
+         'polarisation' => 'V', 'erp_kw' => 0.02, 'freq_mhz' => 223.936, 'services' => ['Local Test DAB (223.936 MHz)']],
+    ]]));
     return $dir;
 }
 
@@ -234,4 +248,65 @@ test('products are ordered small-first in strong areas and large-first in weak o
     assert_equal(['A', 'C', 'B', 'D'], array_column(\Chat\Responder::orderBySize($p, 'largest'), 'product_code'));
     assert_equal(20, \Chat\Responder::elementCount($p[1]));
     assert_equal(null, \Chat\Responder::elementCount($p[3]));
+});
+
+suite('Reception — FM and DAB');
+
+test('band detection: DAB, FM/radio and TV questions are told apart', function () {
+    assert_equal('dab', Advisor::band('best DAB aerial for S3 9PT'));
+    assert_equal('dab', Advisor::band('digital radio keeps breaking up at S3 9PT'));
+    assert_equal('fm', Advisor::band('what FM aerial do I need for S3 9PT'));
+    assert_equal('fm', Advisor::band('aerial for Radio 2 at S3 9PT'));
+    assert_equal('fm', Advisor::band('poor radio reception at S3 9PT'));
+    assert_equal('tv', Advisor::band('best aerial for S3 9PT'));
+    assert_equal('tv', Advisor::band('my TV picture breaks up, and the radio in the van is fine'));
+});
+
+test('FM prediction: strongest transmitter, polarisation and a dipole close in', function () {
+    reception_stub();
+    $r = Advisor::forMessage('what FM aerial do I need at S3 9PT');
+    assert_equal('fm', $r['band']);
+    assert_true($r['found']);
+    $rec = $r['recommendation'];
+    assert_equal('Bigmast FM', $rec['transmitter']['name']);
+    assert_equal('mixed', $rec['transmitter']['polarisation']);
+    assert_true(in_array($rec['aerial']['signal'], ['very strong', 'strong'], true), $rec['aerial']['signal']);
+    assert_str_contains('dipole', $rec['aerial']['elements']);
+    assert_str_contains('FM radio dipole aerial', $r['search']);
+    assert_str_contains('BBC Radio 2 98.5 FM', $r['prompt']);
+    assert_str_contains('fm-radio-aerials.html', $r['prompt']);
+});
+
+test('DAB prediction: vertical polarisation and the ensembles are quoted', function () {
+    reception_stub();
+    $r = Advisor::forMessage('best DAB aerial for S3 9PT');
+    assert_equal('dab', $r['band']);
+    $rec = $r['recommendation'];
+    assert_equal('Bigmast DAB', $rec['transmitter']['name']);
+    assert_str_contains('vertically polarised', $r['prompt']);
+    assert_str_contains('BBC National DAB', $r['prompt']);
+    assert_str_contains('dab-radio-aerials.html', $r['prompt']);
+});
+
+test('weak radio signal asks for a bigger aerial mounted high', function () {
+    $weak = \Reception\RadioPredictor::aerialForBand(42.0, 'fm');
+    assert_equal('weak', $weak['signal']);
+    assert_equal('largest', $weak['size']);
+    assert_str_contains('high-gain outdoor FM Yagi', $weak['elements']);
+    $dabWeak = \Reception\RadioPredictor::aerialForBand(30.0, 'dab');
+    assert_equal('weak', $dabWeak['signal']);
+    assert_str_contains('DAB Yagi', $dabWeak['elements']);
+    $dabStrong = \Reception\RadioPredictor::aerialForBand(65.0, 'dab');
+    assert_equal('very strong', $dabStrong['signal']);
+    assert_equal('smallest', $dabStrong['size']);
+});
+
+test('radio product cards are filtered to that band\'s aerials', function () {
+    $hits = [
+        ['product_code' => 'DABY', 'name' => 'DAB Radio Aerial, 3 Element', 'title' => '', 'category_path' => '["Aerials","Radio","DAB"]'],
+        ['product_code' => 'FMD', 'name' => 'FM Radio Dipole Aerial', 'title' => '', 'category_path' => '["Aerials","Radio","FM"]'],
+        ['product_code' => 'TVLOG', 'name' => '20 Element Mini-Log Periodic Group K Aerial', 'title' => '', 'category_path' => '["Aerials","TV"]'],
+    ];
+    assert_equal(['DABY'], array_column(\Chat\Responder::matchingAerials($hits, 'dab'), 'product_code'));
+    assert_equal(['FMD'], array_column(\Chat\Responder::matchingAerials($hits, 'fm'), 'product_code'));
 });

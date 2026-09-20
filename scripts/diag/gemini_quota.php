@@ -111,3 +111,17 @@ try {
         echo 'search phrase: ' . $r['search'] . "\n";
     }
 } catch (\Throwable $e) { echo 'reception error: ' . $e->getMessage() . "\n"; }
+echo "--- radio reception\n";
+foreach (['fm', 'dab'] as $b) {
+    $f = "/var/www/chat/data/reception/{$b}.json";
+    echo "{$b}.json: " . (is_file($f) ? filesize($f) . ' bytes, ' . count(json_decode(file_get_contents($f), true)['sites'] ?? []) . ' sites' : 'MISSING') . "\n";
+}
+foreach ([['what FM aerial do I need at WF3 1UG', 'fm'], ['best DAB aerial for WF3 1UG', 'dab']] as [$q, $b]) {
+    try {
+        $r = \Reception\Advisor::forMessage($q);
+        if (!$r || empty($r['recommendation'])) { echo "{$b}: no prediction\n"; continue; }
+        $t = $r['recommendation']['transmitter'];
+        echo sprintf("%s: %s (%s) %.1f km %s, %.1f dBuV/m, %s, %s\n", $b, $t['name'], $t['area'], $t['distance_km'], $t['bearing_compass'], $t['field_dbuv'], $t['polarisation'], $r['recommendation']['aerial']['signal']);
+        echo "   services: " . implode(', ', array_slice($t['services'], 0, 4)) . "\n";
+    } catch (\Throwable $e) { echo "{$b}: " . $e->getMessage() . "\n"; }
+}

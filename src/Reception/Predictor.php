@@ -25,7 +25,7 @@ class Predictor
     private const EFFECTIVE_RADIUS = 6371000.0 * 4 / 3;
     private const SAMPLE_SPACING_M = 150.0;
 
-    public function __construct(private array $sites, private ?Terrain $terrain) {}
+    public function __construct(protected array $sites, protected ?Terrain $terrain) {}
 
     // Loads the installed data (data/reception/). Returns null if not installed.
     public static function fromDataDir(string $dir): ?self
@@ -179,7 +179,7 @@ class Predictor
     }
 
     // Deygout 3-edge diffraction loss over the terrain profile, dB.
-    private function diffractionLoss(array $s, float $lat, float $lon, float $rxGround, float $dM, float $freqMhz): float
+    protected function diffractionLoss(array $s, float $lat, float $lon, float $rxGround, float $dM, float $freqMhz): float
     {
         $lambda = 299.792458 / $freqMhz;
         $n = (int)max(20, min(600, ceil($dM / self::SAMPLE_SPACING_M)));

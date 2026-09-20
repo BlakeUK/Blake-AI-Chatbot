@@ -14,6 +14,11 @@ class Advisor
     public const FREEVIEW_CHECKER = 'https://www.freeview.co.uk/corporate/detailed-transmitter-information';
     public const AERIAL_WIZARD    = 'https://www.blake-uk.com/aerial-buy-assistant-aerial.html';
 
+    public const RADIO_CATEGORY_URLS = [
+        'fm'  => 'https://www.blake-uk.com/category/fm-radio-aerials.html',
+        'dab' => 'https://www.blake-uk.com/category/dab-radio-aerials.html',
+    ];
+
     public const CATEGORY_URLS = [
         'log-periodic' => 'https://www.blake-uk.com/category/aerials-tv-log.html',
         'yagi'         => 'https://www.blake-uk.com/category/aerials-tv-yagi.html',
@@ -45,7 +50,13 @@ class Advisor
         $shortEnough = str_word_count($message) <= 12;
         if (!preg_match(self::TOPIC, $message) && !preg_match(self::TOPIC, $recentText) && !$shortEnough) return null;
 
-        $predictor = Predictor::fromDataDir(self::$dataDir ?? dirname(__DIR__, 2) . '/data/reception');
+        $dir  = self::$dataDir ?? dirname(__DIR__, 2) . '/data/reception';
+        $band = self::band($message, $recentText);
+        if ($band !== 'tv') {
+            return self::radioAdvice($postcode, $band, $dir);
+        }
+
+        $predictor = Predictor::fromDataDir($dir);
         if (!$predictor) return null;
 
         $loc = Postcode::lookup($postcode);
@@ -63,6 +74,76 @@ class Advisor
             'prompt'         => self::promptBlock($postcode, $rec),
             'search'         => $rec ? self::searchPhrase($rec) : null,
         ];
+    }
+
+    // Which band the question is about: DAB, FM/analogue radio, or TV.
+    public static function band(string $message, string $recentText = ''): string
+    {
+        $t = mb_strtolower($message . ' ' . $recentText);
+        if (preg_match('/\bdab\b|digital radio|\bdab\+|ensemble|multiplex radio/u', $t)) return 'dab';
+        if (preg_match('/\bfm\b|\bvhf\b|band ?ii\b|88[\s.-]*108|radio ?[1-6]\b|\bclassic fm\b|analogue radio|\bfm radio\b|\bradio (aerial|antenna|reception|signal|station)/u', $t)) return 'fm';
+        if (preg_match('/\bradio\b/u', $t) && !preg_match('/\b(tv|television|freeview|aerial for (my )?tv)\b/u', $t)) return 'fm';
+        return 'tv';
+    }
+
+    // FM/DAB prediction (see RadioPredictor). Same shape as the TV result so
+    // chat, product search and the prompt builder need no special cases.
+    private static function radioAdvice(string $postcode, string $band, string $dir): ?array
+    {
+        $predictor = RadioPredictor::forBand($dir, $band);
+        if (!$predictor) return null;
+        $loc = Postcode::lookup($postcode);
+        if (!$loc) {
+            return ['band' => $band, 'postcode' => $postcode, 'found' => false, 'prompt' => self::notFoundBlock($postcode), 'search' => null];
+        }
+        $pred = $predictor->predict($loc['lat'], $loc['lon'], 5);
+        $rec  = RadioPredictor::recommendRadio($pred, $band);
+        return [
+            'band'           => $band,
+            'postcode'       => $postcode,
+            'found'          => true,
+            'location'       => $loc,
+            'predictions'    => $pred,
+            'recommendation' => $rec,
+            'prompt'         => self::radioPromptBlock($postcode, $band, $rec),
+            'search'         => $rec ? self::radioSearchPhrase($rec) : null,
+        ];
+    }
+
+    public static function radioSearchPhrase(array $rec): string
+    {
+        $band = $rec['band'] === 'dab' ? 'DAB' : 'FM';
+        $size = $rec['aerial']['size'];
+        $kind = in_array($size, ['smallest', 'small'], true) ? 'dipole aerial' : 'yagi aerial';
+        return "{$band} radio {$kind}";
+    }
+
+    public static function radioPromptBlock(string $postcode, string $band, ?array $rec): string
+    {
+        $label = $band === 'dab' ? 'DAB radio' : 'FM radio';
+        $out = "{$label} RECEPTION PREDICTION for {$postcode} (estimate from Ofcom transmitter data and terrain modelling; buildings and trees not modelled):\n";
+        if (!$rec) {
+            return $out . "- No usable {$label} transmitter predicted nearby. Suggest checking with the customer and considering internet radio.\n"
+                . '- ' . $label . " aerials: " . self::RADIO_CATEGORY_URLS[$band] . "\n";
+        }
+        $t = $rec['transmitter']; $a = $rec['aerial'];
+        $out .= "- Recommended transmitter: {$t['name']}" . ($t['area'] ? " ({$t['area']})" : '')
+              . ", {$t['distance_km']} km {$t['bearing_compass']} ({$t['bearing_deg']} degrees), ERP {$t['erp_kw']} kW\n";
+        $out .= "- Predicted signal: {$a['signal']} ({$t['field_dbuv']} dBuV/m estimated)\n";
+        $out .= "- Recommended aerial: {$a['elements']}\n";
+        $out .= "- Polarisation: mount the aerial " . ($band === 'dab' ? 'vertically polarised (DAB is always vertical)' : $t['polarisation'] . 'ly polarised') . "\n";
+        $out .= "- Aerial size: " . ($a['size'] === 'smallest' || $a['size'] === 'small'
+                ? "recommend the SMALLEST suitable aerial (a dipole); do not recommend a large high-gain aerial here"
+                : "recommend a larger, higher-gain aerial mounted as high as practical") . "\n";
+        if ($t['services']) $out .= "- Services from this site: " . implode(', ', $t['services']) . "\n";
+        $out .= "- Category link: " . self::RADIO_CATEGORY_URLS[$band] . "\n";
+        if ($a['note']) $out .= "- Note: {$a['note']}\n";
+        if ($rec['terrain_note']) $out .= "- Hills affect this path, so results vary by exact property position.\n";
+        if ($rec['alternative']) {
+            $alt = $rec['alternative'];
+            $out .= "- Alternative transmitter: {$alt['name']}, {$alt['distance_km']} km {$alt['bearing_compass']} ({$alt['bearing_deg']} degrees), {$alt['field_dbuv']} dBuV/m\n";
+        }
+        return $out;
     }
 
     public static function searchPhrase(array $rec): string
