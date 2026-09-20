@@ -536,13 +536,14 @@ html.embedded [data-embed-hide]{display:none!important}
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Max speaks a short summary of each reply in the chat widget (links are never read out). Uses Gemini text-to-speech with the style prompt below. Customers can mute him from the chat header.</p>
       <div style="display:flex;flex-direction:column;gap:14px">
         <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="voice-enabled" style="width:auto"> Voice enabled</label>
-        <div><label>Voice (male)</label><select id="tts-voice"></select></div>
+        <div><label>Voice</label><select id="tts-voice"></select><small style="color:#adb4ba">Pitch in brackets is measured on the same test line with the style prompt applied. The voices are closer together than their names suggest; tick "raw voice" below to hear them without the style direction.</small></div>
         <div><label>Text-to-speech model</label><input type="text" id="tts-model" placeholder="gemini-3.1-flash-tts-preview"></div>
         <div><label>Style / accent prompt</label><textarea id="tts-style" rows="3" maxlength="600"></textarea></div>
         <div><label>Test text (optional: paste a chat reply to hear the spoken summary; blank = welcome line)</label><textarea id="tts-test-text" rows="2"></textarea></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-primary" onclick="saveVoiceSettings()">Save voice settings</button>
           <button class="btn btn-secondary" onclick="testVoice()">▶ Test voice</button>
+          <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" id="tts-raw" style="width:auto"> raw voice (ignore the style prompt)</label>
         </div>
         <div id="tts-test-status"></div>
       </div>
@@ -1804,11 +1805,11 @@ async function fetchModels(){
 async function loadModelSettings(){
   try{const s=await get(API+'/settings.php');setSelectValue('chat-model-select',s.gemini_chat_model);setSelectValue('extract-model-select',s.gemini_extract_model);loadVoiceSettings(s);}catch(_){}
 }
-const TTS_VOICES=['Charon','Puck','Fenrir','Orus','Enceladus','Iapetus','Algieba','Algenib','Rasalgethi','Alnilam','Schedar','Achird','Zubenelgenubi','Sadachbia','Sadaltager'];
+const TTS_VOICES={'Gacrux':'Mature — deepest (154 Hz)','Charon':'Informative — deep (158 Hz)','Puck':'Upbeat (163 Hz)','Algenib':'Gravelly (167 Hz)','Achird':'Friendly (169 Hz)','Enceladus':'Breathy (170 Hz)','Schedar':'Even (171 Hz)','Zubenelgenubi':'Casual (173 Hz)','Iapetus':'Clear (173 Hz)','Umbriel':'Easy-going (174 Hz)','Sadachbia':'Lively (183 Hz)','Vindemiatrix':'Gentle (188 Hz)','Alnilam':'Firm (189 Hz)','Sadaltager':'Knowledgeable (189 Hz)','Algieba':'Smooth (191 Hz)','Rasalgethi':'Informative (192 Hz)','Fenrir':'Excitable (192 Hz)','Orus':'Firm — brightest (195 Hz)','Zephyr':'Bright','Kore':'Firm','Leda':'Youthful','Aoede':'Breezy','Callirrhoe':'Easy-going','Autonoe':'Bright','Despina':'Smooth','Erinome':'Clear','Laomedeia':'Upbeat','Achernar':'Soft','Pulcherrima':'Forward','Sulafat':'Warm'};
 const TTS_DEFAULT_STYLE='Read this aloud as Max in the voice of a professional male radio presenter: a rich, warm, smooth and confident broadcast voice with clear, neutral standard British English (Received Pronunciation, no regional accent). Polished and authoritative yet friendly, measured pace, natural intonation and brief pauses at full stops. Never casual, theatrical or exaggerated';
 function loadVoiceSettings(s){
   const sel=document.getElementById('tts-voice');
-  sel.innerHTML=TTS_VOICES.map(v=>`<option>${v}</option>`).join('');
+  sel.innerHTML=Object.entries(TTS_VOICES).map(([v,d])=>`<option value="${v}">${v} — ${d}</option>`).join('');
   sel.value=s.tts_voice||'Charon';
   document.getElementById('voice-enabled').checked=(s.voice_enabled??'1')==='1';
   document.getElementById('tts-model').value=s.tts_model||'gemini-3.1-flash-tts-preview';
@@ -1823,7 +1824,7 @@ async function testVoice(){
   const st=document.getElementById('tts-test-status');
   st.innerHTML='<span style="color:#adb4ba">Generating speech…</span>';
   try{
-    const r=await fetch(API+'/tts_test.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf,text:document.getElementById('tts-test-text').value})});
+    const r=await fetch(API+'/tts_test.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf,text:document.getElementById('tts-test-text').value,raw_voice:document.getElementById('tts-raw').checked})});
     if(!r.ok){const e=await r.json().catch(()=>({}));st.innerHTML=`<div class="alert alert-err">${esc(e.error||('HTTP '+r.status))}</div>`;return;}
     const spoken=decodeURIComponent(r.headers.get('X-Spoken-Text')||'');
     const url=URL.createObjectURL(await r.blob());

@@ -18,8 +18,48 @@ class Speaker
     public const MAX_WORDS     = 60;
     public const CACHE_DAYS    = 30;
 
-    // Male prebuilt Gemini TTS voices offered in the admin UI.
-    public const MALE_VOICES = ['Charon', 'Puck', 'Fenrir', 'Orus', 'Enceladus', 'Iapetus', 'Algieba', 'Algenib', 'Rasalgethi', 'Alnilam', 'Schedar', 'Achird', 'Zubenelgenubi', 'Sadachbia', 'Sadaltager'];
+    // Every prebuilt Gemini TTS voice, with Google's character note and the
+    // pitch measured on our own test line (scripts/diag/tts_voices.php, with
+    // the style prompt applied). They are closer together than the names
+    // suggest: 154-195 Hz across the whole set, so pick by pitch/character,
+    // and use the admin test with "raw voice" to hear them without the style
+    // prompt, which otherwise pulls them towards the same delivery.
+    public const VOICES = [
+        'Gacrux'        => 'Mature - deepest measured (154 Hz)',
+        'Charon'        => 'Informative - deep (158 Hz)',
+        'Algenib'       => 'Gravelly (167 Hz)',
+        'Achird'        => 'Friendly (169 Hz)',
+        'Enceladus'     => 'Breathy (170 Hz)',
+        'Schedar'       => 'Even (171 Hz)',
+        'Iapetus'       => 'Clear (173 Hz)',
+        'Umbriel'       => 'Easy-going (174 Hz)',
+        'Zubenelgenubi' => 'Casual (173 Hz)',
+        'Sadachbia'     => 'Lively (183 Hz)',
+        'Vindemiatrix'  => 'Gentle (188 Hz)',
+        'Sadaltager'    => 'Knowledgeable (189 Hz)',
+        'Alnilam'       => 'Firm (189 Hz)',
+        'Puck'          => 'Upbeat (163 Hz with style)',
+        'Rasalgethi'    => 'Informative (192 Hz)',
+        'Algieba'       => 'Smooth (191 Hz)',
+        'Fenrir'        => 'Excitable (192 Hz)',
+        'Orus'          => 'Firm - brightest (195 Hz)',
+        'Zephyr'        => 'Bright',
+        'Kore'          => 'Firm',
+        'Leda'          => 'Youthful',
+        'Aoede'         => 'Breezy',
+        'Callirrhoe'    => 'Easy-going',
+        'Autonoe'       => 'Bright',
+        'Despina'       => 'Smooth',
+        'Erinome'       => 'Clear',
+        'Laomedeia'     => 'Upbeat',
+        'Achernar'      => 'Soft',
+        'Pulcherrima'   => 'Forward',
+        'Sulafat'       => 'Warm',
+    ];
+    // Kept for the settings whitelist.
+    public const MALE_VOICES = ['Gacrux', 'Charon', 'Algenib', 'Achird', 'Enceladus', 'Schedar', 'Iapetus', 'Umbriel', 'Zubenelgenubi',
+        'Sadachbia', 'Vindemiatrix', 'Sadaltager', 'Alnilam', 'Puck', 'Rasalgethi', 'Algieba', 'Fenrir', 'Orus',
+        'Zephyr', 'Kore', 'Leda', 'Aoede', 'Callirrhoe', 'Autonoe', 'Despina', 'Erinome', 'Laomedeia', 'Achernar', 'Pulcherrima', 'Sulafat'];
 
     public static function settings(): array
     {
@@ -116,9 +156,10 @@ class Speaker
     }
 
     // WAV bytes for $text in the configured voice, from cache when possible.
-    public static function synthesise(string $text): string
+    public static function synthesise(string $text, bool $rawVoice = false): string
     {
         $cfg  = self::settings();
+        if ($rawVoice) $cfg['style'] = '';   // hear the voice itself, no style direction
         $hash = sha1($cfg['model'] . '|' . $cfg['voice'] . '|' . $cfg['style'] . '|' . $text);
         $file = self::cacheDir() . "/{$hash}.wav";
         if (is_file($file)) {
@@ -127,7 +168,7 @@ class Speaker
         }
         $key = \Gemini\Client::getStoredApiKey();
         if (!$key) throw new \RuntimeException('Gemini API key not configured');
-        $audio = (new \Gemini\Client($key))->speak($cfg['model'], $cfg['style'] . ":\n\n" . $text, $cfg['voice']);
+        $audio = (new \Gemini\Client($key))->speak($cfg['model'], ($cfg['style'] !== '' ? $cfg['style'] . ":\n\n" : '') . $text, $cfg['voice']);
         $wav   = self::wav($audio['pcm'], $audio['rate']);
         @file_put_contents($file, $wav, LOCK_EX);
         if (mt_rand(1, 50) === 1) self::pruneCache();

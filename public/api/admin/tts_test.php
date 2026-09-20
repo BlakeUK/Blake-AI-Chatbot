@@ -18,7 +18,7 @@ if (mb_strlen($text) > 2000) json_err('Text too long');
 
 try {
     $spoken = $text === '' ? \Speech\Speaker::WELCOME : \Speech\Speaker::spokenSummary($text);
-    $wav    = \Speech\Speaker::synthesise($spoken);
+    $wav    = \Speech\Speaker::synthesise($spoken, !empty($body['raw_voice']));
 } catch (\Throwable $e) {
     json_err($e->getMessage(), 502);
 }

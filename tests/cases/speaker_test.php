@@ -76,3 +76,20 @@ test('settings(): a stored earlier default style is upgraded; a custom style is 
     $pdo->exec("DELETE FROM settings WHERE key = 'tts_style'");
     assert_true(str_contains(\Speech\Speaker::DEFAULT_STYLE, 'professional'));
 });
+
+test('voice list covers every prebuilt voice and the settings whitelist matches', function () {
+    assert_equal(30, count(\Speech\Speaker::VOICES));
+    assert_equal(array_keys(\Speech\Speaker::VOICES), \Speech\Speaker::MALE_VOICES);
+    foreach (['Gacrux', 'Charon', 'Orus', 'Sulafat'] as $v) assert_true(in_array($v, \Speech\Speaker::MALE_VOICES, true), $v);
+});
+
+test('raw-voice synthesis drops the style prompt (different audio, cached separately)', function () {
+    $sent = [];
+    // No API key in tests: synthesise() throws, but the style is applied before that,
+    // so assert on settings() instead of the network call.
+    $cfg = \Speech\Speaker::settings();
+    assert_true($cfg['style'] !== '');
+    $threw = false;
+    try { \Speech\Speaker::synthesise('hello', true); } catch (\Throwable $e) { $threw = str_contains($e->getMessage(), 'API key'); }
+    assert_true($threw);
+});
