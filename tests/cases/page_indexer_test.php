@@ -157,3 +157,11 @@ test('duplicate <loc> entries are deduplicated', function () {
     $parsed = \Knowledge\PageIndexer::parseSitemapXml($xml);
     assert_equal(['https://example.com/a'], $parsed['urls']);
 });
+
+test('canonicalUrl collapses duplicate addresses onto the page\'s own canonical', function () {
+    $html = '<html><head><link rel="canonical" href="https://www.blake-uk.com/aerials-tv-yagi.html"/></head><body>x</body></html>';
+    assert_equal('https://www.blake-uk.com/aerials-tv-yagi.html', \Knowledge\PageIndexer::canonicalUrl('https://www.blake-uk.com/category/aerials%2dtv%2dyagi.html', $html));
+    assert_equal('https://www.blake-uk.com/a.html', \Knowledge\PageIndexer::canonicalUrl('https://www.blake-uk.com/a.html', '<html><body>no canonical</body></html>'));
+    // A canonical pointing off-site is ignored.
+    assert_equal('https://www.blake-uk.com/b.html', \Knowledge\PageIndexer::canonicalUrl('https://www.blake-uk.com/b.html', '<link rel="canonical" href="https://evil.example/x">'));
+});

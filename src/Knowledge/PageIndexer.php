@@ -23,6 +23,21 @@ class PageIndexer
     // Pure: given a URL and its already-fetched HTML, decides what to
     // store - no I/O, no DB. Kept separate from indexPage() so it's
     // testable with fixture HTML, without a network call.
+    // The site serves the same page under several addresses (/category/X.html
+    // and /X.html, /sale/product.html and /product.html). Its own canonical
+    // tag is the one true address, so pages are stored under that and the
+    // duplicates collapse into one entry.
+    public static function canonicalUrl(string $url, string $html): string
+    {
+        if (preg_match('#<link[^>]+rel=["\']canonical["\'][^>]*>#i', $html, $m)
+            && preg_match('#href=["\']([^"\']+)["\']#i', $m[0], $h)) {
+            $c = html_entity_decode(trim($h[1]));
+            if (str_starts_with($c, '/')) $c = rtrim(\Products\SiteScraper::BASE_URL, '/') . $c;
+            if (preg_match('#^https?://(www\.)?blake-uk\.com/#i', $c)) return $c;
+        }
+        return $url;
+    }
+
     public static function buildEntry(string $url, string $html): array
     {
         $title = \Html\TextCleaner::extractTitle($html) ?: $url;
@@ -52,6 +67,7 @@ class PageIndexer
             $html = \Products\PageExtractor::fetch($url);
         }
 
+        $url   = self::canonicalUrl($url, (string)$html);
         $entry = self::buildEntry($url, $html);
         $pdo   = db();
 

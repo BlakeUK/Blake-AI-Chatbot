@@ -19,7 +19,7 @@
 
 require dirname(__DIR__) . '/src/bootstrap.php';
 
-const BATCH_LIMIT   = 30;   // pages indexed per run
+const BATCH_LIMIT   = 40;   // pages indexed per run (runs every 15 minutes)
 const TIME_BUDGET_S = 240;
 
 $pdo = db();
@@ -32,11 +32,9 @@ function get_setting(PDO $pdo, string $key): ?string
     return $val === false ? null : $val;
 }
 
-$sitemapUrls = json_decode(get_setting($pdo, 'site_sitemap_urls') ?? '[]', true) ?: [];
-if (!$sitemapUrls) {
-    echo "No sitemap URLs configured (Files/RAG -> Pages -> Scheduled Site Refresh) — nothing to do.\n";
-    exit(0);
-}
+// Defaults to the live sitemap so the refresh runs even if nobody has
+// configured it in the admin (it used to do nothing at all in that case).
+$sitemapUrls = json_decode(get_setting($pdo, 'site_sitemap_urls') ?? '[]', true) ?: [\Products\SiteScraper::BASE_URL . '/sitemap.xml'];
 
 $refreshDays = (int)(get_setting($pdo, 'site_refresh_days') ?? 7);
 $staleBefore = time() - max(1, $refreshDays) * 86400;
@@ -45,7 +43,11 @@ $pageUrls = [];
 foreach ($sitemapUrls as $sitemapUrl) {
     $pageUrls = array_merge($pageUrls, discover_urls_from_sitemap($sitemapUrl));
 }
-$pageUrls = array_values(array_unique(array_filter($pageUrls)));
+// The sitemap misses the category pages entirely, so the site is also
+// crawled from the homepage through its category listings (cached for a
+// week) and those URLs are refreshed too.
+$pageUrls = array_merge($pageUrls, discover_by_crawl($pdo));
+$pageUrls = array_values(array_unique(array_filter(array_map('normalise_page_url', $pageUrls))));
 
 if (!$pageUrls) {
     echo "Configured sitemap(s) yielded no page URLs.\n";
@@ -91,6 +93,66 @@ foreach (array_slice($due, 0, BATCH_LIMIT) as $url) {
 
 $remaining = count($due) - $done;
 echo "Processed {$done} page(s)." . ($remaining > 0 ? " {$remaining} still due, will run next invocation." : '') . "\n";
+
+// ── URL tidying and crawl discovery ─────────────────────────────────────────
+
+// Same page, one address: decode %2d-style escapes, drop query/fragment.
+function normalise_page_url(string $u): string
+{
+    $u = trim(html_entity_decode($u));
+    if (!preg_match('#^https?://#i', $u)) return '';
+    [$u] = explode('#', $u, 2);
+    [$u] = explode('?', $u, 2);
+    $p = parse_url($u);
+    if (!$p || empty($p['host'])) return '';
+    $path = rawurldecode($p['path'] ?? '/');
+    return 'https://' . strtolower($p['host']) . $path;
+}
+
+// Crawls the homepage and every category listing it leads to (including
+// pagination) for internal .html pages. Cached in settings for a week: a
+// full crawl on every run would be wasteful and looks like scraping.
+function discover_by_crawl(PDO $pdo, int $maxFetches = 260): array
+{
+    $cached = json_decode(get_setting($pdo, 'site_crawl_urls') ?? '{}', true) ?: [];
+    if (!empty($cached['at']) && time() - (int)$cached['at'] < 7 * 86400 && !empty($cached['urls'])) {
+        return $cached['urls'];
+    }
+    $base = \Products\SiteScraper::BASE_URL;
+    $queue = [$base . '/'];
+    $seen = [$base . '/' => true];
+    $found = [];
+    $fetches = 0;
+    while ($queue && $fetches < $maxFetches) {
+        $u = array_shift($queue);
+        $f = \Http\SafeFetcher::get($u, 30);
+        $fetches++;
+        if (!$f['ok'] || !preg_match_all('#href=["\']([^"\'\#]+)["\']#i', (string)$f['body'], $m)) continue;
+        foreach ($m[1] as $h) {
+            $h = html_entity_decode($h);
+            if (str_starts_with($h, '/')) $h = $base . $h;
+            if (!preg_match('#^https?://(www\.)?blake-uk\.com/#i', $h)) continue;
+            $n = normalise_page_url($h);
+            if ($n === '' || !str_ends_with($n, '.html')) continue;
+            if (preg_match('#/(customer|checkout|cart|account|wishlist|login|search|compare)#i', $n)) continue;
+            $found[$n] = true;
+            if (str_contains($n, '/category/')) {
+                $q = (string)parse_url($h, PHP_URL_QUERY);
+                $page = preg_match('/(?:^|&)p=(\d+)/', $q, $pm) ? '?p=' . $pm[1] : '';
+                $key = $n . $page;
+                if (!isset($seen[$key])) { $seen[$key] = true; $queue[] = $key; }
+            }
+        }
+        usleep(200000);
+    }
+    $urls = array_keys($found);
+    if ($urls) {
+        $pdo->prepare("INSERT INTO settings (key,value,updated_at) VALUES ('site_crawl_urls',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at")
+            ->execute([json_encode(['at' => time(), 'urls' => $urls]), time()]);
+    }
+    echo count($urls) . " page(s) discovered by crawling ({$fetches} fetches).\n";
+    return $urls;
+}
 
 // ── Sitemap discovery ────────────────────────────────────────────────────────
 

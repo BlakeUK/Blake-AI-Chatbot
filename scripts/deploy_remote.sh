@@ -428,8 +428,10 @@ else
 fi
 
 # ── Scheduled site page refresh (daily; no-op until a sitemap is configured) ──
-CRON_LINE_REFRESH="0 4 * * * php $WEBROOT/scripts/refresh_site_pages.php >> $WEBROOT/logs/site_refresh.log 2>&1"
-if ! (crontab -u www-data -l 2>/dev/null | grep -qF "refresh_site_pages.php"); then
+CRON_LINE_REFRESH="*/15 * * * * php $WEBROOT/scripts/refresh_site_pages.php >> $WEBROOT/logs/site_refresh.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "$CRON_LINE_REFRESH"); then
+    # (re)install: the schedule changed from nightly to every 15 minutes
+    crontab -u www-data -l 2>/dev/null | grep -v "refresh_site_pages.php" | crontab -u www-data - || true
     info "Installing scheduled site refresh cron job..."
     ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_REFRESH" ) | crontab -u www-data -
 else
