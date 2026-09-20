@@ -204,3 +204,30 @@ test('verifyBlakeLinks repairs an invented product URL from the product code on 
     assert_true(str_contains($a, 'View it here: https://www.blake-uk.com/real-2-way-amp-page.html'), $a);
     assert_equal(1, count($removed));
 });
+
+test('a question that finds nothing is rewritten into catalogue terms and searched again (multi-query)', function () {
+    db()->prepare("INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES ('manual', 88801, 'A masthead amplifier boosts weak UHF input levels before the cable run.')")->execute();
+    $asked = [];
+    \Chat\Responder::$queryRewriter = function (string $q) use (&$asked) { $asked[] = $q; return "1. masthead amplifier\n- weak UHF signal\nzz"; };
+    try {
+        $ctx = \Chat\Responder::buildContext('my telly keeps going fuzzy qqzzx', null, '');
+        assert_equal(1, count($asked), 'rewriter called once, only because nothing was found');
+        assert_true((bool)array_filter($ctx['knowledge_hits'], fn($h) => str_contains($h['chunk_text'], 'masthead amplifier')));
+        $asked = [];
+        \Chat\Responder::buildContext('masthead amplifier', null, '');
+        assert_equal(0, count($asked), 'not called when the first search finds something');
+        \Chat\Responder::buildContext('thanks', null, '');
+        assert_equal(0, count($asked), 'not called for small talk');
+    } finally {
+        \Chat\Responder::$queryRewriter = null;
+    }
+});
+
+test('rewriteQueries cleans numbering/bullets and caps at 3', function () {
+    \Chat\Responder::$queryRewriter = fn($q) => "1. masthead amplifier\n- \"setback amp\"\n* weak signal fix\nfourth one\n";
+    try {
+        assert_equal(['masthead amplifier', 'setback amp', 'weak signal fix'], \Chat\Responder::rewriteQueries('x'));
+    } finally {
+        \Chat\Responder::$queryRewriter = null;
+    }
+});

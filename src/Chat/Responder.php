@@ -16,6 +16,42 @@ class Responder
     // customer's current page context (product-aware chat).
     // $recentText: the customer's recent messages, used only to tell whether
     // a bare postcode reply belongs to a TV-reception conversation.
+    // Test hook: replaces the model call in rewriteQueries().
+    public static $queryRewriter = null;
+
+    // Up to 3 alternative search queries for a question that found nothing,
+    // phrased the way Blake UK's catalogue and guides would describe it.
+    public static function rewriteQueries(string $question): array
+    {
+        try {
+            if (self::$queryRewriter) {
+                $out = (self::$queryRewriter)($question);
+            } else {
+                $key = \Gemini\Client::getStoredApiKey();
+                if (!$key) return [];
+                $out = (new \Gemini\Client($key))->chat(
+                    \Gemini\Client::getModel('gemini_chat_model', 'gemini_flash'),
+                    [['role' => 'user', 'content' => "A customer asked an RF/TV aerial, satellite, CCTV, networking or installation supplier this question:\n\n"
+                        . \Support\Pii::mask($question)
+                        . "\n\nWrite 3 short search queries (2-6 words each) that would find the answer in the supplier's product catalogue or help guides, using the trade terms a catalogue would use (e.g. 'masthead amplifier' rather than 'signal booster'). One per line, no numbering, nothing else."]]
+                );
+            }
+        } catch (\Throwable $e) {
+            return [];
+        }
+        $lines = array_filter(array_map(fn($l) => trim(preg_replace('/^[\s\-*\d.)]+/', '', $l), " \t\"'"), preg_split('/\R/', (string)$out)));
+        return array_slice(array_values(array_filter($lines, fn($l) => mb_strlen($l) >= 3 && mb_strlen($l) <= 80)), 0, 3);
+    }
+
+    private static function mergeHits(array $a, array $b, string $key, int $limit): array
+    {
+        $seen = array_flip(array_map(fn($r) => (string)$r[$key], $a));
+        foreach ($b as $r) {
+            if (!isset($seen[(string)$r[$key]])) { $a[] = $r; $seen[(string)$r[$key]] = true; }
+        }
+        return array_slice($a, 0, $limit);
+    }
+
     public static function retrievalQuery(string $message, string $recentText): string
     {
         $words = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($message), -1, PREG_SPLIT_NO_EMPTY);
@@ -42,6 +78,18 @@ class Responder
         $searchText = self::retrievalQuery($message, $recentText);
         $knowledgeHits = \Knowledge\Search::query($searchText, 5, $categoryHint);
         $productHits   = \Knowledge\Search::products($searchText, 3, $categoryHint);
+
+        // Nothing found at all: before giving up (and handing the customer to
+        // staff), rewrite the question into a few search queries in trade
+        // terms and search again (multi-query / RAG-fusion, "Unlocking Data
+        // with Generative AI and RAG" ch.14). Costs one small model call, only
+        // on misses.
+        if (!$knowledgeHits && !$productHits && !self::isSmallTalk($message)) {
+            foreach (self::rewriteQueries($searchText) as $q) {
+                $knowledgeHits = self::mergeHits($knowledgeHits, \Knowledge\Search::query($q, 5, $categoryHint), 'id', 5);
+                $productHits   = self::mergeHits($productHits, \Knowledge\Search::products($q, 3, $categoryHint), 'product_code', 3);
+            }
+        }
 
         // Postcode + TV reception question -> transmitter/terrain prediction
         // (see src/Reception/). Its recommended aerial type drives an extra
