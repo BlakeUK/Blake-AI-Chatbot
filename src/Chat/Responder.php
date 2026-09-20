@@ -410,6 +410,28 @@ PROMPT;
         return preg_replace('/[ \t]{2,}/', ' ', $answer);
     }
 
+    // The chat window shows plain text, but the model sometimes writes maths
+    // as LaTeX ($R_s$, $\alpha = 0.35$). Convert those spans to readable
+    // text. Only spans that look like maths are touched, so prices are safe.
+    public static function plainMaths(string $answer): string
+    {
+        return preg_replace_callback('/\$([^$\n]{1,80})\$/', function ($m) {
+            $inner = $m[1];
+            if (!preg_match('/[\\\\_^{}]|^\s*[A-Za-z]{1,4}\s*$/', $inner)) return $m[0];
+            $map = ['\alpha' => 'α', '\beta' => 'β', '\gamma' => 'γ', '\delta' => 'δ', '\Delta' => 'Δ', '\mu' => 'µ', '\lambda' => 'λ',
+                    '\pi' => 'π', '\sigma' => 'σ', '\tau' => 'τ', '\eta' => 'η', '\omega' => 'ω', '\times' => '×', '\cdot' => '·',
+                    '\approx' => '≈', '\leq' => '≤', '\geq' => '≥', '\le' => '≤', '\ge' => '≥', '\neq' => '≠', '\pm' => '±',
+                    '\infty' => '∞', '\,' => ' ', '\;' => ' ', '\!' => '', '\%' => '%', '\text' => '', '\mathrm' => '', '\left' => '', '\right' => ''];
+            $t = str_replace(array_keys($map), array_values($map), $inner);
+            $t = preg_replace('/\\\\frac\{([^{}]*)\}\{([^{}]*)\}/', '$1/$2', $t);
+            $t = preg_replace('/\\\\sqrt\{([^{}]*)\}/', '√($1)', $t);
+            $t = preg_replace('/[_^]\{([^{}]*)\}/', '$1', $t);
+            $t = preg_replace('/[_^](\w)/', '$1', $t);
+            $t = str_replace(['{', '}', '\\'], '', $t);
+            return trim(preg_replace('/\s{2,}/', ' ', $t));
+        }, $answer) ?? $answer;
+    }
+
     public static function shouldEscalate(float $confidence): bool
     {
         return $confidence < CFG['escalate_threshold'];

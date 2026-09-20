@@ -231,3 +231,8 @@ test('rewriteQueries cleans numbering/bullets and caps at 3', function () {
         \Chat\Responder::$queryRewriter = null;
     }
 });
+
+test('plainMaths turns LaTeX spans into plain text and leaves prices alone', function () {
+    assert_equal('symbol rate Rs matched to BW; α = 0.35, 0.25 or 0.20; Rs × (1+α); 5/2', \Chat\Responder::plainMaths('symbol rate $R_s$ matched to $BW$; $\alpha = 0.35$, 0.25 or 0.20; $R_s \times (1+\alpha)$; $\frac{5}{2}$'));
+    assert_equal('costs $10 and $20 in the US', \Chat\Responder::plainMaths('costs $10 and $20 in the US'));
+});
