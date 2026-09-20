@@ -69,7 +69,22 @@ class Advisor
     {
         $t = $rec['aerial']['type'];
         $words = ['log-periodic' => 'log periodic TV aerial', 'yagi' => 'yagi TV aerial', 'high-gain' => 'high gain TV aerial'][$t];
+        // Very strong signal: a small aerial is the right answer, so bias the
+        // product search towards the compact ones rather than the biggest.
+        if (($rec['aerial']['signal'] ?? '') === 'very strong') $words = 'mini compact ' . $words;
         return $words . ($rec['transmitter']['aerial_group'] ? ' group ' . $rec['transmitter']['aerial_group'] : '');
+    }
+
+    // Which end of the range to recommend: fewest elements where the signal
+    // is strong (a big aerial can overload the tuner), most where it is weak.
+    public static function sizePreference(array $rec): string
+    {
+        return match ($rec['aerial']['signal'] ?? '') {
+            'very strong' => 'smallest',
+            'strong'      => 'small',
+            'moderate'    => 'mid',
+            default       => 'largest',
+        };
     }
 
     public static function promptBlock(string $postcode, ?array $rec): string
@@ -88,6 +103,13 @@ class Advisor
         $out .= "- Category link: " . self::CATEGORY_URLS[$a['type']] . "\n";
         if ($a['amplifier']) $out .= "- Masthead amplifiers: " . self::CATEGORY_URLS['amplifier'] . "\n";
         if ($a['signal'] === 'marginal') $out .= "- Satellite alternative: " . self::CATEGORY_URLS['satellite'] . "\n";
+        $size = self::sizePreference($rec);
+        $out .= match ($size) {
+            'smallest' => "- Aerial size: recommend the SMALLEST suitable aerial (fewest elements, e.g. a mini/compact log-periodic). Do not recommend a large high-gain or high-element aerial here: too much signal can overload a tuner.\n",
+            'small'    => "- Aerial size: a small or mid-size aerial is plenty; no need for a large high-element aerial.\n",
+            'mid'      => "- Aerial size: a mid-size aerial is appropriate.\n",
+            default    => "- Aerial size: recommend a larger, higher-gain aerial (more elements) mounted as high as practical.\n",
+        };
         if ($a['note']) $out .= "- Note: {$a['note']}\n";
         if (!$t['full_service']) $out .= "- This transmitter carries 3 of the 6 Freeview multiplexes (fewer channels).\n";
         if ($rec['terrain_note']) $out .= "- Hills affect this path, so results vary by exact property position.\n";

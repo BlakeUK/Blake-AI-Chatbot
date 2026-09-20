@@ -98,3 +98,16 @@ echo "--- reception data\n";
 foreach (['/var/www/chat/data/reception/transmitters.json'] as $f) echo basename($f) . ': ' . (is_file($f) ? filesize($f) . ' bytes' : 'MISSING') . "\n";
 echo 'terrain tiles: ' . count(glob('/var/www/chat/data/reception/terrain/*') ?: []) . "\n";
 echo 'postcode cache rows: ' . db()->query('SELECT COUNT(*) FROM reception_postcodes')->fetchColumn() . "\n";
+echo "--- reception prediction check (WF3 1UG)\n";
+try {
+    $r = \Reception\Advisor::forMessage('best aerial for WF3 1UG');
+    if (!$r) { echo "no prediction\n"; }
+    else {
+        echo 'terrain tiles available: ' . (\Reception\Terrain::available('/var/www/chat/data/reception/terrain') ? 'yes' : 'NO') . "\n";
+        foreach (array_slice($r['predictions'] ?? [], 0, 4) as $p) {
+            echo sprintf("%-18s %5.1f km  field %5.1f dBuV/m  terrain loss %5.1f dB  %s  %s\n", $p['name'], $p['distance_km'], $p['field_dbuv'], $p['terrain_loss_db'], $p['polarisation'], $p['full_service'] ? 'full' : 'lite');
+        }
+        echo 'recommended: ' . $r['recommendation']['transmitter']['name'] . ', signal ' . $r['recommendation']['aerial']['signal'] . ', size ' . \Reception\Advisor::sizePreference($r['recommendation']) . "\n";
+        echo 'search phrase: ' . $r['search'] . "\n";
+    }
+} catch (\Throwable $e) { echo 'reception error: ' . $e->getMessage() . "\n"; }

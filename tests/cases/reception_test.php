@@ -208,3 +208,30 @@ test('missing reception data leaves chat unchanged', function () {
     $ctx = \Chat\Responder::buildContext('aerial for S3 9PT', null);
     assert_null($ctx['reception']);
 });
+
+test('very strong signal asks for the smallest aerial and biases the product search', function () {
+    reception_stub();
+    $r = Advisor::forMessage('best aerial for S3 9PT');
+    $rec = $r['recommendation'];
+    $rec['aerial']['signal'] = 'very strong';
+    assert_equal('smallest', Advisor::sizePreference($rec));
+    assert_str_contains('mini compact', Advisor::searchPhrase($rec));
+    $block = Advisor::promptBlock('S3 9PT', $rec);
+    assert_str_contains('SMALLEST suitable aerial', $block);
+    $rec['aerial']['signal'] = 'very weak';
+    assert_equal('largest', Advisor::sizePreference($rec));
+    assert_str_contains('larger, higher-gain aerial', Advisor::promptBlock('S3 9PT', $rec));
+});
+
+test('products are ordered small-first in strong areas and large-first in weak ones', function () {
+    $p = [
+        ['product_code' => 'A', 'name' => '56 Element Log Periodic Group K Aerial', 'title' => ''],
+        ['product_code' => 'B', 'name' => '20 Element Mini-Log Periodic Group K Aerial', 'title' => ''],
+        ['product_code' => 'C', 'name' => '28 Element Log Periodic Group K Aerial', 'title' => ''],
+        ['product_code' => 'D', 'name' => '4-Way Masthead Amplifier', 'title' => ''],
+    ];
+    assert_equal(['B', 'C', 'A', 'D'], array_column(\Chat\Responder::orderBySize($p, 'smallest'), 'product_code'));
+    assert_equal(['A', 'C', 'B', 'D'], array_column(\Chat\Responder::orderBySize($p, 'largest'), 'product_code'));
+    assert_equal(20, \Chat\Responder::elementCount($p[1]));
+    assert_equal(null, \Chat\Responder::elementCount($p[3]));
+});
