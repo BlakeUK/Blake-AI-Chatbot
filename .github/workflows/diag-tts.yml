@@ -1,0 +1,26 @@
+name: Diagnose TTS voices
+
+on:
+  workflow_dispatch:
+    inputs:
+      voices:
+        description: "Comma-separated prebuilt voice names"
+        default: "Charon,Puck,Fenrir,Iapetus,Algieba"
+      with_style:
+        description: "Include the saved style prompt"
+        type: boolean
+        default: true
+
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Synthesise the same line with each voice
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 20m
+          script: |
+            cd /var/www/chat && su -s /bin/sh www-data -c "php scripts/diag/tts_voices.php '${{ github.event.inputs.voices }}' ${{ github.event.inputs.with_style == 'true' && '--with-style' || '' }}" 2>&1
