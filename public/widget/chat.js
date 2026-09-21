@@ -22,6 +22,7 @@
   // low-confidence answer doesn't prompt for email all over again -
   // support already has a way to reach this customer.
   let ticketRaised = false;
+  let replyAnchor = null;   // start of Max's latest reply (see scrollToLatest)
   // active: currently requested or claimed - while true, typed messages
   // go to live_send.php instead of send.php (see sendMessage()).
   // pollTimer: the live_poll.php interval handle, running only while active.
@@ -279,7 +280,7 @@
       wrap.innerHTML = '<div class="buk-faq-label">Popular questions</div>' +
         items.map(f => `<button type="button" class="buk-faq-chip" data-q="${esc(f.question)}">${esc(f.question)}</button>`).join('');
       messages.appendChild(wrap);
-      messages.scrollTop = messages.scrollHeight;
+      scrollToLatest();
 
       wrap.querySelectorAll('.buk-faq-chip').forEach(chip => {
         chip.addEventListener('click', () => {
@@ -531,7 +532,7 @@
       </div>
     `);
     messages.appendChild(wrap);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
     wrap.querySelector('.buk-track-submit').addEventListener('click', () => submitTracking(wrap, carrier));
   }
 
@@ -552,7 +553,7 @@
       </div>
     `);
     messages.appendChild(wrap);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
     const inp = wrap.querySelector('.buk-postcode-input');
     const err = wrap.querySelector('.buk-postcode-err');
     const go = () => {
@@ -566,7 +567,7 @@
     };
     wrap.querySelector('.buk-postcode-submit').addEventListener('click', () => { unlockAudio(); go(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); unlockAudio(); go(); } });
-    setTimeout(() => inp.focus(), 50);
+    setTimeout(() => inp.focus({ preventScroll: true }), 50);   // don't pull the view past the start of the reply
   }
 
   // "Which carrier?" as buttons, so the customer never has to type it.
@@ -582,7 +583,7 @@
       </div>
     `);
     messages.appendChild(wrap);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
     wrap.querySelectorAll('.buk-carrier-choice button').forEach(b => b.addEventListener('click', () => {
       wrap.querySelector('.buk-carrier-choice').remove();
       addMessage('user', b.textContent);
@@ -640,7 +641,7 @@
       </div>
     `);
     messages.appendChild(wrap);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
 
     wrap.querySelectorAll('.buk-choice-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -775,7 +776,7 @@
       </div>
     `);
     messages.appendChild(wrap);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
 
     const emailInput = wrap.querySelector('.buk-escalate-email');
     wrap.querySelector('.buk-escalate-submit').addEventListener('click', () => submitEscalate(wrap));
@@ -797,7 +798,7 @@
     if (!isValidEmail(email)) {
       errorEl.textContent = 'Please enter a valid email address so support can reply.';
       errorEl.hidden = false;
-      emailInput.focus();
+      emailInput.focus({ preventScroll: true });
       return;
     }
     errorEl.hidden = true;
@@ -860,8 +861,24 @@
         + `<div class="buk-meta">${time}<span class="buk-tick" aria-hidden="true">✓</span></div>`;
     }
 
+    // A new reply becomes the anchor: the view shows it from its first line.
+    // A new customer message clears it, so the view follows to the bottom.
+    replyAnchor = role === 'assistant' ? wrap : null;
     messages.appendChild(wrap);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
+  }
+
+  // Scroll to the newest content, but never past the START of Max's latest
+  // reply: a long answer (or one followed by product cards / a form) opens
+  // at its first line instead of its last, so nobody has to scroll back up.
+  function scrollToLatest() {
+    const max = messages.scrollHeight - messages.clientHeight;
+    let target = max;
+    if (replyAnchor && replyAnchor.isConnected) {
+      const top = replyAnchor.getBoundingClientRect().top - messages.getBoundingClientRect().top + messages.scrollTop - 8;
+      target = Math.min(max, top);
+    }
+    messages.scrollTop = Math.max(0, target);
   }
 
   // A quiet centred status line (agent joined / chat ended) rather than a
@@ -872,7 +889,7 @@
     el.className = 'buk-system-note';
     el.textContent = text;
     messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToLatest();
   }
 
   // Gemini replies use light markdown (**bold**, "* " bullets), which was
@@ -931,7 +948,7 @@
       el.className = 'buk-msg buk-msg-assistant';
       el.innerHTML = assistantRowHtml('<div class="buk-typing"><span></span><span></span><span></span></div>');
       messages.appendChild(el);
-      messages.scrollTop = messages.scrollHeight;
+      scrollToLatest();
     } else {
       document.getElementById('buk-loading')?.remove();
     }
