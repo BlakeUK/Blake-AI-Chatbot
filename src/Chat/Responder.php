@@ -110,6 +110,9 @@ class Responder
     {
         if (\Reception\Postcode::extract($message)) return false;
         if (preg_match('/\b(deliver\w*|dispatch\w*|order|tracking|invoice|refund|return)\b/i', $message)) return false;
+        // How-to / installation questions are about fitting, not which aerial
+        // suits the location - no postcode box for those.
+        if (preg_match('/\b(install\w*|fit|fitting|mount\w*|bracket\w*|wire|wiring|cable|connect\w*|how (do|to|can)|step by step)\b/i', $message)) return false;
         return self::isAerialQuestion($message)
             || (bool)preg_match('/\b(reception|signal|transmitter|which mast|point (my|the) aerial|freeview|dab|fm radio)\b/i', $message)
                && (bool)preg_match('/\b(my (area|house|home|address|location)|where i live|round here|near me|best|which|need|recommend\w*)\b/i', $message);

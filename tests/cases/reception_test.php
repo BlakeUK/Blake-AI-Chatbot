@@ -329,7 +329,8 @@ test('postcode box is requested for aerial/reception questions without a postcod
     foreach (['whats the best DAB aerial for my area', 'which TV aerial do I need', 'best aeraIL for my house', 'what reception will I get round here'] as $m) {
         assert_true(\Chat\Responder::needsPostcode($m), $m);
     }
-    foreach (['best DAB aerial for WF3 1UG', 'where is my order', 'do you sell CAT6 leads', 'can I return an aerial for a refund'] as $m) {
+    foreach (['best DAB aerial for WF3 1UG', 'where is my order', 'do you sell CAT6 leads', 'can I return an aerial for a refund',
+              'Explain how to install a TV aerial on a chimney, step by step', 'which bracket to mount my aerial'] as $m) {
         assert_true(!\Chat\Responder::needsPostcode($m), $m);
     }
 });
