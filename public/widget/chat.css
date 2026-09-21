@@ -474,3 +474,8 @@
   background: var(--buk-accent, #415ba5); color: #fff; flex-shrink: 0; }
 .buk-download-text { display: flex; flex-direction: column; line-height: 1.3; }
 .buk-download-text small { opacity: .75; font-size: 11px; }
+/* The card sits inside the reply bubble: don't inherit its link styling or
+   break-anywhere wrapping. */
+.buk-bubble a.buk-download, .buk-bubble a.buk-download * { text-decoration: none !important; color: inherit !important; word-break: normal !important; overflow-wrap: break-word; }
+.buk-bubble a.buk-download strong { color: #fff !important; font-weight: 600; }
+.buk-bubble a.buk-download small { color: #9fb2e6 !important; }
