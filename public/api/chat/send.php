@@ -80,6 +80,23 @@ if (\Chat\Handoff::wantsHuman($message)) {
     json_out(['answer' => null, 'handoff' => true, 'mode' => $h['mode'] ?? 'ai', 'department' => $h['department'] ?? null, 'escalate' => false, 'products' => []]);
 }
 
+// ── "It's DX" after a tracking number we couldn't place ───────────────────────
+// Re-opens the tracking form pre-filled with the number, postcode and carrier
+// instead of sending a bare carrier name to the AI (which once answered "dx"
+// with fibre-optic duplex leads).
+if (preg_match('/^\s*(?:it\'?s|its|it is|via|with|by)?\s*(royal\s*mail|rm|dpd|dx)\s*[.!]?\s*$/i', $message, $cm)) {
+    $last = $pdo->prepare("SELECT tracking_no, result FROM tracking_requests WHERE session_id = ? AND status = 'unknown_carrier' AND created_at > unixepoch() - 1800 ORDER BY id DESC LIMIT 1");
+    $last->execute([$session_id]);
+    if ($row = $last->fetch()) {
+        $carrierPick = str_contains(strtolower($cm[1]), 'dx') ? 'dx' : (str_contains(strtolower($cm[1]), 'dpd') ? 'dpd' : 'royalmail');
+        $answer = 'Thanks - please confirm the details below and I\'ll look that up.';
+        $pdo->prepare('INSERT INTO chat_messages (session_id, role, content, confidence) VALUES (?, ?, ?, ?)')->execute([$session_id, 'assistant', $answer, 1.0]);
+        json_out(['answer' => $answer, 'escalate' => false, 'confidence' => 1.0, 'products' => [],
+                  'action' => 'show_tracking_form', 'tracking_no' => $row['tracking_no'], 'carrier' => $carrierPick,
+                  'postcode' => json_decode((string)$row['result'], true)['postcode'] ?? '']);
+    }
+}
+
 // ── Tracking intent ────────────────────────────────────────────────────────────
 // Short-circuit before calling Gemini — hand off to the tracking form/API instead.
 $tracking = \Tracking\Detector::analyse($message);

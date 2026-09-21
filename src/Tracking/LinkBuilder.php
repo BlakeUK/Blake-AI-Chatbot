@@ -46,6 +46,43 @@ class LinkBuilder
         ];
     }
 
+    // Live DPD status from DPD's public tracking service (the same one
+    // track.dpd.co.uk uses), looked up by consignment number + postcode.
+    // Returns the real parcel code - the "*NNNNN" suffix is NOT a fixed
+    // account code as first assumed (it changes per parcel/date), which is
+    // why links built from a fixed suffix showed DPD's "Oops" page.
+    // $fetcher is injectable for tests. Null when DPD has no match.
+    public static $dpdFetcher = null;
+
+    public static function dpdLive(string $consignmentNumber, string $postcode = ''): ?array
+    {
+        $ref = preg_replace('/\D/', '', $consignmentNumber) ?? '';
+        if ($ref === '') return null;
+        $pc  = strtoupper(preg_replace('/\s+/', '', $postcode) ?? '');
+        $url = 'https://apis.track.dpd.co.uk/v1/reference?referenceNumber=' . rawurlencode($ref) . ($pc !== '' ? '&postcode=' . rawurlencode($pc) : '');
+        try {
+            if (self::$dpdFetcher) {
+                $body = (self::$dpdFetcher)($url);
+            } else {
+                $f = \Http\SafeFetcher::get($url, 15, 8, 'Mozilla/5.0 (compatible; BlakeUKSupport/1.0)');
+                $body = $f['ok'] ? $f['body'] : null;
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+        $data = json_decode((string)$body, true);
+        $p = $data['data'][0] ?? null;
+        if (!is_array($p) || empty($p['parcelCode'])) return null;
+        $status = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags((string)($p['parcelStatus'] ?? '')), ENT_QUOTES)));
+        $link = self::DPD_BASE . $p['parcelCode'];
+        return [
+            'url'     => $link,
+            'status'  => $status,
+            'parcel'  => (string)($p['parcelNumber'] ?? ''),
+            'message' => ($status !== '' ? $status . "\n\n" : '') . "Full tracking and delivery options: {$link}",
+        ];
+    }
+
     public static function dpd(string $consignmentNumber): array
     {
         $consignment = preg_replace('/\s+/', '', trim($consignmentNumber)) ?? '';

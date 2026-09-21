@@ -35,8 +35,13 @@ if (!$carrier) {
 }
 
 if (!$carrier) {
+    // Remembered so a follow-up like "it's DX" can finish the lookup.
+    $pdo->prepare('INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$session_id, '', $trackingNo, json_encode(['postcode' => $postcode]), 'unknown_carrier']);
     json_out([
         'status'  => 'unknown_carrier',
+        'tracking' => $trackingNo,
+        'postcode' => $postcode,
         'message' => 'I couldn\'t identify the carrier from that tracking number. Please tell me if it\'s Royal Mail, DPD or DX.',
         'carriers' => ['royalmail', 'dpd', 'dx'],
     ]);
@@ -75,6 +80,27 @@ if ($carrier === 'dx') {
 // account or postcode needed - branches off before the carrier-API-key
 // path below for the same reason DX does.
 if ($carrier === 'dpd') {
+    // Live status first; the built link is only a fallback when DPD's
+    // service has no match (e.g. wrong postcode).
+    $live = \Tracking\LinkBuilder::dpdLive($trackingNo, $postcode);
+    if ($live) {
+        $pdo->prepare('INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$session_id, 'dpd', $trackingNo, json_encode($live), 'found']);
+        json_out([
+            'status'    => 'found',
+            'carrier'   => 'DPD',
+            'tracking'  => $trackingNo,
+            'current'   => $live['message'],
+            'events'    => [],
+            'link_only' => true,
+        ]);
+    }
+    if ($postcode !== '') {
+        json_out([
+            'status'  => 'not_found',
+            'message' => "DPD couldn't find a parcel for {$trackingNo} with postcode {$postcode}. Please check both are exactly as on your dispatch email - or track at https://track.dpd.co.uk",
+        ]);
+    }
     $link = \Tracking\LinkBuilder::dpd($trackingNo);
 
     $pdo->prepare('

@@ -503,7 +503,7 @@
         if (d.action === 'show_postcode_form') {
           showPostcodeForm(d.band || 'tv');
         } else if (d.action === 'show_tracking_form') {
-          showTrackingForm(d.tracking_no, d.carrier);
+          showTrackingForm(d.tracking_no, d.carrier, d.postcode);
         } else if (d.handoff && d.mode && d.mode !== 'ai') {
           // Max has passed the chat to the team (or is taking ticket
           // details). Notices arrive via live_poll.php.
@@ -518,13 +518,13 @@
   }
 
   // ── Tracking ─────────────────────────────────────────────────────────────────
-  function showTrackingForm(trackingNo, carrier) {
+  function showTrackingForm(trackingNo, carrier, postcode) {
     const wrap = document.createElement('div');
     wrap.className = 'buk-msg buk-msg-assistant';
     wrap.innerHTML = assistantRowHtml(`
       <div class="buk-tracking-form">
         <input type="text" class="buk-track-no" placeholder="Order or tracking number" value="${trackingNo ? esc(trackingNo) : ''}">
-        <input type="text" class="buk-track-postcode" placeholder="Delivery postcode">
+        <input type="text" class="buk-track-postcode" placeholder="Delivery postcode" value="${postcode ? esc(postcode) : ''}">
         <button class="buk-track-submit" type="button">Track</button>
       </div>
     `);
@@ -567,6 +567,30 @@
     setTimeout(() => inp.focus(), 50);
   }
 
+  // "Which carrier?" as buttons, so the customer never has to type it.
+  function showCarrierChoice(text, trackingNo, postcode) {
+    const wrap = document.createElement('div');
+    wrap.className = 'buk-msg buk-msg-assistant';
+    wrap.innerHTML = assistantRowHtml(`
+      <div>${esc(text || 'Which carrier is delivering it?')}</div>
+      <div class="buk-carrier-choice">
+        <button type="button" data-c="royalmail">Royal Mail</button>
+        <button type="button" data-c="dpd">DPD</button>
+        <button type="button" data-c="dx">DX</button>
+      </div>
+    `);
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+    wrap.querySelectorAll('.buk-carrier-choice button').forEach(b => b.addEventListener('click', () => {
+      wrap.querySelector('.buk-carrier-choice').remove();
+      addMessage('user', b.textContent);
+      // Reuse the tracking form flow, pre-filled, and submit it straight away.
+      const tmp = document.createElement('div');
+      tmp.innerHTML = `<input class="buk-track-no" value="${esc(trackingNo)}"><input class="buk-track-postcode" value="${esc(postcode || '')}"><button class="buk-track-submit"></button>`;
+      submitTracking(tmp, b.dataset.c);
+    }));
+  }
+
   async function submitTracking(formWrap, carrier) {
     const trackingNo = formWrap.querySelector('.buk-track-no').value.trim();
     const postcode    = formWrap.querySelector('.buk-track-postcode').value.trim();
@@ -592,6 +616,8 @@
           const eventLines = (d.events || []).map(e => `• ${e.date || ''} ${e.description || ''}`.trim()).join('\n');
           addMessage('assistant', `${d.carrier} tracking ${d.tracking}: ${d.current}` + (eventLines ? '\n' + eventLines : ''));
         }
+      } else if (d.status === 'unknown_carrier') {
+        showCarrierChoice(d.message, trackingNo, postcode);
       } else {
         addMessage('assistant', d.message || 'Unable to retrieve tracking information.');
       }
