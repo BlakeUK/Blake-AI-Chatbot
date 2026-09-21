@@ -234,10 +234,11 @@ class Responder
     // "BLA-" style prefix ("LP20k" -> BLA-LP20K).
     public static function productFromText(string $text): ?array
     {
-        if (!preg_match_all('/\b([A-Za-z]{1,6}-?[A-Za-z]*\d{1,4}[A-Za-z0-9\-]*)\b/', $text, $m)) return null;
+        // Codes with digits (LP20K, CR10K) or hyphenated codes (DMCK-F).
+        if (!preg_match_all('/\b([A-Za-z]{1,6}-?[A-Za-z]*\d{1,4}[A-Za-z0-9\-]*|[A-Za-z]{3,}-[A-Za-z0-9]{1,6})\b/', $text, $m)) return null;
         foreach ($m[1] as $tok) {
             $t = strtoupper($tok);
-            if (strlen($t) < 4 || preg_match('/^\d/', $t)) continue;
+            if (strlen($t) < 4 || preg_match('/^\d/', $t) || in_array($t, ['F-TYPE', 'WI-FI', 'LOG-PERIODIC', 'HIGH-GAIN'], true)) continue;
             try {
                 $q = db()->prepare("SELECT * FROM products WHERE active = 1 AND (upper(product_code) = ? OR upper(product_code) LIKE ? OR replace(upper(product_code),'-','') = ?) ORDER BY length(product_code) LIMIT 1");
                 $q->execute([$t, '%-' . $t, str_replace('-', '', $t)]);
