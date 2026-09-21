@@ -290,3 +290,38 @@ test('product cards: kept when they share a real word with the question, are nam
     $cards = \Chat\Responder::selectCards('Try the 4-way amp (Code: AMP4).', 'which aerials do you have', $hits, 'CUR1', fn($s) => []);
     assert_equal(['LP20', 'AMP4', 'CUR1'], array_column($cards, 'product_code'));
 });
+
+test('alternatives: like-for-like TV aerials, same group, similar element count', function () {
+    $pdo = db();
+    $rows = [
+        ['BLA-LP20K', '20 Element Mini-Log Periodic Group K Aerial'],
+        ['BLA-LP28K', '28 Element Log Periodic Group K Aerial'],
+        ['BLA-LP56K', '56 Element Log Periodic Group K Aerial'],
+        ['DMCK-F', '15 Element DM-Contract Aerial, Group K, F-Type'],
+        ['CR10K', '10 Element Contract Aerial, Group K, Channels 21-48 [Bag of 5]'],
+        ['XKDMX', '10 Bay XK-DMX High Gain Aerial Group K'],
+        ['LP20A', '20 Element Mini-Log Periodic Group A Aerial'],
+        ['KIT-LOFT', 'Aerial Fixing Kit For Loft Mounting - Up To 2 TVs'],
+        ['DAB3', 'DAB Radio Aerial 3 Element'],
+    ];
+    foreach ($rows as [$c, $n]) $pdo->prepare('INSERT INTO products (product_code, name, url, active) VALUES (?,?,?,1)')->execute([$c, $n, "https://www.blake-uk.com/" . strtolower($c) . ".html"]);
+    assert_true(\Chat\Responder::wantsAlternative("whats an alterative to the LP20k"));
+    $p = \Chat\Responder::productFromText('whats an alterative to the LP20k');
+    assert_equal('BLA-LP20K', $p['product_code']);
+    $alts = array_column(\Chat\Responder::alternativesFor($p), 'product_code');
+    foreach (['BLA-LP28K', 'DMCK-F', 'CR10K'] as $want) assert_true(in_array($want, $alts, true), "$want in " . json_encode($alts));
+    foreach (['BLA-LP56K', 'XKDMX', 'LP20A', 'KIT-LOFT', 'DAB3'] as $not) assert_true(!in_array($not, $alts, true), "$not not in " . json_encode($alts));
+    $pdo->exec("DELETE FROM products WHERE product_code IN ('BLA-LP20K','BLA-LP28K','BLA-LP56K','DMCK-F','CR10K','XKDMX','LP20A','KIT-LOFT','DAB3')");
+});
+
+test('a product label linked to another product\'s page is re-pointed (or unlinked)', function () {
+    $prods = fn() => [
+        ['product_code' => 'LP20', 'name' => '20 Element Mini-Log Periodic Group K Aerial', 'url' => 'https://www.blake-uk.com/20-element-minilog-periodic-group-k-aerial.html'],
+        ['product_code' => 'XK', 'name' => '10 Bay XK-DMX High Gain Aerial Original Std 2 Group K Ch 21-48', 'url' => 'https://www.blake-uk.com/xk-dmx-10-bay.html'],
+    ];
+    $a = \Chat\Responder::fixProductLinkLabels('Try the [10 Bay XK-DMX High Gain Aerial Original Std 2 Group K Ch 21-48](https://www.blake-uk.com/20-element-minilog-periodic-group-k-aerial.html) or the [20 Element Mini-Log Periodic Group K Aerial](https://www.blake-uk.com/20-element-minilog-periodic-group-k-aerial.html).', $prods);
+    assert_str_contains('(https://www.blake-uk.com/xk-dmx-10-bay.html)', $a);
+    assert_str_contains('[20 Element Mini-Log Periodic Group K Aerial](https://www.blake-uk.com/20-element-minilog-periodic-group-k-aerial.html)', $a);
+    $b = \Chat\Responder::fixProductLinkLabels('See [Totally Unknown Widget Thing](https://www.blake-uk.com/20-element-minilog-periodic-group-k-aerial.html).', $prods);
+    assert_equal('See Totally Unknown Widget Thing.', $b);
+});

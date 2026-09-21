@@ -182,6 +182,7 @@ try {
 $answer = \Chat\Responder::sanitiseLinks($answer, $full_prompt);
 $answer = \Chat\Responder::verifyBlakeLinks($answer, $full_prompt, $removedLinks);
 $answer = \Chat\Responder::plainMaths($answer);
+$answer = \Chat\Responder::fixProductLinkLabels($answer);
 $answer = \Chat\Responder::stripLinkDump($answer);
 if ($removedLinks) {
     error_log('send.php: removed unverified Blake UK link(s) from answer: ' . implode(', ', $removedLinks));
@@ -240,7 +241,7 @@ if ($escalate) {
 }
 
 // Cards must match what was asked/answered (see Responder::selectCards).
-$context_products = \Chat\Responder::selectCards($answer, $message, $context_products, $ctx['current_product']['product_code'] ?? null);
+$context_products = \Chat\Responder::selectCards($answer, $message, $context_products, $ctx['current_product']['product_code'] ?? null, null, $ctx['alternatives'] ?? []);
 
 json_out([
     'answer'          => $answer,

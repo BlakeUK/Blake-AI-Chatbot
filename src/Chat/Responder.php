@@ -140,10 +140,11 @@ class Responder
     // leads under a "roman nose" answer) is dropped. When the answer points
     // at a Blake category page and few cards survive, products from that
     // category fill the gap. The current page's product always stays.
-    public static function selectCards(string $answer, string $question, array $products, ?string $currentCode = null, ?callable $categoryLookup = null): array
+    public static function selectCards(string $answer, string $question, array $products, ?string $currentCode = null, ?callable $categoryLookup = null, array $alwaysKeep = []): array
     {
         $qWords = self::cardWords($question);
         $keep = [];
+        foreach ($alwaysKeep as $p) $keep[$p['product_code']] = $p;
         foreach ($products as $p) {
             $code = (string)($p['product_code'] ?? '');
             $url  = (string)($p['url'] ?? '');
@@ -152,7 +153,9 @@ class Responder
             $pWords = self::cardWords(($p['name'] ?? '') . ' ' . ($p['title'] ?? '') . ' ' . ($p['category_path'] ?? ''));
             if ($qWords && array_intersect($qWords, $pWords)) { $keep[$code] = $p; }
         }
-        if (count($keep) < 2 && preg_match_all('#https?://(?:www\.)?blake-uk\.com/(?:category/)?([a-z0-9-]+)\.html#i', $answer, $m)) {
+        // Only CATEGORY pages fill the gap: a product page's slug ("20-element-
+        // minilog-periodic-group-k-aerial") would pull in unrelated kits.
+        if (count($keep) < 2 && preg_match_all('#https?://(?:www\.)?blake-uk\.com/category/([a-z0-9-]+)\.html#i', $answer, $m)) {
             $lookup = $categoryLookup ?? [self::class, 'productsInCategorySlug'];
             foreach ($m[1] as $slug) {
                 foreach ($lookup($slug) as $p) {
@@ -182,6 +185,110 @@ class Responder
         }
         usort($scored, fn($a, $b) => $b[0] <=> $a[0]);
         return array_map(fn($x) => $x[1], array_slice($scored, 0, 4));
+    }
+
+    // "Alternative to the LP20K" style questions.
+    // The model sometimes pairs one product's name with ANOTHER product's
+    // link ("[10 Bay XK-DMX High Gain Aerial](…/20-element-minilog….html)").
+    // For markdown links to Blake product pages, the label and the page's
+    // product must agree; if not, the link is pointed at the product the
+    // label names (when it can be found), otherwise the link is dropped.
+    public static function fixProductLinkLabels(string $answer, ?callable $products = null): string
+    {
+        $all = null;
+        $load = function () use (&$all, $products) {
+            if ($all !== null) return $all;
+            try {
+                $all = $products ? $products() : db()->query("SELECT product_code, name, url FROM products WHERE active = 1 AND url IS NOT NULL")->fetchAll();
+            } catch (\Throwable $e) { $all = []; }
+            return $all;
+        };
+        $overlap = function (array $a, array $b): float {
+            if (!$a || !$b) return 0.0;
+            return count(array_intersect($a, $b)) / max(1, min(count($a), count($b)));
+        };
+        return preg_replace_callback('/\[([^\]]{3,160})\]\((https?:\/\/(?:www\.)?blake-uk\.com\/(?!category\/)[^)\s]+)\)/i', function ($m) use ($load, $overlap) {
+            [$full, $label, $url] = $m;
+            $labelWords = self::cardWords($label);
+            if (count($labelWords) < 2) return $full;
+            $norm = self::normaliseUrl($url);
+            $owner = null;
+            foreach ($load() as $p) { if (self::normaliseUrl($p['url']) === $norm) { $owner = $p; break; } }
+            if (!$owner) return $full;                                   // not a product page: leave it
+            if ($overlap($labelWords, self::cardWords($owner['name'])) >= 0.5) return $full;   // label matches the page
+            $best = null; $bestScore = 0.0;
+            foreach ($load() as $p) {
+                $sc = $overlap($labelWords, self::cardWords($p['name']));
+                if ($sc > $bestScore) { $bestScore = $sc; $best = $p; }
+            }
+            return ($best && $bestScore >= 0.6) ? "[{$label}]({$best['url']})" : $label;
+        }, $answer) ?? $answer;
+    }
+
+    public static function wantsAlternative(string $message): bool
+    {
+        return (bool)preg_match('/\b(alt[ea]r?n?[ae]?tive?s?|alterative|alternative|similar|instead|equivalent|substitute|replacement|comparable|other option|another (one|option)|swap)\b/i', $message);
+    }
+
+    // Finds a product the customer named by code, with or without the
+    // "BLA-" style prefix ("LP20k" -> BLA-LP20K).
+    public static function productFromText(string $text): ?array
+    {
+        if (!preg_match_all('/\b([A-Za-z]{1,6}-?[A-Za-z]*\d{1,4}[A-Za-z0-9\-]*)\b/', $text, $m)) return null;
+        foreach ($m[1] as $tok) {
+            $t = strtoupper($tok);
+            if (strlen($t) < 4 || preg_match('/^\d/', $t)) continue;
+            try {
+                $q = db()->prepare("SELECT * FROM products WHERE active = 1 AND (upper(product_code) = ? OR upper(product_code) LIKE ? OR replace(upper(product_code),'-','') = ?) ORDER BY length(product_code) LIMIT 1");
+                $q->execute([$t, '%-' . $t, str_replace('-', '', $t)]);
+                if ($row = $q->fetch()) return $row;
+            } catch (\Throwable $e) { return null; }
+        }
+        return null;
+    }
+
+    // TV aerial class for like-for-like alternatives.
+    public static function aerialProfile(array $p): ?array
+    {
+        $name = mb_strtolower(($p['name'] ?? '') . ' ' . ($p['title'] ?? ''));
+        if (!preg_match('/aerial|antenna/', $name) || preg_match('/\b(kit|bracket|clamp|cradle|pole|mast|lashing|cable|lead|amplifier|diplexer|filter)\b/', $name)) return null;
+        if (preg_match('/\b(dab|fm|radio|lora|wi-?fi|4g|5g|lte|mimo|satellite|dish)\b/', $name)) return null;
+        $elements = self::elementCount($p);
+        if (preg_match('/(\d{1,2})\s*bay\b/', $name, $b)) $elements = $elements ?? ((int)$b[1] * 4);   // high gain "bay" aerials
+        $group = preg_match('/group\s*([a-z])\b/', $name, $g) ? strtoupper($g[1]) : (str_contains($name, 'wideband') ? 'W' : null);
+        return ['elements' => $elements, 'group' => $group];
+    }
+
+    // Like-for-like alternatives: TV aerials in the same channel group with a
+    // similar element count (so similar gain) - e.g. LP20K -> LP28K, DMCK,
+    // CR10K - never a 56-element or high-gain aerial for a mini-log.
+    public static function alternativesFor(array $product, int $limit = 4): array
+    {
+        $base = self::aerialProfile($product);
+        if (!$base || !$base['elements']) return [];
+        try {
+            $rows = db()->query("SELECT product_code, name, title, url, category_path, price_inc_vat, price_exc_vat, image_url, summary_bullets, description, tech_specs, stock_status, related_product_codes, alternative_product_codes, brand FROM products WHERE active = 1")->fetchAll();
+        } catch (\Throwable $e) { return []; }
+        $lo = $base['elements'] * 0.5; $hi = $base['elements'] * 1.6;
+        $cands = [];
+        foreach ($rows as $r) {
+            if ($r['product_code'] === $product['product_code']) continue;
+            $pr = self::aerialProfile($r);
+            if (!$pr || !$pr['elements'] || $pr['elements'] < $lo || $pr['elements'] > $hi) continue;
+            if ($base['group'] && $pr['group'] && $pr['group'] !== $base['group'] && $pr['group'] !== 'W') continue;
+            $cands[] = [abs($pr['elements'] - $base['elements']) + ($pr['group'] === $base['group'] ? 0 : 3), $r];
+        }
+        usort($cands, fn($a, $b) => $a[0] <=> $b[0]);
+        // One per element count, so the list isn't four colours of one aerial.
+        $out = []; $seen = [];
+        foreach ($cands as [$score, $r]) {
+            $k = self::elementCount($r) . '|' . preg_replace('/\W+/', '', mb_strtolower(preg_replace('/\[[^\]]*\]|\(.*?\)/', '', $r['name'])));
+            if (isset($seen[$k])) continue;
+            $seen[$k] = true;
+            $out[] = $r;
+            if (count($out) >= $limit) break;
+        }
+        return $out;
     }
 
     public static function isAerialQuestion(string $message): bool
@@ -313,6 +420,19 @@ class Responder
             try { $standardHits = \Knowledge\Standards::search($searchText, 3); } catch (\Throwable $e) { $standardHits = []; }
         }
 
+        // "What's an alternative to the LP20K?" -> like-for-like options.
+        $likeForLike = [];
+        $altFor = null;
+        if (self::wantsAlternative($message)) {
+            $altFor = self::productFromText($message) ?? ($currentProduct ?: null) ?? self::productFromText($recentText);
+            if ($altFor) {
+                $likeForLike = self::alternativesFor($altFor);
+                if ($likeForLike) {
+                    $contextProducts = self::mergeHits($likeForLike, $contextProducts ?? [], 'product_code', 6);
+                }
+            }
+        }
+
         // No postcode yet on an aerial/reception question: the widget shows a
         // postcode box (like the tracking form) and Max points to it.
         $postcodeForm = null;
@@ -321,6 +441,8 @@ class Responder
         }
 
         return [
+            'alternatives'      => $likeForLike,
+            'alternatives_for'  => $altFor,
             'postcode_form'     => $postcodeForm,
             'radio_hint'        => $radioHint,
             'standard_hits'     => $standardHits,
@@ -349,6 +471,13 @@ class Responder
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
             ));
+        }
+
+        if (!empty($ctx['alternatives'])) {
+            $f = $ctx['alternatives_for'];
+            $contextParts[] = "SIMILAR ALTERNATIVES to {$f['name']} (Code: {$f['product_code']}) - same channel group, similar element count and gain:\n"
+                . implode("\n", array_map(fn($p) => "- {$p['name']} (Code: {$p['product_code']})" . ($p['price_inc_vat'] ? " £{$p['price_inc_vat']} inc VAT" : '') . " {$p['url']}", $ctx['alternatives']))
+                . "\nWhen asked for an alternative, recommend from this list (like-for-like). Do not suggest a much larger/high-gain or much smaller aerial unless the customer asks for more or less gain.";
         }
 
         if (!empty($ctx['postcode_form'])) {
