@@ -311,3 +311,16 @@ test('radio product cards are filtered to that band\'s aerials', function () {
     assert_equal(['DABY'], array_column(\Chat\Responder::matchingAerials($hits, 'dab'), 'product_code'));
     assert_equal(['FMD'], array_column(\Chat\Responder::matchingAerials($hits, 'fm'), 'product_code'));
 });
+
+test('radio aerial question without a postcode still shows only that band\'s aerials', function () {
+    db()->exec("INSERT INTO products (product_code, name, url, category_path, active) VALUES
+        ('T-DABD', 'Combined Omni Directional FM & DAB Dipole', 'https://www.blake-uk.com/t-dabd.html', '[\"Aerials\",\"Radio\"]', 1),
+        ('T-DABY', 'DAB Radio Aerial 3 Element Yagi', 'https://www.blake-uk.com/t-daby.html', '[\"Aerials\",\"Radio\",\"DAB\"]', 1),
+        ('T-METER', 'TV and Radio Signal Aligner Finder Meter UHF VHF DAB', 'https://www.blake-uk.com/t-meter.html', '[\"Tools\"]', 1),
+        ('T-AMP', '2-Way TV FM DAB Setback Distribution Amplifier', 'https://www.blake-uk.com/t-amp.html', '[\"Distribution\"]', 1)");
+    \Knowledge\Embeddings::resetCaches();
+    $ctx = \Chat\Responder::buildContext('whats the best DAB aerial for my area', null, '');
+    $codes = array_column($ctx['product_hits'], 'product_code');
+    assert_true(in_array('T-DABY', $codes, true) || in_array('T-DABD', $codes, true), json_encode($codes));
+    assert_true(!in_array('T-METER', $codes, true) && !in_array('T-AMP', $codes, true), json_encode($codes));
+});

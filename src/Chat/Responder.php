@@ -105,6 +105,11 @@ class Responder
         }));
     }
 
+    public static function isAerialQuestion(string $message): bool
+    {
+        return (bool)preg_match('/\b(a[eé]ri[ae]l|aera\w*|ari[ae]l|antenn?a|antena|dipole|yagi)s?\b/iu', $message);
+    }
+
     public static function retrievalQuery(string $message, string $recentText): string
     {
         $words = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($message), -1, PREG_SPLIT_NO_EMPTY);
@@ -148,12 +153,29 @@ class Responder
         // (see src/Reception/). Its recommended aerial type drives an extra
         // product search so real Blake UK aerials appear as cards. Failures
         // here must never break chat, so they degrade to "no prediction".
+        $radioHint = null;
         $reception = null;
         try {
             $reception = \Reception\Advisor::forMessage($message, $recentText);
         } catch (\Throwable $e) {
             error_log('Reception predictor error: ' . $e->getMessage());
         }
+        // Radio aerial question without a postcode yet: Max asks for the
+        // postcode, and meanwhile the product cards must be aerials for that
+        // band (not meters, amplifiers or diplexers that mention DAB/FM).
+        if (!$reception && self::isAerialQuestion($message)) {
+            $band = \Reception\Advisor::band($message, $recentText);
+            if ($band !== 'tv') {
+                $matched = self::matchingAerials($productHits, $band);
+                if (count($matched) < 2) {
+                    $more = self::matchingAerials(\Knowledge\Search::products($band === 'dab' ? 'DAB radio aerial' : 'FM radio aerial', 10), $band);
+                    $matched = self::mergeHits($matched, $more, 'product_code', 4);
+                }
+                $productHits = array_slice($matched, 0, 4);
+                $radioHint = $band;
+            }
+        }
+
         if (!empty($reception['search'])) {
             $type = $reception['recommendation']['aerial']['type'] ?? null;
             $matched = self::matchingAerials(\Knowledge\Search::products($reception['search'], 10), $type);
@@ -213,6 +235,7 @@ class Responder
         }
 
         return [
+            'radio_hint'        => $radioHint,
             'standard_hits'     => $standardHits,
             'knowledge_hits'    => $knowledgeHits,
             'product_hits'      => $productHits,
@@ -239,6 +262,16 @@ class Responder
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
             ));
+        }
+
+        if (!empty($ctx['radio_hint'])) {
+            $b = $ctx['radio_hint'];
+            $contextParts[] = ($b === 'dab' ? 'DAB' : 'FM') . " RADIO AERIAL QUESTION (no postcode yet):\n"
+                . "- Ask for the customer's full postcode: with it we predict their transmitter, signal strength and the right aerial from Ofcom data and terrain.\n"
+                . ($b === 'dab'
+                    ? "- Meanwhile, general guidance: DAB is always vertically polarised. In strong-signal areas a simple dipole (indoor or loft) is enough; in weaker areas an outdoor multi-element DAB Yagi mounted high and pointed at the transmitter. Foil-backed insulation and plasterboard can block DAB indoors.\n"
+                    : "- Meanwhile, general guidance: many FM transmitters are horizontally polarised but local relays are often vertical, so the postcode matters. A dipole is enough close to the transmitter; further out use an outdoor multi-element FM Yagi for clean stereo.\n")
+                . '- Category: ' . \Reception\Advisor::RADIO_CATEGORY_URLS[$b] . "\n";
         }
 
         if (!empty($ctx['standard_hits'])) {
