@@ -68,7 +68,7 @@ if ($carrier === 'dx') {
             'status'  => 'not_found',
             'message' => "DX couldn't find a delivery for {$trackingNo} with postcode " . strtoupper($postcode) . '. '
                 . ($isSo
-                    ? 'Please check the order number and postcode match your order confirmation - DX only shows deliveries from the last 30 days.'
+                    ? 'Please check the order number and postcode match your order confirmation. DX tracking only appears once DX has collected the parcel from us (usually by the evening of despatch) and only for the last 30 days. If it still doesn\'t show, just ask to speak to our team and we\'ll check it for you.'
                     : 'Our DX tracking uses your Sales Order number, which starts with SO (e.g. SO201350-1). You\'ll find it at the top right of your order confirmation or the top left of your despatch note - please try that with your delivery postcode.'),
         ]);
     }
