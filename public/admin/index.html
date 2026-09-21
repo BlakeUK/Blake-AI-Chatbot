@@ -293,21 +293,6 @@ html.embedded [data-embed-hide]{display:none!important}
 
   <!-- ── FILES / RAG ── -->
   <div id="tab-files" class="tab">
-    <div class="card">
-      <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">Technical standards (DVB/ETSI) <button class="btn btn-secondary" data-role="admin" onclick="reimportStandards()">Re-import bundled set</button></h2>
-      <p style="color:#adb4ba;font-size:13px;margin-bottom:10px">Kept separate from Blake UK's own knowledge and only searched for very technical questions (e.g. FFT modes, code rates, MER, PIDs, multicast). Max explains them in his own words and cites the standard and clause. Blake UK content always takes priority.</p>
-      <div style="overflow-x:auto"><table id="std-table"><thead><tr><th>Standard</th><th>Covers</th><th>Version</th><th>Clauses</th><th>Indexed for search</th></tr></thead><tbody></tbody></table></div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><input type="text" id="std-test-q" placeholder="Test a question, e.g. which FFT size and guard interval suit an SFN?" style="flex:1;min-width:260px"><button class="btn btn-secondary" onclick="testStandards()">Test</button></div>
-      <div id="std-test-out" style="margin-top:10px"></div>
-    </div>
-    <div class="card" id="duplicates-card" style="display:none;background:#3a3020;border-color:#8a6d1f">
-      <h2>⚠ Possible Duplicates (<span id="duplicates-count">0</span>)</h2>
-      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Flagged automatically when new content closely overlaps with something already indexed. Never deleted automatically — review each pair and decide.</p>
-      <table id="duplicates-table">
-        <thead><tr><th>Item</th><th>Similar to</th><th>Similarity</th><th data-role="editor"></th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
     <div class="card" data-role="editor">
       <h2>Upload Knowledge Files</h2>
       <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">PDF, DOCX, TXT, CSV, JSON, XML, JPEG, PNG, WEBP (max 20 MB). Extracted by Gemini and indexed into the RAG knowledge base.</p>
@@ -319,6 +304,7 @@ html.embedded [data-embed-hide]{display:none!important}
       </div>
       <div id="upload-progress" style="margin-top:10px"></div>
     </div>
+
     <div class="card" data-role="editor">
       <h2>Import from URL</h2>
       <div style="display:flex;gap:4px;border-bottom:2px solid #454c54;margin-bottom:14px">
@@ -390,6 +376,7 @@ html.embedded [data-embed-hide]{display:none!important}
         </div>
       </div>
     </div>
+
     <div class="card">
       <h2 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Indexed Files</span>
@@ -404,6 +391,23 @@ html.embedded [data-embed-hide]{display:none!important}
         <thead><tr><th>Filename</th><th>Type</th><th>Category</th><th>Status</th><th>Uploaded</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <div class="card" id="duplicates-card" style="display:none;background:#3a3020;border-color:#8a6d1f">
+      <h2>⚠ Possible Duplicates (<span id="duplicates-count">0</span>)</h2>
+      <p style="margin-bottom:12px;color:#adb4ba;font-size:13px">Flagged automatically when new content closely overlaps with something already indexed. Never deleted automatically — review each pair and decide.</p>
+      <table id="duplicates-table">
+        <thead><tr><th>Item</th><th>Similar to</th><th>Similarity</th><th data-role="editor"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">Technical standards (DVB/ETSI) <button class="btn btn-secondary" data-role="admin" onclick="reimportStandards()">Re-import bundled set</button></h2>
+      <p style="color:#adb4ba;font-size:13px;margin-bottom:10px">Kept separate from Blake UK's own knowledge and only searched for very technical questions (e.g. FFT modes, code rates, MER, PIDs, multicast). Max explains them in his own words and cites the standard and clause. Blake UK content always takes priority.</p>
+      <div style="overflow-x:auto"><table id="std-table"><thead><tr><th>Standard</th><th>Covers</th><th>Version</th><th>Clauses</th><th>Indexed for search</th></tr></thead><tbody></tbody></table></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><input type="text" id="std-test-q" placeholder="Test a question, e.g. which FFT size and guard interval suit an SFN?" style="flex:1;min-width:260px"><button class="btn btn-secondary" onclick="testStandards()">Test</button></div>
+      <div id="std-test-out" style="margin-top:10px"></div>
     </div>
   </div>
 
