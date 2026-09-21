@@ -276,6 +276,10 @@ class Responder
             $pr = self::aerialProfile($r);
             if (!$pr || !$pr['elements'] || $pr['elements'] < $lo || $pr['elements'] > $hi) continue;
             if ($base['group'] && $pr['group'] && $pr['group'] !== $base['group'] && $pr['group'] !== 'W') continue;
+            // A high-gain aerial is a step up, not like-for-like, unless the
+            // original is one too.
+            $hg = fn($x) => (bool)preg_match('/high.?gain|\bbay\b/i', ($x['name'] ?? '') . ' ' . ($x['title'] ?? ''));
+            if ($hg($r) && !$hg($product)) continue;
             $cands[] = [abs($pr['elements'] - $base['elements']) + ($pr['group'] === $base['group'] ? 0 : 3), $r];
         }
         usort($cands, fn($a, $b) => $a[0] <=> $b[0]);

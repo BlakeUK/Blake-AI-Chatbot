@@ -300,6 +300,7 @@ test('alternatives: like-for-like TV aerials, same group, similar element count'
         ['DMCK-F', '15 Element DM-Contract Aerial, Group K, F-Type'],
         ['CR10K', '10 Element Contract Aerial, Group K, Channels 21-48 [Bag of 5]'],
         ['XKDMX', '10 Bay XK-DMX High Gain Aerial Group K'],
+        ['DMX32', '32 Element DMX High Gain Aerial, Group K, F-Type'],
         ['LP20A', '20 Element Mini-Log Periodic Group A Aerial'],
         ['KIT-LOFT', 'Aerial Fixing Kit For Loft Mounting - Up To 2 TVs'],
         ['DAB3', 'DAB Radio Aerial 3 Element'],
@@ -310,8 +311,8 @@ test('alternatives: like-for-like TV aerials, same group, similar element count'
     assert_equal('BLA-LP20K', $p['product_code']);
     $alts = array_column(\Chat\Responder::alternativesFor($p), 'product_code');
     foreach (['BLA-LP28K', 'DMCK-F', 'CR10K'] as $want) assert_true(in_array($want, $alts, true), "$want in " . json_encode($alts));
-    foreach (['BLA-LP56K', 'XKDMX', 'LP20A', 'KIT-LOFT', 'DAB3'] as $not) assert_true(!in_array($not, $alts, true), "$not not in " . json_encode($alts));
-    $pdo->exec("DELETE FROM products WHERE product_code IN ('BLA-LP20K','BLA-LP28K','BLA-LP56K','DMCK-F','CR10K','XKDMX','LP20A','KIT-LOFT','DAB3')");
+    foreach (['BLA-LP56K', 'XKDMX', 'DMX32', 'LP20A', 'KIT-LOFT', 'DAB3'] as $not) assert_true(!in_array($not, $alts, true), "$not not in " . json_encode($alts));
+    $pdo->exec("DELETE FROM products WHERE product_code IN ('BLA-LP20K','BLA-LP28K','BLA-LP56K','DMCK-F','CR10K','XKDMX','DMX32','LP20A','KIT-LOFT','DAB3')");
 });
 
 test('a product label linked to another product\'s page is re-pointed (or unlinked)', function () {
