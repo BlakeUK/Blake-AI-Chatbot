@@ -18,6 +18,10 @@ foreach ($rows as $r) {
     if ($ta === '' || $tb === '') continue;
     $xa = \Knowledge\Dedup::reconstructText($r['source_type'], (int)$r['source_id']);
     $xb = \Knowledge\Dedup::reconstructText($r['similar_source_type'], (int)$r['similar_source_id']);
-    if (\Knowledge\Dedup::isVariantPair($ta, $xa, $tb, $xb)) { $upd->execute([$r['id']]); $n++; }
+    if (\Knowledge\Dedup::isVariantPair($ta, $xa, $tb, $xb)) { $upd->execute([$r['id']]); $n++; continue; }
+    // Pages re-indexed with main-content-only text: re-score and drop pairs
+    // that are no longer close (they were only "similar" through site chrome).
+    if ($r['source_type'] === 'manual' && $r['similar_source_type'] === 'manual'
+        && \Knowledge\Dedup::similarity($xa, $xb) < 0.85) { $upd->execute([$r['id']]); $n++; }
 }
-echo "Duplicate flags re-checked: " . count($rows) . " pending, {$n} auto-dismissed as product variants.\n";
+echo "Duplicate flags re-checked: " . count($rows) . " pending, {$n} auto-dismissed as product variants or no longer similar.\n";

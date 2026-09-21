@@ -186,3 +186,6 @@ function discover_urls_from_sitemap(string $sitemapUrl): array
 
     return $urls;
 }
+
+// Re-check pending duplicate flags now that some pages have fresh text.
+passthru('php ' . escapeshellarg(__DIR__ . '/recheck_duplicates.php'));

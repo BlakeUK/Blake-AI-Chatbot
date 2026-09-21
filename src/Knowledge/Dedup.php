@@ -214,6 +214,11 @@ class Dedup
         }
     }
 
+    public static function similarity(string $a, string $b): float
+    {
+        return self::jaccard(self::significantWords($a), self::significantWords($b));
+    }
+
     private static function jaccard(array $a, array $b): float
     {
         if (!$a || !$b) {
