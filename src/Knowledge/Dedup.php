@@ -85,11 +85,60 @@ class Dedup
     // FTS5 to cheaply find a small candidate set sharing vocabulary with
     // $text first, then computes real Jaccard similarity only on those
     // candidates, rather than comparing against every indexed document.
+    // Product variants are NOT duplicates: "6 dB IEC Attenuator" and
+    // "12 dB IEC Attenuator", or 1m and 2m leads, share nearly every word but
+    // are different products. They are told apart by the numbers/units and
+    // colours in the title, and by the product code on the page.
+    private const COLOURS = ['white', 'black', 'brown', 'grey', 'gray', 'clear', 'red', 'blue', 'green', 'yellow', 'silver', 'gold', 'beige', 'cream'];
+
+    public static function variantTokens(string $title): array
+    {
+        $t = mb_strtolower(html_entity_decode($title));
+        $t = preg_replace('/\s*[|-]\s*(blake uk|proception|blake aerials)\b.*$/u', '', $t);   // site suffix
+        preg_match_all('/\d+(?:[.,]\d+)?\s*(?:db|mm|cm|m\b|in\b|inch|ft|g\b|kg|w\b|v\b|mhz|ghz|way|element|ele|port|pack|bay|x\s*\d+(?:[.,]\d+)?)?/u', $t, $m);
+        $tokens = array_map(fn($x) => preg_replace('/\s+/', '', $x), $m[0]);
+        foreach (self::COLOURS as $c) if (preg_match('/\b' . $c . '\b/u', $t)) $tokens[] = $c;
+        foreach (['iec', 'f-type', 'f type', 'rg6', 'rg59', 'wf63', 'wf100', 'male', 'female', 'straight', 'cranked', 'swaged', 'punched', 'single bend', 'double', 'welded', 'pressed', 'push on', 'twist on', 'crimp', 'compression', 'dab', 'fm', 'omni'] as $w) {
+            if (str_contains($t, $w)) $tokens[] = $w;
+        }
+        $tokens = array_values(array_unique(array_filter($tokens, fn($x) => $x !== '')));
+        sort($tokens);
+        return $tokens;
+    }
+
+    public static function productCode(string $text): ?string
+    {
+        return preg_match('/product\s*code:?\s*([A-Z0-9][A-Z0-9\-\/.]{2,})/i', $text, $m) ? strtoupper($m[1]) : null;
+    }
+
+    public static function isVariantPair(string $titleA, string $textA, string $titleB, string $textB): bool
+    {
+        $ca = self::productCode($textA); $cb = self::productCode($textB);
+        if ($ca && $cb && $ca !== $cb) return true;
+        return self::variantTokens($titleA) !== self::variantTokens($titleB);
+    }
+
+    private static function titleOf(string $sourceType, int $sourceId): string
+    {
+        try {
+            if ($sourceType === 'manual') {
+                $s = db()->prepare('SELECT title FROM knowledge_entries WHERE id = ?');
+            } elseif ($sourceType === 'file') {
+                $s = db()->prepare('SELECT filename FROM knowledge_files WHERE id = ?');
+            } else {
+                return '';
+            }
+            $s->execute([$sourceId]);
+            return (string)($s->fetchColumn() ?: '');
+        } catch (\Throwable $e) { return ''; }
+    }
+
     public static function findNearDuplicates(
         string $text,
         string $excludeSourceType,
         int $excludeSourceId,
-        float $threshold = self::NEAR_DUPLICATE_THRESHOLD
+        float $threshold = self::NEAR_DUPLICATE_THRESHOLD,
+        ?string $title = null
     ): array {
         $words = self::significantWords($text);
         if (count($words) < 5) {
@@ -123,11 +172,19 @@ class Dedup
 
         $matches = [];
         foreach ($candidates as $c) {
-            $candidateWords = self::significantWords(self::reconstructText($c['source_type'], $c['source_id']));
+            $candidateText  = self::reconstructText($c['source_type'], $c['source_id']);
+            $candidateWords = self::significantWords($candidateText);
             $score          = self::jaccard($words, $candidateWords);
-            if ($score >= $threshold) {
-                $matches[] = $c + ['similarity' => $score];
+            // The stricter threshold is for like-for-like comparisons (page
+            // vs page share layout wording); a page overlapping an uploaded
+            // document keeps the normal threshold.
+            $limit = $c['source_type'] === $excludeSourceType ? $threshold : min($threshold, self::NEAR_DUPLICATE_THRESHOLD);
+            if ($score < $limit) continue;
+            if ($title !== null
+                && self::isVariantPair($title, $text, self::titleOf($c['source_type'], $c['source_id']), $candidateText)) {
+                continue;   // a different size/colour/type of the same product line
             }
+            $matches[] = $c + ['similarity' => $score];
         }
 
         usort($matches, fn($a, $b) => $b['similarity'] <=> $a['similarity']);

@@ -41,7 +41,7 @@ class PageIndexer
     public static function buildEntry(string $url, string $html): array
     {
         $title = \Html\TextCleaner::extractTitle($html) ?: $url;
-        $body  = \Html\TextCleaner::toReadableText($html);
+        $body  = \Html\TextCleaner::mainContentText($html);
 
         if (trim($body) === '') {
             // A JS-rendered SPA shell or similar can yield no readable
@@ -107,7 +107,9 @@ class PageIndexer
         // two different URLs can legitimately host the same content
         // (a page genuinely mirrored, or content simply reused site-wide),
         // and an admin should decide whether that's actually redundant.
-        $matches = Dedup::findNearDuplicates($entry['title'] . ' ' . $entry['body'], 'manual', $id);
+        // Pages share layout text, so only very close pages count, and product
+        // variants (different size/colour/code) never do.
+        $matches = Dedup::findNearDuplicates($entry['title'] . ' ' . $entry['body'], 'manual', $id, 0.85, $entry['title']);
         if ($matches) {
             Dedup::flag('manual', $id, $matches);
         }

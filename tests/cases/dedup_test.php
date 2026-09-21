@@ -194,3 +194,22 @@ test('indexPage() flags a near-duplicate against an existing file without blocki
     $count->execute([$r['id']]);
     assert_true((int)$count->fetchColumn() > 0, 'expected a near-duplicate flag to have been recorded');
 });
+
+test('product variants (size, colour, type, product code) are never duplicates', function () {
+    $v = fn($a, $b, $xa = '', $xb = '') => \Knowledge\Dedup::isVariantPair($a, $xa, $b, $xb);
+    assert_true($v('6 dB IEC Coax Attenuators | Blake UK - Blake UK', '12 dB IEC Coax Attenuators | Blake UK - Blake UK'));
+    assert_true($v('1m White Coax IEC Plug to Plug Lead | PROception - Blake UK', '2m White Coax IEC Plug to Plug Lead | PROception - Blake UK'));
+    assert_true($v('White Plastic Hole Tidy (100)', 'Black Plastic Hole Tidy (100)'));
+    assert_true($v('F-Type Male Twist On for RG6', 'F-Type Male Twist On for RG59'));
+    assert_true($v('Same Title', 'Same Title', 'Product Code: AC35-6', 'Product Code: AC35-12'));
+    assert_true(!$v('Yagi Aerials | Blake UK', 'Yagi Aerials | Blake UK - Blake UK'));
+});
+
+test('main-content extraction drops site chrome so pages are compared on their own text', function () {
+    $html = '<html><body><header class="header">Free delivery Google Reviews Menu Basket</header><nav class="nav">Aerials CCTV Networking</nav>'
+          . '<div class="page-content"><h1>Attenuator 6 dB IEC</h1><div class="breadcrumb">Home > Attenuators</div><p>Product Code: AC35-6</p><p>Reduces interference from high TV input levels, 5-1000MHz, 75 ohm.</p>'
+          . '<div class="related-products">Other things you might like</div></div><footer class="footer">Terms Privacy Contact</footer></body></html>';
+    $t = \Html\TextCleaner::mainContentText($html);
+    assert_true(str_contains($t, 'Reduces interference') && str_contains($t, 'AC35-6'));
+    foreach (['Free delivery', 'Networking', 'Terms Privacy', 'Other things you might like', 'Home >'] as $bad) assert_true(!str_contains($t, $bad), $bad);
+});

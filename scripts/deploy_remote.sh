@@ -376,6 +376,9 @@ else
     warn "Product-page extraction cron job already installed — skipping."
 fi
 
+# ── Near-duplicate flags: drop product variants flagged by the old rules ──────
+su -s /bin/sh www-data -c "php $WEBROOT/scripts/recheck_duplicates.php" || warn "Duplicate re-check failed (non-fatal)."
+
 # ── DVB/ETSI standards tier: (re)import when the bundled set changes ─────────
 info "Checking technical standards import..."
 su -s /bin/sh www-data -c "php $WEBROOT/scripts/import_standards.php" || warn "Standards import failed (chat unaffected)."
