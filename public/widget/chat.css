@@ -399,58 +399,62 @@
   #buk-chat-greet { right: 116px; bottom: 74px; max-width: 170px; }
 }
 
-/* ── Max avatar in the chat header (speaks replies) ─────────────────────── */
-#buk-max-avatar {
-  --buk-mouth: 0;
-  position: relative; flex-shrink: 0;
-  width: 52px; height: 48px; margin: -4px 0 -6px;
+/* ── Chat header: MAX "My AI eXpert" banner ───────────────────────────────── */
+#buk-chat-header.buk-banner-header {
+  position: relative; display: block; padding: 0;
+  aspect-ratio: 760 / 220; min-height: 96px;
+  background: #eef2fa; border-bottom: 1px solid rgba(0,0,0,.08); overflow: hidden;
 }
-#buk-max-avatar picture, #buk-max-avatar img { display: block; width: 100%; height: 100%; }
+.buk-banner, .buk-banner img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.buk-banner-header #buk-chat-header-info { position: absolute; inset: 0; display: block; pointer-events: none; }
+.buk-banner-header #buk-chat-header-text { position: absolute; right: 8px; bottom: 6px; pointer-events: auto; }
+.buk-banner-header #buk-chat-status {
+  display: inline-flex; align-items: center; gap: 5px; margin: 0;
+  font-size: 11px; font-weight: 600; color: #1a2340;
+  background: rgba(255,255,255,.78); border-radius: 10px; padding: 2px 8px 2px 6px;
+  box-shadow: 0 1px 3px rgba(20,27,46,.15);
+}
+.buk-banner-header #buk-chat-header-actions { position: absolute; right: 6px; top: 6px; gap: 4px; }
+.buk-banner-header .buk-icon-btn {
+  width: 28px; height: 28px; background: rgba(20,27,46,.55); color: #fff; border: none;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.buk-banner-header .buk-icon-btn:hover { background: rgba(20,27,46,.8); color: #fff; }
+.buk-sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Face overlays positioned in % of the banner (760x220 artwork). */
+#buk-max-avatar { --buk-mouth: 0; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; }
 #buk-max-avatar .buk-av-eye, #buk-max-avatar .buk-av-lid {
-  position: absolute; width: 19%; height: 14%;
-  transform: translate(-50%, -50%); border-radius: 50%;
+  position: absolute; transform: translate(-50%, -50%) rotate(-9deg); border-radius: 50%;
 }
 #buk-max-avatar .buk-av-eye {
-  background: radial-gradient(closest-side, rgba(150,215,255,.5), rgba(61,140,255,0) 100%);
-  mix-blend-mode: screen; opacity: .7;
-  animation: buk-eye-glow 2.4s ease-in-out infinite;
+  background: radial-gradient(closest-side, rgba(150,215,255,.55), rgba(61,140,255,0) 100%);
+  mix-blend-mode: screen; opacity: .7; animation: buk-eye-glow 2.4s ease-in-out infinite;
 }
 #buk-max-avatar .buk-av-lid {
-  background: radial-gradient(closest-side, #04070d 70%, rgba(4,7,13,0) 100%);
+  background: radial-gradient(closest-side, #05070d 68%, rgba(5,7,13,0) 100%);
   opacity: 0; animation: buk-lid 4.8s infinite;
 }
-#buk-max-avatar .buk-av-eye-l { left: 45.26%; top: 48.11%; }
-#buk-max-avatar .buk-av-eye-r { left: 75.35%; top: 54.06%; width: 17%; }
-/* Talking: the painted smile is covered and a lit mouth opens and closes
-   with the speech level. */
-#buk-max-smile-cover, #buk-max-mouth {
-  position: absolute; left: 59.12%; top: 65.38%;
-  transform: translate(-50%, -50%) rotate(10deg);
-}
-#buk-max-smile-cover {
-  width: 16%; height: 10%; border-radius: 50%;
-  background: radial-gradient(closest-side, #04070d 72%, rgba(4,7,13,0) 100%);
-  opacity: 0; transition: opacity .15s;
-}
+#buk-max-avatar .buk-av-eye-l { left: 66.9%; top: 47.1%; width: 6.4%; height: 15%; }
+#buk-max-avatar .buk-av-eye-r { left: 79.5%; top: 40.2%; width: 8%; height: 16.5%; }
+#buk-max-smile-cover { display: none; }
+/* The banner robot has no painted mouth: a lit mouth appears only while he speaks. */
 #buk-max-mouth {
-  width: 11%; height: calc(1.5px + var(--buk-mouth) * 5px);
-  border-radius: 3px;
-  background: #9bd8ff;
-  box-shadow: 0 0 calc(2px + var(--buk-mouth) * 5px) rgba(86,168,255,.95);
+  position: absolute; left: 73.9%; top: 59.3%;
+  width: 5.5%; height: calc(2px + var(--buk-mouth) * 7px);
+  transform: translate(-50%, -50%) rotate(-9deg);
+  border-radius: 4px; background: #9bd8ff;
+  box-shadow: 0 0 calc(3px + var(--buk-mouth) * 6px) rgba(86,168,255,.95);
   opacity: 0; transition: opacity .15s;
 }
-#buk-max-avatar.buk-speaking #buk-max-smile-cover,
-#buk-max-avatar.buk-voice-loading #buk-max-smile-cover { opacity: 1; }
 #buk-max-avatar.buk-speaking #buk-max-mouth { opacity: 1; }
 #buk-max-avatar.buk-speaking .buk-av-eye { opacity: 1; }
+#buk-max-avatar.buk-voice-loading #buk-max-mouth { opacity: .8; animation: buk-mouth-wait 1.1s ease-in-out infinite; }
+@keyframes buk-mouth-wait { 0%,100% { box-shadow: 0 0 0 .5px rgba(111,182,255,.3); } 50% { box-shadow: 0 0 0 .5px rgba(111,182,255,.9), 0 0 6px rgba(86,168,255,.8); } }
 #buk-chat-voice .buk-voice-off { display: none; }
 #buk-chat-voice.buk-muted .buk-voice-on { display: none; }
 #buk-chat-voice.buk-muted .buk-voice-off { display: block; }
 @media (prefers-reduced-motion: reduce) { #buk-max-avatar .buk-av-eye, #buk-max-avatar .buk-av-lid { animation: none; } }
-/* While Max's speech is being generated (a few seconds): mouth glows softly. */
-#buk-max-avatar.buk-voice-loading #buk-max-mouth { opacity: 1; animation: buk-mouth-wait 1.1s ease-in-out infinite; }
-@keyframes buk-mouth-wait { 0%,100% { box-shadow: 0 0 0 .5px rgba(111,182,255,.3); } 50% { box-shadow: 0 0 0 .5px rgba(111,182,255,.9), 0 0 5px rgba(86,168,255,.8); } }
-
 /* Postcode box (reception questions) - shares the tracking form styles. */
 .buk-postcode-input { text-transform: uppercase; letter-spacing: .03em; }
 .buk-postcode-err { color: #e0665a; font-size: 12px; min-height: 0; }

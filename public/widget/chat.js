@@ -86,17 +86,19 @@
   panel.id = 'buk-chat-panel';
   panel.setAttribute('aria-live', 'polite');
   panel.innerHTML = `
-    <div id="buk-chat-header">
+    <div id="buk-chat-header" class="buk-banner-header">
+      <picture class="buk-banner"><source srcset="${ENDPOINT}/widget/img/max-banner.webp" type="image/webp"><img src="${ENDPOINT}/widget/img/max-banner.png" alt="" width="760" height="220" draggable="false"></picture>
       <div id="buk-chat-header-info">
+        <!-- Overlays on the banner robot's face: eye glow, blink and the
+             speaking mouth (driven by the voice code via --buk-mouth). -->
         <span id="buk-max-avatar" aria-hidden="true">
-          <picture><source srcset="${MAX_IMG}-head.webp" type="image/webp"><img src="${MAX_IMG}-head.png" alt="" width="52" height="48" draggable="false"></picture>
           <span class="buk-av-eye buk-av-eye-l"></span><span class="buk-av-eye buk-av-eye-r"></span>
           <span class="buk-av-lid buk-av-eye-l"></span><span class="buk-av-lid buk-av-eye-r"></span>
           <span id="buk-max-smile-cover"></span>
           <span id="buk-max-mouth"></span>
         </span>
         <div id="buk-chat-header-text">
-          <div id="buk-chat-title">Max, AI Support</div>
+          <div id="buk-chat-title" class="buk-sr-only">Max, My AI eXpert - Blake UK support</div>
           <div id="buk-chat-status"><span id="buk-status-dot" aria-hidden="true"></span><span id="buk-status-text">Online</span></div>
         </div>
       </div>
