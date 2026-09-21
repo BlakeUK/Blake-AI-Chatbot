@@ -92,8 +92,11 @@ class Responder
             default        => null,
         };
         if ($words === null) return $products;
-        return array_values(array_filter($products, function ($p) use ($words, $allowAmplifier) {
+        return array_values(array_filter($products, function ($p) use ($words, $allowAmplifier, $type) {
             $hay = mb_strtolower(($p['name'] ?? '') . ' ' . ($p['title'] ?? '') . ' ' . ($p['category_path'] ?? ''));
+            // Radio: the product must be an aerial, not a diplexer/amp that
+            // merely mentions DAB or FM.
+            if (in_array($type, ['fm', 'dab'], true) && !preg_match('/aerial|antenna|dipole|yagi/', mb_strtolower(($p['name'] ?? '') . ' ' . ($p['title'] ?? '')))) return false;
             foreach ($words as $w) if (str_contains($hay, $w)) return true;
             if ($allowAmplifier && str_contains($hay, 'masthead') && str_contains($hay, 'amplifier')) return true;
             // An aerial of the right family is fine even if wording differs,

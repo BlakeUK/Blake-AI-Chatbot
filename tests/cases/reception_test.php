@@ -306,6 +306,7 @@ test('radio product cards are filtered to that band\'s aerials', function () {
         ['product_code' => 'DABY', 'name' => 'DAB Radio Aerial, 3 Element', 'title' => '', 'category_path' => '["Aerials","Radio","DAB"]'],
         ['product_code' => 'FMD', 'name' => 'FM Radio Dipole Aerial', 'title' => '', 'category_path' => '["Aerials","Radio","FM"]'],
         ['product_code' => 'TVLOG', 'name' => '20 Element Mini-Log Periodic Group K Aerial', 'title' => '', 'category_path' => '["Aerials","TV"]'],
+        ['product_code' => 'DIPX', 'name' => 'Masthead DAB/FM VHF & TV UHF Diplexer', 'title' => '', 'category_path' => '["Distribution"]'],
     ];
     assert_equal(['DABY'], array_column(\Chat\Responder::matchingAerials($hits, 'dab'), 'product_code'));
     assert_equal(['FMD'], array_column(\Chat\Responder::matchingAerials($hits, 'fm'), 'product_code'));
