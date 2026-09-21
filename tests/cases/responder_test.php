@@ -308,6 +308,7 @@ test('alternatives: like-for-like TV aerials, same group, similar element count'
     foreach ($rows as [$c, $n]) $pdo->prepare('INSERT INTO products (product_code, name, url, active) VALUES (?,?,?,1)')->execute([$c, $n, "https://www.blake-uk.com/" . strtolower($c) . ".html"]);
     assert_true(\Chat\Responder::wantsAlternative("whats an alterative to the LP20k"));
     assert_equal('DMCK-F', \Chat\Responder::productFromText('is there an alternative to the DMCK-F')['product_code']);
+    assert_equal('BLA-LP20K', \Chat\Responder::productFromText('whats an alterative to the LP20')['product_code'], 'partial code');
     $p = \Chat\Responder::productFromText('whats an alterative to the LP20k');
     assert_equal('BLA-LP20K', $p['product_code']);
     $alts = array_column(\Chat\Responder::alternativesFor($p), 'product_code');

@@ -243,6 +243,15 @@ class Responder
                 $q = db()->prepare("SELECT * FROM products WHERE active = 1 AND (upper(product_code) = ? OR upper(product_code) LIKE ? OR replace(upper(product_code),'-','') = ?) ORDER BY length(product_code) LIMIT 1");
                 $q->execute([$t, '%-' . $t, str_replace('-', '', $t)]);
                 if ($row = $q->fetch()) return $row;
+                // Partial code, as customers type it ("LP20" for BLA-LP20K):
+                // the shortest active code containing it, preferring Group K
+                // (the most common UK group) when several match.
+                if (preg_match('/\d/', $t)) {
+                    $q = db()->prepare("SELECT * FROM products WHERE active = 1 AND replace(upper(product_code),'-','') LIKE ?
+                                        ORDER BY (upper(product_code) LIKE ?) DESC, length(product_code) LIMIT 1");
+                    $q->execute(['%' . str_replace('-', '', $t) . '%', '%' . str_replace('-', '', $t) . 'K%']);
+                    if ($row = $q->fetch()) return $row;
+                }
             } catch (\Throwable $e) { return null; }
         }
         return null;
