@@ -182,6 +182,7 @@ html.embedded [data-embed-hide]{display:none!important}
   <button data-role="admin" onclick="switchTab('apikeys',this)">API Keys</button>
   <button data-role="admin" onclick="switchTab('models',this)">Model Settings</button>
   <button data-role="admin" onclick="switchTab('apiusage',this)">API Usage</button>
+  <button data-role="admin" onclick="switchTab('gbilling',this)">Google Billing</button>
   <button data-role="admin" onclick="switchTab('email',this)">Email</button>
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
@@ -582,6 +583,39 @@ html.embedded [data-embed-hide]{display:none!important}
     </div>
   </div>
 
+  <!-- ── GOOGLE BILLING ── -->
+  <div id="tab-gbilling" class="tab">
+    <div class="card">
+      <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">Google Cloud billing <span style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="loadGBilling(true)">↺ Refresh from Google</button></span></h2>
+      <div id="gb-status"></div>
+      <p style="color:#adb4ba;font-size:12px;margin-top:6px">These are the real amounts Google bills, read from your Cloud Billing export. Google updates the export several times a day, so today's figures can lag by a few hours. The API Usage tab shows our own per-message estimates for comparison.</p>
+    </div>
+    <div id="gb-summary" style="display:none">
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="gb-cost">—</div><div class="l">Cost this month</div></div>
+        <div class="stat"><div class="n" id="gb-credits">—</div><div class="l">Credits applied</div></div>
+        <div class="stat"><div class="n" id="gb-net">—</div><div class="l">Net to pay</div></div>
+        <div class="stat"><div class="n" id="gb-gemini">—</div><div class="l">Gemini API (net)</div></div>
+      </div>
+      <div class="card"><h2>Daily cost (last 30 days)</h2><div id="gb-chart" style="overflow-x:auto"></div></div>
+      <div class="card"><h2>By service (this month)</h2><div style="overflow-x:auto"><table id="gb-services"><thead><tr><th>Service</th><th>Cost</th><th>Credits</th><th>Net</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card"><h2>Gemini API by item (this month)</h2><div style="overflow-x:auto"><table id="gb-skus"><thead><tr><th>Item</th><th>Usage</th><th>Cost</th><th>Credits</th><th>Net</th></tr></thead><tbody></tbody></table></div></div>
+    </div>
+    <div class="card">
+      <h2>Connection</h2>
+      <ol style="color:#adb4ba;font-size:13px;line-height:1.6;margin:0 0 12px 18px">
+        <li>In Google Cloud console → <b>Billing → Billing export</b>, turn on <b>Standard usage cost</b> export to a BigQuery dataset.</li>
+        <li>In <b>IAM → Service accounts</b>, create a service account (e.g. <code>billing-reader</code>). Give it <b>BigQuery Data Viewer</b> on that dataset and <b>BigQuery Job User</b> on the project. Create a <b>JSON key</b> and paste it below.</li>
+        <li>Copy the export table name from BigQuery (it looks like <code>project-id.dataset.gcp_billing_export_v1_XXXXXX</code>) into the box below.</li>
+      </ol>
+      <div style="display:grid;gap:10px">
+        <div><label>BigQuery export table</label><input type="text" id="gb-table" placeholder="project-id.billing_export.gcp_billing_export_v1_XXXXXX_XXXXXX_XXXXXX"></div>
+        <div><label>Service account JSON key <span id="gb-key-state" style="color:#adb4ba"></span></label><textarea id="gb-key" rows="4" placeholder='{"type": "service_account", ... } (leave blank to keep the saved key)'></textarea></div>
+        <div><button class="btn btn-primary" onclick="saveGBilling()">Save and connect</button></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── API USAGE ── -->
   <div id="tab-apiusage" class="tab">
     <div class="card">
@@ -899,6 +933,7 @@ function switchTab(name,el){
   document.getElementById('tab-'+name).classList.add('active');
   el.classList.add('active');
   if(name==='apiusage')loadApiUsage();
+  if(name==='gbilling')loadGBilling(false);
   if(name==='email')loadEmailSettings();
   if(name==='files')loadStandards();
 }
@@ -921,6 +956,41 @@ async function testStandards(){
   if(r.error){out.innerHTML=`<div class="alert alert-err">${esc(r.error)}</div>`;return;}
   out.innerHTML=`<div class="alert ${r.very_technical?'alert-ok':'alert-warn'}">${r.very_technical?'Very technical: Max will consult the standards for this.':'Not very technical: Max will NOT use the standards for this (below is what would match).'}</div>`
     + r.hits.map(h=>`<div class="note-item" style="background:#262b31;border:1px solid #3a4048;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:12px;white-space:pre-wrap">${esc(h.text)}</div>`).join('');
+}
+
+// ── Google billing ───────────────────────────────────────────────────────────
+function gbMoney(v,cur){const n=Number(v||0);const sym=cur==='GBP'?'£':cur==='USD'?'$':cur==='EUR'?'€':(cur?cur+' ':'£');return (n<0?'-':'')+sym+Math.abs(n).toFixed(2);}
+async function loadGBilling(refresh){
+  const st=document.getElementById('gb-status');
+  st.innerHTML='<div class="alert alert-warn">Loading…</div>';
+  const d=await get(API+'/google_billing.php'+(refresh?'?refresh=1':''));
+  const s=d.status||{};
+  document.getElementById('gb-table').value=s.table||'';
+  document.getElementById('gb-key-state').textContent=s.has_key?`(saved: ${s.client_email})`:'(not set)';
+  if(!s.configured){st.innerHTML='<div class="alert alert-warn">Not connected yet: follow the three steps below.</div>';document.getElementById('gb-summary').style.display='none';return;}
+  if(d.error){st.innerHTML=`<div class="alert alert-err">Google returned an error: ${esc(d.error)}</div>`;document.getElementById('gb-summary').style.display='none';return;}
+  const x=d.summary, cur=x.currency;
+  st.innerHTML=`<div class="alert alert-ok">Connected. ${esc(x.month)} · last Google export ${esc(x.last_export||'n/a')} · ${x.cached?'cached':'just fetched'} ${fmtDate(x.fetched_at)}</div>`;
+  document.getElementById('gb-summary').style.display='';
+  document.getElementById('gb-cost').textContent=gbMoney(x.month_cost,cur);
+  document.getElementById('gb-credits').textContent=gbMoney(x.month_credits,cur);
+  document.getElementById('gb-net').textContent=gbMoney(x.month_net,cur);
+  document.getElementById('gb-gemini').textContent=gbMoney(x.gemini_net,cur);
+  document.querySelector('#gb-services tbody').innerHTML=x.by_service.length?x.by_service.map(r=>`<tr><td>${esc(r.service)}</td><td>${gbMoney(r.cost,cur)}</td><td>${gbMoney(r.credits,cur)}</td><td>${gbMoney(+r.cost + +r.credits,cur)}</td></tr>`).join(''):'<tr><td colspan="4" style="color:#adb4ba">No charges this month yet.</td></tr>';
+  document.querySelector('#gb-skus tbody').innerHTML=x.gemini_skus.length?x.gemini_skus.map(r=>`<tr><td>${esc(r.sku)}<br><small style="color:#adb4ba">${esc(r.service)}</small></td><td>${Number(r.usage_amount||0).toLocaleString('en-GB')} ${esc(r.unit||'')}</td><td>${gbMoney(r.cost,cur)}</td><td>${gbMoney(r.credits,cur)}</td><td>${gbMoney(+r.cost + +r.credits,cur)}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No Gemini API charges this month yet.</td></tr>';
+  const rows=x.daily.map(r=>({day:r.day,cost_usd:(+r.cost)+(+r.credits),calls:0,errors:0}));
+  const el=document.getElementById('gb-chart');
+  if(!rows.length){el.innerHTML='<p style="color:#adb4ba">No daily data yet.</p>';return;}
+  const W=Math.max(rows.length*30,300),H=150,base=H-24,max=Math.max(...rows.map(r=>r.cost_usd),0.01);
+  el.innerHTML=`<svg width="${W}" height="${H}">${rows.map((r,i)=>{const w=W/rows.length,h=Math.max(0,r.cost_usd)/max*(base-10),x=i*w+4;return `<rect x="${x}" y="${base-h}" width="${w-8}" height="${h}" rx="3" fill="#5b7fd1"><title>${r.day}: ${gbMoney(r.cost_usd,cur)}</title></rect>${rows.length<=15||i%3===0?`<text x="${x+(w-8)/2}" y="${H-8}" text-anchor="middle" font-size="10" fill="#adb4ba">${r.day.slice(5)}</text>`:''}`;}).join('')}</svg>`;
+}
+async function saveGBilling(){
+  const body={csrf,table:document.getElementById('gb-table').value.trim()};
+  const k=document.getElementById('gb-key').value.trim(); if(k)body.sa_json=k;
+  const r=await post(API+'/google_billing.php',body);
+  if(r.error)return flash(r.error,true);
+  document.getElementById('gb-key').value='';
+  flash('Saved - connecting to Google…'); loadGBilling(true);
 }
 
 // ── Email (SMTP) ─────────────────────────────────────────────────────────────
