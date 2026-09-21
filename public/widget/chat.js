@@ -860,10 +860,16 @@
   // reply) into a clickable link. Runs AFTER esc(), so an "&" already
   // reads as the escaped "&amp;" at this point - correct either way, since
   // that's exactly how it needs to appear inside the href attribute too.
+  // Markdown links "[label](https://...)" become a link showing the label
+  // (they were appearing as raw brackets and URLs); bare URLs are linked as
+  // before. One pass with alternation so a URL is never linked twice.
   function linkify(escapedHtml) {
-    return escapedHtml.replace(/https?:\/\/[^\s<]+/g, url => {
-      const trail = url.match(/[.,;:!?)]+$/);
-      const clean = trail ? url.slice(0, -trail[0].length) : url;
+    return escapedHtml.replace(/\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)<]+)\)|https?:\/\/[^\s<]+/g, (m, label, mdUrl) => {
+      if (label !== undefined) {
+        return `<a href="${mdUrl}" target="_blank" rel="noopener">${label}</a>`;
+      }
+      const trail = m.match(/[.,;:!?)]+$/);
+      const clean = trail ? m.slice(0, -trail[0].length) : m;
       const rest  = trail ? trail[0] : '';
       return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${rest}`;
     });

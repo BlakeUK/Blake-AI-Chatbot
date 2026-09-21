@@ -133,8 +133,8 @@ class Advisor
         $out .= "- Recommended aerial: {$a['elements']}\n";
         $out .= "- Polarisation: mount the aerial " . ($band === 'dab' ? 'vertically polarised (DAB is always vertical)' : $t['polarisation'] . 'ly polarised') . "\n";
         $out .= "- Aerial size: " . ($a['size'] === 'smallest' || $a['size'] === 'small'
-                ? "recommend the SMALLEST suitable aerial (a dipole); do not recommend a large high-gain aerial here"
-                : "recommend a larger, higher-gain aerial mounted as high as practical") . "\n";
+                ? "the smallest suitable aerial (a dipole) is the right choice; a large high-gain aerial is not needed and can overload the receiver"
+                : "a larger, higher-gain aerial mounted as high as practical") . "\n";
         if ($t['services']) $out .= "- Services from this site: " . implode(', ', $t['services']) . "\n";
         $out .= "- Category link: " . self::RADIO_CATEGORY_URLS[$band] . "\n";
         if ($a['note']) $out .= "- Note: {$a['note']}\n";
@@ -186,10 +186,10 @@ class Advisor
         if ($a['signal'] === 'marginal') $out .= "- Satellite alternative: " . self::CATEGORY_URLS['satellite'] . "\n";
         $size = self::sizePreference($rec);
         $out .= match ($size) {
-            'smallest' => "- Aerial size: recommend the SMALLEST suitable aerial (fewest elements, e.g. a mini/compact log-periodic). Do not recommend a large high-gain or high-element aerial here: too much signal can overload a tuner.\n",
+            'smallest' => "- Aerial size: the SMALLEST suitable aerial (fewest elements, e.g. a mini/compact log-periodic) is the right choice; a large high-gain or high-element aerial is not needed and too much signal can overload a tuner.\n",
             'small'    => "- Aerial size: a small or mid-size aerial is plenty; no need for a large high-element aerial.\n",
             'mid'      => "- Aerial size: a mid-size aerial is appropriate.\n",
-            default    => "- Aerial size: recommend a larger, higher-gain aerial (more elements) mounted as high as practical.\n",
+            default    => "- Aerial size: a larger, higher-gain aerial (more elements) mounted as high as practical.\n",
         };
         if ($a['note']) $out .= "- Note: {$a['note']}\n";
         if (!$t['full_service']) $out .= "- This transmitter carries 3 of the 6 Freeview multiplexes (fewer channels).\n";
