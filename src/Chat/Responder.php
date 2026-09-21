@@ -454,7 +454,12 @@ class Responder
             $postcodeForm = \Reception\Advisor::band($message, $recentText);
         }
 
+        // Forms/documents Max can hand over (e.g. trade account application).
+        $downloads = [];
+        try { $downloads = \Knowledge\Downloads::forQuestion($message, $knowledgeHits); } catch (\Throwable $e) {}
+
         return [
+            'downloads'         => $downloads,
             'alternatives'      => $likeForLike,
             'alternatives_for'  => $altFor,
             'postcode_form'     => $postcodeForm,
@@ -485,6 +490,12 @@ class Responder
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
             ));
+        }
+
+        if (!empty($ctx['downloads'])) {
+            $contextParts[] = "DOWNLOADS available to the customer (a download button is shown under your reply):\n"
+                . implode("\n", array_map(fn($d) => "- {$d['title']} ({$d['type']}): {$d['url']}", $ctx['downloads']))
+                . "\nOffer the relevant document by name and say they can download it using the button below (or the link). For a trade/business account, tell them to complete the application form and return it as the form instructs.";
         }
 
         if (!empty($ctx['alternatives'])) {

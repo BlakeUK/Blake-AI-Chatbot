@@ -323,6 +323,13 @@ else
     warn "Live-chat/presence schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(knowledge_files);" | grep -q "|public_download|"; then
+    info "Applying downloads schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_downloads.sql"
+else
+    warn "Downloads schema already applied — skipping."
+fi
+
 if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='standards_documents';" | grep -q standards_documents; then
     info "Applying standards schema migration..."
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_standards.sql"
@@ -375,6 +382,9 @@ if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_product_pages.php")
 else
     warn "Product-page extraction cron job already installed — skipping."
 fi
+
+# ── Customer downloads: make sure the known public forms are offered ─────────
+su -s /bin/sh www-data -c "php $WEBROOT/scripts/setup_downloads.php" || warn "Downloads setup failed (non-fatal)."
 
 # ── Near-duplicate flags: drop product variants flagged by the old rules ──────
 su -s /bin/sh www-data -c "php $WEBROOT/scripts/recheck_duplicates.php" || warn "Duplicate re-check failed (non-fatal)."

@@ -1148,7 +1148,7 @@ async function loadFiles(){
   const rows=await get(API+'/files.php');
   filesRows=Array.isArray(rows)?rows:[];
   const tb=document.querySelector('#files-table tbody');
-  tb.innerHTML=filesRows.length?filesRows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status==='pending'?'queued':r.status)}</span>${r.error?`<br><small style="color:${r.status==='pending'?'#e0c46c':'#f5a3a3'}">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
+  tb.innerHTML=filesRows.length?filesRows.map(r=>`<tr><td>${esc(r.filename)}</td><td><code>${esc(r.mime_type)}</code></td><td>${r.category?esc(r.category):'<em style="color:#adb4ba">—</em>'}</td><td><span class="badge badge-${r.status}">${esc(r.status==='pending'?'queued':r.status)}</span>${r.error?`<br><small style="color:${r.status==='pending'?'#e0c46c':'#f5a3a3'}">${esc(r.error)}</small>`:''}</td><td>${fmtDate(r.created_at)}</td><td>${canEdit()?`${r.status==='error'?`<button class="btn btn-secondary" onclick="retryFile(${r.id})">↻ Retry</button> `:''}${r.status==='indexed'?`<button class="btn btn-secondary" title="Let Max offer this file to customers as a download" onclick="toggleFileDownload(${r.id})">${+r.public_download?'✓ Customer download':'Offer as download'}</button> `:''}<button class="btn btn-danger" onclick="deleteFile(${r.id})">Delete</button>`:''}${+r.public_download?`<br><small style="color:#7fd19b">Offered when asked about: ${esc(r.download_keywords||'(content match only)')}</small>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No files uploaded yet.</td></tr>';
   updateScanAllButton();
 }
 async function retryAllFailedFiles(){
@@ -1530,6 +1530,21 @@ async function deleteFile(id){
   if(!confirm('Delete this file and remove from knowledge base?'))return;
   const r=await del(API+'/files.php',{csrf,id});
   if(!r.error){flash('File deleted');loadFiles();}else flash(r.error,true);
+}
+async function toggleFileDownload(id){
+  const r=filesRows.find(x=>x.id===id); if(!r)return;
+  if(+r.public_download){
+    if(!confirm('Stop offering "'+r.filename+'" to customers as a download?'))return;
+    const x=await post(API+'/file_download.php',{csrf,id,public:false,title:r.download_title,keywords:r.download_keywords});
+    if(x.error)return flash(x.error,true); flash('No longer offered as a download'); return loadFiles();
+  }
+  const title=prompt('Title customers will see for this download:', r.download_title||r.filename.replace(/\.[a-z0-9]+$/i,'').replace(/_/g,' '));
+  if(title===null)return;
+  const keywords=prompt('Offer it when customers ask about (comma-separated words/phrases):', r.download_keywords||'');
+  if(keywords===null)return;
+  const x=await post(API+'/file_download.php',{csrf,id,public:true,title,keywords});
+  if(x.error)return flash(x.error,true);
+  flash('Max will now offer this as a download'); loadFiles();
 }
 async function retryFile(id){
   const r=await post(API+'/reindex.php',{csrf,file_id:id});

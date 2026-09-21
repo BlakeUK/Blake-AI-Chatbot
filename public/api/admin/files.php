@@ -10,7 +10,11 @@ $method = $_SERVER['REQUEST_METHOD'];
 $pdo    = db();
 
 if ($method === 'GET') {
-    $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, category, created_at FROM knowledge_files ORDER BY created_at DESC');
+    try {
+        $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, category, created_at, public_download, download_title, download_keywords, download_token FROM knowledge_files ORDER BY created_at DESC');
+    } catch (\Throwable $e) {   // before the downloads migration
+        $stmt = $pdo->query('SELECT id, filename, mime_type, status, error, category, created_at FROM knowledge_files ORDER BY created_at DESC');
+    }
     json_out($stmt->fetchAll());
 }
 

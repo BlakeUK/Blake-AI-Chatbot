@@ -501,6 +501,7 @@
       } else {
         if (d.answer) {
           addMessage('assistant', d.answer, d.products || []);
+          if (d.downloads && d.downloads.length) showDownloads(d.downloads);
           if (d.message_id && !d.handoff) speak({ message_id: d.message_id });
         }
         if (d.action === 'show_postcode_form') {
@@ -534,6 +535,25 @@
     messages.appendChild(wrap);
     scrollToLatest();
     wrap.querySelector('.buk-track-submit').addEventListener('click', () => submitTracking(wrap, carrier));
+  }
+
+  // Download cards for forms/documents Max offers (e.g. trade account
+  // application). Appended to the reply, which stays the scroll anchor.
+  function showDownloads(list) {
+    const last = [...messages.querySelectorAll('.buk-msg-assistant')].pop();
+    const host = last ? (last.querySelector('.buk-bubble') || last) : null;
+    if (!host) return;
+    const box = document.createElement('div');
+    box.className = 'buk-downloads';
+    box.innerHTML = list.map(d => `
+      <a class="buk-download" href="${esc(d.url)}" target="_blank" rel="noopener" download>
+        <span class="buk-download-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="buk-download-text"><strong>${esc(d.title)}</strong><small>${esc(d.type || 'File')} · Download</small></span>
+      </a>`).join('');
+    host.appendChild(box);
+    scrollToLatest();
   }
 
   // Postcode box for aerial / reception questions (TV, FM or DAB). The

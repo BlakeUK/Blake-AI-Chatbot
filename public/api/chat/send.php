@@ -246,6 +246,7 @@ $context_products = \Chat\Responder::selectCards($answer, $message, $context_pro
 json_out([
     'answer'          => $answer,
     'message_id'      => $bot_msg_id,
+    'downloads'       => $ctx['downloads'] ?? [],
     'action'          => empty($handoff['ok']) && !empty($ctx['postcode_form']) ? 'show_postcode_form' : null,
     'band'            => $ctx['postcode_form'] ?? null,
     'escalate'        => $escalate,

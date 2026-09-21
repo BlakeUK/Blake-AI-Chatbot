@@ -464,3 +464,13 @@
 .buk-carrier-choice { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .buk-carrier-choice button { border: 1px solid var(--buk-accent); background: transparent; color: inherit; border-radius: 16px; padding: 6px 14px; cursor: pointer; font: inherit; }
 .buk-carrier-choice button:hover { background: var(--buk-accent); color: #fff; }
+
+/* Download cards (forms and documents Max offers). */
+.buk-downloads { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.buk-download { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid var(--buk-accent, #415ba5); background: rgba(65,91,165,.12); color: inherit; text-decoration: none; }
+.buk-download:hover { background: rgba(65,91,165,.25); }
+.buk-download-icon { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; align-items: center; justify-content: center;
+  background: var(--buk-accent, #415ba5); color: #fff; flex-shrink: 0; }
+.buk-download-text { display: flex; flex-direction: column; line-height: 1.3; }
+.buk-download-text small { opacity: .75; font-size: 11px; }
