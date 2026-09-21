@@ -115,6 +115,72 @@ class Responder
                && (bool)preg_match('/\b(my (area|house|home|address|location)|where i live|round here|near me|best|which|need|recommend\w*)\b/i', $message);
     }
 
+    private const CARD_STOPWORDS = ['the','and','for','you','your','yours','have','has','had','any','are','can','could','would','should',
+        'what','which','who','how','why','when','where','does','did','sell','sells','selling','buy','need','want','looking','look',
+        'best','good','with','that','this','these','those','them','they','there','from','about','please','thanks','thank','much',
+        'price','cost','stock','available','get','got','its','our','out','all','one','some','use','used','using','work','works',
+        'will','just','also','into','than','then','make','made','like','know','tell','give','show','find','here','more','most'];
+
+    private static function cardWords(string $text): array
+    {
+        $out = [];
+        foreach (preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY) as $w) {
+            if (mb_strlen($w) < 3 || in_array($w, self::CARD_STOPWORDS, true)) continue;
+            $out[preg_replace('/(ies|es|s)$/u', '', $w) ?: $w] = true;
+        }
+        return array_keys($out);
+    }
+
+    // Product cards must be relevant to what was actually asked and
+    // answered. A card is kept when the answer links or names it, or when
+    // it shares a real word with the question; everything else (fibre
+    // leads under a "roman nose" answer) is dropped. When the answer points
+    // at a Blake category page and few cards survive, products from that
+    // category fill the gap. The current page's product always stays.
+    public static function selectCards(string $answer, string $question, array $products, ?string $currentCode = null, ?callable $categoryLookup = null): array
+    {
+        $qWords = self::cardWords($question);
+        $keep = [];
+        foreach ($products as $p) {
+            $code = (string)($p['product_code'] ?? '');
+            $url  = (string)($p['url'] ?? '');
+            if ($code !== '' && $code === $currentCode) { $keep[$code] = $p; continue; }
+            if (($code !== '' && stripos($answer, $code) !== false) || ($url !== '' && str_contains($answer, $url))) { $keep[$code] = $p; continue; }
+            $pWords = self::cardWords(($p['name'] ?? '') . ' ' . ($p['title'] ?? '') . ' ' . ($p['category_path'] ?? ''));
+            if ($qWords && array_intersect($qWords, $pWords)) { $keep[$code] = $p; }
+        }
+        if (count($keep) < 2 && preg_match_all('#https?://(?:www\.)?blake-uk\.com/(?:category/)?([a-z0-9-]+)\.html#i', $answer, $m)) {
+            $lookup = $categoryLookup ?? [self::class, 'productsInCategorySlug'];
+            foreach ($m[1] as $slug) {
+                foreach ($lookup($slug) as $p) {
+                    if (count($keep) >= 4) break 2;
+                    $keep[$p['product_code']] = $keep[$p['product_code']] ?? $p;
+                }
+            }
+        }
+        return array_slice(array_values($keep), 0, 4);
+    }
+
+    // Active products whose category path matches a category page slug
+    // (e.g. "cable-accessories-hole-tidies-brick-covers").
+    public static function productsInCategorySlug(string $slug): array
+    {
+        $words = array_values(array_filter(explode('-', strtolower($slug)), fn($w) => strlen($w) >= 4 && !in_array($w, ['category', 'products', 'accessories', 'aerials'], true)));
+        if (!$words) return [];
+        try {
+            $rows = db()->query("SELECT product_code, name, title, url, category_path, price_inc_vat, image_url FROM products WHERE active = 1 AND category_path IS NOT NULL")->fetchAll();
+        } catch (\Throwable $e) { return []; }
+        $scored = [];
+        foreach ($rows as $r) {
+            $path = strtolower((string)$r['category_path']);
+            $hits = 0;
+            foreach ($words as $w) if (str_contains($path, $w)) $hits++;
+            if ($hits >= min(2, count($words))) $scored[] = [$hits, $r];
+        }
+        usort($scored, fn($a, $b) => $b[0] <=> $a[0]);
+        return array_map(fn($x) => $x[1], array_slice($scored, 0, 4));
+    }
+
     public static function isAerialQuestion(string $message): bool
     {
         return (bool)preg_match('/\b(a[eé]ri[ae]l|aera\w*|ari[ae]l|antenn?a|antena|dipole|yagi)s?\b/iu', $message);

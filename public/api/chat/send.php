@@ -239,6 +239,9 @@ if ($escalate) {
     }
 }
 
+// Cards must match what was asked/answered (see Responder::selectCards).
+$context_products = \Chat\Responder::selectCards($answer, $message, $context_products, $ctx['current_product']['product_code'] ?? null);
+
 json_out([
     'answer'          => $answer,
     'message_id'      => $bot_msg_id,

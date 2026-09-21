@@ -267,3 +267,26 @@ test('reception answers only show the recommended kind of aerial, never unrelate
     assert_equal(['LP20', 'LP56', 'AMP'], array_column(\Chat\Responder::matchingAerials($hits, 'log-periodic', true), 'product_code'));
     assert_equal(5, count(\Chat\Responder::matchingAerials($hits, null)), 'no prediction: nothing is filtered');
 });
+
+test('product cards: unrelated products are dropped; category page in the answer fills the gap', function () {
+    $hits = [
+        ['product_code' => 'BFL-LCA', 'name' => '20m Single Mode Simplex OS2 Fibre Patch Lead', 'title' => '', 'url' => 'https://www.blake-uk.com/fibre.html', 'category_path' => '["Fibre"]'],
+        ['product_code' => 'AC19-5BL', 'name' => 'Blake 5mm Black CAT5e Cable Clips', 'title' => '', 'url' => 'https://www.blake-uk.com/clips.html', 'category_path' => '["Installation","Clips"]'],
+    ];
+    $answer = 'Yes, we do! See our [brick covers and hole tidies page](https://www.blake-uk.com/category/cable-accessories-hole-tidies-brick-covers.html).';
+    $lookup = fn($slug) => $slug === 'cable-accessories-hole-tidies-brick-covers'
+        ? [['product_code' => 'HT-BRN', 'name' => 'Brown Plastic Single Cable Hole Tidy (100)', 'title' => '', 'url' => 'https://www.blake-uk.com/brown-plastic-hole-tidy.html', 'category_path' => '["Installation","Hole Tidies & Brick Covers"]']]
+        : [];
+    $cards = \Chat\Responder::selectCards($answer, 'roman nose do you sell them', $hits, null, $lookup);
+    assert_equal(['HT-BRN'], array_column($cards, 'product_code'));
+});
+
+test('product cards: kept when they share a real word with the question, are named in the answer, or are the current product', function () {
+    $hits = [
+        ['product_code' => 'LP20', 'name' => '20 Element Mini-Log Periodic Aerial', 'title' => '', 'url' => 'https://www.blake-uk.com/lp20.html', 'category_path' => '["Aerials"]'],
+        ['product_code' => 'AMP4', 'name' => '4-Way Masthead Amplifier', 'title' => '', 'url' => 'https://www.blake-uk.com/amp4.html', 'category_path' => '["Distribution"]'],
+        ['product_code' => 'CUR1', 'name' => 'Something Unrelated', 'title' => '', 'url' => 'https://www.blake-uk.com/cur1.html', 'category_path' => '[]'],
+    ];
+    $cards = \Chat\Responder::selectCards('Try the 4-way amp (Code: AMP4).', 'which aerials do you have', $hits, 'CUR1', fn($s) => []);
+    assert_equal(['LP20', 'AMP4', 'CUR1'], array_column($cards, 'product_code'));
+});
