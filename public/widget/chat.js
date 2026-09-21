@@ -500,7 +500,9 @@
           addMessage('assistant', d.answer, d.products || []);
           if (d.message_id && !d.handoff) speak({ message_id: d.message_id });
         }
-        if (d.action === 'show_tracking_form') {
+        if (d.action === 'show_postcode_form') {
+          showPostcodeForm(d.band || 'tv');
+        } else if (d.action === 'show_tracking_form') {
           showTrackingForm(d.tracking_no, d.carrier);
         } else if (d.handoff && d.mode && d.mode !== 'ai') {
           // Max has passed the chat to the team (or is taking ticket
@@ -529,6 +531,40 @@
     messages.appendChild(wrap);
     messages.scrollTop = messages.scrollHeight;
     wrap.querySelector('.buk-track-submit').addEventListener('click', () => submitTracking(wrap, carrier));
+  }
+
+  // Postcode box for aerial / reception questions (TV, FM or DAB). The
+  // postcode goes back as an ordinary chat message worded for the band, so
+  // the reception predictor runs on it and it shows in the transcript.
+  const UK_POSTCODE = /^([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})$/i;
+  function showPostcodeForm(band) {
+    messages.querySelectorAll('.buk-postcode-wrap').forEach(n => n.remove());
+    const label = band === 'dab' ? 'Check my DAB signal' : band === 'fm' ? 'Check my FM signal' : 'Check my TV signal';
+    const wrap = document.createElement('div');
+    wrap.className = 'buk-msg buk-msg-assistant buk-postcode-wrap';
+    wrap.innerHTML = assistantRowHtml(`
+      <div class="buk-tracking-form buk-postcode-form">
+        <input type="text" class="buk-postcode-input" placeholder="Your postcode, e.g. S3 9PT" autocomplete="postal-code" maxlength="8" aria-label="Your postcode">
+        <div class="buk-postcode-err" role="alert"></div>
+        <button class="buk-track-submit buk-postcode-submit" type="button">${label}</button>
+      </div>
+    `);
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+    const inp = wrap.querySelector('.buk-postcode-input');
+    const err = wrap.querySelector('.buk-postcode-err');
+    const go = () => {
+      const m = inp.value.trim().toUpperCase().match(UK_POSTCODE);
+      if (!m) { err.textContent = 'Please enter a full UK postcode, e.g. S3 9PT.'; inp.focus(); return; }
+      const pc = m[1] + ' ' + m[2];
+      wrap.remove();
+      const what = band === 'dab' ? 'DAB radio reception' : band === 'fm' ? 'FM radio reception' : 'TV aerial reception';
+      input.value = `${what} for ${pc}`;
+      sendMessage();
+    };
+    wrap.querySelector('.buk-postcode-submit').addEventListener('click', () => { unlockAudio(); go(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); unlockAudio(); go(); } });
+    setTimeout(() => inp.focus(), 50);
   }
 
   async function submitTracking(formWrap, carrier) {

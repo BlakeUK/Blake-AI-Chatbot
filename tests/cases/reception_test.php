@@ -324,3 +324,23 @@ test('radio aerial question without a postcode still shows only that band\'s aer
     assert_true(in_array('T-DABY', $codes, true) || in_array('T-DABD', $codes, true), json_encode($codes));
     assert_true(!in_array('T-METER', $codes, true) && !in_array('T-AMP', $codes, true), json_encode($codes));
 });
+
+test('postcode box is requested for aerial/reception questions without a postcode, not otherwise', function () {
+    foreach (['whats the best DAB aerial for my area', 'which TV aerial do I need', 'best aeraIL for my house', 'what reception will I get round here'] as $m) {
+        assert_true(\Chat\Responder::needsPostcode($m), $m);
+    }
+    foreach (['best DAB aerial for WF3 1UG', 'where is my order', 'do you sell CAT6 leads', 'can I return an aerial for a refund'] as $m) {
+        assert_true(!\Chat\Responder::needsPostcode($m), $m);
+    }
+});
+
+test('buildContext marks the band for the postcode box and the prompt points the customer to it', function () {
+    \Knowledge\Embeddings::resetCaches();
+    $ctx = \Chat\Responder::buildContext('whats the best DAB aerial for my area', null, '');
+    assert_equal('dab', $ctx['postcode_form']);
+    assert_str_contains('POSTCODE BOX', \Chat\Responder::buildPrompt($ctx, null, null));
+    $tv = \Chat\Responder::buildContext('which TV aerial do I need', null, '');
+    assert_equal('tv', $tv['postcode_form']);
+    $none = \Chat\Responder::buildContext('do you sell CAT6 patch leads', null, '');
+    assert_equal(null, $none['postcode_form']);
+});

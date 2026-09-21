@@ -105,6 +105,16 @@ class Responder
         }));
     }
 
+    // An aerial / reception question with no postcode in it.
+    public static function needsPostcode(string $message): bool
+    {
+        if (\Reception\Postcode::extract($message)) return false;
+        if (preg_match('/\b(deliver\w*|dispatch\w*|order|tracking|invoice|refund|return)\b/i', $message)) return false;
+        return self::isAerialQuestion($message)
+            || (bool)preg_match('/\b(reception|signal|transmitter|which mast|point (my|the) aerial|freeview|dab|fm radio)\b/i', $message)
+               && (bool)preg_match('/\b(my (area|house|home|address|location)|where i live|round here|near me|best|which|need|recommend\w*)\b/i', $message);
+    }
+
     public static function isAerialQuestion(string $message): bool
     {
         return (bool)preg_match('/\b(a[eé]ri[ae]l|aera\w*|ari[ae]l|antenn?a|antena|dipole|yagi)s?\b/iu', $message);
@@ -234,7 +244,15 @@ class Responder
             try { $standardHits = \Knowledge\Standards::search($searchText, 3); } catch (\Throwable $e) { $standardHits = []; }
         }
 
+        // No postcode yet on an aerial/reception question: the widget shows a
+        // postcode box (like the tracking form) and Max points to it.
+        $postcodeForm = null;
+        if (!$reception && self::needsPostcode($message)) {
+            $postcodeForm = \Reception\Advisor::band($message, $recentText);
+        }
+
         return [
+            'postcode_form'     => $postcodeForm,
             'radio_hint'        => $radioHint,
             'standard_hits'     => $standardHits,
             'knowledge_hits'    => $knowledgeHits,
@@ -262,6 +280,10 @@ class Responder
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
             ));
+        }
+
+        if (!empty($ctx['postcode_form'])) {
+            $contextParts[] = "POSTCODE BOX: a postcode entry box is shown directly below your reply. Ask the customer to enter their full postcode in the box below (don't ask them to type it into the chat), and say it lets us check their local transmitter and signal. Keep the reply short.";
         }
 
         if (!empty($ctx['radio_hint'])) {

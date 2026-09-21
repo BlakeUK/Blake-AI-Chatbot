@@ -450,3 +450,8 @@
 /* While Max's speech is being generated (a few seconds): mouth glows softly. */
 #buk-max-avatar.buk-voice-loading #buk-max-mouth { opacity: 1; animation: buk-mouth-wait 1.1s ease-in-out infinite; }
 @keyframes buk-mouth-wait { 0%,100% { box-shadow: 0 0 0 .5px rgba(111,182,255,.3); } 50% { box-shadow: 0 0 0 .5px rgba(111,182,255,.9), 0 0 5px rgba(86,168,255,.8); } }
+
+/* Postcode box (reception questions) - shares the tracking form styles. */
+.buk-postcode-input { text-transform: uppercase; letter-spacing: .03em; }
+.buk-postcode-err { color: #e0665a; font-size: 12px; min-height: 0; }
+.buk-postcode-err:empty { display: none; }

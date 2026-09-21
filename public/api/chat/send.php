@@ -225,6 +225,8 @@ if ($escalate) {
 json_out([
     'answer'          => $answer,
     'message_id'      => $bot_msg_id,
+    'action'          => empty($handoff['ok']) && !empty($ctx['postcode_form']) ? 'show_postcode_form' : null,
+    'band'            => $ctx['postcode_form'] ?? null,
     'escalate'        => $escalate,
     'handoff'         => !empty($handoff['ok']) && ($handoff['mode'] ?? 'ai') !== 'ai',
     'mode'            => $handoff['mode'] ?? 'ai',
