@@ -619,6 +619,9 @@
           const eventLines = (d.events || []).map(e => `• ${e.date || ''} ${e.description || ''}`.trim()).join('\n');
           addMessage('assistant', `${d.carrier} tracking ${d.tracking}: ${d.current}` + (eventLines ? '\n' + eventLines : ''));
         }
+      } else if (d.status === 'handoff') {
+        // Passed to the Sales team; their notices arrive via live_poll.php.
+        if (d.mode && d.mode !== 'ai') enterLiveMode(d.mode);
       } else if (d.status === 'unknown_carrier') {
         showCarrierChoice(d.message, trackingNo, postcode);
       } else {

@@ -254,3 +254,16 @@ test('Smtp::message builds UTF-8 headers and a base64 body', function () {
 });
 
 test('(reset opening-hours override)', function () { \Support\Hours::$override = null; assert_true(true); });
+
+test('tracking we cannot do (DX / unrecognised) routes straight to Sales with a clear notice', function () {
+    \Support\Hours::$override = true;
+    sd_reset_presence();
+    sd_admin(9020, 'online', ['technical']);
+    sd_session('sd-trk', 'where is my delivery');
+    $r = \Chat\Handoff::start('sd-trk', 'tracking', null, 'sales');
+    assert_equal('live_requested', $r['mode']);
+    assert_equal('sales', $r['department']);
+    assert_str_contains("can't track that one automatically", sd_last('sd-trk', 'system'));
+    assert_str_contains('Sales team', sd_last('sd-trk', 'system'));
+    \Support\Hours::$override = null;
+});

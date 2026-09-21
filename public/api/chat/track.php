@@ -34,6 +34,23 @@ if (!$carrier) {
     $carrier = $detect['carrier'] ?? '';
 }
 
+// DX can't be tracked automatically, and unrecognised numbers can't either:
+// both go straight to the Sales team (a live chat in opening hours, or a
+// ticket out of hours / when nobody is free), with the details noted for
+// whoever picks it up.
+if ($carrier === '' || $carrier === 'dx') {
+    $pdo->prepare('INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$session_id, $carrier, $trackingNo, json_encode(['postcode' => $postcode]), 'passed_to_sales']);
+    $h = \Chat\Handoff::start($session_id, 'tracking', null, 'sales');
+    \Chat\Handoff::addNote($session_id, null, 'Delivery query: ' . ($carrier === 'dx' ? 'DX' : 'unrecognised') . " tracking number {$trackingNo}"
+        . ($postcode !== '' ? ', delivery postcode ' . strtoupper($postcode) : '') . '. Please check the delivery for the customer.');
+    json_out([
+        'status'  => 'handoff',
+        'mode'    => $h['mode'] ?? 'ai',
+        'message' => null,
+    ]);
+}
+
 if (!$carrier) {
     // Remembered so a follow-up like "it's DX" can finish the lookup.
     $pdo->prepare('INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status) VALUES (?, ?, ?, ?, ?)')

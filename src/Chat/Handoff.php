@@ -80,7 +80,9 @@ class Handoff
     // Hand the chat from Max to a department (reason: 'customer_request' |
     // 'ai_unsure'). Out of hours, or with nobody online, goes straight to
     // AI ticket intake instead of leaving the customer waiting.
-    public static function start(string $sessionId, string $reason = 'customer_request', ?int $now = null): array
+    // $department: route straight to this department (skips the AI
+    // classifier), e.g. delivery queries we can't track go to Sales.
+    public static function start(string $sessionId, string $reason = 'customer_request', ?int $now = null, ?string $department = null): array
     {
         $now = $now ?? time();
         $session = self::session($sessionId);
@@ -92,10 +94,14 @@ class Handoff
 
         $hist = db()->prepare("SELECT role, content FROM chat_messages WHERE session_id = ? AND role IN ('user','assistant') ORDER BY id");
         $hist->execute([$sessionId]);
-        try {
-            $routing = DepartmentClassifier::classify($hist->fetchAll());
-        } catch (\Throwable $e) {
-            $routing = ['department' => 'sales', 'confident' => false];
+        if ($department !== null && isset(self::DEPARTMENTS[$department])) {
+            $routing = ['department' => $department, 'confident' => true];
+        } else {
+            try {
+                $routing = DepartmentClassifier::classify($hist->fetchAll());
+            } catch (\Throwable $e) {
+                $routing = ['department' => 'sales', 'confident' => false];
+            }
         }
         $dept = $routing['department'];
         db()->prepare('UPDATE chat_sessions SET department = ?, updated_at = ? WHERE id = ?')->execute([$dept, $now, $sessionId]);
@@ -114,7 +120,8 @@ class Handoff
         $label = self::deptLabel($dept);
         self::say($sessionId, 'system',
             ($reason === 'ai_unsure' ? "I'd like one of our specialists to help with this, so I'm passing you to our {$label} team now."
-                                      : "I'm passing you to our {$label} team now.")
+             : ($reason === 'tracking' ? "I can't track that one automatically, so I'm passing you to our {$label} team, who can check your delivery for you."
+             : "I'm passing you to our {$label} team now."))
             . ' Someone will be with you shortly.');
         self::audit(null, 'chat_handoff', $sessionId, "{$dept} ({$reason})" . ($routing['confident'] ? '' : ', AI unsure'));
         if (!$routing['confident']) {
