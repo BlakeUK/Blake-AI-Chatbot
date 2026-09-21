@@ -26,3 +26,16 @@ test('DPD live lookup returns the real parcel code and a clean status', function
         \Tracking\LinkBuilder::$dpdFetcher = null;
     }
 });
+
+test('DX: a number DX cannot find is reported, with a pointer to the SO number', function () {
+    \Tracking\LinkBuilder::$dxFetcher = fn($u) => '<p>DX is unable to find the consignment relating to the details provided.</p>';
+    try {
+        assert_equal(false, \Tracking\LinkBuilder::dxFound('https://dx-track.com/track/blake.aspx?consno=L6778340&postcode=KT234BT'));
+        \Tracking\LinkBuilder::$dxFetcher = fn($u) => '<h2>Out for delivery</h2>';
+        assert_equal(true, \Tracking\LinkBuilder::dxFound('https://dx-track.com/track/blake.aspx?consno=SO1&postcode=X'));
+        \Tracking\LinkBuilder::$dxFetcher = fn($u) => '';
+        assert_equal(null, \Tracking\LinkBuilder::dxFound('x'));
+    } finally {
+        \Tracking\LinkBuilder::$dxFetcher = null;
+    }
+});

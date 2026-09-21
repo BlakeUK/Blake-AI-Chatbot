@@ -60,6 +60,18 @@ if ($carrier === 'dx') {
     }
 
     $link = \Tracking\LinkBuilder::dx($trackingNo, $postcode);
+    if (\Tracking\LinkBuilder::dxFound($link['url']) === false) {
+        $pdo->prepare('INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$session_id, 'dx', $trackingNo, json_encode($link), 'not_found']);
+        $isSo = (bool)preg_match('/^SO\d/i', $trackingNo);
+        json_out([
+            'status'  => 'not_found',
+            'message' => "DX couldn't find a delivery for {$trackingNo} with postcode " . strtoupper($postcode) . '. '
+                . ($isSo
+                    ? 'Please check the order number and postcode match your order confirmation - DX only shows deliveries from the last 30 days.'
+                    : 'Our DX tracking uses your Sales Order number, which starts with SO (e.g. SO201350-1). You\'ll find it at the top right of your order confirmation or the top left of your despatch note - please try that with your delivery postcode.'),
+        ]);
+    }
 
     $pdo->prepare('
         INSERT INTO tracking_requests (session_id, carrier, tracking_no, result, status)

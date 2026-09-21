@@ -83,6 +83,22 @@ class LinkBuilder
         ];
     }
 
+    // Checks a DX link actually finds something: DX redirects unknown
+    // numbers to TrackingError.aspx ("unable to find the consignment").
+    // true = found, false = DX says not found, null = couldn't check.
+    public static $dxFetcher = null;
+
+    public static function dxFound(string $url): ?bool
+    {
+        try {
+            $body = self::$dxFetcher ? (self::$dxFetcher)($url) : (\Http\SafeFetcher::get($url, 20, 8, 'Mozilla/5.0 (compatible; BlakeUKSupport/1.0)')['body'] ?? null);
+        } catch (\Throwable $e) {
+            return null;
+        }
+        if (!is_string($body) || $body === '') return null;
+        return !preg_match('/unable to find the consignment|TrackingError/i', $body);
+    }
+
     public static function dpd(string $consignmentNumber): array
     {
         $consignment = preg_replace('/\s+/', '', trim($consignmentNumber)) ?? '';
