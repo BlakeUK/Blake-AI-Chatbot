@@ -92,3 +92,29 @@ test('chat: a data sheet request offers the generated PDF', function () {
         assert_str_contains('TECHNICAL DATA SHEET', \Chat\Responder::buildPrompt($ctx, null, null));
     } finally { \Products\Leaflet::$fetcher = null; }
 });
+
+test('published PDFs on the product page are offered before the generated sheet', function () {
+    lf_product();
+    $page = lf_page() . '<a id="prod-down">Downloads</a><div><a href="https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf" target="_blank">Log-periodic_(BLA-LP).pdf (1B)</a></div>';
+    \Products\Leaflet::$fetcher = fn($u) => $page;
+    \Knowledge\Embeddings::resetCaches();
+    try {
+        assert_equal(['https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf' => 'Log-periodic (BLA-LP)'], \Products\Leaflet::pageDocuments($page));
+        $ctx = \Chat\Responder::buildContext('datasheet for BLA-TEST1', null, '');
+        $titles = array_column($ctx['downloads'], 'title');
+        assert_str_contains('Log-periodic (BLA-TEST1)', $titles[0]);
+        assert_str_contains('Technical data sheet', $titles[1]);
+    } finally { \Products\Leaflet::$fetcher = null; }
+});
+
+test('a data sheet asked for by description uses the product the search found', function () {
+    db()->prepare("INSERT OR REPLACE INTO products (product_code,name,title,url,category_path,summary_bullets,description,active)
+                   VALUES ('BLATLA11','Blake 1-Way TV & Radio Launch Amplifier','Class 1 FM/DAB/UHF Terrestrial Launch Amplifier','https://www.blake-uk.com/launch.html','[\"IRS\"]','[]','Launch amplifier for IRS systems.',1)")->execute();
+    \Products\Leaflet::$fetcher = fn($u) => lf_page('BLATLA11', 'Blake 1-Way TV & Radio Launch Amplifier');
+    \Knowledge\Embeddings::resetCaches();
+    try {
+        $ctx = \Chat\Responder::buildContext('do you have a datasheet on the launch amplifier that you do', null, '');
+        assert_str_contains('BLATLA11', $ctx['leaflet_note'] ?? '');
+        assert_true((bool)array_filter($ctx['downloads'], fn($d) => str_contains($d['url'], 'code=BLATLA11')));
+    } finally { \Products\Leaflet::$fetcher = null; }
+});

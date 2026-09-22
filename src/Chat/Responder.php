@@ -467,12 +467,27 @@ class Responder
         // product's own page (Products\Leaflet checks the page twice first).
         $leafletNote = null;
         if (self::wantsLeaflet($message)) {
+            // No code given ("a datasheet on the launch amplifier you do"):
+            // use the best product the search found, when it clearly matches
+            // the words in the question.
             $for = self::productFromText($message) ?? ($currentProduct ?: null) ?? self::productFromText($recentText);
+            if (!$for && $productHits) {
+                $qw = self::cardWords($message);
+                foreach ($productHits as $cand) {
+                    if (array_intersect($qw, self::cardWords(($cand['name'] ?? '') . ' ' . ($cand['title'] ?? '')))) { $for = $cand; break; }
+                }
+            }
             if ($for) {
                 try {
                     $v = \Products\Leaflet::verify($for['product_code']);
                 } catch (\Throwable $e) {
                     $v = ['ok' => false, 'error' => 'The data sheet service is unavailable.'];
+                }
+                // Documents already published on the product page come first.
+                $published = [];
+                try { $published = \Products\Leaflet::documentsFor($for['product_code']); } catch (\Throwable $e) {}
+                foreach ($published as $url => $title) {
+                    $downloads[] = ['id' => 0, 'title' => $title . ' (' . $for['product_code'] . ')', 'url' => $url, 'type' => 'PDF'];
                 }
                 if (!empty($v['ok'])) {
                     $downloads[] = [
@@ -481,7 +496,9 @@ class Responder
                         'url'   => \Knowledge\Downloads::baseUrl() . '/api/chat/leaflet.php?code=' . rawurlencode($for['product_code']),
                         'type'  => 'PDF',
                     ];
-                    $leafletNote = 'A technical data sheet for ' . $for['name'] . ' (' . $for['product_code'] . ') has been generated from its product page and is offered below. It carries the specification, images and a disclaimer, and no prices.';
+                    $leafletNote = 'For ' . $for['name'] . ' (' . $for['product_code'] . '): '
+                        . ($published ? count($published) . ' published document(s) and a ' : 'a ')
+                        . 'technical data sheet generated from its product page are offered as downloads below (specification, images, disclaimer, no prices). Name the product you are giving the sheet for, so the customer can confirm it is the right one.';
                 } else {
                     $leafletNote = 'No data sheet could be produced for ' . $for['product_code'] . ': ' . $v['error'] . ' Offer to pass the request to the team instead.';
                 }

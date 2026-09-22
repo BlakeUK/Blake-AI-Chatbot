@@ -151,6 +151,35 @@ class Leaflet
         return array_slice($list, 0, 3);
     }
 
+    // PDFs published on the product page itself (manuals, manufacturer data
+    // sheets). Preferred over a generated sheet when they exist.
+    public static function pageDocuments(string $html): array
+    {
+        $i = stripos($html, 'id="prod-down"');
+        if ($i === false) return [];
+        $seg = substr($html, $i, 6000);
+        preg_match_all('#<a[^>]+href="(https://cdn\\.blake-uk\\.com/[^"]+\\.pdf)"[^>]*>(.*?)</a>#is', $seg, $m, PREG_SET_ORDER);
+        $out = [];
+        foreach ($m as $x) {
+            $title = self::clean($x[2]);
+            $title = trim(preg_replace('/\\s*\\([^)]*\\)\\s*$/', '', $title));          // strip "(1B)" size
+            $title = trim(str_replace(['_', '.pdf'], [' ', ''], $title));
+            if ($title === '') continue;
+            $out[$x[1]] = $title;
+            if (count($out) >= 3) break;
+        }
+        return $out;
+    }
+
+    // Published documents for a product code (uses the same verified page).
+    public static function documentsFor(string $code): array
+    {
+        $p = \Knowledge\Search::byCode($code);
+        if (!$p || empty($p['url'])) return [];
+        $html = self::fetch($p['url']);
+        return $html ? self::pageDocuments($html) : [];
+    }
+
     // Returns the PDF path (cached per product + data hash).
     public static function generate(string $code): array
     {
