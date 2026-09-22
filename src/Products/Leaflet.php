@@ -115,6 +115,11 @@ class Leaflet
         }
         if (mb_strlen($text) < 40) $text = self::clean((string)($p['description'] ?? ''));
         $text = preg_replace('/£\s?[\d,.]+/', '', $text);            // never any prices
+        // Page text often runs sentences together ("...applications.Key Features:")
+        // and bullet markers glue onto words; tidy before taking the intro.
+        $text = preg_replace('/([.!?:])(?=[A-Z(])/u', '$1 ', $text);
+        $text = preg_replace('/\s*[•·]\s*/u', ' ', $text);
+        $text = preg_split('/\b(Key Features?|Features?:|Technical Specification|Downloads)\b/iu', $text)[0] ?? $text;
         // First two sentences, trimmed to a sensible intro length.
         $parts = preg_split('/(?<=[.!?])\s+/u', $text);
         $intro = trim(implode(' ', array_slice($parts, 0, 2)));
