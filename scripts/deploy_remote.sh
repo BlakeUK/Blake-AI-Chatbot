@@ -45,6 +45,12 @@ command -v sqlite3 >/dev/null 2>&1 || apt-get install -y -qq sqlite3
 
 # ── pdftotext (local PDF text extraction, see Knowledge\\FileExtractor) ──────
 command -v pdftotext >/dev/null 2>&1 || apt-get install -y -qq poppler-utils
+# PHP GD: image handling for generated product data sheets (Products\Leaflet).
+if ! php -m | grep -qi '^gd$'; then
+    info "Installing php-gd for data sheet images..."
+    apt-get install -y -qq php-gd >/dev/null 2>&1 || warn "php-gd install failed (data sheets will have no images)."
+    systemctl reload php8.3-fpm 2>/dev/null || systemctl restart php8.3-fpm 2>/dev/null || true
+fi
 
 # ── Cron ─────────────────────────────────────────────────────────────────────
 if ! command -v crontab >/dev/null 2>&1; then

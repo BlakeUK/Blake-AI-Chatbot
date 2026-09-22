@@ -225,6 +225,11 @@ class Responder
         }, $answer) ?? $answer;
     }
 
+    public static function wantsLeaflet(string $message): bool
+    {
+        return (bool)preg_match('/\b(leaflet|data ?sheet|datasheet|spec(ification)? ?sheet|tech(nical)? ?(sheet|data|leaflet|document)|product sheet|brochure|cut ?sheet)\b/i', $message);
+    }
+
     public static function wantsAlternative(string $message): bool
     {
         return (bool)preg_match('/\b(alt[ea]r?n?[ae]?tive?s?|alterative|alternative|similar|instead|equivalent|substitute|replacement|comparable|other option|another (one|option)|swap)\b/i', $message);
@@ -458,7 +463,35 @@ class Responder
         $downloads = [];
         try { $downloads = \Knowledge\Downloads::forQuestion($message, $knowledgeHits); } catch (\Throwable $e) {}
 
+        // "Can I have the data sheet for the LP20K?" -> generate one from the
+        // product's own page (Products\Leaflet checks the page twice first).
+        $leafletNote = null;
+        if (self::wantsLeaflet($message)) {
+            $for = self::productFromText($message) ?? ($currentProduct ?: null) ?? self::productFromText($recentText);
+            if ($for) {
+                try {
+                    $v = \Products\Leaflet::verify($for['product_code']);
+                } catch (\Throwable $e) {
+                    $v = ['ok' => false, 'error' => 'The data sheet service is unavailable.'];
+                }
+                if (!empty($v['ok'])) {
+                    $downloads[] = [
+                        'id'    => 0,
+                        'title' => 'Technical data sheet: ' . $for['name'] . ' (' . $for['product_code'] . ')',
+                        'url'   => \Knowledge\Downloads::baseUrl() . '/api/chat/leaflet.php?code=' . rawurlencode($for['product_code']),
+                        'type'  => 'PDF',
+                    ];
+                    $leafletNote = 'A technical data sheet for ' . $for['name'] . ' (' . $for['product_code'] . ') has been generated from its product page and is offered below. It carries the specification, images and a disclaimer, and no prices.';
+                } else {
+                    $leafletNote = 'No data sheet could be produced for ' . $for['product_code'] . ': ' . $v['error'] . ' Offer to pass the request to the team instead.';
+                }
+            } else {
+                $leafletNote = 'The customer asked for a data sheet but no product could be identified. Ask which product (name or code).';
+            }
+        }
+
         return [
+            'leaflet_note'      => $leafletNote,
             'downloads'         => $downloads,
             'alternatives'      => $likeForLike,
             'alternatives_for'  => $altFor,
@@ -490,6 +523,10 @@ class Responder
                 fn($h) => $h['chunk_text'] . ($h['url'] ? "\nSource: " . $h['url'] : ''),
                 $ctx['knowledge_hits']
             ));
+        }
+
+        if (!empty($ctx['leaflet_note'])) {
+            $contextParts[] = 'TECHNICAL DATA SHEET: ' . $ctx['leaflet_note'];
         }
 
         if (!empty($ctx['downloads'])) {
