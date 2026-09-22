@@ -120,6 +120,17 @@ class Leaflet
         $text = preg_replace('/([.!?:])(?=[A-Z(])/u', '$1 ', $text);
         $text = preg_replace('/\s*[•·]\s*/u', ' ', $text);
         $text = preg_split('/\b(Key Features?|Features?:|Technical Specification|Downloads)\b/iu', $text)[0] ?? $text;
+        // A heading often runs straight into the first sentence
+        // ("...Launch AmplifierOur triple-filtered..."): split it, then drop
+        // the heading when it just repeats the product name.
+        $text = preg_replace('/([a-z])(Our|The|This|These|An|It|Designed|Ideal|Supplied|Featuring|With|Perfect)\b/u', '$1 $2', $text);
+        $w = fn(string $t) => array_filter(preg_split('/[^a-z0-9]+/i', mb_strtolower($t), -1, PREG_SPLIT_NO_EMPTY), fn($x) => mb_strlen($x) > 2);
+        $first = preg_split('/(?<=[.!?])\s+|\s(?=(?:Our|The|This)\b)/u', $text)[0] ?? '';
+        $nameWords = $w((string)($p['name'] ?? ''));
+        $firstWords = $w($first);
+        if ($firstWords && $nameWords && count(array_intersect($firstWords, $nameWords)) / count($firstWords) >= 0.5) {
+            $text = trim(mb_substr($text, mb_strlen($first)));
+        }
         // First two sentences, trimmed to a sensible intro length.
         $parts = preg_split('/(?<=[.!?])\s+/u', $text);
         $intro = trim(implode(' ', array_slice($parts, 0, 2)));
@@ -128,9 +139,41 @@ class Leaflet
 
     private static function bullets(string $html, array $p): array
     {
+        // The product page's own "Key Features" bullets are the best source:
+        // they carry the real figures (noise figure, power, test point).
+        $page = self::pageBullets($html);
+        if (count($page) >= 2) return $page;
         $b = json_decode((string)($p['summary_bullets'] ?? '[]'), true) ?: [];
         $b = array_values(array_filter(array_map(fn($x) => self::clean((string)$x), $b), fn($x) => $x !== '' && !preg_match('/£|price/i', $x)));
         return array_slice($b, 0, 8);
+    }
+
+    public static function pageBullets(string $html): array
+    {
+        $d = stripos($html, 'id="prod-desc"');
+        if ($d === false) return [];
+        $seg = substr($html, $d, 9000);
+        $items = [];
+        if (preg_match_all('#<li[^>]*>(.*?)</li>#is', $seg, $m)) {
+            foreach ($m[1] as $li) $items[] = self::clean($li);
+        }
+        if (count($items) < 2) {
+            $text = self::clean($seg);
+            $text = preg_replace('/^id="prod-desc">\s*Product Description\s*/i', '', $text);
+            foreach (preg_split('/\s*[•·]\s*/u', $text) as $k => $part) {
+                if ($k === 0) continue;                       // lead-in text before the first bullet
+                $items[] = trim($part);
+            }
+        }
+        $out = [];
+        foreach ($items as $i) {
+            $i = trim(preg_replace('/\s+/u', ' ', $i));
+            $i = preg_split('/\b(Technical Specification|Downloads|Reviews)\b/iu', $i)[0];
+            if (mb_strlen($i) < 8 || preg_match('/£|price|vat/i', $i)) continue;
+            $out[] = mb_substr($i, 0, 150);
+            if (count($out) >= 8) break;
+        }
+        return $out;
     }
 
     // Gallery images for this product (CDN "large" images), main one first.

@@ -47,9 +47,11 @@ command -v sqlite3 >/dev/null 2>&1 || apt-get install -y -qq sqlite3
 command -v pdftotext >/dev/null 2>&1 || apt-get install -y -qq poppler-utils
 # PHP GD: image handling for generated product data sheets (Products\Leaflet).
 if ! php -m | grep -qi '^gd$'; then
-    info "Installing php-gd for data sheet images..."
-    apt-get install -y -qq php-gd >/dev/null 2>&1 || warn "php-gd install failed (data sheets will have no images)."
-    systemctl reload php8.3-fpm 2>/dev/null || systemctl restart php8.3-fpm 2>/dev/null || true
+    PHPV=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
+    info "Installing php${PHPV}-gd for data sheet images..."
+    apt-get install -y -qq "php${PHPV}-gd" >/dev/null 2>&1 || apt-get install -y -qq php-gd >/dev/null 2>&1 || warn "php-gd install failed (data sheets will have no images)."
+    systemctl reload "php${PHPV}-fpm" 2>/dev/null || systemctl restart "php${PHPV}-fpm" 2>/dev/null || true
+    php -m | grep -qi '^gd$' && info "php-gd ready." || warn "php-gd still missing."
 fi
 
 # ── Cron ─────────────────────────────────────────────────────────────────────
