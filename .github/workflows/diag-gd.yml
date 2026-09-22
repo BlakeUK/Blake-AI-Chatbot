@@ -1,0 +1,21 @@
+name: Diagnose PHP GD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "cli: $(php -r 'echo extension_loaded("gd") ? "gd yes" : "gd NO";')"
+            echo "fpm ini: $(ls /etc/php/*/fpm/conf.d/ | grep -i gd || echo none)"
+            dpkg -l | grep -c php8.3-gd || true
+            apt-get install -y -qq php8.3-gd >/dev/null 2>&1 && echo installed
+            systemctl reload php8.3-fpm && echo reloaded
+            echo "cli after: $(php -r 'echo extension_loaded("gd") ? "gd yes" : "gd NO";')"
