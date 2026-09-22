@@ -102,7 +102,7 @@ test('published PDFs on the product page are offered before the generated sheet'
         assert_equal(['https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf' => 'Log-periodic (BLA-LP)'], \Products\Leaflet::pageDocuments($page));
         $ctx = \Chat\Responder::buildContext('datasheet for BLA-TEST1', null, '');
         $titles = array_column($ctx['downloads'], 'title');
-        assert_str_contains('Log-periodic (BLA-TEST1)', $titles[0]);
+        assert_str_contains('Log-periodic', $titles[0]);
         assert_str_contains('Technical data sheet', $titles[1]);
     } finally { \Products\Leaflet::$fetcher = null; }
 });

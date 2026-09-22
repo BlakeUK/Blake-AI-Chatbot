@@ -487,7 +487,8 @@ class Responder
                 $published = [];
                 try { $published = \Products\Leaflet::documentsFor($for['product_code']); } catch (\Throwable $e) {}
                 foreach ($published as $url => $title) {
-                    $downloads[] = ['id' => 0, 'title' => $title . ' (' . $for['product_code'] . ')', 'url' => $url, 'type' => 'PDF'];
+                    $label = str_contains(strtoupper($title), strtoupper($for['product_code'])) ? $title : $title . ' (' . $for['product_code'] . ')';
+                    $downloads[] = ['id' => 0, 'title' => $label, 'url' => $url, 'type' => 'PDF'];
                 }
                 if (!empty($v['ok'])) {
                     $downloads[] = [
