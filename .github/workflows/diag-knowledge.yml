@@ -1,22 +1,19 @@
-name: Diagnose knowledge base
+name: Diagnose product knowledge
 
 on:
   workflow_dispatch:
     inputs:
-      recent:
-        description: "Number of recent files to report"
-        default: "8"
+      code:
+        description: "Product code"
+        default: "BLATLA11"
 
 jobs:
-  diag:
+  k:
     runs-on: ubuntu-latest
     steps:
-      - name: Knowledge base report (read-only)
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          command_timeout: 10m
-          script: |
-            cd /var/www/chat && runuser -u www-data -- php scripts/diag/knowledge_report.php "${{ github.event.inputs.recent }}" 2>&1 || php scripts/diag/knowledge_report.php "${{ github.event.inputs.recent }}" 2>&1
+          script: cd /var/www/chat && su -s /bin/sh www-data -c "php scripts/diag/product_knowledge.php '${{ github.event.inputs.code }}'"
