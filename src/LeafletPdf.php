@@ -202,24 +202,39 @@ class LeafletPdf extends FPDF
             $this->SetY($maxY + 3);
         }
 
-        // Source + disclaimer
-        $this->SetFillColor(238, 242, 250);
+        // Disclaimer (the sources are recorded internally, not printed).
         $y = $this->GetY();
-        $this->Rect(14, $y, 182, 9, 'F');
-        $this->SetXY(16, $y + 2);
-        $this->SetFont('Helvetica', 'B', 8.5);
-        $this->SetTextColor(...self::BLUE);
-        $this->Cell(24, 5, $this->t('SOURCE'));
-        $this->SetFont('Helvetica', '', 8);
-        $this->SetTextColor(40);
-        $src = $d['url'] . (!empty($d['doc_files']) ? '   +  ' . implode(', ', array_slice($d['doc_files'], 0, 2)) : '');
-        $this->Cell(150, 5, $this->t(mb_substr($src, 0, 135)));
-        $this->SetY($y + 12);
+        $this->SetY($y + 2);
         $this->SetFont('Helvetica', '', 7);
         $this->SetTextColor(...self::GREY_TX);
         $this->SetX(14);
         $this->MultiCell(182, 3.6, $this->t(\Products\Leaflet::DISCLAIMER));
         $this->SetTextColor(0);
+
+        // Measured performance: charts from this product's own test reports.
+        if (!empty($d['charts'])) {
+            $this->AddPage();
+            $this->SetFont('Helvetica', 'B', 14);
+            $this->SetTextColor(...self::BLUE);
+            $this->SetX(14);
+            $this->Cell(182, 8, $this->t('Measured performance'));
+            $this->Ln(11);
+            $x = 14; $y = $this->GetY(); $cw = 89; $chh = 62;
+            foreach (array_slice($d['charts'], 0, 4) as $i => $c) {
+                $this->fit($c['file'], $x, $y, $cw, $chh);
+                $this->SetXY($x, $y + $chh + 1);
+                $this->SetFont('Helvetica', '', 7);
+                $this->SetTextColor(...self::GREY_TX);
+                $this->Cell($cw, 4, $this->t(mb_substr($c['caption'], 0, 70)), 0, 0, 'C');
+                if ($i % 2 === 0) { $x += $cw + 4; } else { $x = 14; $y += $chh + 10; }
+            }
+            $this->SetY(max($y + $chh + 12, 200));
+            $this->SetFont('Helvetica', '', 7);
+            $this->SetTextColor(...self::GREY_TX);
+            $this->SetX(14);
+            $this->MultiCell(182, 3.6, $this->t('Charts are reproduced from Blake UK test reports for this product. ' . \Products\Leaflet::DISCLAIMER));
+            $this->SetTextColor(0);
+        }
     }
 
     // Draws an image inside a box, keeping its proportions and centring it.

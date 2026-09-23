@@ -17,7 +17,7 @@ namespace Products;
 
 class Leaflet
 {
-    public const LAYOUT_VERSION = '2026-09-23.2';
+    public const LAYOUT_VERSION = '2026-09-23.3';
 
     public const DISCLAIMER = 'Specifications are taken from the Blake UK product page shown above on the date of issue and are published for guidance only. '
         . 'Dimensions and weights are nominal and may change without notice. If this product is intended for a mission-critical, safety-related or contractual application, '
@@ -88,6 +88,7 @@ class Leaflet
             'intro'      => self::intro($html, $p),
             'specs'      => $specs,
             'doc_files'  => $fromDocs['files'],
+            'charts'     => self::docCharts($p['product_code']),
             'bullets'    => self::bullets($html, $p),
             'images'     => self::images($html, $p),
             'code_on_page' => $codeOnPage,
@@ -359,6 +360,103 @@ class Leaflet
                 ->execute([$key, json_encode(['hash' => $hash, 'specs' => $specs]), time()]);
         } catch (\Throwable $e) {}
         return ['specs' => $specs, 'files' => $src['files']];
+    }
+
+    // Charts and measured-performance pages from this product's own indexed
+    // PDFs (test reports, technical characteristics). The pages are rendered
+    // as images and trimmed, so graphs drawn as vectors are captured too.
+    // Only files whose NAME contains the product code are used, so another
+    // product's measurements can never appear.
+    public const CHART_WORDS = '/\b(gain|noise figure|selectivity|MER|return loss|frequency response|group delay|radiation pattern|VSWR|insertion loss)\b/i';
+
+    public static function docCharts(string $code, int $max = 4): array
+    {
+        if (!self::hasTool('pdftoppm') || !self::hasTool('pdftotext')) return [];
+        try {
+            $q = db()->prepare("SELECT id, filename, stored_path FROM knowledge_files
+                                WHERE status = 'indexed' AND upper(filename) LIKE ? AND lower(mime_type) LIKE '%pdf%'
+                                ORDER BY (lower(filename) LIKE '%test report%' OR lower(filename) LIKE '%graph%') DESC, id DESC LIMIT 3");
+            $q->execute(['%' . strtoupper($code) . '%']);
+            $files = $q->fetchAll();
+        } catch (\Throwable $e) { return []; }
+
+        $out = [];
+        foreach ($files as $f) {
+            $path = (string)$f['stored_path'];
+            if (!is_file($path)) continue;
+            $pages = (int)trim((string)shell_exec('pdfinfo ' . escapeshellarg($path) . ' 2>/dev/null | awk \'/^Pages:/{print $2}\''));
+            $pages = max(1, min($pages ?: 1, 12));
+            for ($p = 1; $p <= $pages && count($out) < $max; $p++) {
+                $text = (string)shell_exec('pdftotext -f ' . $p . ' -l ' . $p . ' ' . escapeshellarg($path) . ' - 2>/dev/null');
+                if (!preg_match(self::CHART_WORDS, $text)) continue;
+                if (stripos($text, $code) === false && stripos((string)$f['filename'], $code) === false) continue;
+                $img = self::renderPage($path, $p);
+                if ($img) $out[] = ['file' => $img, 'caption' => self::clean((string)$f['filename']) . ' - page ' . $p];
+            }
+            if (count($out) >= $max) break;
+        }
+        return $out;
+    }
+
+    private static function hasTool(string $bin): bool
+    {
+        return trim((string)shell_exec('command -v ' . escapeshellarg($bin) . ' 2>/dev/null')) !== '';
+    }
+
+    // One page of a PDF as a trimmed JPEG (cached on the file's timestamp).
+    public static function renderPage(string $pdf, int $page): ?string
+    {
+        $cache = self::dir() . '/doc-' . sha1($pdf . '|' . $page . '|' . (string)@filemtime($pdf)) . '.jpg';
+        if (is_file($cache)) return $cache;
+        $tmp = self::dir() . '/tmp-' . bin2hex(random_bytes(6));
+        shell_exec('pdftoppm -jpeg -r 110 -f ' . $page . ' -l ' . $page . ' ' . escapeshellarg($pdf) . ' ' . escapeshellarg($tmp) . ' 2>/dev/null');
+        $made = glob($tmp . '*.jpg') ?: [];
+        if (!$made) return null;
+        $src = $made[0];
+        if (function_exists('imagecreatefromjpeg')) {
+            $im = @imagecreatefromjpeg($src);
+            if ($im) {
+                $trim = self::trimWhite($im);
+                imagejpeg($trim, $cache, 82);
+                imagedestroy($trim);
+                if ($trim !== $im) imagedestroy($im);
+                @unlink($src);
+                return is_file($cache) ? $cache : null;
+            }
+        }
+        rename($src, $cache);
+        return $cache;
+    }
+
+    // Crops the white margin off a rendered page.
+    private static function trimWhite(\GdImage $im): \GdImage
+    {
+        $w = imagesx($im); $h = imagesy($im);
+        $isInk = function (int $x, int $y) use ($im): bool {
+            $c = imagecolorat($im, $x, $y);
+            return ((($c >> 16) & 255) + (($c >> 8) & 255) + ($c & 255)) / 3 < 235;
+        };
+        $step = 2;
+        $top = 0; $bottom = $h - 1; $left = 0; $right = $w - 1;
+        $rowInk = function (int $y) use ($w, $isInk, $step): bool {
+            for ($x = 0; $x < $w; $x += $step) if ($isInk($x, $y)) return true;
+            return false;
+        };
+        $colInk = function (int $x) use ($h, $isInk, $step): bool {
+            for ($y = 0; $y < $h; $y += $step) if ($isInk($x, $y)) return true;
+            return false;
+        };
+        while ($top < $h - 1 && !$rowInk($top)) $top += $step;
+        while ($bottom > $top + 10 && !$rowInk($bottom)) $bottom -= $step;
+        while ($left < $w - 1 && !$colInk($left)) $left += $step;
+        while ($right > $left + 10 && !$colInk($right)) $right -= $step;
+        $pad = 8;
+        $x = max(0, $left - $pad); $y = max(0, $top - $pad);
+        $cw = min($w - $x, $right - $left + 2 * $pad);
+        $ch = min($h - $y, $bottom - $top + 2 * $pad);
+        if ($cw < 50 || $ch < 50) return $im;
+        $crop = imagecrop($im, ['x' => $x, 'y' => $y, 'width' => $cw, 'height' => $ch]);
+        return $crop ?: $im;
     }
 
     // Returns the PDF path (cached per product + data hash).

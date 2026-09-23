@@ -234,7 +234,9 @@ $pdo->prepare('UPDATE chat_sessions SET updated_at=? WHERE id=?')->execute([time
 $handoff = null;
 if ($escalate) {
     try {
-        $handoff = \Chat\Handoff::start($session_id, 'ai_unsure');
+        // If the customer used a trade term we know, pass them to the
+        // department that owns it rather than letting the classifier guess.
+        $handoff = \Chat\Handoff::start($session_id, 'ai_unsure', null, $ctx['term_department'] ?? null);
     } catch (\Throwable $e) {
         error_log('send.php: handoff failed: ' . $e->getMessage());
     }

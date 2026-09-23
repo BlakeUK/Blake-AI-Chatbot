@@ -164,3 +164,43 @@ test('spellings of "tech sheet" are all recognised', function () {
     }
     foreach (['what sheet metal do you use', 'which aerial do I need'] as $m) assert_true(!\Chat\Responder::wantsLeaflet($m), $m);
 });
+
+test('charts are taken only from this product\'s own test report, and the source line is not printed', function () {
+    lf_product();
+    // A stand-in "test report" PDF with a chart page and a page about another product.
+    require_once ROOT . '/src/LeafletPdf.php';
+    $pdf = new FPDF();
+    $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 12);
+    $pdf->Cell(0, 8, 'EQUIPMENT TEST REPORT BLA-TEST1', 0, 1);
+    $pdf->Cell(0, 8, 'Noise figure and Gain measurements', 0, 1);
+    $pdf->Rect(20, 60, 120, 60);
+    $pdf->Line(20, 120, 140, 70);
+    $pdf->AddPage();
+    $pdf->Cell(0, 8, 'Nothing measurable on this page', 0, 1);
+    $path = sys_get_temp_dir() . '/lf-report-' . bin2hex(random_bytes(4)) . '.pdf';
+    $pdf->Output('F', $path);
+    db()->prepare("INSERT INTO knowledge_files (filename, mime_type, stored_path, status) VALUES ('BLA-TEST1 test report.pdf','application/pdf',?,'indexed')")->execute([$path]);
+    $fid = (int)db()->lastInsertId();
+    db()->prepare("INSERT INTO knowledge_files (filename, mime_type, stored_path, status) VALUES ('OTHER-PRODUCT test report.pdf','application/pdf',?,'indexed')")->execute([$path]);
+    $other = (int)db()->lastInsertId();
+    \Products\Leaflet::$fetcher = fn($u) => lf_page();
+    try {
+        $charts = \Products\Leaflet::docCharts('BLA-TEST1');
+        assert_equal(1, count($charts), 'only the chart page of the matching file');
+        assert_str_contains('BLA-TEST1 test report.pdf - page 1', $charts[0]['caption']);
+        assert_true(is_file($charts[0]['file']) && filesize($charts[0]['file']) > 1000);
+        assert_equal([], \Products\Leaflet::docCharts('NOTHING-1'));
+
+        $r = \Products\Leaflet::generate('BLA-TEST1');
+        assert_true($r['ok']);
+        $text = shell_exec('pdftotext ' . escapeshellarg($r['path']) . ' - 2>/dev/null') ?: '';
+        assert_true(!str_contains($text, 'SOURCE'), 'the source line is no longer printed');
+        assert_str_contains('Measured performance', $text);
+        assert_str_contains('mission-critical', $text);
+        @unlink($r['path']);
+    } finally {
+        \Products\Leaflet::$fetcher = null;
+        db()->exec("DELETE FROM knowledge_files WHERE id IN ({$fid}, {$other})");
+        @unlink($path);
+    }
+});

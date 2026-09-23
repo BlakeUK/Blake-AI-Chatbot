@@ -340,6 +340,10 @@ class Responder
         // to search on by themselves, so the retrieval query also includes
         // the customer's previous message (conversation-aware retrieval).
         $searchText = self::retrievalQuery($message, $recentText);
+        // Trade terminology: what the customer calls it -> what we call it.
+        $terms = [];
+        try { $terms = \Knowledge\Terms::match($message . ' ' . $recentText); } catch (\Throwable $e) {}
+        if ($terms) $searchText = \Knowledge\Terms::expand($searchText, $terms);
         $knowledgeHits = \Knowledge\Search::query($searchText, 5, $categoryHint);
         $productHits   = \Knowledge\Search::products($searchText, 3, $categoryHint);
 
@@ -510,6 +514,8 @@ class Responder
         }
 
         return [
+            'terms'             => $terms,
+            'term_department'   => $terms ? \Knowledge\Terms::department($terms) : null,
             'leaflet_note'      => $leafletNote,
             'downloads'         => $downloads,
             'alternatives'      => $likeForLike,
@@ -546,6 +552,10 @@ class Responder
 
         if (!empty($ctx['leaflet_note'])) {
             $contextParts[] = 'TECHNICAL DATA SHEET: ' . $ctx['leaflet_note'] . ' Never write document URLs yourself: refer to the download buttons below your reply.';
+        }
+
+        if (!empty($ctx['terms'])) {
+            $contextParts[] = \Knowledge\Terms::promptBlock($ctx['terms']);
         }
 
         if (!empty($ctx['downloads'])) {

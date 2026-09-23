@@ -331,6 +331,13 @@ else
     warn "Live-chat/presence schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='term_aliases';" | grep -q term_aliases; then
+    info "Applying terminology schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_terms.sql"
+else
+    warn "Terminology schema already applied — skipping."
+fi
+
 if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(knowledge_files);" | grep -q "|public_download|"; then
     info "Applying downloads schema migration..."
     sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_downloads.sql"
@@ -390,6 +397,9 @@ if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_product_pages.php")
 else
     warn "Product-page extraction cron job already installed — skipping."
 fi
+
+# ── Trade terminology: seed the known customer words ─────────────────────────
+su -s /bin/sh www-data -c "php $WEBROOT/scripts/setup_terms.php" || warn "Terminology seed failed (non-fatal)."
 
 # ── Customer downloads: make sure the known public forms are offered ─────────
 su -s /bin/sh www-data -c "php $WEBROOT/scripts/setup_downloads.php" || warn "Downloads setup failed (non-fatal)."

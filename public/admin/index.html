@@ -183,6 +183,7 @@ html.embedded [data-embed-hide]{display:none!important}
   <button data-role="admin" onclick="switchTab('models',this)">Model Settings</button>
   <button data-role="admin" onclick="switchTab('apiusage',this)">API Usage</button>
   <button data-role="admin" onclick="switchTab('gbilling',this)">Google Billing</button>
+  <button onclick="switchTab('terms',this)">Terminology</button>
   <button data-role="admin" onclick="switchTab('email',this)">Email</button>
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
@@ -583,6 +584,32 @@ html.embedded [data-embed-hide]{display:none!important}
     </div>
   </div>
 
+  <!-- ── TERMINOLOGY ── -->
+  <div id="tab-terms" class="tab">
+    <div class="card">
+      <h2>Add a customer term</h2>
+      <p style="color:#adb4ba;font-size:13px;margin-bottom:10px">What customers call things, and what we call them. Max uses this when the wording isn't ours: it widens the search, explains the difference between things that sound alike (an amplifier is powered; an SPL204 splitter is passive), and decides which department gets the chat if we still can't help.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Our name for it *</label><input id="tm-term" placeholder="External cable entry cover (brick cover)"></div>
+        <div><label>What customers call it * (comma separated)</label><input id="tm-aliases" placeholder="roman nose, blast plate, hole tidy"></div>
+        <div><label>Extra words to search with</label><input id="tm-search" placeholder="cable entry cover, brick cover"></div>
+        <div><label>Example product codes</label><input id="tm-codes" placeholder="SPL204, SPL408"></div>
+        <div style="grid-column:1/3"><label>Note for Max (what it is, and what it is NOT)</label><textarea id="tm-note" rows="2" placeholder="Passive: divides the signal and loses level. Not an amplifier."></textarea></div>
+        <div><label>Pass to department if we still can't help</label><select id="tm-dept"></select></div>
+        <div style="display:flex;align-items:flex-end;gap:8px"><button class="btn btn-primary" onclick="saveTerm()">Save term</button><button class="btn btn-secondary" onclick="clearTermForm()">Clear</button><input type="hidden" id="tm-id"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Test a phrase</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="tm-test" placeholder="e.g. do you sell roman nose" style="flex:1;min-width:240px"><button class="btn btn-secondary" onclick="testTerm()">Test</button></div>
+      <div id="tm-test-out" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Terms (<span id="tm-count">0</span>)</h2>
+      <div style="overflow-x:auto"><table id="tm-table"><thead><tr><th>Our name</th><th>Customers say</th><th>Note</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+
   <!-- ── GOOGLE BILLING ── -->
   <div id="tab-gbilling" class="tab">
     <div class="card">
@@ -934,6 +961,7 @@ function switchTab(name,el){
   el.classList.add('active');
   if(name==='apiusage')loadApiUsage();
   if(name==='gbilling')loadGBilling(false);
+  if(name==='terms')loadTerms();
   if(name==='email')loadEmailSettings();
   if(name==='files')loadStandards();
 }
@@ -956,6 +984,47 @@ async function testStandards(){
   if(r.error){out.innerHTML=`<div class="alert alert-err">${esc(r.error)}</div>`;return;}
   out.innerHTML=`<div class="alert ${r.very_technical?'alert-ok':'alert-warn'}">${r.very_technical?'Very technical: Max will consult the standards for this.':'Not very technical: Max will NOT use the standards for this (below is what would match).'}</div>`
     + r.hits.map(h=>`<div class="note-item" style="background:#262b31;border:1px solid #3a4048;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:12px;white-space:pre-wrap">${esc(h.text)}</div>`).join('');
+}
+
+// ── Terminology ──────────────────────────────────────────────────────────────
+let termRows=[];
+async function loadTerms(){
+  const d=await get(API+'/terms.php'); termRows=d.terms||[];
+  const sel=document.getElementById('tm-dept');
+  if(sel&&!sel.options.length)sel.innerHTML='<option value="">(let Max decide)</option>'+Object.entries(d.departments||{}).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('');
+  document.getElementById('tm-count').textContent=termRows.length;
+  document.querySelector('#tm-table tbody').innerHTML=termRows.length?termRows.map(r=>`<tr>
+    <td><b>${esc(r.term)}</b>${r.product_codes?`<br><small style="color:#adb4ba">${esc(r.product_codes)}</small>`:''}</td>
+    <td style="font-size:12px">${esc(r.aliases)}</td>
+    <td style="font-size:12px;max-width:320px">${esc(r.note||'')}</td>
+    <td>${esc(r.department||'—')}</td>
+    <td>${+r.active?'<span style="color:#7fd19b">active</span>':'<span style="color:#adb4ba">off</span>'}</td>
+    <td>${canEdit()?`<button class="btn btn-secondary" onclick="editTerm(${r.id})">Edit</button> <button class="btn btn-danger" onclick="deleteTerm(${r.id})">Delete</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#adb4ba">No terms yet.</td></tr>';
+}
+function clearTermForm(){['tm-id','tm-term','tm-aliases','tm-search','tm-codes','tm-note'].forEach(i=>document.getElementById(i).value='');document.getElementById('tm-dept').value='';}
+function editTerm(id){const r=termRows.find(x=>x.id===id);if(!r)return;
+  document.getElementById('tm-id').value=r.id;document.getElementById('tm-term').value=r.term;document.getElementById('tm-aliases').value=r.aliases;
+  document.getElementById('tm-search').value=r.search_terms||'';document.getElementById('tm-codes').value=r.product_codes||'';
+  document.getElementById('tm-note').value=r.note||'';document.getElementById('tm-dept').value=r.department||'';window.scrollTo({top:0,behavior:'smooth'});}
+async function saveTerm(){
+  const body={csrf,id:document.getElementById('tm-id').value||null,term:document.getElementById('tm-term').value,aliases:document.getElementById('tm-aliases').value,
+    search_terms:document.getElementById('tm-search').value,product_codes:document.getElementById('tm-codes').value,
+    note:document.getElementById('tm-note').value,department:document.getElementById('tm-dept').value,active:1};
+  const r=await post(API+'/terms.php',body); if(r.error)return flash(r.error,true);
+  flash('Term saved'); clearTermForm(); loadTerms();
+}
+async function deleteTerm(id){ if(!confirm('Delete this term?'))return;
+  const r=await fetch(API+'/terms.php?id='+id,{method:'DELETE',credentials:'include',headers:{'X-CSRF-Token':csrf}});
+  if(!r.ok)return flash('Could not delete',true); flash('Deleted'); loadTerms();
+}
+async function testTerm(){
+  const q=document.getElementById('tm-test').value.trim(); if(!q)return;
+  const r=await post(API+'/terms.php',{csrf,action:'test',q});
+  const out=document.getElementById('tm-test-out');
+  if(r.error)return out.innerHTML=`<div class="alert alert-err">${esc(r.error)}</div>`;
+  out.innerHTML=r.matches.length
+    ? `<div class="alert alert-ok">Matched: ${r.matches.map(m=>esc(m.term)).join(', ')}</div><p style="font-size:12px;color:#adb4ba">Search becomes: ${esc(r.search)}${r.department?` · unanswered questions go to ${esc(r.department)}`:''}</p>`
+    : '<div class="alert alert-warn">No term matched: Max uses his own understanding for this wording.</div>';
 }
 
 // ── Google billing ───────────────────────────────────────────────────────────
