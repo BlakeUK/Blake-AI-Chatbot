@@ -227,7 +227,8 @@ class Responder
 
     public static function wantsLeaflet(string $message): bool
     {
-        return (bool)preg_match('/\b(leaflet|data ?sheet|datasheet|spec(ification)? ?sheet|tech(nical)? ?(sheet|data|leaflet|document)|product sheet|brochure|cut ?sheet)\b/i', $message);
+        // Customers type "tec sheet", "tech sheet", "spec sheet", "datasheet"...
+        return (bool)preg_match('/\b(leaflet|data ?sheet|datasheet|spec(ification)?s? ?sheet|spec ?sheet|tec(h|hnical)? ?(sheet|data|leaflet|document|spec\w*)|technical (sheet|data|leaflet|document|specification)|product sheet|brochure|cut ?sheet)\b/i', $message);
     }
 
     public static function wantsAlternative(string $message): bool

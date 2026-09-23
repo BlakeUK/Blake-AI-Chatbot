@@ -241,7 +241,11 @@ if ($escalate) {
 }
 
 // Cards must match what was asked/answered (see Responder::selectCards).
-$context_products = \Chat\Responder::selectCards($answer, $message, $context_products, $ctx['current_product']['product_code'] ?? null, null, $ctx['alternatives'] ?? []);
+// A data sheet request gets the documents and nothing else: product cards
+// alongside them just look like an upsell.
+$context_products = !empty($ctx['leaflet_note'])
+    ? []
+    : \Chat\Responder::selectCards($answer, $message, $context_products, $ctx['current_product']['product_code'] ?? null, null, $ctx['alternatives'] ?? []);
 
 json_out([
     'answer'          => $answer,

@@ -156,3 +156,11 @@ test('specification from an indexed technical PDF is used, but only where it mat
         db()->exec("DELETE FROM settings WHERE key LIKE 'leaflet_specs_%'");
     }
 });
+
+test('spellings of "tech sheet" are all recognised', function () {
+    foreach (['i want a TEC SHEET for the launch amplifier', 'can I have a tech sheet', 'technical sheet please',
+              'do you have a spec sheet', 'send me the datasheet', 'technical leaflet for the LP20', 'product brochure'] as $m) {
+        assert_true(\Chat\Responder::wantsLeaflet($m), $m);
+    }
+    foreach (['what sheet metal do you use', 'which aerial do I need'] as $m) assert_true(!\Chat\Responder::wantsLeaflet($m), $m);
+});
