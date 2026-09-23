@@ -17,6 +17,8 @@ namespace Products;
 
 class Leaflet
 {
+    public const LAYOUT_VERSION = '2026-09-23.2';
+
     public const DISCLAIMER = 'Specifications are taken from the Blake UK product page shown above on the date of issue and are published for guidance only. '
         . 'Dimensions and weights are nominal and may change without notice. If this product is intended for a mission-critical, safety-related or contractual application, '
         . 'please review and confirm the specifications with Blake UK before ordering or installation. Prices are not included in this sheet. E&OE.';
@@ -365,7 +367,8 @@ class Leaflet
         $v = self::verify($code);
         if (!$v['ok']) return $v;
         $d = $v['data'];
-        $hash = substr(sha1(json_encode($d)), 0, 10);
+        // LAYOUT_VERSION is part of the key so design changes replace cached sheets.
+        $hash = substr(sha1(self::LAYOUT_VERSION . json_encode($d)), 0, 10);
         $file = self::dir() . '/' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $d['code']) . "-{$hash}.pdf";
         if (!is_file($file)) {
             self::render($d, $file);
