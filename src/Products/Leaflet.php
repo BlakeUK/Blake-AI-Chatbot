@@ -17,7 +17,7 @@ namespace Products;
 
 class Leaflet
 {
-    public const LAYOUT_VERSION = '2026-09-23.3';
+    public const LAYOUT_VERSION = '2026-09-23.4';
 
     public const DISCLAIMER = 'Specifications are taken from the Blake UK product page shown above on the date of issue and are published for guidance only. '
         . 'Dimensions and weights are nominal and may change without notice. If this product is intended for a mission-critical, safety-related or contractual application, '
@@ -390,8 +390,17 @@ class Leaflet
                 $text = (string)shell_exec('pdftotext -f ' . $p . ' -l ' . $p . ' ' . escapeshellarg($path) . ' - 2>/dev/null');
                 if (!preg_match(self::CHART_WORDS, $text)) continue;
                 if (stripos($text, $code) === false && stripos((string)$f['filename'], $code) === false) continue;
-                $img = self::renderPage($path, $p);
-                if ($img) $out[] = ['file' => $img, 'caption' => self::clean((string)$f['filename']) . ' - page ' . $p];
+                // Prefer the chart image itself; fall back to the whole page
+                // when the graph is drawn rather than embedded.
+                $imgs = self::pageImages($path, $p);
+                foreach ($imgs as $img) {
+                    $out[] = ['file' => $img, 'caption' => self::clean((string)$f['filename']) . ' - page ' . $p];
+                    if (count($out) >= $max) break;
+                }
+                if (!$imgs) {
+                    $img = self::renderPage($path, $p);
+                    if ($img) $out[] = ['file' => $img, 'caption' => self::clean((string)$f['filename']) . ' - page ' . $p];
+                }
             }
             if (count($out) >= $max) break;
         }
@@ -401,6 +410,40 @@ class Leaflet
     private static function hasTool(string $bin): bool
     {
         return trim((string)shell_exec('command -v ' . escapeshellarg($bin) . ' 2>/dev/null')) !== '';
+    }
+
+    // Large embedded images on one page (the charts themselves), as JPEGs.
+    public static function pageImages(string $pdf, int $page, int $max = 2): array
+    {
+        if (!self::hasTool('pdfimages')) return [];
+        $key = sha1($pdf . '|' . $page . '|' . (string)@filemtime($pdf));
+        $dir = self::dir() . '/img-' . $key;
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+            shell_exec('pdfimages -png -f ' . $page . ' -l ' . $page . ' ' . escapeshellarg($pdf) . ' ' . escapeshellarg($dir . '/i') . ' 2>/dev/null');
+        }
+        $out = [];
+        foreach (glob($dir . '/*.png') ?: [] as $png) {
+            $size = @getimagesize($png);
+            if (!$size) continue;
+            [$w, $h] = $size;
+            $ratio = $h > 0 ? $w / $h : 0;
+            if ($w < 380 || $h < 200 || $ratio < 0.5 || $ratio > 3.2) continue;      // skip logos, rules, tiny marks
+            $jpg = preg_replace('/\.png$/', '.jpg', $png);
+            if (!is_file($jpg) && function_exists('imagecreatefrompng')) {
+                $im = @imagecreatefrompng($png);
+                if ($im) {
+                    $flat = imagecreatetruecolor($w, $h);
+                    imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
+                    imagecopy($flat, $im, 0, 0, 0, 0, $w, $h);
+                    imagejpeg($flat, $jpg, 86);
+                    imagedestroy($im); imagedestroy($flat);
+                }
+            }
+            if (is_file($jpg)) $out[] = ['file' => $jpg, 'px' => $w * $h];
+        }
+        usort($out, fn($a, $b) => $b['px'] <=> $a['px']);
+        return array_column(array_slice($out, 0, $max), 'file');
     }
 
     // One page of a PDF as a trimmed JPEG (cached on the file's timestamp).
