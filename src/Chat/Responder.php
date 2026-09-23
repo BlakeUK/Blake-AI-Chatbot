@@ -544,7 +544,7 @@ class Responder
         }
 
         if (!empty($ctx['leaflet_note'])) {
-            $contextParts[] = 'TECHNICAL DATA SHEET: ' . $ctx['leaflet_note'];
+            $contextParts[] = 'TECHNICAL DATA SHEET: ' . $ctx['leaflet_note'] . ' Never write document URLs yourself: refer to the download buttons below your reply.';
         }
 
         if (!empty($ctx['downloads'])) {

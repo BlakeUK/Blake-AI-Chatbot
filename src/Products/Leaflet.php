@@ -70,6 +70,12 @@ class Leaflet
         $specs = self::specs($html);
         if (!$specs) return ['ok' => false, 'error' => "No technical specification is published for {$code}, so there is nothing to put on a data sheet."];
 
+        // Technical PDFs indexed for this product add the full specification.
+        $fromDocs = ['specs' => [], 'files' => []];
+        try { $fromDocs = self::specsFromKnowledge($p['product_code']); } catch (\Throwable $e) {}
+        $specs = $specs + $fromDocs['specs'];          // page values win on a clash
+        $specs = array_slice($specs, 0, 14, true);
+
         return ['ok' => true, 'data' => [
             'code'       => $p['product_code'],
             'name'       => $p['name'],
@@ -79,6 +85,7 @@ class Leaflet
             'category'   => (json_decode((string)$p['category_path'], true) ?: ['PRODUCT'])[0],
             'intro'      => self::intro($html, $p),
             'specs'      => $specs,
+            'doc_files'  => $fromDocs['files'],
             'bullets'    => self::bullets($html, $p),
             'images'     => self::images($html, $p),
             'code_on_page' => $codeOnPage,
@@ -259,6 +266,97 @@ class Leaflet
         if (!$p || empty($p['url'])) return [];
         $html = self::fetch($p['url']);
         return $html ? self::pageDocuments($html) : [];
+    }
+
+    // Specification from the indexed technical PDFs for this product
+    // (Admin > Files / RAG). The model extracts label/value pairs from the
+    // document text, then EVERY pair is checked to appear verbatim in that
+    // text before it is used, so nothing can be invented. Results are cached
+    // against the source text.
+    public static $extractor = null;   // test hook: fn(string $text, string $code): array
+
+    public static function knowledgeSource(string $code): ?array
+    {
+        $like = '%' . strtoupper($code) . '%';
+        try {
+            $q = db()->prepare("SELECT kf.id, kf.filename, kc.chunk_text
+                                FROM knowledge_chunks kc JOIN knowledge_files kf ON kf.id = kc.source_id
+                                WHERE kc.source_type = 'file' AND kf.status = 'indexed'
+                                  AND (upper(kf.filename) LIKE ? OR upper(kc.chunk_text) LIKE ?)
+                                ORDER BY (upper(kf.filename) LIKE ?) DESC,
+                                         (lower(kf.filename) LIKE '%technical%' OR lower(kf.filename) LIKE '%data%sheet%' OR lower(kf.filename) LIKE '%characteristic%' OR lower(kf.filename) LIKE '%spec%') DESC,
+                                         length(kc.chunk_text) DESC
+                                LIMIT 3");
+            $q->execute([$like, $like, $like]);
+            $rows = $q->fetchAll();
+        } catch (\Throwable $e) { return null; }
+        if (!$rows) return null;
+        $text = '';
+        $names = [];
+        foreach ($rows as $r) {
+            if (stripos($r['chunk_text'], $code) === false && stripos($r['filename'], $code) === false) continue;
+            $text .= "\n" . $r['chunk_text'];
+            $names[$r['filename']] = true;
+            if (mb_strlen($text) > 7000) break;
+        }
+        $text = trim($text);
+        return $text === '' ? null : ['text' => mb_substr($text, 0, 7000), 'files' => array_keys($names)];
+    }
+
+    public static function specsFromKnowledge(string $code): array
+    {
+        $src = self::knowledgeSource($code);
+        if (!$src) return ['specs' => [], 'files' => []];
+        $key = 'leaflet_specs_' . strtoupper($code);
+        $hash = sha1($src['text']);
+        try {
+            $c = db()->prepare('SELECT value FROM settings WHERE key = ?');
+            $c->execute([$key]);
+            $cached = json_decode((string)$c->fetchColumn(), true);
+            if (is_array($cached) && ($cached['hash'] ?? '') === $hash) return ['specs' => $cached['specs'], 'files' => $src['files']];
+        } catch (\Throwable $e) {}
+
+        $pairs = [];
+        try {
+            if (self::$extractor) {
+                $pairs = (self::$extractor)($src['text'], $code);
+            } else {
+                $keyApi = \Gemini\Client::getStoredApiKey();
+                if (!$keyApi) return ['specs' => [], 'files' => []];
+                $out = (new \Gemini\Client($keyApi))->chat(
+                    \Gemini\Client::getModel('gemini_extract_model', 'gemini_flash_lite'),
+                    [['role' => 'user', 'content' =>
+                        "From the technical document text below, list the technical specification of product {$code} ONLY.\n"
+                        . "Copy labels and values EXACTLY as written - do not convert, round, summarise or invent anything. "
+                        . "Ignore prices, part lists, marketing text and any other product's figures.\n"
+                        . "Answer with JSON only: {\"specs\":[{\"label\":\"...\",\"value\":\"...\"}]} (max 14, most important first).\n\n"
+                        . $src['text']]]
+                );
+                $json = preg_replace('/^```(?:json)?|```$/m', '', trim((string)$out));
+                $pairs = json_decode(trim($json), true)['specs'] ?? [];
+            }
+        } catch (\Throwable $e) {
+            return ['specs' => [], 'files' => []];
+        }
+
+        // Check every pair against the document text (second check).
+        $flat = mb_strtolower(preg_replace('/\s+/u', ' ', $src['text']));
+        $specs = [];
+        foreach (is_array($pairs) ? $pairs : [] as $p) {
+            $label = self::clean((string)($p['label'] ?? ''));
+            $value = self::clean((string)($p['value'] ?? ''));
+            if ($label === '' || $value === '' || mb_strlen($label) > 44 || mb_strlen($value) > 44) continue;
+            if (preg_match('/£|price|vat/i', $label . ' ' . $value)) continue;
+            $norm = fn(string $x) => mb_strtolower(preg_replace('/\s+/u', ' ', $x));
+            if (!str_contains($flat, $norm($label)) || !str_contains($flat, $norm($value))) continue;   // not verbatim: drop
+            $specs[$label] = $value;
+            if (count($specs) >= 14) break;
+        }
+        try {
+            db()->prepare('INSERT INTO settings (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at')
+                ->execute([$key, json_encode(['hash' => $hash, 'specs' => $specs]), time()]);
+        } catch (\Throwable $e) {}
+        return ['specs' => $specs, 'files' => $src['files']];
     }
 
     // Returns the PDF path (cached per product + data hash).

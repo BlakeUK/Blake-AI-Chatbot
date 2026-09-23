@@ -95,16 +95,22 @@ test('chat: a data sheet request offers the generated PDF', function () {
 
 test('published PDFs on the product page are offered before the generated sheet', function () {
     lf_product();
-    $page = lf_page() . '<a id="prod-down">Downloads</a><div><a href="https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf" target="_blank">Log-periodic_(BLA-LP).pdf (1B)</a></div>';
+    $page = lf_page() . '<a id="prod-down">Downloads</a><div class="product-page__download-cont"><div class="product-page__list">'
+          . '<div class="product-page__list--column"><a href="https://cdn.blake-uk.com/abc/download/TRUNC" target="_blank">Log-periodic_(BLA-LP).pdf (712KB)</a></div>'
+          . '<div class="product-page__list--column"><form action="https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf"><button>Download</button></form></div></div></div>';
     \Products\Leaflet::$fetcher = fn($u) => $page;
+    \Products\Leaflet::$linkChecker = fn($u) => str_ends_with($u, '.pdf');
     \Knowledge\Embeddings::resetCaches();
     try {
-        assert_equal(['https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf' => 'Log-periodic (BLA-LP)'], \Products\Leaflet::pageDocuments($page));
+        assert_equal(['https://cdn.blake-uk.com/abc/download/Log-periodic-BLA-LP.pdf' => 'Log periodic (BLA LP)'], \Products\Leaflet::pageDocuments($page), 'the working form URL, not the truncated link');
+        \Products\Leaflet::$linkChecker = fn($u) => false;
+        assert_equal([], \Products\Leaflet::pageDocuments($page), 'a link that does not work is never offered');
+        \Products\Leaflet::$linkChecker = fn($u) => str_ends_with($u, '.pdf');
         $ctx = \Chat\Responder::buildContext('datasheet for BLA-TEST1', null, '');
         $titles = array_column($ctx['downloads'], 'title');
-        assert_str_contains('Log-periodic', $titles[0]);
+        assert_str_contains('Log periodic', $titles[0]);
         assert_str_contains('Technical data sheet', $titles[1]);
-    } finally { \Products\Leaflet::$fetcher = null; }
+    } finally { \Products\Leaflet::$fetcher = null; \Products\Leaflet::$linkChecker = null; }
 });
 
 test('a data sheet asked for by description uses the product the search found', function () {
@@ -117,4 +123,36 @@ test('a data sheet asked for by description uses the product the search found', 
         assert_str_contains('BLATLA11', $ctx['leaflet_note'] ?? '');
         assert_true((bool)array_filter($ctx['downloads'], fn($d) => str_contains($d['url'], 'code=BLATLA11')));
     } finally { \Products\Leaflet::$fetcher = null; }
+});
+
+test('specification from an indexed technical PDF is used, but only where it matches the document verbatim', function () {
+    lf_product();
+    $doc = "FM/VHF/UHF Multiband Launch Amplifier Technical characteristics Features BLA-TEST1 Number of Inputs 1 "
+         . "Noise Figure(UHF) 2.5dB (typ) / 4.0dB (max) Gain(UHF) Continuously adjustable 18-38dB Impedance 75 Ohm "
+         . "Mains Power Requirement 230V 50Hz at 4.5W Weight 770g Price 92.98";
+    db()->prepare("INSERT INTO knowledge_files (filename, mime_type, stored_path, status) VALUES ('AMPLIFIER BLA-TEST1 Technical characteristics.pdf','application/pdf','/tmp/x','indexed')")->execute();
+    $fid = (int)db()->lastInsertId();
+    db()->prepare("INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES ('file', ?, ?)")->execute([$fid, $doc]);
+    \Products\Leaflet::$extractor = fn($text, $code) => [
+        ['label' => 'Noise Figure(UHF)', 'value' => '2.5dB (typ) / 4.0dB (max)'],
+        ['label' => 'Gain(UHF)', 'value' => 'Continuously adjustable 18-38dB'],
+        ['label' => 'Impedance', 'value' => '75 Ohm'],
+        ['label' => 'Output Power', 'value' => '125dBuV'],            // not in the document: must be dropped
+        ['label' => 'Price', 'value' => '92.98'],                      // price: must be dropped
+    ];
+    \Products\Leaflet::$fetcher = fn($u) => lf_page();
+    try {
+        $r = \Products\Leaflet::specsFromKnowledge('BLA-TEST1');
+        assert_equal(['Noise Figure(UHF)' => '2.5dB (typ) / 4.0dB (max)', 'Gain(UHF)' => 'Continuously adjustable 18-38dB', 'Impedance' => '75 Ohm'], $r['specs']);
+        assert_equal(['AMPLIFIER BLA-TEST1 Technical characteristics.pdf'], $r['files']);
+        // and it reaches the sheet, with the page's own rows first
+        $v = \Products\Leaflet::verify('BLA-TEST1');
+        assert_true($v['ok']);
+        assert_equal(['Aerial Group', 'Width', 'Noise Figure(UHF)', 'Gain(UHF)', 'Impedance'], array_keys($v['data']['specs']));
+    } finally {
+        \Products\Leaflet::$extractor = null; \Products\Leaflet::$fetcher = null;
+        db()->exec("DELETE FROM knowledge_chunks WHERE source_id = {$fid} AND source_type='file'");
+        db()->exec("DELETE FROM knowledge_files WHERE id = {$fid}");
+        db()->exec("DELETE FROM settings WHERE key LIKE 'leaflet_specs_%'");
+    }
 });

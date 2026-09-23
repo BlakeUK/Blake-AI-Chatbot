@@ -199,7 +199,8 @@ class LeafletPdf extends FPDF
         $this->Cell(24, 5, $this->t('SOURCE'));
         $this->SetFont('Helvetica', '', 8);
         $this->SetTextColor(40);
-        $this->Cell(150, 5, $this->t($d['url']));
+        $src = $d['url'] . (!empty($d['doc_files']) ? '   +  ' . implode(', ', array_slice($d['doc_files'], 0, 2)) : '');
+        $this->Cell(150, 5, $this->t(mb_substr($src, 0, 135)));
         $this->SetY($y + 12);
         $this->SetFont('Helvetica', '', 7);
         $this->SetTextColor(...self::GREY_TX);
