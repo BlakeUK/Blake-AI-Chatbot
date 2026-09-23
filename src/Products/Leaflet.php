@@ -201,22 +201,55 @@ class Leaflet
 
     // PDFs published on the product page itself (manuals, manufacturer data
     // sheets). Preferred over a generated sheet when they exist.
-    public static function pageDocuments(string $html): array
+    // PDFs published on the product page itself (manuals, manufacturer data
+    // sheets). The page's own <a href> links are truncated and return
+    // "Access Denied" from the CDN, so the working URL is taken from the
+    // adjacent download <form action>, and every link is checked before it
+    // is offered to a customer.
+    public static function pageDocuments(string $html, bool $check = true): array
     {
         $i = stripos($html, 'id="prod-down"');
         if ($i === false) return [];
-        $seg = substr($html, $i, 6000);
-        preg_match_all('#<a[^>]+href="(https://cdn\\.blake-uk\\.com/[^"]+\\.pdf)"[^>]*>(.*?)</a>#is', $seg, $m, PREG_SET_ORDER);
+        $seg = substr($html, $i, 12000);
         $out = [];
-        foreach ($m as $x) {
-            $title = self::clean($x[2]);
-            $title = trim(preg_replace('/\\s*\\([^)]*\\)\\s*$/', '', $title));          // strip "(1B)" size
-            $title = trim(str_replace(['_', '.pdf'], [' ', ''], $title));
-            if ($title === '') continue;
-            $out[$x[1]] = $title;
-            if (count($out) >= 3) break;
+        // Each download block: a label link, then a form with the real URL.
+        preg_match_all('#<div class="product-page__download-cont".*?</div>\s*</div>\s*</div>#is', $seg, $blocks);
+        $cands = $blocks[0] ?: [$seg];
+        foreach ($cands as $block) {
+            $url = preg_match('#<form[^>]+action="([^"]+\.pdf)"#i', $block, $f) ? html_entity_decode($f[1]) : null;
+            if (!$url && preg_match('#<a[^>]+href="(https://[^"]+\.pdf)"#i', $block, $a)) $url = html_entity_decode($a[1]);
+            if (!$url) continue;
+            $label = preg_match('#<a[^>]*>(.*?)</a>#is', $block, $l) ? self::clean($l[1]) : basename($url);
+            $label = trim(preg_replace('/\s*\(\d+(\.\d+)?\s*[KMG]?B\)\s*$/i', '', $label));      // drop "(712KB)"
+            $label = trim(str_replace(['_', '-'], ' ', preg_replace('/\.pdf$/i', '', $label)));
+            if ($label === '') $label = 'Product document';
+            $out[$url] = $label;
+            if (count($out) >= 4) break;
         }
-        return $out;
+        if (!$check) return $out;
+        // Only offer links that actually work.
+        $ok = [];
+        foreach ($out as $url => $label) {
+            if (self::linkWorks($url)) $ok[$url] = $label;
+        }
+        return $ok;
+    }
+
+    public static $linkChecker = null;   // test hook: fn(string $url): bool
+
+    public static function linkWorks(string $url): bool
+    {
+        if (self::$linkChecker) return (self::$linkChecker)($url);
+        try {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [CURLOPT_NOBODY => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 12,
+                CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; BlakeUKSupport/1.0)', CURLOPT_RETURNTRANSFER => true]);
+            curl_exec($ch);
+            $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $type = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            curl_close($ch);
+            return $code === 200 && stripos($type, 'pdf') !== false;
+        } catch (\Throwable $e) { return false; }
     }
 
     // Published documents for a product code (uses the same verified page).
