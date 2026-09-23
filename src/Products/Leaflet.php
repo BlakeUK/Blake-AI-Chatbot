@@ -17,7 +17,7 @@ namespace Products;
 
 class Leaflet
 {
-    public const LAYOUT_VERSION = '2026-09-23.4';
+    public const LAYOUT_VERSION = '2026-09-23.5';
 
     public const DISCLAIMER = 'Specifications are taken from the Blake UK product page shown above on the date of issue and are published for guidance only. '
         . 'Dimensions and weights are nominal and may change without notice. If this product is intended for a mission-critical, safety-related or contractual application, '
@@ -367,7 +367,9 @@ class Leaflet
     // as images and trimmed, so graphs drawn as vectors are captured too.
     // Only files whose NAME contains the product code are used, so another
     // product's measurements can never appear.
-    public const CHART_WORDS = '/\b(gain|noise figure|selectivity|MER|return loss|frequency response|group delay|radiation pattern|VSWR|insertion loss)\b/i';
+    // Axis labels: a page that plots something, not just a page that talks
+    // about gain (which would pull in an intro page or a product photo).
+    public const CHART_WORDS = '/(frequency,?\s*MHz|gain,?\s*dB|noise figure,?\s*dB|MER,?\s*dB|relative gain|output power,?\s*dB|the figure above|dB[µu]V\b.*\bMHz\b)/i';
 
     public static function docCharts(string $code, int $max = 4): array
     {

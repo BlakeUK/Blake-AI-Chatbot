@@ -172,7 +172,7 @@ test('charts are taken only from this product\'s own test report, and the source
     $pdf = new FPDF();
     $pdf->AddPage(); $pdf->SetFont('Helvetica', '', 12);
     $pdf->Cell(0, 8, 'EQUIPMENT TEST REPORT BLA-TEST1', 0, 1);
-    $pdf->Cell(0, 8, 'Noise figure and Gain measurements', 0, 1);
+    $pdf->Cell(0, 8, 'Noise Figure, dB against Frequency, MHz', 0, 1);
     $pdf->Rect(20, 60, 120, 60);
     $pdf->Line(20, 120, 140, 70);
     $pdf->AddPage();
