@@ -19,7 +19,8 @@ class LeafletPdf extends FPDF
 
     private function t(string $s): string
     {
-        $s = str_replace(['–', '—', '’', '‘', '“', '”', '·', '×', 'µ', '≤', '≥', '±'], ['-', '-', "'", "'", '"', '"', '-', 'x', 'u', '<=', '>=', '+/-'], $s);
+        $s = str_replace(['–', '—', '’', '‘', '“', '”', '·', '×', 'µ', '≤', '≥', '±', 'Ω', 'Ω', '°', '\u{2013}'],
+                         ['-', '-', "'", "'", '"', '"', '-', 'x', 'u', '<=', '>=', '+/-', ' Ohm', ' Ohm', ' deg', '-'], $s);
         return (string)iconv('UTF-8', 'windows-1252//TRANSLIT', $s);
     }
 
@@ -137,11 +138,17 @@ class LeafletPdf extends FPDF
         $this->SetY($top + $panelH + 6);
 
         // Highlight strip: the first four specifications
-        // Short, punchy specs only - long values would be cut off.
+        // Headline figures first (gain, noise, frequency, power), then any
+        // other short spec - dimensions alone make a dull strip.
         $cells = [];
-        foreach ($rows as $l => $v) {
-            if (mb_strlen($v) <= 16 && mb_strlen($l) <= 28) $cells[$l] = $v;
-            if (count($cells) >= 4) break;
+        $priority = '/gain|noise|frequency|output|input|impedance|power|capacity|rack|assembly|channel|group|element/i';
+        foreach ([true, false] as $pass) {
+            foreach ($rows as $l => $v) {
+                if (isset($cells[$l]) || mb_strlen($v) > 20 || mb_strlen($l) > 30) continue;
+                if ($pass !== (bool)preg_match($priority, $l)) continue;
+                $cells[$l] = $v;
+                if (count($cells) >= 4) break 2;
+            }
         }
         if ($cells) {
             $y = $this->GetY();
@@ -172,8 +179,14 @@ class LeafletPdf extends FPDF
             $this->Ln(8);
             $this->SetFont('Helvetica', '', 9);
             $this->SetTextColor(40);
-            $half = (int)ceil(count($d['bullets']) / 2);
-            $cols = [array_slice($d['bullets'], 0, $half), array_slice($d['bullets'], $half)];
+            // Fit the features in the space left above the source line and
+            // disclaimer, rather than spilling onto a second page.
+            $space = 250 - $this->GetY();
+            $perLine = 5.6;
+            $room = max(2, (int)floor(($space / $perLine) * 2 / 1.6));
+            $list = array_slice($d['bullets'], 0, max(2, min(count($d['bullets']), $room)));
+            $half = (int)ceil(count($list) / 2);
+            $cols = [array_slice($list, 0, $half), array_slice($list, $half)];
             $startY = $this->GetY();
             $maxY = $startY;
             foreach ($cols as $c => $list) {
