@@ -22,7 +22,8 @@
       ],
       "targets": [
         "deb",
-        "nsis"
+        "nsis",
+        "msi"
       ],
       "windows": {
         "nsis": {

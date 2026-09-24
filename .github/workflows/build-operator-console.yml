@@ -90,7 +90,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: operator-console-windows
-          path: operator-console/src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            operator-console/src-tauri/target/release/bundle/nsis/*-setup.exe
+            operator-console/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
 
   publish-to-vps:
@@ -122,8 +124,18 @@ jobs:
           mkdir -p publish
           cp dl/linux/*.deb "publish/blake-uk-operator-console.deb"
           cp dl/windows/*-setup.exe "publish/blake-uk-operator-console-setup.exe"
+          cp dl/windows/*.msi "publish/blake-uk-operator-console.msi" 2>/dev/null || true
           VERSION=$(jq -r '.package.version' operator-console/src-tauri/tauri.conf.json)
-          printf '{"version":"%s"}' "$VERSION" > publish/version.json
+          # Checksums so anyone can prove the download matches what this
+          # workflow built (useful when an antivirus flags an unsigned installer).
+          ( cd publish && sha256sum blake-uk-operator-console-setup.exe blake-uk-operator-console.deb \
+              $( [ -f blake-uk-operator-console.msi ] && echo blake-uk-operator-console.msi ) > SHA256SUMS.txt )
+          EXE_SHA=$(awk '/setup.exe/{print $1}' publish/SHA256SUMS.txt)
+          DEB_SHA=$(awk '/\.deb/{print $1}' publish/SHA256SUMS.txt)
+          MSI_SHA=$(awk '/\.msi/{print $1}' publish/SHA256SUMS.txt)
+          jq -n --arg v "$VERSION" --arg e "$EXE_SHA" --arg d "$DEB_SHA" --arg m "$MSI_SHA" \
+             --arg b "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+             '{version:$v, sha256:{exe:$e, deb:$d, msi:$m}, built_by:$b, built_at:(now|todate)}' > publish/version.json
           echo "Built version: $VERSION"
           ls -la publish
 
@@ -141,7 +153,7 @@ jobs:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: "publish/blake-uk-operator-console.deb,publish/blake-uk-operator-console-setup.exe,publish/version.json"
+          source: "publish/blake-uk-operator-console.deb,publish/blake-uk-operator-console-setup.exe,publish/blake-uk-operator-console.msi,publish/version.json,publish/SHA256SUMS.txt"
           target: "/var/www/blakegroup/public/downloads"
           strip_components: 1
           overwrite: true
@@ -154,4 +166,4 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             chown -R www-data:www-data /var/www/blakegroup/public/downloads
-            rm -f /var/www/blakegroup/public/downloads/blake-uk-operator-console.msi
+            ls -la /var/www/blakegroup/public/downloads
