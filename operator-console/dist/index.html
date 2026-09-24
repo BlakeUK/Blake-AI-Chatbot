@@ -879,6 +879,15 @@ function beep(urgent) {
 document.addEventListener('pointerdown', unlockAudio, { once: false });
 
 let beepTimer = null;
+async function clearAttention() {
+  try {
+    const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow;
+    if (!w) return;
+    await w.setAlwaysOnTop(false);
+    try { await w.requestUserAttention(null); } catch (e) {}
+  } catch (e) {}
+}
+
 async function bringToFront(onTop) {
   try {
     const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow;
@@ -925,7 +934,7 @@ function stopAlert() {
   alertShowing = null;
   clearInterval(beepTimer); beepTimer = null;
   document.getElementById('alert-overlay').classList.add('hidden');
-  bringToFront(false);
+  clearAttention();
 }
 
 // A customer replying in one of my chats: short beep + notification when
@@ -1068,9 +1077,27 @@ document.getElementById('server-url-input').onchange = (e) => {
   localStorage.setItem('opconsole_server', serverUrl);
 };
 let awaitingTfa = false;
+// On start-up (and after a refresh) reuse the existing sign-in if there is
+// one, instead of asking for the password again.
+async function tryResume() {
+  try {
+    const r = await fetch(api('/api/admin/login.php'), { credentials: 'include' });
+    if (!r.ok) return false;
+    const d = await r.json();
+    if (!d || !d.ok) return false;
+    csrf = d.csrf; myAdminId = d.id ?? null; myRole = d.role || ''; myUsername = d.username || myUsername;
+    enterApp();
+    return true;
+  } catch (e) { return false; }
+}
+
 document.getElementById('login-btn').onclick = () => { unlockAudio(); doLogin(); };
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('login-code').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+// Clear any taskbar flashing / always-on-top left over from a previous alert.
+clearAttention();
+tryResume();
+
 async function doLogin() {
   const errEl = document.getElementById('login-err');
   errEl.textContent = '';

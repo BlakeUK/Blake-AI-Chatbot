@@ -42,6 +42,22 @@ class Admin
 
     public const ROLES = ['admin', 'editor', 'user'];
 
+    // Sliding expiry: every authenticated request pushes the cookie's expiry
+    // back, so someone working all day is not signed out mid-shift.
+    private static function extendSession(): void
+    {
+        if (headers_sent() || empty($_SESSION['admin_id'])) return;
+        $p = session_get_cookie_params();
+        if (empty($p['lifetime'])) return;
+        setcookie(session_name(), session_id(), [
+            'expires'  => time() + (int)$p['lifetime'],
+            'path'     => $p['path'] ?: '/',
+            'secure'   => (bool)$p['secure'],
+            'httponly' => true,
+            'samesite' => $p['samesite'] ?: 'Lax',
+        ]);
+    }
+
     // Account-level lockout, distinct from rate_limit('admin_login', 5) in
     // login.php - that's a per-IP, per-60-second-window throttle that counts
     // every request (successful or not) and resets on the next window, so a
@@ -57,6 +73,7 @@ class Admin
         if (empty($_SESSION['admin_id'])) {
             json_err('Unauthorised', 401);
         }
+        self::extendSession();
         self::touchPresence();
     }
 
@@ -108,7 +125,7 @@ class Admin
         // on different machines naturally type their own username with their
         // own casing, which won't always match whatever case an admin typed
         // when creating the account.
-        $stmt = db()->prepare('SELECT id, password, role, totp_enabled, failed_attempts, locked_until FROM admin_users WHERE username = ? COLLATE NOCASE');
+        $stmt = db()->prepare('SELECT id, username, password, role, totp_enabled, failed_attempts, locked_until FROM admin_users WHERE username = ? COLLATE NOCASE');
         $stmt->execute([$username]);
         $row = $stmt->fetch();
 
@@ -207,8 +224,9 @@ class Admin
     {
         self::session();
         session_regenerate_id(true);
-        $_SESSION['admin_id']   = $row['id'];
-        $_SESSION['admin_role'] = $row['role'];
+        $_SESSION['admin_id']       = $row['id'];
+        $_SESSION['admin_role']     = $row['role'];
+        $_SESSION['admin_username'] = $row['username'] ?? null;
         unset($_SESSION['pending_2fa_id']);
         db()->prepare('UPDATE admin_users SET last_login=?, failed_attempts=0, locked_until=NULL WHERE id=?')
              ->execute([time(), $row['id']]);

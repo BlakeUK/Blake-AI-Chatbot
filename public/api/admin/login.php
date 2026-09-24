@@ -12,6 +12,16 @@ if ($method === 'DELETE') {
     json_out(['ok' => true]);
 }
 
+// ── Resume: is this browser/app already signed in? ───────────────────────────
+// The desktop console calls this on start-up and after a refresh, so a valid
+// session doesn't put staff back at the login screen.
+if ($method === 'GET') {
+    \Auth\Admin::session();
+    if (empty($_SESSION['admin_id'])) json_err('Unauthorised', 401);
+    json_out(['ok' => true, 'csrf' => \Auth\Admin::csrf(), 'role' => \Auth\Admin::role(),
+              'id' => $_SESSION['admin_id'], 'username' => $_SESSION['admin_username'] ?? null]);
+}
+
 if ($method !== 'POST') {
     json_err('Method not allowed', 405);
 }
