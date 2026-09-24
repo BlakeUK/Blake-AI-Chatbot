@@ -458,6 +458,16 @@ else
     warn "Nightly product sync cron job already installed — skipping."
 fi
 
+# ── External reference sources (Freeview listings) ───────────────────────────
+CRON_LINE_EXT="40 3 * * * php $WEBROOT/scripts/refresh_external_sources.php >> $WEBROOT/logs/external_sources.log 2>&1"
+if ! (crontab -u www-data -l 2>/dev/null | grep -qF "refresh_external_sources.php"); then
+    info "Installing external sources cron job..."
+    ( crontab -u www-data -l 2>/dev/null || true; echo "$CRON_LINE_EXT" ) | crontab -u www-data -
+else
+    warn "External sources cron job already installed — skipping."
+fi
+su -s /bin/sh www-data -c "php $WEBROOT/scripts/refresh_external_sources.php" || warn "External source refresh failed (non-fatal)."
+
 # ── Scheduled site page refresh (daily; no-op until a sitemap is configured) ──
 CRON_LINE_REFRESH="*/15 * * * * php $WEBROOT/scripts/refresh_site_pages.php >> $WEBROOT/logs/site_refresh.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "$CRON_LINE_REFRESH"); then
