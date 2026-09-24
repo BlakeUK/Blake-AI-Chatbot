@@ -944,19 +944,22 @@ function watchMyChats() {
 
 // ── Admin (full web admin panel, embedded) ──────────────────────────────────
 // Opens the embedded admin panel at a particular tab (Users is where
-// accounts, roles, departments and 2FA resets live).
+// accounts, roles, departments and 2FA resets live). The tab is passed in
+// the URL when the panel loads for the first time, and by message after.
+let pendingAdminTab = null;
 function openAdminTab(tab) {
+  pendingAdminTab = tab;
   showPage('admin');
   const f = document.getElementById('admin-frame');
-  const base = serverUrl.replace(/\/$/, '') + '/admin/?embedded=1';
-  if (f.dataset.src !== base) { f.src = base + '#' + tab; f.dataset.src = base; return; }
-  try { f.contentWindow.postMessage({ adminTab: tab }, '*'); } catch (e) { f.src = base + '#' + tab; }
+  const post = () => { try { f.contentWindow.postMessage({ adminTab: tab }, '*'); } catch (e) {} };
+  f.addEventListener('load', post, { once: true });
+  post();
 }
 
 function loadAdminFrame() {
   const f = document.getElementById('admin-frame');
   const url = serverUrl.replace(/\/$/, '') + '/admin/?embedded=1';
-  if (f.dataset.src !== url) { f.src = url; f.dataset.src = url; }
+  if (f.dataset.src !== url) { f.dataset.src = url; f.src = url + (pendingAdminTab ? '#' + pendingAdminTab : ''); }
 }
 
 // ── Presence ─────────────────────────────────────────────────────────────────
