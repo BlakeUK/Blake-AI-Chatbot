@@ -1,0 +1,13 @@
+name: Diagnose stuck chats
+on:
+  workflow_dispatch:
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: cd /var/www/chat && su -s /bin/sh www-data -c "php scripts/diag/stuck_chats.php"
