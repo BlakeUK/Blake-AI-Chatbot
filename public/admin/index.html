@@ -950,11 +950,22 @@ async function loadCategorySuggestions(){
   document.getElementById('category-suggestions').innerHTML=cats.map(c=>`<option value="${esc(c)}">`).join('');
 }
 function init(){
+  setTimeout(openTabFromHash,60);
   loadDashboard();loadKnowledge();loadKeywordLinks();loadFaq();loadCategorySuggestions();loadFiles();loadDuplicates();loadChatLogs();loadProducts();loadProductTemplate();loadExtractionProgress();loadTfaStatus();loadTickets();loadProjectPlanner();loadPresence();
   if(isAdmin()){loadApiKeys();fetchModels();loadModelSettings();loadClients();loadUsers();loadTelegramSettings();loadSiteRefreshSettings();}
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
+// ── Deep links: the desktop console can open the admin at a given tab ───────
+function openTabFromHash(){
+  const want=(location.hash||'').replace('#','').trim();
+  if(!want)return;
+  const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'"+want+"'"));
+  if(btn)btn.click();
+}
+window.addEventListener('hashchange',openTabFromHash);
+window.addEventListener('message',e=>{ if(e&&e.data&&e.data.adminTab){ location.hash='#'+e.data.adminTab; openTabFromHash(); } });
+
 function switchTab(name,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));

@@ -267,3 +267,34 @@ test('tracking we cannot do (DX / unrecognised) routes straight to Sales with a 
     assert_str_contains('Sales team', sd_last('sd-trk', 'system'));
     \Support\Hours::$override = null;
 });
+
+test('a resolved ticket takes its chat out of the queue', function () {
+    \Support\Hours::$override = true;
+    sd_reset_presence();
+    sd_admin(9101, 'online', ['sales']);
+    sd_session('sd-tk1', 'where is my order');
+    \Chat\Handoff::start('sd-tk1', 'customer_request', null, 'sales');
+    $t = \Chat\Handoff::createTicket('sd-tk1', 9101, ['subject' => 'Delivery query', 'department' => 'sales']);
+    assert_true($t['ok'], $t['error'] ?? '');
+    assert_equal('live_requested', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-tk1'")->fetchColumn());
+    assert_true(\Chat\Handoff::releaseForTicket((int)$t['ticket_id']));
+    assert_equal('ai', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-tk1'")->fetchColumn());
+    assert_true(!\Chat\Handoff::releaseForTicket((int)$t['ticket_id']), 'already released');
+    \Support\Hours::$override = null;
+});
+
+test('a customer who leaves mid-handover stops alerting the team after 30 minutes', function () {
+    \Support\Hours::$override = true;
+    sd_reset_presence();
+    sd_admin(9102, 'online', ['technical']);
+    $old = time() - 3600;
+    sd_session('sd-stale', 'can I speak to someone');
+    db()->prepare("UPDATE chat_sessions SET mode='live_requested', department='technical', handoff_at=?, updated_at=? WHERE id='sd-stale'")->execute([$old, $old]);
+    db()->prepare("UPDATE chat_messages SET created_at=? WHERE session_id='sd-stale'")->execute([$old]);
+    sd_session('sd-fresh', 'hello');
+    db()->prepare("UPDATE chat_sessions SET mode='live_requested', department='technical', handoff_at=? WHERE id='sd-fresh'")->execute([time() - 60]);
+    \Chat\Handoff::closeStale();
+    assert_equal('ai', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-stale'")->fetchColumn());
+    assert_equal('live_requested', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-fresh'")->fetchColumn(), 'a recent one is left alone');
+    \Support\Hours::$override = null;
+});

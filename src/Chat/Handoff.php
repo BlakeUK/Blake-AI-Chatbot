@@ -248,7 +248,50 @@ class Handoff
         foreach ($s->fetchAll(\PDO::FETCH_COLUMN) as $id) {
             if (TicketIntake::begin($id, \Support\Hours::isOpen($now) ? 'busy' : 'closed', $now)) $n++;
         }
+        // Stale-queue cleanup is a whole-desk job, not a per-chat one.
+        if ($onlySession === null) self::closeStale($now);
         return $n;
+    }
+
+    // A customer who left mid-handover would otherwise sit in the queue
+    // flashing at staff for ever. After 30 minutes with nothing said, the
+    // chat drops back to Max so the alert and the red entry clear.
+    public const STALE_SECONDS = 1800;
+
+    public static function closeStale(?int $now = null): int
+    {
+        $now = $now ?? time();
+        $cut = $now - self::STALE_SECONDS;
+        $sql = "SELECT s.id FROM chat_sessions s
+                WHERE s.mode IN ('live_requested', 'intake')
+                  AND COALESCE((SELECT MAX(created_at) FROM chat_messages m WHERE m.session_id = s.id), s.updated_at) <= CAST(? AS INTEGER)
+                  AND COALESCE(s.handoff_at, 0) <= CAST(? AS INTEGER)";
+        $q = db()->prepare($sql);
+        $q->execute([$cut, $cut]);
+        $n = 0;
+        foreach ($q->fetchAll(\PDO::FETCH_COLUMN) as $id) {
+            db()->prepare("UPDATE chat_sessions SET mode = 'ai', intake = NULL, updated_at = ? WHERE id = ?")->execute([$now, $id]);
+            self::addNote($id, null, 'Customer left before anyone joined; the chat was returned to Max after 30 minutes of silence.');
+            $n++;
+        }
+        return $n;
+    }
+
+    // A ticket has been dealt with: if its chat is still queued or taking
+    // details, it should stop alerting the team.
+    public static function releaseForTicket(int $ticketId, ?int $now = null): bool
+    {
+        $now = $now ?? time();
+        $q = db()->prepare('SELECT session_id FROM support_tickets WHERE id = ?');
+        $q->execute([$ticketId]);
+        $sessionId = (string)($q->fetchColumn() ?: '');
+        if ($sessionId === '') return false;
+        $s = self::session($sessionId);
+        if (!$s || !in_array($s['mode'], ['live_requested', 'intake', 'live_active'], true)) return false;
+        db()->prepare("UPDATE chat_sessions SET mode = 'ai', claimed_by = NULL, target_admin_id = NULL, intake = NULL, updated_at = ? WHERE id = ?")
+            ->execute([$now, $sessionId]);
+        self::addNote($sessionId, null, 'Ticket dealt with, so the chat was taken out of the queue.');
+        return true;
     }
 
     public static function addNote(string $sessionId, ?int $adminId, string $note): array

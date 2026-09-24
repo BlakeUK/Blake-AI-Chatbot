@@ -449,8 +449,11 @@
       </div>
 
       <div class="page" id="page-team">
-        <h1>Team</h1>
-        <div class="page-meta">&nbsp;</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <h1>Team</h1>
+          <button class="btn btn-primary" id="team-manage" onclick="openAdminTab('users')" style="display:none">Manage users (add, edit, departments, 2FA reset)</button>
+        </div>
+        <div class="page-meta">Who is online and which departments they cover. Click a colleague to message them.</div>
         <div class="card-grid" id="team-grid"></div>
       </div>
 
@@ -940,6 +943,16 @@ function watchMyChats() {
 }
 
 // ── Admin (full web admin panel, embedded) ──────────────────────────────────
+// Opens the embedded admin panel at a particular tab (Users is where
+// accounts, roles, departments and 2FA resets live).
+function openAdminTab(tab) {
+  showPage('admin');
+  const f = document.getElementById('admin-frame');
+  const base = serverUrl.replace(/\/$/, '') + '/admin/?embedded=1';
+  if (f.dataset.src !== base) { f.src = base + '#' + tab; f.dataset.src = base; return; }
+  try { f.contentWindow.postMessage({ adminTab: tab }, '*'); } catch (e) { f.src = base + '#' + tab; }
+}
+
 function loadAdminFrame() {
   const f = document.getElementById('admin-frame');
   const url = serverUrl.replace(/\/$/, '') + '/admin/?embedded=1';
@@ -974,7 +987,11 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
   document.getElementById('content').classList.toggle('full', name === 'chats' || name === 'admin');
-  if (name === 'team') loadTeam();
+  if (name === 'team') {
+    loadTeam();
+    const btn = document.getElementById('team-manage');
+    if (btn) btn.style.display = myRole === 'admin' ? '' : 'none';
+  }
   if (name === 'chats') loadChatQueue();
   if (name === 'admin') loadAdminFrame();
 }

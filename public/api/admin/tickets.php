@@ -85,6 +85,10 @@ if ($method === 'PUT') {
 
         $pdo->prepare('UPDATE support_tickets SET status=?, updated_at=? WHERE id=?')
             ->execute([$status, time(), $id]);
+        if (in_array($status, ['resolved', 'closed'], true)) {
+            // Stop the chat alerting the team once the ticket is dealt with.
+            try { \Chat\Handoff::releaseForTicket((int)$id); } catch (\Throwable $e) {}
+        }
 
         $pdo->prepare('INSERT INTO audit_log (admin_id, action, target, detail) VALUES (?,?,?,?)')
             ->execute([$_SESSION['admin_id'], 'ticket_status_change', $id, $status]);
