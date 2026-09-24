@@ -122,9 +122,11 @@ jobs:
       - name: Prepare stable filenames
         run: |
           mkdir -p publish
-          cp dl/linux/*.deb "publish/blake-uk-operator-console.deb"
-          cp dl/windows/*-setup.exe "publish/blake-uk-operator-console-setup.exe"
-          cp dl/windows/*.msi "publish/blake-uk-operator-console.msi" 2>/dev/null || true
+          # The Windows artifact keeps its nsis/ and msi/ folders, so search.
+          cp "$(find dl/windows -name '*-setup.exe' | head -1)" "publish/blake-uk-operator-console-setup.exe"
+          MSI_SRC=$(find dl/windows -name '*.msi' | head -1)
+          [ -n "$MSI_SRC" ] && cp "$MSI_SRC" "publish/blake-uk-operator-console.msi" || echo "no msi built"
+          cp "$(find dl/linux -name '*.deb' | head -1)" "publish/blake-uk-operator-console.deb"
           VERSION=$(jq -r '.package.version' operator-console/src-tauri/tauri.conf.json)
           # Checksums so anyone can prove the download matches what this
           # workflow built (useful when an antivirus flags an unsigned installer).
