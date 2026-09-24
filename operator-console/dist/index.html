@@ -51,6 +51,8 @@
   .pill-overdue { background: #3a1f1f; color: var(--err); }
   .pill-live { display: inline-block; background: #f0d43a; color: #241a04; font-weight: 800; font-size: 10px; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; animation: pill-live-kf 1s ease-in-out infinite; }
   .pill-livechat { display: inline-block; background: #c0392b; color: #fff; font-weight: 800; font-size: 10px; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; animation: pill-live-kf 1s ease-in-out infinite; }
+  /* A finished ticket's badge is a label, not an alarm: no flashing. */
+  .pill-livechat.is-done { background: #3a4048; color: #adb4ba; animation: none; }
   @keyframes pill-live-kf { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   .pill-assignee { background: var(--surface-3); color: var(--accent-bright); border: 1px solid var(--accent-dim); }
   .agent-online { color: var(--ok); }
@@ -1259,11 +1261,13 @@ function renderTicketTable() {
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-note">No tickets match this view.</td></tr>'; return; }
   tb.innerHTML = rows.map(t => {
     const overdue = t.sla_deadline && !['resolved','closed'].includes(t.status) && (t.sla_deadline * 1000) < Date.now();
-    const isLive = liveHandoffIds.has(t.id);
+    const done = ['resolved', 'closed'].includes(t.status);
+    const isLive = liveHandoffIds.has(t.id) && !done;
+    if (done) liveHandoffIds.delete(t.id);
     const isLiveChat = t.channel === 'live_chat' && t.session_mode !== 'live_ended';
     return `
     <tr onclick="openTicket(${t.id})">
-      <td class="ticket-cell"><div class="subj">${isLiveChat ? '<span class="pill-livechat">LIVE CHAT</span> ' : ''}${isLive ? '<span class="pill-live">NEW</span> ' : ''}${esc(t.subject || 'Ticket #' + t.id)}</div><div class="code">${esc(ticketCode(t))}</div></td>
+      <td class="ticket-cell"><div class="subj">${isLiveChat ? `<span class="pill-livechat${done ? ' is-done' : ''}">LIVE CHAT</span> ` : ''}${isLive && !done ? '<span class="pill-live">NEW</span> ' : ''}${esc(t.subject || 'Ticket #' + t.id)}</div><div class="code">${esc(ticketCode(t))}</div></td>
       <td>${t.department ? `<span class="pill pill-dept">${esc(t.department)}</span>` : '—'}</td>
       <td><span class="pill pill-priority-${esc(t.priority || 'medium')}">${esc(t.priority || 'medium')}</span></td>
       <td><span class="pill pill-status-${esc(t.status)}">${esc(STATUS_LABELS[t.status] || t.status)}</span>${overdue ? ' <span class="pill pill-overdue">overdue</span>' : ''}</td>
