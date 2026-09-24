@@ -686,7 +686,7 @@ function renderChatList() {
       </div>`).join('');
   }
   el.innerHTML = html || '<div class="empty-note">No chats in the last hour.</div>';
-  const waiting = supportState.chats.filter(c => c.alert).length;
+  const waiting = supportState.chats.filter(c => c.alert && !c.ticket_code).length;
   const badge = document.getElementById('nav-chats-badge');
   badge.textContent = waiting; badge.classList.toggle('hidden', !waiting);
 }
@@ -893,7 +893,8 @@ async function bringToFront(onTop) {
 }
 function alertKey(c) { return c.id + '@' + (c.handoff_at || '') + '@' + (c.target_admin_id || ''); }
 function handleAlerts() {
-  const pending = supportState.chats.filter(c => c.alert && !dismissedAlerts.has(alertKey(c)));
+  // A chat that already has a ticket is tracked there, so it never alerts.
+  const pending = supportState.chats.filter(c => c.alert && !c.ticket_code && !dismissedAlerts.has(alertKey(c)));
   if (alertShowing && !pending.some(c => alertKey(c) === alertShowing)) stopAlert();
   if (alertShowing || !pending.length) {
     if (alertShowing) updateAlertMore(pending);

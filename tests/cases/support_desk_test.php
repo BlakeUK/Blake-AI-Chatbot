@@ -276,7 +276,9 @@ test('a resolved ticket takes its chat out of the queue', function () {
     \Chat\Handoff::start('sd-tk1', 'customer_request', null, 'sales');
     $t = \Chat\Handoff::createTicket('sd-tk1', 9101, ['subject' => 'Delivery query', 'department' => 'sales']);
     assert_true($t['ok'], $t['error'] ?? '');
-    assert_equal('live_requested', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-tk1'")->fetchColumn());
+    // Creating the ticket already released it; put it back in the queue to
+    // prove the ticket-resolved path releases it too.
+    db()->exec("UPDATE chat_sessions SET mode='live_requested' WHERE id='sd-tk1'");
     assert_true(\Chat\Handoff::releaseForTicket((int)$t['ticket_id']));
     assert_equal('ai', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-tk1'")->fetchColumn());
     assert_true(!\Chat\Handoff::releaseForTicket((int)$t['ticket_id']), 'already released');
@@ -296,5 +298,18 @@ test('a customer who leaves mid-handover stops alerting the team after 30 minute
     \Chat\Handoff::closeStale();
     assert_equal('ai', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-stale'")->fetchColumn());
     assert_equal('live_requested', db()->query("SELECT mode FROM chat_sessions WHERE id='sd-fresh'")->fetchColumn(), 'a recent one is left alone');
+    \Support\Hours::$override = null;
+});
+
+test('raising a ticket takes a queued chat out of the queue straight away', function () {
+    \Support\Hours::$override = true;
+    sd_reset_presence();
+    sd_admin(9103, 'online', ['sales']);
+    sd_session('sd-tk2', 'where is my parcel');
+    \Chat\Handoff::start('sd-tk2', 'customer_request', null, 'sales');
+    assert_equal('live_requested', sd_mode('sd-tk2'));
+    $t = \Chat\Handoff::createTicket('sd-tk2', 9103, ['subject' => 'Parcel', 'department' => 'sales']);
+    assert_true($t['ok']);
+    assert_equal('ai', sd_mode('sd-tk2'), 'no longer alerting the team');
     \Support\Hours::$override = null;
 });

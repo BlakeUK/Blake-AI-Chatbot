@@ -342,6 +342,13 @@ class Handoff
             \Telegram\Notifier::sendTicketAlert($ticketId, $subject, $email ?: ($phone ?: null), $session['page_url'] ?? null, $dept);
         } catch (\Throwable $e) {}
 
+        // A queued chat that now has a ticket should stop alerting the team:
+        // it is tracked as a ticket from here on. A chat a member of staff is
+        // actively handling (live_active) is left alone.
+        if (($session['mode'] ?? '') === 'live_requested') {
+            db()->prepare("UPDATE chat_sessions SET mode = 'ai', target_admin_id = NULL, updated_at = ? WHERE id = ?")->execute([$now, $sessionId]);
+        }
+
         $code = \Tickets\Mailer::code($ticketId);
         if ($adminId !== null) {
             self::say($sessionId, 'system', self::staffName($adminId) . " has raised support ticket {$code} for you."
