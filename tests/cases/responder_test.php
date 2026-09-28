@@ -317,6 +317,14 @@ test('alternatives: like-for-like TV aerials, same group, similar element count'
     $pdo->exec("DELETE FROM products WHERE product_code IN ('BLA-LP20K','BLA-LP28K','BLA-LP56K','DMCK-F','CR10K','XKDMX','DMX32','LP20A','KIT-LOFT','DAB3')");
 });
 
+test('letters-only product codes (BLADOB) are recognised, ordinary words are not', function () {
+    $pdo = db();
+    $pdo->prepare('INSERT INTO products (product_code, name, url, active) VALUES (?,?,?,1)')->execute(['BLADOB', 'Drive-On Mobile Mast Mount', 'https://www.blake-uk.com/bladob.html']);
+    assert_equal('BLADOB', \Chat\Responder::productFromText('Tech sheet for the bladob')['product_code']);
+    assert_true(\Chat\Responder::productFromText('tech sheet for the mounting please') === null, 'plain words must not match');
+    $pdo->exec("DELETE FROM products WHERE product_code = 'BLADOB'");
+});
+
 test('a product label linked to another product\'s page is re-pointed (or unlinked)', function () {
     $prods = fn() => [
         ['product_code' => 'LP20', 'name' => '20 Element Mini-Log Periodic Group K Aerial', 'url' => 'https://www.blake-uk.com/20-element-minilog-periodic-group-k-aerial.html'],

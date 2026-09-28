@@ -241,8 +241,26 @@ class Responder
     public static function productFromText(string $text): ?array
     {
         // Codes with digits (LP20K, CR10K) or hyphenated codes (DMCK-F).
-        if (!preg_match_all('/\b([A-Za-z]{1,6}-?[A-Za-z]*\d{1,4}[A-Za-z0-9\-]*|[A-Za-z]{3,}-[A-Za-z0-9]{1,6})\b/', $text, $m)) return null;
-        foreach ($m[1] as $tok) {
+        if (!preg_match_all('/\b([A-Za-z]{1,6}-?[A-Za-z]*\d{1,4}[A-Za-z0-9\-]*|[A-Za-z]{3,}-[A-Za-z0-9]{1,6})\b/', $text, $m)) $m = [1 => []];
+        $found = self::productFromTokens($m[1]);
+        if ($found) return $found;
+        // Letters-only codes (BLADOB): exact match on the whole code only,
+        // so ordinary words never match a product.
+        if (preg_match_all('/\b[A-Za-z]{5,12}\b/', $text, $w)) {
+            foreach ($w[0] as $word) {
+                try {
+                    $q = db()->prepare("SELECT * FROM products WHERE active = 1 AND replace(upper(product_code),'-','') = ? ORDER BY length(product_code) LIMIT 1");
+                    $q->execute([strtoupper($word)]);
+                    if ($row = $q->fetch()) return $row;
+                } catch (\Throwable $e) { return null; }
+            }
+        }
+        return null;
+    }
+
+    private static function productFromTokens(array $tokens): ?array
+    {
+        foreach ($tokens as $tok) {
             $t = strtoupper($tok);
             if (strlen($t) < 4 || preg_match('/^\d/', $t) || in_array($t, ['F-TYPE', 'WI-FI', 'LOG-PERIODIC', 'HIGH-GAIN'], true)) continue;
             try {
