@@ -251,7 +251,7 @@ class LeafletPdf extends FPDF
     // Downloads an image and converts it to a flat JPEG (PDF-safe).
     public static function jpeg(string $url): ?string
     {
-        $cache = \Products\Leaflet::dir() . '/img-' . sha1($url) . '.jpg';
+        $cache = \Products\Leaflet::dir() . '/img2-' . sha1($url) . '.jpg';
         if (is_file($cache)) return $cache;
         try {
             $r = \Http\SafeFetcher::get($url, 20, 8, 'Mozilla/5.0 (compatible; BlakeUKSupport/1.0)');
@@ -263,7 +263,11 @@ class LeafletPdf extends FPDF
             imagefill($flat, 0, 0, imagecolorallocate($flat, 255, 255, 255));
             imagealphablending($flat, true);
             imagecopy($flat, $im, 0, 0, 0, 0, $w, $h);
-            imagejpeg($flat, $cache, 88);
+            // Crop the white canvas around the product so it fills its box
+            // instead of shrinking to a small object in a big white square.
+            $trim = \Products\Leaflet::trimWhite($flat);
+            imagejpeg($trim, $cache, 88);
+            if ($trim !== $flat) imagedestroy($trim);
             imagedestroy($im); imagedestroy($flat);
             return is_file($cache) ? $cache : null;
         } catch (\Throwable $e) { return null; }

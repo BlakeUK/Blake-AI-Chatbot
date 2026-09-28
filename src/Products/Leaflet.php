@@ -17,7 +17,7 @@ namespace Products;
 
 class Leaflet
 {
-    public const LAYOUT_VERSION = '2026-09-23.5';
+    public const LAYOUT_VERSION = '2026-09-28.1';
 
     public const DISCLAIMER = 'Specifications are taken from the Blake UK product page shown above on the date of issue and are published for guidance only. '
         . 'Dimensions and weights are nominal and may change without notice. If this product is intended for a mission-critical, safety-related or contractual application, '
@@ -474,7 +474,7 @@ class Leaflet
     }
 
     // Crops the white margin off a rendered page.
-    private static function trimWhite(\GdImage $im): \GdImage
+    public static function trimWhite(\GdImage $im): \GdImage
     {
         $w = imagesx($im); $h = imagesy($im);
         $isInk = function (int $x, int $y) use ($im): bool {
