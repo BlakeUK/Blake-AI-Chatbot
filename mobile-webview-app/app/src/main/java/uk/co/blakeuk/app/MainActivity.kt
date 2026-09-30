@@ -37,7 +37,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var store: PageStore
     private lateinit var prefs: SharedPreferences
     private var fileCallback: ValueCallback<Array<Uri>>? = null
-    private var pendingSiteSearchFallback: Runnable? = null
 
     private val fileChooserLauncher =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
@@ -232,64 +231,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Blake UK's own search is a client-side overlay on the page rather than a
-     * separate URL, so we try to trigger it in place first (nicest result when
-     * it works) and fall back to a site-restricted web search if the page
-     * doesn't respond within a second — this never dead-ends into a 404.
+     * Blake UK's own search results live at /search/{query} (each word
+     * percent-encoded then joined with a literal "+" — a literal %20 space
+     * gets a 403 from the site's edge, confirmed directly against the live
+     * site, so words are joined with "+" instead). No query string, no DOM
+     * automation — this is a real, stable page like any category page.
      */
     private fun performSearch(queryRaw: String) {
         val query = queryRaw.trim()
         if (query.isEmpty()) return
         binding.drawerLayout.closeDrawers()
 
-        val js = """
-            (function(q) {
-                function visible(el) {
-                    var r = el.getBoundingClientRect();
-                    return r.width > 0 && r.height > 0;
-                }
-                var trigger = Array.from(document.querySelectorAll('button, a, span, div'))
-                    .find(function(el) {
-                        var t = (el.textContent || '').trim().toLowerCase();
-                        return t === 'search' && visible(el);
-                    });
-                if (trigger) { trigger.click(); }
-                setTimeout(function() {
-                    var input = Array.from(document.querySelectorAll('input[type=text], input[type=search], input:not([type])'))
-                        .find(function(el) { return visible(el); });
-                    if (input) {
-                        input.focus();
-                        input.value = q;
-                        input.dispatchEvent(new Event('input', {bubbles:true}));
-                        var form = input.closest('form');
-                        if (form) { form.submit(); }
-                        else {
-                            input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
-                            input.dispatchEvent(new KeyboardEvent('keyup', {key:'Enter', bubbles:true}));
-                        }
-                        window.__blakeUkSearchHandled = true;
-                    }
-                }, 350);
-            })(${org.json.JSONObject.quote(query)});
-        """.trimIndent()
+        val pathQuery = query.split(Regex("\\s+"))
+            .filter { it.isNotEmpty() }
+            .joinToString("+") { Uri.encode(it) }
 
-        if (binding.webView.url?.contains("blake-uk.com") == true) {
-            binding.webView.evaluateJavascript(js, null)
-        } else {
-            binding.webView.loadUrl(SiteNav.HOME)
-        }
-
-        pendingSiteSearchFallback?.let { binding.webView.removeCallbacks(it) }
-        val fallback = Runnable {
-            binding.webView.evaluateJavascript("window.__blakeUkSearchHandled === true") { result ->
-                if (result != "true") {
-                    val q = Uri.encode("site:blake-uk.com $query")
-                    binding.webView.loadUrl("https://www.google.com/search?q=$q")
-                }
-            }
-        }
-        pendingSiteSearchFallback = fallback
-        binding.webView.postDelayed(fallback, 1200)
+        binding.webView.loadUrl("${SiteNav.BASE}/search/$pathQuery")
     }
 
     private fun updateFavouriteIcon(url: String) {
