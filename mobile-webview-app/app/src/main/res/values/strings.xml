@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Blake UK</string>
+    <string name="menu">Menu</string>
+    <string name="search_hint">Search Blake UK…</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_categories">Categories</string>
+    <string name="nav_help">Help &amp; Support</string>
+    <string name="nav_account">Account</string>
+    <string name="nav_favourites">Favourites</string>
+    <string name="nav_recent">Recently Viewed</string>
+    <string name="favourites_empty">No favourites yet. Open a product and tap the star to save it here.</string>
+    <string name="recent_empty">Nothing viewed yet.</string>
+    <string name="action_favourite">Save this page</string>
+    <string name="action_unfavourite">Remove from favourites</string>
+    <string name="saved_offline_notice">No connection — showing the last loaded page.</string>
+</resources>

@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "uk.co.blakeuk.app-mergeDebugResources-3:/layout/drawer_header.xml",
+        "source": "uk.co.blakeuk.app-main-6:/layout/drawer_header.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-mergeDebugResources-3:/layout/drawer_item.xml",
+        "source": "uk.co.blakeuk.app-main-6:/layout/drawer_item.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-mergeDebugResources-3:/layout/activity_main.xml",
+        "source": "uk.co.blakeuk.app-main-6:/layout/activity_main.xml"
+    }
+]

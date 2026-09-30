@@ -1,0 +1,62 @@
+[
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/layout_activity_main.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/layout_drawer_header.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/layout/drawer_header.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_basket.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_basket.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_star_filled.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_star_filled.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_home.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_home.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_menu.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_menu.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_back.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_back.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_star_outline.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_star_outline.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_forward.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_forward.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_launcher_background.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_search.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_search.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "uk.co.blakeuk.app-debug-4:/layout_drawer_item.xml.flat",
+        "source": "uk.co.blakeuk.app-main-6:/layout/drawer_item.xml"
+    }
+]

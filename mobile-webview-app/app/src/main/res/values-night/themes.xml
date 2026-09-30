@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.BlakeUK" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/blake_blue</item>
+        <item name="colorPrimaryDark">@color/black</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="android:statusBarColor">@color/black</item>
+    </style>
+</resources>
