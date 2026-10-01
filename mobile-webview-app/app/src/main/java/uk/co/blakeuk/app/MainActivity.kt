@@ -8,9 +8,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.view.KeyEvent
 import android.view.View
-import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -219,34 +217,6 @@ class MainActivity : AppCompatActivity() {
             )
             rebuildFavouritesSection()
         }
-
-        binding.searchBox.setOnEditorActionListener { textView, actionId, event ->
-            val isSearch = actionId == EditorInfo.IME_ACTION_SEARCH ||
-                (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
-            if (isSearch) {
-                performSearch(textView.text.toString())
-                true
-            } else false
-        }
-    }
-
-    /**
-     * Blake UK's own search results live at /search/{query} (each word
-     * percent-encoded then joined with a literal "+" — a literal %20 space
-     * gets a 403 from the site's edge, confirmed directly against the live
-     * site, so words are joined with "+" instead). No query string, no DOM
-     * automation — this is a real, stable page like any category page.
-     */
-    private fun performSearch(queryRaw: String) {
-        val query = queryRaw.trim()
-        if (query.isEmpty()) return
-        binding.drawerLayout.closeDrawers()
-
-        val pathQuery = query.split(Regex("\\s+"))
-            .filter { it.isNotEmpty() }
-            .joinToString("+") { Uri.encode(it) }
-
-        binding.webView.loadUrl("${SiteNav.BASE}/search/$pathQuery")
     }
 
     private fun updateFavouriteIcon(url: String) {

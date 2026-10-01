@@ -2,7 +2,6 @@
 <resources>
     <string name="app_name">Blake UK</string>
     <string name="menu">Menu</string>
-    <string name="search_hint">Search Blake UK…</string>
     <string name="nav_home">Home</string>
     <string name="nav_categories">Categories</string>
     <string name="nav_help">Help &amp; Support</string>

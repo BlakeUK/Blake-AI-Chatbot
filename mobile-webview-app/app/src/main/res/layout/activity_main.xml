@@ -17,40 +17,26 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
+                android:layout_height="52dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="4dp"
-                android:paddingEnd="8dp">
+                android:paddingEnd="4dp">
 
                 <ImageButton
                     android:id="@+id/btnMenu"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    style="@style/BottomBarButton"
                     android:contentDescription="@string/menu"
                     android:src="@drawable/ic_menu" />
 
-                <EditText
-                    android:id="@+id/searchBox"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="4dp"
-                    android:background="@android:color/transparent"
-                    android:hint="@string/search_hint"
-                    android:textColorHint="#DDFFFFFF"
-                    android:textColor="@android:color/white"
-                    android:imeOptions="actionSearch"
-                    android:inputType="text"
-                    android:singleLine="true"
-                    android:maxLines="1" />
+                <ImageButton android:id="@+id/btnBack" style="@style/BottomBarButton" android:src="@drawable/ic_back" android:contentDescription="Back" />
+                <ImageButton android:id="@+id/btnForward" style="@style/BottomBarButton" android:src="@drawable/ic_forward" android:contentDescription="Forward" />
+                <ImageButton android:id="@+id/btnHome" style="@style/BottomBarButton" android:src="@drawable/ic_home" android:contentDescription="Home" />
+                <ImageButton android:id="@+id/btnBasket" style="@style/BottomBarButton" android:src="@drawable/ic_basket" android:contentDescription="Basket" />
 
                 <ImageButton
                     android:id="@+id/btnFavourite"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
+                    style="@style/BottomBarButton"
                     android:contentDescription="@string/action_favourite"
                     android:src="@drawable/ic_star_outline" />
             </LinearLayout>
@@ -81,19 +67,6 @@
                     android:visibility="gone" />
             </FrameLayout>
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:orientation="horizontal"
-            android:background="?attr/colorPrimary"
-            android:elevation="8dp">
-
-            <ImageButton android:id="@+id/btnBack" style="@style/BottomBarButton" android:src="@drawable/ic_back" android:contentDescription="Back" />
-            <ImageButton android:id="@+id/btnForward" style="@style/BottomBarButton" android:src="@drawable/ic_forward" android:contentDescription="Forward" />
-            <ImageButton android:id="@+id/btnHome" style="@style/BottomBarButton" android:src="@drawable/ic_home" android:contentDescription="Home" />
-            <ImageButton android:id="@+id/btnBasket" style="@style/BottomBarButton" android:src="@drawable/ic_basket" android:contentDescription="Basket" />
-        </LinearLayout>
     </LinearLayout>
 
     <ScrollView
