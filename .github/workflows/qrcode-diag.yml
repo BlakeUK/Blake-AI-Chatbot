@@ -33,6 +33,15 @@ jobs:
                 print(datetime.datetime.utcfromtimestamp(ts).strftime("%H:%M:%S"), m, u, s)
             print("(%d admin requests in the last 3 hours)" % len(rows))
             '
+            echo "--- GeoIP and settings (no secrets)"
+            ls -la /var/www/qrcode/data/geoip/ 2>/dev/null | tail -n +2
+            echo "geoip month marker: $(cat /var/www/qrcode/data/geoip/dbip-city-lite.month 2>/dev/null || echo none)"
+            echo "timer: $(systemctl is-enabled qrtrack-geoip.timer 2>&1) / next: $(systemctl list-timers qrtrack-geoip.timer --no-pager 2>/dev/null | sed -n 2p | cut -c1-60)"
+            grep -E '^(GEOIP_DB|STORE_FULL_IP|BASE_URL|RETENTION_DAYS)=' /var/www/qrcode/qrtrack.env
+            echo "--- service log (GeoIP lines)"
+            journalctl -u qrtrack --since "1 hour ago" --no-pager -o cat 2>/dev/null | grep -i -E "geoip|STORE_FULL_IP|listening" | tail -5
+            echo "--- scan detail columns filled (counts only)"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'scans=' || count(*), 'with_city=' || coalesce(sum(city<>''),0), 'with_language=' || coalesce(sum(language<>''),0), 'with_destination=' || coalesce(sum(destination_url<>''),0), 'with_ip=' || coalesce(sum(ip<>''),0) from scans;"
             echo "--- account state (no secrets)"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'user=' || username, 'must_change=' || must_change_password, 'updated=' || updated_at from users;"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'login attempts last 3h: total=' || count(*) || ' failed=' || coalesce(sum(success=0),0) from login_attempts where attempted_at > strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 hours');"

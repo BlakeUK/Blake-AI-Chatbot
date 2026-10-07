@@ -14,6 +14,8 @@
 #   DOMAIN          public host name, e.g. qr.blakegroup.uk. Empty = local-only.
 #   ADMIN_PASSWORD  initial admin password, needed only on the very first install.
 #   ADMIN_USER      initial admin user name (default: admin)
+#   STORE_FULL_IP   "true" or "false": keep visitor IP addresses with each scan.
+#                   Empty leaves the current setting alone (default is false).
 #   QR_PORT         local port (default 8081)
 set -euo pipefail
 
@@ -50,6 +52,8 @@ case "$(uname -m)" in
 esac
 BIN_SRC="$SRC/qrtrack-linux-$ARCH"
 [[ -f "$BIN_SRC" ]] || die "$BIN_SRC not found"
+STORE_FULL_IP="${STORE_FULL_IP:-}"
+case "$STORE_FULL_IP" in ""|true|false) ;; *) die "STORE_FULL_IP must be true, false or empty" ;; esac
 [[ "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ || -z "$DOMAIN" ]] || die "DOMAIN '$DOMAIN' is not a valid host name"
 
 # ── user and directories ────────────────────────────────────────────────────
@@ -72,7 +76,21 @@ install -m 0755 "$BIN_SRC" "$APP_DIR/qrtrack.new"
 mv -f "$APP_DIR/qrtrack.new" "$APP_DIR/qrtrack"
 info "Installed binary ($ARCH)"
 
+# ── IP-geolocation database (approximate town / region / country) ────────────
+# Optional: if it cannot be fetched the tracker still works, with blank places.
+install -m 0755 "$SRC/update-geoip.sh" "$APP_DIR/update-geoip.sh"
+GEO_FILE="$APP_DIR/data/geoip/dbip-city-lite.mmdb"
+if QR_APP_DIR="$APP_DIR" "$APP_DIR/update-geoip.sh"; then
+    info "IP-geolocation database is in place"
+else
+    warn "Could not install the IP-geolocation database. Scans will have no town/region until it succeeds; the monthly timer retries."
+fi
+
 # ── configuration ────────────────────────────────────────────────────────────
+# Set KEY=VALUE in the env file: replace the line if present, else append.
+set_env() {
+    if grep -q "^$1=" "$ENV_FILE"; then sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"; else echo "$1=$2" >> "$ENV_FILE"; fi
+}
 if [[ -n "$DOMAIN" ]]; then BASE_URL="https://$DOMAIN"; else BASE_URL="http://127.0.0.1:$PORT"; fi
 if [[ ! -f "$ENV_FILE" ]]; then
     if [[ ! -s "$DB_FILE" && -z "$ADMIN_PASSWORD" ]]; then
@@ -98,14 +116,22 @@ else
         sed -i "s|^BASE_URL=.*|BASE_URL=$BASE_URL|" "$ENV_FILE"
     fi
 fi
+if [[ -s "$GEO_FILE" ]]; then set_env GEOIP_DB "$GEO_FILE"; fi
+if [[ -n "$STORE_FULL_IP" ]]; then
+    set_env STORE_FULL_IP "$STORE_FULL_IP"
+    info "STORE_FULL_IP=$STORE_FULL_IP"
+fi
 chown root:root "$ENV_FILE"; chmod 600 "$ENV_FILE"
 chown root:root "$APP_DIR" "$APP_DIR/qrtrack"; chmod 755 "$APP_DIR"
 chown -R "$SVC_USER:$SVC_USER" "$APP_DIR/data"; chmod 700 "$APP_DIR/data"
 
 # ── systemd ──────────────────────────────────────────────────────────────────
 install -m 0644 "$SRC/qrtrack.service" "$UNIT_DIR/qrtrack.service"
+install -m 0644 "$SRC/qrtrack-geoip.service" "$UNIT_DIR/qrtrack-geoip.service"
+install -m 0644 "$SRC/qrtrack-geoip.timer" "$UNIT_DIR/qrtrack-geoip.timer"
 systemctl daemon-reload
 systemctl enable qrtrack >/dev/null 2>&1 || true
+systemctl enable --now qrtrack-geoip.timer >/dev/null 2>&1 || warn "could not enable the monthly GeoIP timer"
 systemctl restart qrtrack
 
 healthy() { curl -fsS --max-time 3 "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1; }

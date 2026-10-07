@@ -13,6 +13,14 @@ on:
         description: "Public host name for the tracker, e.g. qr.blakegroup.uk. Its DNS A record must already point at the VPS. Leave empty to deploy local-only (127.0.0.1:8081) without touching Caddy."
         required: false
         default: ""
+      store_full_ip:
+        description: "Keep each visitor's full IP address with their scan? 'unchanged' keeps the current setting (default: off, so only a daily-salted hash is stored). Turning it on makes addresses personal data you must disclose in your privacy notice."
+        type: choice
+        options:
+          - unchanged
+          - "false"
+          - "true"
+        default: unchanged
 
 jobs:
   deploy:
@@ -41,7 +49,17 @@ jobs:
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "../qrcode-release/qrtrack-linux-$arch" ./cmd/qrtrack
           done
-          cp deploy/install.sh deploy/qrtrack.service deploy/qrcode.caddy.tmpl ../qrcode-release/
+          cp deploy/install.sh deploy/qrtrack.service deploy/qrcode.caddy.tmpl deploy/update-geoip.sh deploy/qrtrack-geoip.service deploy/qrtrack-geoip.timer ../qrcode-release/
+
+      - name: Normalise options
+        id: opts
+        env:
+          STORE_FULL_IP_INPUT: ${{ github.event.inputs.store_full_ip }}
+        run: |
+          # "unchanged" means: send nothing, so the installer leaves the setting alone.
+          value="$STORE_FULL_IP_INPUT"
+          if [ "$value" = "unchanged" ]; then value=""; fi
+          echo "store_full_ip=$value" >> "$GITHUB_OUTPUT"
 
       - name: Prepare initial password (needed on first install only)
         id: pw
@@ -78,11 +96,14 @@ jobs:
         env:
           DOMAIN: ${{ github.event.inputs.domain }}
           ADMIN_PASSWORD_B64: ${{ steps.pw.outputs.b64 }}
+          STORE_FULL_IP: ${{ steps.opts.outputs.store_full_ip }}
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          envs: DOMAIN,ADMIN_PASSWORD_B64
+          envs: DOMAIN,ADMIN_PASSWORD_B64,STORE_FULL_IP
+          # The first run downloads a ~60 MB geolocation database.
+          command_timeout: 20m
           script: |
             chmod +x /var/www/qrcode/release/install.sh
             bash /var/www/qrcode/release/install.sh

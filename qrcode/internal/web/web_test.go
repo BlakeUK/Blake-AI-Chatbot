@@ -793,7 +793,7 @@ func TestDownloadsQRAndCSV(t *testing.T) {
 	}
 	resp, body = h.do(c, "GET", fmt.Sprintf("/admin/links/%d/scans.csv", l.ID), nil, nil)
 	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/csv") ||
-		!strings.HasPrefix(body, "scanned_at,ip_hash,") || strings.Count(body, "\n") != 2 {
+		!strings.HasPrefix(body, "scanned_at_utc,scanned_at_local,campaign,") || strings.Count(body, "\n") != 2 {
 		t.Errorf("csv: %d %q", resp.StatusCode, body)
 	}
 	// Unauthenticated access to downloads is refused.
@@ -815,7 +815,7 @@ func TestPagesAreCSPClean(t *testing.T) {
 	h.scanCount(l.ID)
 	inline := regexp.MustCompile(`(?i)\sstyle\s*=|<style|<script[^>]*>[^<]|\son[a-z]+\s*=`)
 	pages := []string{"/admin/login", "/admin/", "/admin/links/new", fmt.Sprintf("/admin/links/%d", l.ID),
-		fmt.Sprintf("/admin/links/%d?bots=1", l.ID), fmt.Sprintf("/admin/links/%d/edit", l.ID), "/admin/password", "/nope"}
+		fmt.Sprintf("/admin/links/%d?bots=1", l.ID), fmt.Sprintf("/admin/links/%d/edit", l.ID), "/admin/password", "/admin/campaigns", "/admin/?campaign=Leaflet", "/admin/?uncategorised=1", "/nope"}
 	for _, p := range pages {
 		resp, body := h.do(c, "GET", p, nil, nil)
 		if p != "/nope" && resp.StatusCode != 200 {
@@ -950,5 +950,205 @@ func TestLoginFormIsMobileKeyboardSafe(t *testing.T) {
 	// A phone keyboard that capitalised the first letter must still get in.
 	if resp, _ := h.rawLogin(h.client(), seedPW, "198.51.100.70"); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("baseline login: %d", resp.StatusCode)
+	}
+}
+
+// ---------- campaign, place, language, destination, exact time ----------
+
+func TestParseLanguage(t *testing.T) {
+	cases := map[string]string{
+		"en-GB,en;q=0.9,fr;q=0.8":   "en-GB",
+		"en-gb":                     "en-GB",
+		"EN-us":                     "en-US",
+		"zh-hans-cn":                "zh-Hans-CN",
+		"fr":                        "fr",
+		"en;q=0.5":                  "en",
+		"*":                         "",
+		"":                          "",
+		"<script>alert(1)</script>": "",
+		"en-GB\r\nX-Evil: 1":        "",
+		"this-is-way-too-long-to-be-a-language-tag-at-all": "",
+	}
+	for in, want := range cases {
+		if got := parseLanguage(in); got != want {
+			t.Errorf("parseLanguage(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if languageLabel("en-GB") != "English (en-GB)" || languageLabel("cy") != "Welsh (cy)" || languageLabel("xx-YY") != "xx-YY" || languageLabel("") != "" {
+		t.Error("languageLabel")
+	}
+}
+
+func (h *harness) withGeo() {
+	h.srv.geo = geo.Static(map[string]geo.Location{
+		"81.2.69.142":  {CountryISO: "GB", Country: "United Kingdom", Region: "England", City: "London"},
+		"203.0.113.50": {CountryISO: "FR", Country: "France", Region: "Ile-de-France", City: "Paris"},
+	})
+}
+
+func (h *harness) scanFull(code, ip, agent, lang, referer string) {
+	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	hdr := map[string]string{"X-Forwarded-For": ip, "User-Agent": agent}
+	if lang != "" {
+		hdr["Accept-Language"] = lang
+	}
+	if referer != "" {
+		hdr["Referer"] = referer
+	}
+	h.do(c, "GET", "/r/"+code, nil, hdr)
+}
+
+func TestScanDetailEndToEnd(t *testing.T) {
+	h := newHarness(t)
+	h.withGeo()
+	c := h.adminClient()
+
+	// Create through the form, with a campaign and a Facebook destination.
+	resp, _ := h.createViaForm(c, url.Values{
+		"label": {"Stand banner"}, "campaign": {"Exhibition stand"}, "destination": {"https://www.facebook.com/blakeuk"},
+		"window": {"30d"}, "expiry_mode": {"redirect_untracked"}, "qr_ecc": {"M"},
+	})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create: %d", resp.StatusCode)
+	}
+	var id int64
+	var code, camp string
+	h.db.QueryRow(`SELECT id, code, campaign FROM links`).Scan(&id, &code, &camp)
+	if camp != "Exhibition stand" {
+		t.Fatalf("campaign stored as %q", camp)
+	}
+
+	h.scanFull(code, "81.2.69.142", iphoneUA, "en-gb,en;q=0.9", "https://m.facebook.com/")
+	h.scanFull(code, "203.0.113.50", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0", "fr-FR,fr;q=0.9", "")
+	h.scanFull(code, "198.51.100.9", iphoneUA, "", "") // no language, no location known
+	h.scanCount(id)
+
+	_, page := h.do(c, "GET", fmt.Sprintf("/admin/links/%d", id), nil, nil)
+	exact := h.clk.Now().In(h.srv.cfg.Location).Format("02 Jan 2006 15:04:05")
+	for _, want := range []string{
+		"Individual scans", exact, // exact date and time, to the second, in London time
+		"Exhibition stand",                                                // campaign
+		"London, England, United Kingdom", "Paris, Ile-de-France, France", // approximate town, region, country
+		"mobile", "iOS", "Safari", "desktop", "Windows", "Edge", // device, OS, browser
+		"English (en-GB)", "French (fr-FR)", // language
+		"Facebook",                   // destination
+		"Language", "Region", "Town", // breakdown tables
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("detail page missing %q", want)
+		}
+	}
+	// IP stays out of the page while full-IP storage is off.
+	for _, ip := range []string{"81.2.69.142", "203.0.113.50", "198.51.100.9", "IP address"} {
+		if strings.Contains(page, ip) {
+			t.Errorf("detail page leaks %q while STORE_FULL_IP is off", ip)
+		}
+	}
+
+	_, all := h.do(c, "GET", "/admin/scans.csv", nil, nil)
+	for _, want := range []string{"Exhibition stand", "Stand banner", "London", "England", "United Kingdom", "Paris", "en-GB", "fr-FR", "Facebook", "https://www.facebook.com/blakeuk"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("all-scans CSV missing %q", want)
+		}
+	}
+	if strings.Contains(all, "81.2.69.142") {
+		t.Error("CSV leaks an IP address")
+	}
+
+	_, camps := h.do(c, "GET", "/admin/campaigns", nil, nil)
+	if !strings.Contains(camps, "Exhibition stand") || !strings.Contains(camps, `class="num">3</td>`) {
+		t.Errorf("campaigns page wrong:\n%.1500s", camps)
+	}
+}
+
+func TestCampaignFormFilterAndSpelling(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	mk := func(label, campaign string) {
+		resp, body := h.createViaForm(c, url.Values{"label": {label}, "campaign": {campaign}, "destination": {"https://www.blake-uk.com/"},
+			"window": {"7d"}, "expiry_mode": {"redirect_untracked"}, "qr_ecc": {"M"}})
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("create %s: %d %.200s", label, resp.StatusCode, body)
+		}
+	}
+	mk("one", "Leaflet")
+	mk("two", "leaflet") // same campaign, different case
+	mk("three", "Product box")
+	mk("four", "")
+
+	var n int
+	h.db.QueryRow(`SELECT COUNT(DISTINCT campaign) FROM links WHERE campaign <> ''`).Scan(&n)
+	if n != 2 {
+		t.Errorf("%d distinct campaigns, want 2 (Leaflet/leaflet must merge)", n)
+	}
+	rows := func(path string) int {
+		_, b := h.do(c, "GET", path, nil, nil)
+		return strings.Count(b, "<tr>") - 1
+	}
+	if rows("/admin/?campaign=leaflet") != 2 || rows("/admin/?campaign=Product+box") != 1 || rows("/admin/?uncategorised=1") != 1 || rows("/admin/") != 4 {
+		t.Error("campaign filtering returned the wrong rows")
+	}
+	_, form := h.do(c, "GET", "/admin/links/new", nil, nil)
+	for _, want := range []string{`name="campaign"`, `list="campaign-suggestions"`, "Exhibition stand", "Product box", "Leaflet"} {
+		if !strings.Contains(form, want) {
+			t.Errorf("form missing %q", want)
+		}
+	}
+	resp, body := h.createViaForm(c, url.Values{"label": {"x"}, "campaign": {strings.Repeat("c", 61)}, "destination": {"https://www.blake-uk.com/"},
+		"window": {"7d"}, "expiry_mode": {"redirect_untracked"}, "qr_ecc": {"M"}})
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(body, "Campaign must be 60 characters or fewer") {
+		t.Errorf("61-char campaign: %d", resp.StatusCode)
+	}
+}
+
+func TestFullIPIsOffByDefaultAndExplicitWhenOn(t *testing.T) {
+	// ON: stored, shown, exported, flagged on every page, purged with the scan.
+	h := newHarness(t, func(c *Config) { c.StoreFullIP = true })
+	c := h.adminClient()
+	l := h.mkLink(h.clk.Now().Add(-time.Hour), h.clk.Now().Add(time.Hour), links.RedirectUntracked, "")
+	h.scanFull(l.Code, "203.0.113.77", iphoneUA, "en-GB", "")
+	h.scanCount(l.ID)
+
+	var stored string
+	h.db.QueryRow(`SELECT ip FROM scans`).Scan(&stored)
+	if stored != "203.0.113.77" {
+		t.Errorf("ip column = %q", stored)
+	}
+	_, page := h.do(c, "GET", fmt.Sprintf("/admin/links/%d", l.ID), nil, nil)
+	if !strings.Contains(page, "203.0.113.77") || !strings.Contains(page, "IP address") {
+		t.Error("IP not shown while the switch is on")
+	}
+	if !strings.Contains(page, "Full IP address storage is") {
+		t.Error("no on-screen warning that full IPs are being kept")
+	}
+	_, csv := h.do(c, "GET", fmt.Sprintf("/admin/links/%d/scans.csv", l.ID), nil, nil)
+	if !strings.Contains(csv, "203.0.113.77") {
+		t.Error("IP missing from CSV while on")
+	}
+	// Retention removes the address with the scan.
+	h.clk.Advance(400 * 24 * time.Hour)
+	if n, err := scans.Purge(context.Background(), h.db, h.clk.Now().AddDate(0, 0, -365), h.clk.Now()); err != nil || n != 1 {
+		t.Fatalf("purge: %d %v", n, err)
+	}
+	var left int
+	h.db.QueryRow(`SELECT COUNT(*) FROM scans WHERE ip <> ''`).Scan(&left)
+	if left != 0 {
+		t.Error("raw IP survived the retention purge")
+	}
+
+	// OFF (the default): the column exists but is never filled and the UI says nothing about IPs.
+	off := newHarness(t)
+	oc := off.adminClient()
+	ol := off.mkLink(off.clk.Now().Add(-time.Hour), off.clk.Now().Add(time.Hour), links.RedirectUntracked, "")
+	off.scanFull(ol.Code, "203.0.113.78", iphoneUA, "en-GB", "")
+	off.scanCount(ol.ID)
+	var ip string
+	off.db.QueryRow(`SELECT ip FROM scans`).Scan(&ip)
+	if ip != "" {
+		t.Errorf("ip stored while switch is off: %q", ip)
+	}
+	_, offPage := off.do(oc, "GET", fmt.Sprintf("/admin/links/%d", ol.ID), nil, nil)
+	if strings.Contains(offPage, "203.0.113.78") || strings.Contains(offPage, "Full IP address storage") {
+		t.Error("IP or warning shown while off")
 	}
 }

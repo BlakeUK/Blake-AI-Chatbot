@@ -35,6 +35,7 @@ type config struct {
 	AdminPassword  string
 	TrustedProxies []*net.IPNet
 	GeoIPDB        string
+	StoreFullIP    bool
 	RetentionDays  int
 	LogLevel       slog.Level
 }
@@ -56,6 +57,13 @@ func loadConfig() (config, error) {
 	}
 	if c.BaseURL == "" {
 		return c, errors.New("BASE_URL is required (the public origin the QR codes will point at, e.g. https://qr.example.com)")
+	}
+	switch strings.ToLower(get("STORE_FULL_IP", "false")) {
+	case "1", "true", "yes", "on":
+		c.StoreFullIP = true
+	case "0", "false", "no", "off":
+	default:
+		return c, fmt.Errorf("STORE_FULL_IP must be true or false")
 	}
 	days, err := strconv.Atoi(get("RETENTION_DAYS", "365"))
 	if err != nil || days < 1 {
@@ -87,6 +95,11 @@ func loadConfig() (config, error) {
 }
 
 func main() {
+	// `qrtrack geocheck FILE [IP]` validates an IP-geolocation database. The
+	// monthly updater runs it on a download before swapping the file in.
+	if len(os.Args) >= 3 && os.Args[1] == "geocheck" {
+		os.Exit(geocheck(os.Args[2:]))
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "qrtrack:", err)
 		os.Exit(1)
@@ -124,11 +137,20 @@ func run() error {
 		log.Info("created initial admin account; a password change is required at first login", "username", cfg.AdminUser)
 	}
 
+	// A missing or damaged GeoIP file must never stop QR codes redirecting:
+	// log it and run without place names until a good file appears (the
+	// hourly reload picks it up).
 	resolver, err := geo.Open(cfg.GeoIPDB)
 	if err != nil {
-		return fmt.Errorf("open GeoIP database: %w", err)
+		log.Error("GeoIP database not usable; place names will be blank until it is fixed", "path", cfg.GeoIPDB, "err", err)
+		resolver, _ = geo.Open("")
+	} else if resolver.Active() {
+		log.Info("GeoIP database loaded", "type", resolver.DatabaseType())
 	}
 	defer resolver.Close()
+	if cfg.StoreFullIP {
+		log.Warn("STORE_FULL_IP is on: visitor IP addresses are stored with each scan")
+	}
 
 	london, err := time.LoadLocation("Europe/London")
 	if err != nil {
@@ -138,7 +160,7 @@ func run() error {
 	writer := scans.NewWriter(d, 4096, log)
 	writer.Start()
 
-	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london}, web.Deps{
+	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london, StoreFullIP: cfg.StoreFullIP}, web.Deps{
 		DB: d, Links: links.NewStore(d), Auth: authSvc, Hasher: scans.NewHasher(d, time.Now),
 		Writer: writer, Geo: resolver, Now: time.Now, Log: log, Assets: qrtrack.Web,
 	})
@@ -157,7 +179,7 @@ func run() error {
 	}
 
 	stop := make(chan struct{})
-	go maintenance(stop, authSvc, cfg.RetentionDays, log)
+	go maintenance(stop, authSvc, resolver, cfg.RetentionDays, log)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -193,7 +215,7 @@ func run() error {
 
 // maintenance purges expired data once an hour: old scans beyond the
 // retention period, stale daily salts, expired sessions and login attempts.
-func maintenance(stop <-chan struct{}, a *auth.Service, retentionDays int, log *slog.Logger) {
+func maintenance(stop <-chan struct{}, a *auth.Service, g *geo.Resolver, retentionDays int, log *slog.Logger) {
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	run := func() {
@@ -209,6 +231,12 @@ func maintenance(stop <-chan struct{}, a *auth.Service, retentionDays int, log *
 		if err := a.Purge(ctx); err != nil {
 			log.Error("session purge", "err", err)
 		}
+		// Pick up a freshly downloaded GeoIP database without a restart.
+		if changed, err := g.Reload(); err != nil {
+			log.Error("GeoIP reload rejected; keeping the previous database", "err", err)
+		} else if changed {
+			log.Info("GeoIP database reloaded", "type", g.DatabaseType())
+		}
 	}
 	run()
 	for {
@@ -219,4 +247,27 @@ func maintenance(stop <-chan struct{}, a *auth.Service, retentionDays int, log *
 			return
 		}
 	}
+}
+
+// geocheck opens a GeoIP database and looks up a sample address (default
+// 81.2.69.142, which a good City database places in London). Exit status 0
+// means the file is usable.
+func geocheck(args []string) int {
+	g, err := geo.Open(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "geocheck: not a usable database:", err)
+		return 1
+	}
+	defer g.Close()
+	ip := "81.2.69.142"
+	if len(args) > 1 {
+		ip = args[1]
+	}
+	l := g.Lookup(ip)
+	fmt.Printf("%s database; %s -> %s, %s, %s (%s)\n", g.DatabaseType(), ip, l.City, l.Region, l.Country, l.CountryISO)
+	if l.CountryISO == "" {
+		fmt.Fprintln(os.Stderr, "geocheck: the sample address resolved to nothing")
+		return 1
+	}
+	return 0
 }

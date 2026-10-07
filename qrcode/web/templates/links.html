@@ -1,21 +1,24 @@
 {{define "content"}}
 <div class="row between">
-  <h1>Tracked links <span class="muted">({{.Data.Total}})</span></h1>
+  <h1>Tracked links <span class="muted">({{.Data.Total}})</span>
+    {{if .Data.Filter.Uncategorised}}<span class="badge">no campaign</span> <a class="small" href="/admin/">clear</a>{{else if .Data.Filter.Campaign}}<span class="badge">{{.Data.Filter.Campaign}}</span> <a class="small" href="/admin/">clear</a>{{end}}
+  </h1>
   <a class="button primary" href="/admin/links/new">New link</a>
 </div>
 {{if .Data.Rows}}
 <div class="scroll">
 <table>
   <thead><tr>
-    <th>Label</th><th>Short URL</th><th>Destination</th><th>Window</th>
+    <th>Label</th><th>Campaign</th><th>Short URL</th><th>Destination</th><th>Window</th>
     <th class="num">Scans</th><th class="num">Unique</th><th>Last scan</th>
   </tr></thead>
   <tbody>
   {{range .Data.Rows}}
   <tr>
     <td><a href="/admin/links/{{.Link.ID}}">{{.Link.Label}}</a>{{if not .Link.Enabled}} <span class="badge off">disabled</span>{{end}}</td>
+    <td>{{if .Link.Campaign}}<a href="/admin/?campaign={{.Link.Campaign | urlquery}}">{{.Link.Campaign}}</a>{{else}}<span class="muted">none</span>{{end}}</td>
     <td><code>{{.ShortURL}}</code></td>
-    <td title="{{.Link.DestinationURL}}">{{trunc 40 .Link.DestinationURL}}</td>
+    <td title="{{.Link.DestinationURL}}"><strong>{{.Site}}</strong><br><span class="muted small">{{trunc 40 .Link.DestinationURL}}</span></td>
     <td><span class="badge {{.Status}}">{{.Status}}</span><br><span class="muted small">{{dtShort .Link.TrackStart}} to {{dtShort .Link.TrackEnd}}</span></td>
     <td class="num">{{.Totals.All}}</td>
     <td class="num">{{.Totals.Unique}}</td>
@@ -26,9 +29,9 @@
 </table>
 </div>
 <p class="pager">
-  {{if .Data.HasPrev}}<a href="/admin/?page={{prev .Data.Page}}">&larr; Newer</a>{{end}}
+  {{if .Data.HasPrev}}<a href="/admin/?page={{prev .Data.Page}}{{.Data.Extra}}">&larr; Newer</a>{{end}}
   <span class="muted">Page {{.Data.Page}} of {{.Data.Pages}}</span>
-  {{if .Data.HasNext}}<a href="/admin/?page={{next .Data.Page}}">Older &rarr;</a>{{end}}
+  {{if .Data.HasNext}}<a href="/admin/?page={{next .Data.Page}}{{.Data.Extra}}">Older &rarr;</a>{{end}}
 </p>
 <p class="muted small">Scans exclude bots and link-preview fetchers (WhatsApp, Slack and similar). Times are Europe/London.</p>
 {{else}}

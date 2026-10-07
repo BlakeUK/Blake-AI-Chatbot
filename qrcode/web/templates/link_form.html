@@ -9,6 +9,12 @@
     {{with index .Errors "label"}}<span class="field-error">{{.}}</span>{{end}}
   </label>
 
+  <label>Campaign <span class="muted">(where this QR code is used: leaflet, exhibition stand, product box ...)</span>
+    <input name="campaign" type="text" list="campaign-suggestions" maxlength="60" value="{{.Campaign}}" autocomplete="off" placeholder="e.g. Exhibition stand">
+    <datalist id="campaign-suggestions">{{range .Suggestions}}<option value="{{.}}">{{end}}</datalist>
+    {{with index .Errors "campaign"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+
   <label>Destination URL
     <input name="destination" type="url" maxlength="2048" value="{{.Destination}}" placeholder="https://www.blake-uk.com/..." required>
     {{with index .Errors "destination"}}<span class="field-error">{{.}}</span>{{end}}

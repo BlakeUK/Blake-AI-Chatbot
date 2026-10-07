@@ -35,7 +35,8 @@ const (
 type Config struct {
 	BaseURL         string // public origin, no trailing slash, e.g. https://qr.example.com
 	TrustedProxies  []*net.IPNet
-	RateLimitPerMin int // per hashed client, on /r/<code>
+	RateLimitPerMin int  // per hashed client, on /r/<code>
+	StoreFullIP     bool // keep the visitor address with each scan (off by default)
 	Location        *time.Location
 }
 
@@ -98,6 +99,21 @@ func (s *Server) loadTemplates() error {
 	funcs := template.FuncMap{
 		"dt":      func(t time.Time) string { return t.In(s.cfg.Location).Format("02 Jan 2006 15:04") },
 		"dtShort": func(t time.Time) string { return t.In(s.cfg.Location).Format("02 Jan 15:04") },
+		"dtSec":   func(t time.Time) string { return t.In(s.cfg.Location).Format("02 Jan 2006 15:04:05") },
+		"site":    links.SiteName,
+		"lang":    languageLabel,
+		"place": func(r scans.Row) string {
+			var p []string
+			for _, v := range []string{r.City, r.Region, r.CountryName} {
+				if v != "" {
+					p = append(p, v)
+				}
+			}
+			if len(p) == 0 {
+				return "unknown"
+			}
+			return strings.Join(p, ", ")
+		},
 		"trunc": func(n int, v string) string {
 			if utf8.RuneCountInString(v) <= n {
 				return v
@@ -109,7 +125,7 @@ func (s *Server) loadTemplates() error {
 		"prev": func(p int) int { return p - 1 },
 		"next": func(p int) int { return p + 1 },
 	}
-	pages := []string{"login", "password", "links", "link_form", "link_detail", "error"}
+	pages := []string{"login", "password", "links", "link_form", "link_detail", "campaigns", "error"}
 	s.tmpl = map[string]*template.Template{}
 	for _, p := range pages {
 		t, err := template.New("").Funcs(funcs).ParseFS(s.assets, "web/templates/layout.html", "web/templates/"+p+".html")
@@ -142,6 +158,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/password", s.authed(s.passwordForm))
 	mux.HandleFunc("POST /admin/password", s.authed(s.passwordSubmit))
 	mux.HandleFunc("GET /admin/{$}", s.authed(s.list))
+	mux.HandleFunc("GET /admin/campaigns", s.authed(s.campaigns))
+	mux.HandleFunc("GET /admin/scans.csv", s.authed(s.csvExportAll))
 	mux.HandleFunc("GET /admin/links/new", s.authed(s.newForm))
 	mux.HandleFunc("POST /admin/links", s.authed(s.create))
 	mux.HandleFunc("GET /admin/links/{id}", s.authed(s.detail))
@@ -251,6 +269,9 @@ type pageData struct {
 	Flash string
 	Error string
 	Data  any
+
+	GeoCredit bool // show the DB-IP attribution its licence requires
+	FullIP    bool // full IP storage is switched on: say so on every page
 }
 
 func (s *Server) render(w http.ResponseWriter, status int, page string, pd pageData) {
@@ -345,7 +366,8 @@ func (s *Server) authed(h authedHandler) http.HandlerFunc {
 }
 
 func (s *Server) page(sess *auth.Session, title string, data any) pageData {
-	return pageData{Title: title, User: &sess.User, CSRF: sess.CSRF, Data: data}
+	return pageData{Title: title, User: &sess.User, CSRF: sess.CSRF, Data: data,
+		GeoCredit: strings.Contains(s.geo.DatabaseType(), "DBIP"), FullIP: s.cfg.StoreFullIP}
 }
 
 // ---------- login / logout / password ----------

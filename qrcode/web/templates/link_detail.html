@@ -23,7 +23,8 @@
     <h2>Tracking URL</h2>
     <p><code class="wrap">{{.ShortURL}}</code>
        <button type="button" data-copy="{{.ShortURL}}">Copy</button></p>
-    <p>Destination: <a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
+    <p>Campaign: {{if .Link.Campaign}}<a href="/admin/?campaign={{.Link.Campaign | urlquery}}"><strong>{{.Link.Campaign}}</strong></a>{{else}}<span class="muted">none (set one with Edit)</span>{{end}}</p>
+    <p>Destination: <strong>{{.Site}}</strong><br><a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
     <p class="muted">Window: {{dt .Link.TrackStart}} to {{dt .Link.TrackEnd}} (Europe/London)<br>
        <strong>{{.Countdown}}</strong></p>
     <p class="muted small">After the window:
@@ -80,5 +81,40 @@
 </section>
 {{end}}
 </div>
+<section class="card">
+  <div class="row between">
+    <h2>Individual scans <span class="muted">({{.RecentTotal}})</span></h2>
+    <a class="button" href="/admin/links/{{.Link.ID}}/scans.csv">Export CSV</a>
+  </div>
+  {{if .Recent}}
+  <div class="scroll">
+  <table class="compact scans">
+    <thead><tr>
+      <th>Date and time (London)</th><th>Campaign</th><th>Place (approx.)</th><th>Device</th><th>OS</th><th>Browser</th>
+      <th>Language</th><th>Destination</th>{{if .ShowIP}}<th>IP address</th>{{end}}<th></th>
+    </tr></thead>
+    <tbody>
+    {{range .Recent}}
+    <tr>
+      <td class="nowrap">{{dtSec .At}}</td>
+      <td>{{if .Campaign}}{{.Campaign}}{{else}}<span class="muted">none</span>{{end}}</td>
+      <td>{{place .}}</td>
+      <td>{{.DeviceClass}}</td><td>{{.OS}}</td><td>{{.Browser}}</td>
+      <td>{{if .Language}}{{lang .Language}}{{else}}<span class="muted">unknown</span>{{end}}</td>
+      <td title="{{.Destination}}">{{site .Destination}}</td>
+      {{if $.Data.ShowIP}}<td><code>{{if .IP}}{{.IP}}{{else}}-{{end}}</code></td>{{end}}
+      <td>{{if .IsBot}}<span class="badge off">bot</span>{{else if .IsUnique}}<span class="badge active">new visitor</span>{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  <p class="pager">
+    {{if .SPHasPrev}}<a href="/admin/links/{{.Link.ID}}?sp={{prev .SP}}{{.BotsQ}}">&larr; Newer</a>{{end}}
+    <span class="muted">Page {{.SP}} of {{.SPages}}</span>
+    {{if .SPHasNext}}<a href="/admin/links/{{.Link.ID}}?sp={{next .SP}}{{.BotsQ}}">Older &rarr;</a>{{end}}
+  </p>
+  {{else}}<p class="muted">No scans recorded yet.</p>{{end}}
+</section>
 {{end}}
 {{end}}

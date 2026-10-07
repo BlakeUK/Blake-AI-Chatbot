@@ -207,7 +207,7 @@ func TestStoreCRUDAndCodeCollisionRetry(t *testing.T) {
 	if got.Enabled {
 		t.Fatal("still enabled")
 	}
-	list, total, err := s.List(ctx, 1, 1)
+	list, total, err := s.List(ctx, 1, 1, Filter{})
 	if err != nil || total != 2 || len(list) != 1 || list[0].ID != l2.ID {
 		t.Fatalf("list: %v total=%d %+v", err, total, list)
 	}
@@ -219,5 +219,108 @@ func TestStoreCRUDAndCodeCollisionRetry(t *testing.T) {
 	}
 	if err := s.Update(ctx, 9999, in); err != ErrNotFound {
 		t.Fatalf("update missing: %v", err)
+	}
+}
+
+func TestSiteName(t *testing.T) {
+	cases := map[string]string{
+		"https://www.facebook.com/blakeuk":               "Facebook",
+		"https://m.facebook.com/blakeuk":                 "Facebook",
+		"https://fb.me/abc":                              "Facebook",
+		"https://www.instagram.com/blakeuk/":             "Instagram",
+		"https://youtu.be/xyz":                           "YouTube",
+		"https://www.youtube.com/watch?v=1":              "YouTube",
+		"https://wa.me/447000000000":                     "WhatsApp",
+		"https://www.blake-uk.com/category/aerials.html": "Blake UK website",
+		"https://blake-uk.com/":                          "Blake UK website",
+		"https://www.example.org/page":                   "example.org",
+		"https://notfacebook.com/":                       "notfacebook.com", // suffix match must respect the dot
+		"https://facebook.com.evil.example/":             "facebook.com.evil.example",
+		"not a url":                                      "",
+		"":                                               "",
+	}
+	for in, want := range cases {
+		if got := SiteName(in); got != want {
+			t.Errorf("SiteName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCampaignValidationAndCanonicalSpelling(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	ok := Input{Label: "x", Destination: "https://example.com", Start: now, End: now.Add(time.Hour), ExpiryMode: RedirectUntracked, QRECC: "M"}
+
+	for _, c := range []struct {
+		in, want string
+		bad      bool
+	}{
+		{"  Exhibition   stand ", "Exhibition stand", false}, // trims and collapses spaces
+		{"", "", false}, // optional
+		{strings.Repeat("é", MaxCampaignRunes), strings.Repeat("é", MaxCampaignRunes), false},
+		{strings.Repeat("é", MaxCampaignRunes+1), "", true},
+		{"bad\x00name", "", true},
+	} {
+		in := ok
+		in.Campaign = c.in
+		out, errs := in.Clean("")
+		if c.bad {
+			if errs["campaign"] == "" {
+				t.Errorf("campaign %q accepted", c.in)
+			}
+			continue
+		}
+		if errs["campaign"] != "" || out.Campaign != c.want {
+			t.Errorf("campaign %q -> %q (%v), want %q", c.in, out.Campaign, errs, c.want)
+		}
+	}
+
+	// "leaflet" typed later must reuse the spelling already in use.
+	ctx := context.Background()
+	s := newStore(t)
+	mk := func(campaign string) *Link {
+		in := ok
+		in.Start, in.End = time.Now().UTC(), time.Now().UTC().Add(time.Hour)
+		in.Campaign = campaign
+		l, err := s.Create(ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+	a := mk("Leaflet")
+	b := mk("leaflet")
+	c := mk("LEAFLET")
+	mk("Product box")
+	mk("")
+	if b.Campaign != "Leaflet" || c.Campaign != "Leaflet" || a.Campaign != "Leaflet" {
+		t.Errorf("campaign spellings split: %q %q %q", a.Campaign, b.Campaign, c.Campaign)
+	}
+	names, _ := s.Campaigns(ctx)
+	if len(names) != 2 || names[0] != "Leaflet" || names[1] != "Product box" {
+		t.Errorf("Campaigns = %v", names)
+	}
+	// filter
+	got, total, _ := s.List(ctx, 1, 10, Filter{Campaign: "LEAFLET"})
+	if total != 3 || len(got) != 3 {
+		t.Errorf("filter by campaign: total=%d", total)
+	}
+	_, none, _ := s.List(ctx, 1, 10, Filter{Uncategorised: true})
+	if none != 1 {
+		t.Errorf("uncategorised = %d, want 1", none)
+	}
+	_, all, _ := s.List(ctx, 1, 10, Filter{})
+	if all != 5 {
+		t.Errorf("unfiltered = %d, want 5", all)
+	}
+	// editing the campaign through Update reuses the canonical spelling too
+	in := ok
+	in.Campaign = "product BOX"
+	in.Start, in.End = time.Now().UTC(), time.Now().UTC().Add(time.Hour)
+	if err := s.Update(ctx, a.ID, in); err != nil {
+		t.Fatal(err)
+	}
+	g, _ := s.Get(ctx, a.ID)
+	if g.Campaign != "Product box" {
+		t.Errorf("update campaign = %q", g.Campaign)
 	}
 }

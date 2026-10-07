@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	CodeLen       = 8
-	MaxURLLen     = 2048
-	MaxLabelRunes = 100
-	base62        = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	CodeLen          = 8
+	MaxURLLen        = 2048
+	MaxLabelRunes    = 100
+	MaxCampaignRunes = 60
+	base62           = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 )
 
 type ExpiryMode string
@@ -54,6 +55,7 @@ type Link struct {
 	ExpiryMode     ExpiryMode
 	FallbackURL    string
 	QRECC          string
+	Campaign       string
 	Enabled        bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
@@ -149,6 +151,7 @@ type Input struct {
 	ExpiryMode  ExpiryMode
 	FallbackURL string
 	QRECC       string
+	Campaign    string
 }
 
 // Clean validates in and returns the normalised copy plus per-field messages.
@@ -197,6 +200,16 @@ func (in Input) Clean(selfHost string) (Input, map[string]string) {
 			out.FallbackURL = f
 		}
 	}
+	out.Campaign = strings.Join(strings.Fields(in.Campaign), " ")
+	if utf8.RuneCountInString(out.Campaign) > MaxCampaignRunes {
+		errs["campaign"] = fmt.Sprintf("Campaign must be %d characters or fewer.", MaxCampaignRunes)
+	}
+	for _, r := range out.Campaign {
+		if unicode.IsControl(r) {
+			errs["campaign"] = "Campaign must not contain control characters."
+			break
+		}
+	}
 	if in.QRECC == "" {
 		out.QRECC = "M"
 	} else if !validECC(in.QRECC) {
@@ -229,7 +242,7 @@ func NewStore(d *sql.DB) *Store {
 	return &Store{DB: d, Now: time.Now, GenCode: GenerateCode}
 }
 
-const cols = `id, code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, enabled, created_at, updated_at`
+const cols = `id, code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, campaign, enabled, created_at, updated_at`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
@@ -239,7 +252,7 @@ func scan(r rowScanner) (*Link, error) {
 	var mode string
 	var enabled int
 	if err := r.Scan(&l.ID, &l.Code, &l.Label, &l.DestinationURL, &start, &end, &mode,
-		&l.FallbackURL, &l.QRECC, &enabled, &created, &updated); err != nil {
+		&l.FallbackURL, &l.QRECC, &l.Campaign, &enabled, &created, &updated); err != nil {
 		return nil, err
 	}
 	var err error
@@ -264,16 +277,17 @@ func scan(r rowScanner) (*Link, error) {
 // unlikely) event that a generated code is already taken.
 func (s *Store) Create(ctx context.Context, in Input) (*Link, error) {
 	now := db.TS(s.Now())
+	in.Campaign = s.canonicalCampaign(ctx, in.Campaign)
 	for attempt := 0; attempt < 8; attempt++ {
 		code, err := s.GenCode()
 		if err != nil {
 			return nil, err
 		}
 		res, err := s.DB.ExecContext(ctx, `INSERT INTO links
-			(code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, enabled, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+			(code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, campaign, enabled, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
 			code, in.Label, in.Destination, db.TS(in.Start), db.TS(in.End), string(in.ExpiryMode),
-			in.FallbackURL, in.QRECC, now, now)
+			in.FallbackURL, in.QRECC, in.Campaign, now, now)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed: links.code") {
 				continue
@@ -305,10 +319,11 @@ func (s *Store) ByCode(ctx context.Context, code string) (*Link, error) {
 // Update changes label, destination, window, expiry behaviour and QR level.
 // The short code never changes, so printed QR codes keep working.
 func (s *Store) Update(ctx context.Context, id int64, in Input) error {
+	in.Campaign = s.canonicalCampaign(ctx, in.Campaign)
 	res, err := s.DB.ExecContext(ctx, `UPDATE links SET label=?, destination_url=?, track_start=?, track_end=?,
-		expiry_mode=?, fallback_url=?, qr_ecc=?, updated_at=? WHERE id=?`,
+		expiry_mode=?, fallback_url=?, qr_ecc=?, campaign=?, updated_at=? WHERE id=?`,
 		in.Label, in.Destination, db.TS(in.Start), db.TS(in.End), string(in.ExpiryMode),
-		in.FallbackURL, in.QRECC, db.TS(s.Now()), id)
+		in.FallbackURL, in.QRECC, in.Campaign, db.TS(s.Now()), id)
 	if err != nil {
 		return err
 	}
@@ -345,17 +360,34 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// List returns one page of links, newest first, and the total link count.
-func (s *Store) List(ctx context.Context, page, perPage int) ([]*Link, int, error) {
+// Filter narrows List to one campaign, or to links that have none.
+type Filter struct {
+	Campaign      string
+	Uncategorised bool
+}
+
+func (f Filter) where() (string, []any) {
+	switch {
+	case f.Uncategorised:
+		return ` WHERE campaign = ''`, nil
+	case f.Campaign != "":
+		return ` WHERE campaign = ? COLLATE NOCASE`, []any{f.Campaign}
+	}
+	return "", nil
+}
+
+// List returns one page of links, newest first, and the total matching count.
+func (s *Store) List(ctx context.Context, page, perPage int, f Filter) ([]*Link, int, error) {
 	if page < 1 {
 		page = 1
 	}
+	where, args := f.where()
 	var total int
-	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM links`).Scan(&total); err != nil {
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM links`+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+cols+` FROM links ORDER BY id DESC LIMIT ? OFFSET ?`,
-		perPage, (page-1)*perPage)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+cols+` FROM links`+where+` ORDER BY id DESC LIMIT ? OFFSET ?`,
+		append(args, perPage, (page-1)*perPage)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -369,4 +401,36 @@ func (s *Store) List(ctx context.Context, page, perPage int) ([]*Link, int, erro
 		out = append(out, l)
 	}
 	return out, total, rows.Err()
+}
+
+// Campaigns returns every distinct non-empty campaign name, alphabetically.
+func (s *Store) Campaigns(ctx context.Context) ([]string, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT DISTINCT campaign FROM links WHERE campaign <> '' ORDER BY campaign COLLATE NOCASE`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// canonicalCampaign returns the spelling already in use if name matches an
+// existing campaign ignoring case, so "leaflet" and "Leaflet" never split one
+// campaign into two rows of statistics.
+func (s *Store) canonicalCampaign(ctx context.Context, name string) string {
+	if name == "" {
+		return ""
+	}
+	var existing string
+	if err := s.DB.QueryRowContext(ctx, `SELECT campaign FROM links WHERE campaign = ? COLLATE NOCASE LIMIT 1`, name).Scan(&existing); err == nil {
+		return existing
+	}
+	return name
 }

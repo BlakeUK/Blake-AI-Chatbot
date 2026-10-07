@@ -1,0 +1,26 @@
+{{define "content"}}
+<div class="row between">
+  <h1>Campaigns</h1>
+  <a class="button" href="/admin/scans.csv">Export all scans (CSV)</a>
+</div>
+<p class="muted">Where your QR codes are used, and how each placement performs. Give a link a campaign with Edit (leaflet, exhibition stand, product box ...). Counts exclude bots and link-preview fetchers.</p>
+{{if .Data.Rows}}
+<div class="scroll">
+<table>
+  <thead><tr><th>Campaign</th><th class="num">QR codes</th><th class="num">Scans</th><th class="num">Unique visitors</th><th class="num">Bots excluded</th><th>Last scan</th></tr></thead>
+  <tbody>
+  {{range .Data.Rows}}
+  <tr>
+    <td>{{if .Campaign}}<a href="/admin/?campaign={{.Campaign | urlquery}}">{{.Campaign}}</a>{{else}}<a href="/admin/?uncategorised=1"><span class="muted">no campaign</span></a>{{end}}</td>
+    <td class="num">{{.Links}}</td><td class="num">{{.Scans}}</td><td class="num">{{.Unique}}</td><td class="num muted">{{.Bots}}</td>
+    <td>{{if .Last.IsZero}}<span class="muted">never</span>{{else}}{{dt .Last}}{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+  <tfoot><tr><th>Total</th><th class="num">{{.Data.All.Links}}</th><th class="num">{{.Data.All.Scans}}</th><th class="num">{{.Data.All.Unique}}</th><th class="num">{{.Data.All.Bots}}</th><th></th></tr></tfoot>
+</table>
+</div>
+{{else}}
+<section class="card"><p>No links yet. <a href="/admin/links/new">Create one</a> and give it a campaign.</p></section>
+{{end}}
+{{end}}

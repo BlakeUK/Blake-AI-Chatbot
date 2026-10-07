@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -59,7 +60,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	case links.Active:
 		// HEAD requests (prefetchers, uptime checks) are served but not counted.
 		if r.Method == http.MethodGet && hash != "" {
-			s.record(r, l.ID, ip, hash, now)
+			s.record(r, l, ip, hash, now)
 		}
 		http.Redirect(w, r, l.DestinationURL, http.StatusFound)
 	case links.Scheduled:
@@ -77,21 +78,86 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) record(r *http.Request, linkID int64, ip, hash string, now time.Time) {
+func (s *Server) record(r *http.Request, l *links.Link, ip, hash string, now time.Time) {
 	agent := truncate(r.UserAgent(), 512)
 	info := ua.Parse(agent)
-	s.writer.Submit(scans.Scan{
-		LinkID:      linkID,
+	loc := s.geo.Lookup(ip)
+	sc := scans.Scan{
+		LinkID:      l.ID,
 		At:          now,
 		IPHash:      hash,
-		Country:     s.geo.Country(ip),
+		Country:     loc.CountryISO,
+		CountryName: loc.Country,
+		Region:      loc.Region,
+		City:        loc.City,
+		Language:    parseLanguage(r.Header.Get("Accept-Language")),
+		Destination: l.DestinationURL, // a snapshot: the link can be edited later
 		DeviceClass: info.DeviceClass,
 		OS:          info.OS,
 		Browser:     info.Browser,
 		RefererHost: refererHost(r.Referer()),
 		UserAgent:   agent,
 		IsBot:       info.IsBot,
-	})
+	}
+	// The full address is kept only if the operator has switched that on.
+	if s.cfg.StoreFullIP {
+		sc.IP = ip
+	}
+	s.writer.Submit(sc)
+}
+
+var langTag = regexp.MustCompile(`^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$`)
+
+// parseLanguage returns the visitor's preferred language from Accept-Language
+// ("en-GB,en;q=0.9" gives "en-GB"), normalised so en-gb and en-GB count as one.
+// Anything that is not a plausible language tag is dropped.
+func parseLanguage(h string) string {
+	first := strings.TrimSpace(strings.SplitN(h, ",", 2)[0])
+	first = strings.TrimSpace(strings.SplitN(first, ";", 2)[0])
+	if len(first) > 35 || !langTag.MatchString(first) {
+		return ""
+	}
+	parts := strings.Split(first, "-")
+	parts[0] = strings.ToLower(parts[0])
+	for i := 1; i < len(parts); i++ {
+		switch {
+		case len(parts[i]) == 2 && isAlpha(parts[i]):
+			parts[i] = strings.ToUpper(parts[i])
+		case len(parts[i]) == 4 && isAlpha(parts[i]):
+			parts[i] = strings.ToUpper(parts[i][:1]) + strings.ToLower(parts[i][1:])
+		}
+	}
+	return strings.Join(parts, "-")
+}
+
+func isAlpha(s string) bool {
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
+			return false
+		}
+	}
+	return true
+}
+
+var languageNames = map[string]string{
+	"en": "English", "fr": "French", "de": "German", "es": "Spanish", "it": "Italian", "nl": "Dutch", "pt": "Portuguese",
+	"pl": "Polish", "ro": "Romanian", "ru": "Russian", "uk": "Ukrainian", "tr": "Turkish", "ar": "Arabic", "he": "Hebrew",
+	"zh": "Chinese", "ja": "Japanese", "ko": "Korean", "hi": "Hindi", "ur": "Urdu", "bn": "Bengali", "pa": "Punjabi",
+	"cy": "Welsh", "ga": "Irish", "gd": "Scottish Gaelic", "sv": "Swedish", "da": "Danish", "nb": "Norwegian", "no": "Norwegian",
+	"fi": "Finnish", "cs": "Czech", "sk": "Slovak", "hu": "Hungarian", "el": "Greek", "bg": "Bulgarian", "lt": "Lithuanian",
+	"lv": "Latvian", "et": "Estonian", "hr": "Croatian", "sr": "Serbian", "sl": "Slovenian", "id": "Indonesian", "vi": "Vietnamese",
+	"th": "Thai", "fa": "Persian", "sw": "Swahili", "so": "Somali", "gu": "Gujarati", "ta": "Tamil", "te": "Telugu",
+}
+
+// languageLabel renders a tag for people: "en-GB" becomes "English (en-GB)".
+func languageLabel(tag string) string {
+	if tag == "" {
+		return ""
+	}
+	if n, ok := languageNames[strings.ToLower(strings.SplitN(tag, "-", 2)[0])]; ok {
+		return n + " (" + tag + ")"
+	}
+	return tag
 }
 
 // refererHost keeps only the host of the Referer header; paths and query

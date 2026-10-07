@@ -232,11 +232,11 @@ func TestBreakdownAndCSV(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := ExportCSV(context.Background(), d, &buf, id); err != nil {
+	if err := ExportCSV(context.Background(), d, &buf, id, time.UTC); err != nil {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.HasPrefix(out, "scanned_at,ip_hash,") || strings.Count(out, "\n") != 4 {
+	if !strings.HasPrefix(out, "scanned_at_utc,scanned_at_local,campaign,") || strings.Count(out, "\n") != 4 {
 		t.Errorf("csv shape wrong:\n%s", out)
 	}
 	if strings.Contains(out, ",=HYPERLINK") || !strings.Contains(out, "'=HYPERLINK") {
@@ -264,5 +264,138 @@ func TestPurge(t *testing.T) {
 	d.QueryRow(`SELECT COUNT(*) FROM daily_salts`).Scan(&salts)
 	if left != 1 || salts != 1 {
 		t.Errorf("left=%d salts=%d, want 1 and 1", left, salts)
+	}
+}
+
+func TestNewFieldsAreStoredAndShown(t *testing.T) {
+	d := testDB(t)
+	id := addLink(t, d)
+	d.Exec(`UPDATE links SET campaign = 'Exhibition stand', destination_url = 'https://www.facebook.com/blakeuk' WHERE id = ?`, id)
+	w := NewWriter(d, 64, quiet())
+	w.Start()
+	defer w.Close(context.Background())
+	london, _ := time.LoadLocation("Europe/London")
+	at := time.Date(2026, 6, 15, 12, 34, 56, 0, time.UTC) // 13:34:56 BST
+	w.Submit(Scan{LinkID: id, At: at, IPHash: "h1", Country: "GB", CountryName: "United Kingdom", Region: "England", City: "London",
+		Language: "en-GB", Destination: "https://www.facebook.com/blakeuk", DeviceClass: "mobile", OS: "iOS", Browser: "Safari"})
+	w.Submit(Scan{LinkID: id, At: at.Add(time.Minute), IPHash: "h2", Country: "GB", CountryName: "United Kingdom", Region: "Scotland", City: "Glasgow",
+		Language: "en-GB", DeviceClass: "desktop", OS: "Windows", Browser: "Edge", IP: "203.0.113.5"})
+	w.Submit(Scan{LinkID: id, At: at.Add(2 * time.Minute), IPHash: "h3", Country: "FR", CountryName: "France", City: "Paris",
+		Language: "fr-FR", DeviceClass: "mobile", OS: "Android", Browser: "Chrome"})
+	w.Submit(Scan{LinkID: id, At: at.Add(3 * time.Minute), IPHash: "b", DeviceClass: "bot", IsBot: true})
+	if err := w.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	rows, total, err := Recent(ctx, d, id, 10, 0, false)
+	if err != nil || total != 3 || len(rows) != 3 {
+		t.Fatalf("recent: %v total=%d rows=%d (bots must be hidden by default)", err, total, len(rows))
+	}
+	if rows[0].City != "Paris" || rows[2].City != "London" { // newest first
+		t.Errorf("order: %v %v %v", rows[0].City, rows[1].City, rows[2].City)
+	}
+	r := rows[2]
+	if r.Campaign != "Exhibition stand" || r.Region != "England" || r.CountryName != "United Kingdom" || r.Language != "en-GB" ||
+		r.Destination != "https://www.facebook.com/blakeuk" || r.DeviceClass != "mobile" || r.OS != "iOS" || r.Browser != "Safari" {
+		t.Errorf("row = %+v", r)
+	}
+	// A scan stored without a destination snapshot falls back to the link's current one.
+	if rows[1].Destination != "https://www.facebook.com/blakeuk" || rows[1].IP != "203.0.113.5" {
+		t.Errorf("fallback destination / ip: %+v", rows[1])
+	}
+	if got := r.At.In(london).Format("02 Jan 2006 15:04:05"); got != "15 Jun 2026 13:34:56" {
+		t.Errorf("exact local time = %q", got)
+	}
+	// Pagination and the bot toggle.
+	p2, _, _ := Recent(ctx, d, id, 2, 2, false)
+	if len(p2) != 1 || p2[0].City != "London" {
+		t.Errorf("page 2 = %+v", p2)
+	}
+	if _, withBots, _ := Recent(ctx, d, id, 10, 0, true); withBots != 4 {
+		t.Errorf("with bots total = %d", withBots)
+	}
+
+	for key, want := range map[string]string{"language": "en-GB", "country": "United Kingdom", "city": "London (GB)", "region": "England (GB)", "device_class": "mobile"} {
+		got, err := Breakdown(ctx, d, id, key, 10, false)
+		if err != nil || len(got) == 0 {
+			t.Fatalf("%s: %v %v", key, err, got)
+		}
+		found := false
+		for _, g := range got {
+			if g.Label == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("breakdown %s missing %q: %+v", key, want, got)
+		}
+	}
+	if lang, _ := Breakdown(ctx, d, id, "language", 10, false); lang[0].Label != "en-GB" || lang[0].N != 2 {
+		t.Errorf("language breakdown: %+v", lang)
+	}
+	if dest, _ := Breakdown(ctx, d, id, "destination", 10, false); len(dest) == 0 {
+		t.Error("destination breakdown empty")
+	}
+
+	var buf bytes.Buffer
+	if err := ExportCSV(ctx, d, &buf, 0, london); err != nil { // 0 = every link
+		t.Fatal(err)
+	}
+	csvText := buf.String()
+	for _, want := range []string{"scanned_at_utc,scanned_at_local,campaign,link_label,link_code,destination,destination_site,country,region,town,language",
+		"2026-06-15 13:34:56", "2026-06-15T12:34:56Z", "Exhibition stand", "Facebook", "Glasgow", "fr-FR", "203.0.113.5"} {
+		if !strings.Contains(csvText, want) {
+			t.Errorf("CSV missing %q:\n%s", want, csvText)
+		}
+	}
+}
+
+func TestCampaignTotals(t *testing.T) {
+	d := testDB(t)
+	mk := func(code, campaign string) int64 {
+		res, err := d.Exec(`INSERT INTO links (code, label, destination_url, track_start, track_end, campaign, created_at, updated_at)
+			VALUES (?, ?, 'https://example.com', '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`, code, code, campaign)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		return id
+	}
+	a1, a2, b, none := mk("AAAAAAA1", "Leaflet"), mk("AAAAAAA2", "Leaflet"), mk("BBBBBBBB", "Product box"), mk("CCCCCCCC", "")
+	w := NewWriter(d, 64, quiet())
+	w.Start()
+	defer w.Close(context.Background())
+	now := time.Now()
+	add := func(link int64, hash string, bot bool) {
+		w.Submit(Scan{LinkID: link, At: now, IPHash: hash, DeviceClass: "mobile", IsBot: bot})
+	}
+	add(a1, "x", false)
+	add(a1, "x", false) // same visitor: scan but not unique
+	add(a2, "y", false)
+	add(a2, "z", true)
+	add(b, "x", false)
+	add(none, "q", false)
+	w.Flush(context.Background())
+	got, err := CampaignTotals(context.Background(), d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]CampaignRow{}
+	for _, r := range got {
+		by[r.Campaign] = r
+	}
+	l := by["Leaflet"]
+	if l.Links != 2 || l.Scans != 3 || l.Unique != 2 || l.Bots != 1 {
+		t.Errorf("Leaflet = %+v, want links=2 scans=3 unique=2 bots=1", l)
+	}
+	if p := by["Product box"]; p.Links != 1 || p.Scans != 1 {
+		t.Errorf("Product box = %+v", p)
+	}
+	if n := by[""]; n.Links != 1 || n.Scans != 1 {
+		t.Errorf("uncategorised = %+v", n)
+	}
+	if got[len(got)-1].Campaign != "" {
+		t.Error("uncategorised links must be listed last")
 	}
 }

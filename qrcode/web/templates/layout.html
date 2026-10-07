@@ -13,7 +13,9 @@
   <a class="brand" href="/admin/">QR Tracker</a>
   <nav>
     <a href="/admin/">Links</a>
+    <a href="/admin/campaigns">Campaigns</a>
     <a href="/admin/links/new">New link</a>
+    <a href="/admin/scans.csv">Export all scans</a>
     <a href="/admin/password">Password</a>
   </nav>
   <form method="post" action="/admin/logout" class="inline">
@@ -22,9 +24,11 @@
   </form>
 </header>{{end}}
 <main>
+{{if .FullIP}}<p class="notice">Full IP address storage is <strong>on</strong>. Visitor addresses are kept with each scan until the retention period ends, so your privacy notice must say so.</p>{{end}}
 {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
 {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 {{template "content" .}}
 </main>
+{{if .GeoCredit}}<footer class="credit">Approximate locations: <a href="https://db-ip.com" rel="noopener noreferrer">IP Geolocation by DB-IP</a>. Town and region are estimates and can be wrong, especially on mobile networks.</footer>{{end}}
 </body>
 </html>{{end}}

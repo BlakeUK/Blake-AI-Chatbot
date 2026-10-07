@@ -11,12 +11,21 @@ LIVE_CADDYFILE="${2:?path to the current support-site Caddyfile}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 command -v caddy >/dev/null || { echo "SKIP: caddy not installed"; exit 0; }
 
-ROOT="$(mktemp -d)"; trap 'kill "$(cat "$ROOT/pid" 2>/dev/null)" 2>/dev/null; rm -rf "$ROOT"' EXIT
 PORT=18082
+# A leftover process from an interrupted earlier run would answer the health
+# check for a broken binary and make the rollback tests meaningless. Refuse to
+# start rather than report a misleading result.
+if curl -fsS --max-time 1 "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1; then
+    echo "ABORT: something is already serving 127.0.0.1:$PORT (a stale test process?). Stop it and re-run." >&2
+    exit 2
+fi
+ROOT="$(mktemp -d)"
+# On exit, stop every service the stub started (they are children of this script), then clean up.
+trap 'pkill -f "$ROOT/""var/www/qrcode/qrtrack" 2>/dev/null; pkill -P $$ 2>/dev/null; kill "$(cat "$ROOT/pid" 2>/dev/null)" 2>/dev/null; rm -rf "$ROOT"' EXIT
 export QR_APP_DIR="$ROOT/var/www/qrcode" QR_CADDYFILE="$ROOT/etc/caddy/Caddyfile" QR_CADDY_CONF_DIR="$ROOT/etc/caddy/conf.d" \
        QR_UNIT_DIR="$ROOT/etc/systemd/system" QR_PORT=$PORT QR_SKIP_ROOT_CHECK=1 ROOT
 mkdir -p "$ROOT/release" "$ROOT/etc/caddy" "$ROOT/etc/systemd/system" "$ROOT/bin" "$QR_APP_DIR"
-cp "$HERE/install.sh" "$HERE/qrtrack.service" "$HERE/qrcode.caddy.tmpl" "$ROOT/release/"
+cp "$HERE/install.sh" "$HERE/qrtrack.service" "$HERE/qrcode.caddy.tmpl" "$HERE/update-geoip.sh" "$HERE/qrtrack-geoip.service" "$HERE/qrtrack-geoip.timer" "$ROOT/release/"
 cp "$BIN" "$ROOT/release/qrtrack-linux-amd64"
 cp "$LIVE_CADDYFILE" "$QR_CADDYFILE"
 LIVE_SUM="$(md5sum < "$QR_CADDYFILE")"
@@ -53,11 +62,15 @@ esac
 exit 0
 S
 chmod +x "$ROOT"/bin/*
+export QR_GEOIP_BASE="file://$ROOT/dl-none"   # default: no database available, as on a host with no route out
 export PATH="$ROOT/bin:$PATH"
 
 pass=0; fail=0
 ok()  { echo "  ok   $*"; pass=$((pass+1)); }
-bad() { echo "  FAIL $*"; fail=$((fail+1)); }
+bad() {
+  echo "  FAIL $*"; fail=$((fail+1))
+  if [[ "${QR_TEST_VERBOSE:-0}" == 1 ]]; then echo "  --- installer output (last 15 lines):"; tail -n 15 "$ROOT/out" | sed 's/^/  | /'; fi
+}
 check() { local d="$1"; shift; if "$@"; then ok "$d"; else bad "$d"; fi; }
 check_not() { local d="$1"; shift; if "$@" >/dev/null 2>&1; then bad "$d"; else ok "$d"; fi; }
 run() { (cd "$ROOT/release" && bash ./install.sh) >"$ROOT/out" 2>&1; echo $? > "$ROOT/rc"; }
@@ -77,7 +90,12 @@ can_login() {
 
 echo "A. first install, no domain"
 ADMIN_PASSWORD='Seed-Pw-123' run
-check "exit 0" [ "$(rc)" = 0 ]
+check "exit 0 even though no GeoIP database could be fetched" [ "$(rc)" = 0 ]
+check "...and says so, rather than failing silently" grep -q "Could not install the IP-geolocation database" "$ROOT/out"
+check_not "GEOIP_DB not set when there is no database" grep -q "^GEOIP_DB=" "$QR_APP_DIR/qrtrack.env"
+check "monthly GeoIP timer installed" [ -f "$QR_UNIT_DIR/qrtrack-geoip.timer" ]
+check "monthly GeoIP timer enabled" grep -q "enable --now qrtrack-geoip.timer" "$ROOT/calls"
+check_not "STORE_FULL_IP not set by default" grep -q "^STORE_FULL_IP" "$QR_APP_DIR/qrtrack.env"
 check "unit installed" [ -f "$QR_UNIT_DIR/qrtrack.service" ]
 check "env file written 0600" [ "$(stat -c %a "$QR_APP_DIR/qrtrack.env")" = 600 ]
 check_not "initial password removed from env after start" grep -q ADMIN_PASSWORD "$QR_APP_DIR/qrtrack.env"
@@ -147,8 +165,63 @@ check "exit non-zero" [ "$(rc)" != 0 ]
 check "rolled back and healthy again" curl -fsS "http://127.0.0.1:$PORT/healthz"
 cp "$BIN" "$ROOT/release/qrtrack-linux-amd64"
 
+echo "I. GeoIP database: install, stay current, refuse a bad file, keep the old one"
+if [[ -n "${QR_TEST_GEOIP_MMDB:-}" && -f "$QR_TEST_GEOIP_MMDB" ]]; then
+  mkdir -p "$ROOT/dl"; M="$(date -u +%Y-%m)"
+  gzip -c "$QR_TEST_GEOIP_MMDB" > "$ROOT/dl/dbip-city-lite-$M.mmdb.gz"
+  : > "$ROOT/app.log"
+  QR_GEOIP_BASE="file://$ROOT/dl" run
+  check "exit 0" [ "$(rc)" = 0 ]
+  check "database installed" [ -s "$QR_APP_DIR/data/geoip/dbip-city-lite.mmdb" ]
+  check "month recorded" [ "$(cat "$QR_APP_DIR/data/geoip/dbip-city-lite.month")" = "$M" ]
+  check "GEOIP_DB written to the env file" grep -qx "GEOIP_DB=$QR_APP_DIR/data/geoip/dbip-city-lite.mmdb" "$QR_APP_DIR/qrtrack.env"
+  check "no leftover download folders" [ -z "$(find "$QR_APP_DIR/data/geoip" -maxdepth 1 -name '.download.*')" ]
+  sleep 1
+  check "service loaded the database" grep -q "GeoIP database loaded" "$ROOT/app.log"
+  check "still healthy" curl -fsS "http://127.0.0.1:$PORT/healthz"
+  SUM_DB="$(md5sum < "$QR_APP_DIR/data/geoip/dbip-city-lite.mmdb")"
+
+  QR_GEOIP_BASE="file://$ROOT/nowhere" run
+  check "re-run needs no download when already current" [ "$(rc)" = 0 ]
+  check "...database untouched" [ "$(md5sum < "$QR_APP_DIR/data/geoip/dbip-city-lite.mmdb")" = "$SUM_DB" ]
+
+  # A "new month" whose file is valid gzip but not a database: refused, old one kept.
+  rm -f "$QR_APP_DIR/data/geoip/dbip-city-lite.month"
+  printf 'not a database' | gzip -c > "$ROOT/dl/dbip-city-lite-$M.mmdb.gz"
+  QR_GEOIP_MIN_BYTES=1 QR_GEOIP_BASE="file://$ROOT/dl" run
+  check "bad download does not fail the deploy" [ "$(rc)" = 0 ]
+  check "bad download refused" grep -q "not a usable database" "$ROOT/out"
+  check "previous database kept byte-for-byte" [ "$(md5sum < "$QR_APP_DIR/data/geoip/dbip-city-lite.mmdb")" = "$SUM_DB" ]
+  check "tracker still healthy" curl -fsS "http://127.0.0.1:$PORT/healthz"
+
+  # A truncated download is refused on size alone.
+  head -c 1000 "$QR_TEST_GEOIP_MMDB" | gzip -c > "$ROOT/dl/dbip-city-lite-$M.mmdb.gz"
+  QR_GEOIP_BASE="file://$ROOT/dl" run
+  check "tiny file refused" grep -q "refusing it" "$ROOT/out"
+  check "previous database still kept" [ "$(md5sum < "$QR_APP_DIR/data/geoip/dbip-city-lite.mmdb")" = "$SUM_DB" ]
+else
+  echo "  skip GeoIP download tests (set QR_TEST_GEOIP_MMDB to a DB-IP/GeoLite2 City .mmdb to run them)"
+fi
+
+echo "J. STORE_FULL_IP setting"
+: > "$ROOT/app.log"
+STORE_FULL_IP=true run
+check "exit 0" [ "$(rc)" = 0 ]
+check "written to env" grep -qx "STORE_FULL_IP=true" "$QR_APP_DIR/qrtrack.env"
+sleep 1
+check "service logs the warning that it is on" grep -q "STORE_FULL_IP is on" "$ROOT/app.log"
+STORE_FULL_IP=false run
+check "switched back off" grep -qx "STORE_FULL_IP=false" "$QR_APP_DIR/qrtrack.env"
+BEFORE="$(md5sum < "$QR_APP_DIR/qrtrack.env")"
+STORE_FULL_IP=maybe run
+check "nonsense value refused" [ "$(rc)" != 0 ]
+check "env untouched by the refused run" [ "$(md5sum < "$QR_APP_DIR/qrtrack.env")" = "$BEFORE" ]
+run
+check "unset leaves the current setting alone" grep -qx "STORE_FULL_IP=false" "$QR_APP_DIR/qrtrack.env"
+
 echo "H. refusals before anything is changed"
-rm -rf "$QR_APP_DIR" "$ROOT/user-created" "$ROOT/pid"; kill "$(cat "$ROOT/pid" 2>/dev/null)" 2>/dev/null; mkdir -p "$QR_APP_DIR"
+kill "$(cat "$ROOT/pid" 2>/dev/null)" 2>/dev/null; sleep 0.5   # stop the running service BEFORE forgetting its pid
+rm -rf "$QR_APP_DIR" "$ROOT/user-created" "$ROOT/pid"; mkdir -p "$QR_APP_DIR"
 run
 check "first install without a password is refused" [ "$(rc)" != 0 ]
 check "...with a clear message" grep -q "ADMIN_PASSWORD" "$ROOT/out"

@@ -36,3 +36,6 @@ code { font:13px ui-monospace, SFMono-Regular, Menlo, monospace; background:var(
 .qr { background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; } .downloads { display:flex; gap:.4rem; flex-wrap:wrap; justify-content:center; }
 .pager { display:flex; gap:1rem; align-items:center; }
 label.check { font-weight:400; display:flex; align-items:center; gap:.5rem; } label.check input { width:auto; margin:0; }
+.nowrap { white-space:nowrap; } .scans th, .scans td { padding:.35rem .5rem; font-size:.9rem; border-bottom:1px solid var(--line); }
+.credit { max-width:1100px; margin:0 auto; padding:0 1.25rem 1.5rem; color:var(--muted); font-size:.8rem; }
+tfoot th { border-top:2px solid var(--line); border-bottom:none; }

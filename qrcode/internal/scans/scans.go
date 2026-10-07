@@ -24,7 +24,13 @@ type Scan struct {
 	LinkID      int64
 	At          time.Time
 	IPHash      string
-	Country     string
+	IP          string // empty unless the operator enabled STORE_FULL_IP
+	Country     string // ISO code, e.g. GB
+	CountryName string
+	Region      string
+	City        string
+	Language    string // primary browser language tag, e.g. en-GB
+	Destination string // where this scan was actually sent
 	DeviceClass string
 	OS          string
 	Browser     string
@@ -237,8 +243,9 @@ func (w *Writer) insert(ctx context.Context, batch []Scan) error {
 	}
 	defer seen.Close()
 	ins, err := tx.PrepareContext(ctx, `INSERT INTO scans
-		(link_id, scanned_at, ip_hash, country, device_class, os, browser, referer_host, user_agent, is_bot, is_unique)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		(link_id, scanned_at, ip_hash, ip, country, country_name, region, city, language, destination_url,
+		 device_class, os, browser, referer_host, user_agent, is_bot, is_unique)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -253,7 +260,8 @@ func (w *Writer) insert(ctx context.Context, batch []Scan) error {
 		if err != nil && !unique {
 			return err
 		}
-		if _, err := ins.ExecContext(ctx, s.LinkID, db.TS(s.At), s.IPHash, s.Country, s.DeviceClass,
+		if _, err := ins.ExecContext(ctx, s.LinkID, db.TS(s.At), s.IPHash, s.IP, s.Country, s.CountryName,
+			s.Region, s.City, s.Language, s.Destination, s.DeviceClass,
 			s.OS, s.Browser, s.RefererHost, s.UserAgent, b2i(s.IsBot), b2i(unique)); err != nil {
 			return err
 		}

@@ -1,10 +1,12 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ type linkRow struct {
 	Link     *links.Link
 	Status   links.Status
 	ShortURL string
+	Site     string // friendly destination name, e.g. Facebook
 	Totals   scans.Totals
 }
 
@@ -31,7 +34,8 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request, sess *auth.Session
 	if page < 1 {
 		page = 1
 	}
-	ls, total, err := s.links.List(r.Context(), page, perPage)
+	filter := links.Filter{Campaign: strings.TrimSpace(r.URL.Query().Get("campaign")), Uncategorised: r.URL.Query().Get("uncategorised") == "1"}
+	ls, total, err := s.links.List(r.Context(), page, perPage, filter)
 	if err != nil {
 		s.serverError(w, "list links", err)
 		return
@@ -48,13 +52,43 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request, sess *auth.Session
 	now := s.now()
 	rows := make([]linkRow, len(ls))
 	for i, l := range ls {
-		rows[i] = linkRow{Link: l, Status: l.StatusAt(now), ShortURL: s.shortURL(l.Code), Totals: totals[l.ID]}
+		rows[i] = linkRow{Link: l, Status: l.StatusAt(now), ShortURL: s.shortURL(l.Code), Site: links.SiteName(l.DestinationURL), Totals: totals[l.ID]}
+	}
+	// Keep the active filter on the pager links.
+	q := url.Values{}
+	if filter.Uncategorised {
+		q.Set("uncategorised", "1")
+	} else if filter.Campaign != "" {
+		q.Set("campaign", filter.Campaign)
+	}
+	extra := ""
+	if len(q) > 0 {
+		extra = "&" + q.Encode()
 	}
 	pages := (total + perPage - 1) / perPage
 	s.render(w, http.StatusOK, "links", s.page(sess, "Links", map[string]any{
 		"Rows": rows, "Page": page, "Pages": pages, "Total": total,
 		"HasPrev": page > 1, "HasNext": page < pages,
+		"Filter": filter, "Extra": extra,
 	}))
+}
+
+// ---------- campaigns ----------
+
+func (s *Server) campaigns(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	rows, err := scans.CampaignTotals(r.Context(), s.db)
+	if err != nil {
+		s.serverError(w, "campaign totals", err)
+		return
+	}
+	var all scans.CampaignRow
+	for _, c := range rows {
+		all.Links += c.Links
+		all.Scans += c.Scans
+		all.Unique += c.Unique
+		all.Bots += c.Bots
+	}
+	s.render(w, http.StatusOK, "campaigns", s.page(sess, "Campaigns", map[string]any{"Rows": rows, "All": all}))
 }
 
 func (s *Server) serverError(w http.ResponseWriter, what string, err error) {
@@ -64,7 +98,10 @@ func (s *Server) serverError(w http.ResponseWriter, what string, err error) {
 
 // ---------- create / edit ----------
 
-const inputLayout = "2006-01-02T15:04"
+const (
+	inputLayout   = "2006-01-02T15:04"
+	recentPerPage = 50
+)
 
 type linkForm struct {
 	ID          int64
@@ -76,6 +113,8 @@ type linkForm struct {
 	ExpiryMode  string
 	FallbackURL string
 	QRECC       string
+	Campaign    string
+	Suggestions []string
 	Errors      map[string]string
 }
 
@@ -90,6 +129,7 @@ func (s *Server) newForm(w http.ResponseWriter, r *http.Request, sess *auth.Sess
 	now := s.now().In(s.cfg.Location)
 	f := linkForm{Window: "7d", ExpiryMode: string(links.RedirectUntracked), QRECC: "M",
 		Start: now.Format(inputLayout), End: now.Add(presets["7d"]).Format(inputLayout)}
+	f.Suggestions = s.campaignSuggestions(r.Context())
 	s.render(w, http.StatusOK, "link_form", s.page(sess, "New link", f))
 }
 
@@ -101,11 +141,11 @@ func (s *Server) parseForm(r *http.Request) (links.Input, linkForm) {
 		Label: r.PostFormValue("label"), Destination: strings.TrimSpace(r.PostFormValue("destination")),
 		Window: r.PostFormValue("window"), Start: r.PostFormValue("start"), End: r.PostFormValue("end"),
 		ExpiryMode: r.PostFormValue("expiry_mode"), FallbackURL: strings.TrimSpace(r.PostFormValue("fallback_url")),
-		QRECC: r.PostFormValue("qr_ecc"), Errors: map[string]string{},
+		QRECC: r.PostFormValue("qr_ecc"), Campaign: r.PostFormValue("campaign"), Errors: map[string]string{},
 	}
 	in := links.Input{
 		Label: f.Label, Destination: f.Destination, ExpiryMode: links.ExpiryMode(f.ExpiryMode),
-		FallbackURL: f.FallbackURL, QRECC: f.QRECC,
+		FallbackURL: f.FallbackURL, QRECC: f.QRECC, Campaign: f.Campaign,
 	}
 	if d, ok := presets[f.Window]; ok {
 		in.Start = s.now().UTC().Truncate(time.Second)
@@ -131,6 +171,7 @@ func (s *Server) parseForm(r *http.Request) (links.Input, linkForm) {
 func (s *Server) create(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
 	in, f := s.parseForm(r)
 	if len(f.Errors) > 0 {
+		f.Suggestions = s.campaignSuggestions(r.Context())
 		s.render(w, http.StatusUnprocessableEntity, "link_form", s.page(sess, "New link", f))
 		return
 	}
@@ -167,7 +208,8 @@ func (s *Server) editForm(w http.ResponseWriter, r *http.Request, sess *auth.Ses
 	}
 	f := linkForm{ID: l.ID, Editing: true, Label: l.Label, Destination: l.DestinationURL, Window: "custom",
 		Start: l.TrackStart.In(s.cfg.Location).Format(inputLayout), End: l.TrackEnd.In(s.cfg.Location).Format(inputLayout),
-		ExpiryMode: string(l.ExpiryMode), FallbackURL: l.FallbackURL, QRECC: l.QRECC}
+		ExpiryMode: string(l.ExpiryMode), FallbackURL: l.FallbackURL, QRECC: l.QRECC, Campaign: l.Campaign}
+	f.Suggestions = s.campaignSuggestions(r.Context())
 	s.render(w, http.StatusOK, "link_form", s.page(sess, "Edit link", f))
 }
 
@@ -179,6 +221,7 @@ func (s *Server) update(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 	in, f := s.parseForm(r)
 	f.ID, f.Editing = l.ID, true
 	if len(f.Errors) > 0 {
+		f.Suggestions = s.campaignSuggestions(r.Context())
 		s.render(w, http.StatusUnprocessableEntity, "link_form", s.page(sess, "Edit link", f))
 		return
 	}
@@ -211,6 +254,24 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 		return
 	}
 	http.Redirect(w, r, "/admin/", http.StatusSeeOther)
+}
+
+// defaultCampaigns are offered in the form so common placements are one click.
+var defaultCampaigns = []string{"Leaflet", "Exhibition stand", "Product box", "Packaging", "Poster", "Van / vehicle", "Email", "Social media", "Trade counter"}
+
+// campaignSuggestions merges the usual placements with campaigns already in
+// use, without duplicates (ignoring case).
+func (s *Server) campaignSuggestions(ctx context.Context) []string {
+	seen := map[string]bool{}
+	var out []string
+	existing, _ := s.links.Campaigns(ctx)
+	for _, c := range append(existing, defaultCampaigns...) {
+		if k := strings.ToLower(c); !seen[k] {
+			seen[k] = true
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // ---------- detail ----------
@@ -267,21 +328,47 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 	}
 	var sections []section
 	for _, c := range []struct{ title, col string }{
-		{"Device", "device_class"}, {"Operating system", "os"}, {"Browser", "browser"},
-		{"Country", "country"}, {"Referrer", "referer_host"},
+		{"Device", "device_class"}, {"Operating system", "os"}, {"Browser", "browser"}, {"Language", "language"},
+		{"Country", "country"}, {"Region", "region"}, {"Town", "city"}, {"Referrer", "referer_host"},
 	} {
 		rows, err := scans.Breakdown(ctx, s.db, l.ID, c.col, 10, includeBots)
 		if err != nil {
 			s.serverError(w, "breakdown", err)
 			return
 		}
+		if c.col == "language" {
+			for i := range rows {
+				if l := languageLabel(rows[i].Label); l != "" {
+					rows[i].Label = l
+				}
+			}
+		}
 		sections = append(sections, section{c.title, rows})
+	}
+
+	// Individual scans, newest first, 50 to a page.
+	sp, _ := strconv.Atoi(r.URL.Query().Get("sp"))
+	if sp < 1 {
+		sp = 1
+	}
+	recent, recentTotal, err := scans.Recent(ctx, s.db, l.ID, recentPerPage, (sp-1)*recentPerPage, includeBots)
+	if err != nil {
+		s.serverError(w, "recent scans", err)
+		return
+	}
+	recentPages := int((recentTotal + recentPerPage - 1) / recentPerPage)
+	botsQ := ""
+	if includeBots {
+		botsQ = "&bots=1"
 	}
 
 	s.render(w, http.StatusOK, "link_detail", s.page(sess, "Link: "+l.Label, map[string]any{
 		"Link": l, "Status": status, "ShortURL": s.shortURL(l.Code), "Totals": totals[l.ID],
 		"Chart": chartSVG(series, hourly), "ChartHourly": hourly, "Sections": sections,
 		"Countdown": countdown(l, now), "IncludeBots": includeBots, "Sizes": qr.Sizes,
+		"Site": links.SiteName(l.DestinationURL), "Recent": recent, "RecentTotal": recentTotal,
+		"SP": sp, "SPages": recentPages, "SPHasPrev": sp > 1, "SPHasNext": sp < recentPages, "BotsQ": botsQ,
+		"ShowIP": s.cfg.StoreFullIP,
 	}))
 }
 
@@ -414,9 +501,19 @@ func (s *Server) csvExport(w http.ResponseWriter, r *http.Request, sess *auth.Se
 	if l == nil {
 		return
 	}
+	s.writeCSV(w, r, l.ID, fmt.Sprintf("scans-%s.csv", l.Code))
+}
+
+// csvExportAll is every scan of every link, with the campaign on each row, for
+// reporting in a spreadsheet.
+func (s *Server) csvExportAll(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	s.writeCSV(w, r, 0, "scans-all.csv")
+}
+
+func (s *Server) writeCSV(w http.ResponseWriter, r *http.Request, linkID int64, name string) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="scans-%s.csv"`, l.Code))
-	if err := scans.ExportCSV(r.Context(), s.db, w, l.ID); err != nil {
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	if err := scans.ExportCSV(r.Context(), s.db, w, linkID, s.cfg.Location); err != nil {
 		s.log.Error("csv export", "err", err) // headers already sent; nothing more can be done
 	}
 }

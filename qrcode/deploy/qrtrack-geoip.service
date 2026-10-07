@@ -1,0 +1,29 @@
+[Unit]
+Description=qrtrack: refresh the IP-geolocation database
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=qrtrack
+Group=qrtrack
+ExecStart=/var/www/qrcode/update-geoip.sh
+TimeoutStartSec=15min
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/www/qrcode/data
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+UMask=0022
+MemoryMax=512M
+CPUQuota=50%
