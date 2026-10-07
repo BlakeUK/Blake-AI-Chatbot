@@ -1,0 +1,74 @@
+name: QR tracker CI
+
+# Only runs for changes under qrcode/, so support-chatbot pushes never trigger it
+# (and these jobs never touch the VPS).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "qrcode/**"
+      - ".github/workflows/qrcode-ci.yml"
+  pull_request:
+    paths:
+      - "qrcode/**"
+      - ".github/workflows/qrcode-ci.yml"
+
+defaults:
+  run:
+    working-directory: qrcode
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: qrcode/go.sum
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "Run gofmt on:"; echo "$unformatted"; exit 1; fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2024.1.1
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+      - name: Tests (race detector)
+        run: go test -race -count=1 ./...
+
+      - name: Latency target (p99 under 5 ms at 500 req/s)
+        run: QRTRACK_BENCH=1 go test -count=1 -run TestRedirectLatency -v ./internal/web
+
+      - name: Cross-compile static binaries
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "dist/qrtrack-linux-$arch" ./cmd/qrtrack
+          done
+          file dist/qrtrack-linux-amd64 | grep -q "statically linked"
+          ls -l dist
+
+      - name: Install Caddy (for the installer test)
+        run: |
+          curl -fsSL -o /tmp/caddy.tgz https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz
+          sudo tar -C /usr/local/bin -xzf /tmp/caddy.tgz caddy
+          caddy version
+
+      - name: Installer test (against a copy of the live support Caddyfile)
+        run: bash deploy/test_install.sh "$PWD/dist/qrtrack-linux-amd64" "$GITHUB_WORKSPACE/Caddyfile"
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: qrtrack-linux
+          path: qrcode/dist/*

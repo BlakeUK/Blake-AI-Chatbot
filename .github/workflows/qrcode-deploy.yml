@@ -1,0 +1,88 @@
+name: Deploy QR tracker to VPS
+
+# Manual only, like the support deploy. Installs into /var/www/qrcode as its
+# own user and systemd unit; it never touches /var/www/chat or the support
+# chatbot's services. The only shared thing it can change is a separate Caddy
+# site snippet, and only when a domain is given (validated first, rolled back
+# on failure).
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: "Public host name for the tracker, e.g. qr.blakegroup.uk. Its DNS A record must already point at the VPS. Leave empty to deploy local-only (127.0.0.1:8081) without touching Caddy."
+        required: false
+        default: ""
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: qrcode/go.sum
+
+      - name: Test (deploy gate)
+        working-directory: qrcode
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race -count=1 ./...
+
+      - name: Build release
+        working-directory: qrcode
+        run: |
+          mkdir -p ../qrcode-release
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags "-s -w" -o "../qrcode-release/qrtrack-linux-$arch" ./cmd/qrtrack
+          done
+          cp deploy/install.sh deploy/qrtrack.service deploy/qrcode.caddy.tmpl ../qrcode-release/
+
+      - name: Prepare initial password (needed on first install only)
+        id: pw
+        env:
+          QRTRACK_ADMIN_PASSWORD: ${{ secrets.QRTRACK_ADMIN_PASSWORD }}
+        run: |
+          if [ -n "$QRTRACK_ADMIN_PASSWORD" ]; then
+            b64="$(printf '%s' "$QRTRACK_ADMIN_PASSWORD" | base64 -w0)"
+            echo "::add-mask::$b64"
+            echo "b64=$b64" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release folder on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: mkdir -p /var/www/qrcode/release
+
+      - name: Copy release to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "qrcode-release/*"
+          target: "/var/www/qrcode/release"
+          strip_components: 1
+          overwrite: true
+
+      - name: Install on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DOMAIN: ${{ github.event.inputs.domain }}
+          ADMIN_PASSWORD_B64: ${{ steps.pw.outputs.b64 }}
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          envs: DOMAIN,ADMIN_PASSWORD_B64
+          script: |
+            chmod +x /var/www/qrcode/release/install.sh
+            bash /var/www/qrcode/release/install.sh

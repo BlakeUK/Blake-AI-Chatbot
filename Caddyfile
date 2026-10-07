@@ -127,3 +127,9 @@ chat.blakegroup.uk {
         import chat_app
     }
 }
+
+# Independently managed extra sites. The QR tracker (/var/www/qrcode) writes its
+# own site block to /etc/caddy/conf.d/qrcode.caddy. Every support deploy
+# overwrites this whole file, so without this line that block would be wiped on
+# the next release. It is a no-op when the directory is empty or missing.
+import /etc/caddy/conf.d/*.caddy

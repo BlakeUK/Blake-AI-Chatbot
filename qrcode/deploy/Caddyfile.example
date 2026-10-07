@@ -1,0 +1,7 @@
+# Stand-alone example for running qrtrack behind Caddy on its own host.
+# On the shared Blake VPS use qrcode.caddy.tmpl instead (see install.sh).
+qr.example.com {
+	encode zstd gzip
+	log
+	reverse_proxy 127.0.0.1:8080
+}

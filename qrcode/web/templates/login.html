@@ -1,0 +1,15 @@
+{{define "content"}}
+<section class="card narrow">
+  <h1>Sign in</h1>
+  <form method="post" action="/admin/login" autocomplete="on">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Username
+      <input name="username" type="text" autocomplete="username" required autofocus>
+    </label>
+    <label>Password
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit" class="primary">Sign in</button>
+  </form>
+</section>
+{{end}}

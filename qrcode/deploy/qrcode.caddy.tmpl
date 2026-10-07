@@ -1,0 +1,26 @@
+# Managed by /var/www/qrcode/release/install.sh. Do not edit by hand: the next
+# QR deploy rewrites this file. It is pulled into the main Caddyfile by a single
+# `import /etc/caddy/conf.d/*.caddy` line, so support-site deploys leave it alone.
+__DOMAIN__ {
+	encode zstd gzip
+
+	# Access log with every field that identifies a visitor removed, so the
+	# "no raw IPs in logs" promise holds for Caddy's log as well as the app's.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip delete
+				request>client_ip delete
+				request>remote_port delete
+				request>headers>X-Forwarded-For delete
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+
+	reverse_proxy 127.0.0.1:__PORT__
+}

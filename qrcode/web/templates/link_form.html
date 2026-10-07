@@ -1,0 +1,70 @@
+{{define "content"}}
+{{with .Data}}
+<h1>{{if .Editing}}Edit link{{else}}New tracked link{{end}}</h1>
+<form class="card" method="post" action="{{if .Editing}}/admin/links/{{.ID}}{{else}}/admin/links{{end}}">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+
+  <label>Label
+    <input name="label" type="text" maxlength="100" value="{{.Label}}" required>
+    {{with index .Errors "label"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+
+  <label>Destination URL
+    <input name="destination" type="url" maxlength="2048" value="{{.Destination}}" placeholder="https://www.blake-uk.com/..." required>
+    {{with index .Errors "destination"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+
+  <fieldset>
+    <legend>Tracking window</legend>
+    <label>Preset
+      <select name="window">
+        <option value="24h" {{if eq .Window "24h"}}selected{{end}}>24 hours from now</option>
+        <option value="7d" {{if eq .Window "7d"}}selected{{end}}>7 days from now</option>
+        <option value="30d" {{if eq .Window "30d"}}selected{{end}}>30 days from now</option>
+        <option value="90d" {{if eq .Window "90d"}}selected{{end}}>90 days from now</option>
+        <option value="custom" {{if eq .Window "custom"}}selected{{end}}>Custom (use the dates below)</option>
+      </select>
+    </label>
+    <div class="grid2">
+      <label>Start <span class="muted">(Europe/London)</span>
+        <input name="start" type="datetime-local" value="{{.Start}}">
+      </label>
+      <label>End <span class="muted">(Europe/London)</span>
+        <input name="end" type="datetime-local" value="{{.End}}">
+      </label>
+    </div>
+    {{with index .Errors "window"}}<span class="field-error">{{.}}</span>{{end}}
+    <p class="muted small">Scans are only counted inside the window. The link keeps working outside it.</p>
+  </fieldset>
+
+  <label>After the window ends
+    <select name="expiry_mode">
+      <option value="redirect_untracked" {{if eq .ExpiryMode "redirect_untracked"}}selected{{end}}>Keep redirecting, stop counting (default)</option>
+      <option value="show_expired_page" {{if eq .ExpiryMode "show_expired_page"}}selected{{end}}>Show an "expired" page</option>
+      <option value="redirect_fallback_url" {{if eq .ExpiryMode "redirect_fallback_url"}}selected{{end}}>Redirect to a fallback URL</option>
+    </select>
+    {{with index .Errors "expiry_mode"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+
+  <label>Fallback URL <span class="muted">(only used for "Redirect to a fallback URL")</span>
+    <input name="fallback_url" type="url" maxlength="2048" value="{{.FallbackURL}}" placeholder="https://www.blake-uk.com/">
+    {{with index .Errors "fallback_url"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+
+  <label>QR error correction
+    <select name="qr_ecc">
+      <option value="L" {{if eq .QRECC "L"}}selected{{end}}>L: 7% (smallest code)</option>
+      <option value="M" {{if or (eq .QRECC "M") (eq .QRECC "")}}selected{{end}}>M: 15% (default)</option>
+      <option value="Q" {{if eq .QRECC "Q"}}selected{{end}}>Q: 25%</option>
+      <option value="H" {{if eq .QRECC "H"}}selected{{end}}>H: 30% (best if printed small or with a logo)</option>
+    </select>
+    {{with index .Errors "qr_ecc"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+
+  <div class="row">
+    <button type="submit" class="primary">{{if .Editing}}Save changes{{else}}Create link{{end}}</button>
+    <a class="button" href="{{if .Editing}}/admin/links/{{.ID}}{{else}}/admin/{{end}}">Cancel</a>
+  </div>
+</form>
+{{end}}
+{{end}}

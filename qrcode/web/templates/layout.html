@@ -1,0 +1,30 @@
+{{define "layout"}}<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Title}} · QR Tracker</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+{{if .User}}<header class="top">
+  <a class="brand" href="/admin/">QR Tracker</a>
+  <nav>
+    <a href="/admin/">Links</a>
+    <a href="/admin/links/new">New link</a>
+    <a href="/admin/password">Password</a>
+  </nav>
+  <form method="post" action="/admin/logout" class="inline">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button class="linklike" type="submit">Sign out ({{.User.Username}})</button>
+  </form>
+</header>{{end}}
+<main>
+{{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}

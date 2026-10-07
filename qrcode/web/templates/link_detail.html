@@ -1,0 +1,84 @@
+{{define "content"}}
+{{with .Data}}
+<div class="row between">
+  <h1>{{.Link.Label}}
+    <span class="badge {{.Status}}">{{.Status}}</span>
+    {{if not .Link.Enabled}}<span class="badge off">disabled</span>{{end}}
+  </h1>
+  <div class="row">
+    <a class="button" href="/admin/links/{{.Link.ID}}/edit">Edit</a>
+    <form method="post" action="/admin/links/{{.Link.ID}}/toggle" class="inline">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <button type="submit">{{if .Link.Enabled}}Disable{{else}}Enable{{end}}</button>
+    </form>
+    <form method="post" action="/admin/links/{{.Link.ID}}/delete" class="inline" data-confirm="Delete this link and all of its scan history? Printed QR codes will stop working.">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <button type="submit" class="danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid2">
+  <section class="card">
+    <h2>Tracking URL</h2>
+    <p><code class="wrap">{{.ShortURL}}</code>
+       <button type="button" data-copy="{{.ShortURL}}">Copy</button></p>
+    <p>Destination: <a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
+    <p class="muted">Window: {{dt .Link.TrackStart}} to {{dt .Link.TrackEnd}} (Europe/London)<br>
+       <strong>{{.Countdown}}</strong></p>
+    <p class="muted small">After the window:
+      {{if eq (printf "%s" .Link.ExpiryMode) "redirect_untracked"}}keeps redirecting, no longer counted
+      {{else if eq (printf "%s" .Link.ExpiryMode) "show_expired_page"}}shows an expired page
+      {{else}}redirects to {{trunc 50 .Link.FallbackURL}}{{end}}</p>
+  </section>
+
+  <section class="card center">
+    <h2>QR code</h2>
+    <img class="qr" src="/admin/links/{{.Link.ID}}/qr.svg" alt="QR code for {{.ShortURL}}" width="220" height="220">
+    <p class="muted small">Error correction {{.Link.QRECC}}. Change it with Edit.</p>
+    <p class="downloads">
+      {{range $px := .Sizes}}<a class="button" href="/admin/links/{{$.Data.Link.ID}}/qr.png?size={{$px}}&amp;download=1">PNG {{$px}}</a>{{end}}
+      <a class="button" href="/admin/links/{{.Link.ID}}/qr.svg?download=1">SVG</a>
+    </p>
+  </section>
+</div>
+
+<section class="card">
+  <div class="row between">
+    <h2>Scans</h2>
+    <div class="row">
+      {{if .IncludeBots}}<a class="button" href="/admin/links/{{.Link.ID}}">Hide bots</a>
+      {{else}}<a class="button" href="/admin/links/{{.Link.ID}}?bots=1">Include bots</a>{{end}}
+      <a class="button" href="/admin/links/{{.Link.ID}}/scans.csv">Export CSV</a>
+    </div>
+  </div>
+  <div class="stats">
+    <div><span class="big">{{.Totals.All}}</span><span class="muted">all scans</span></div>
+    <div><span class="big">{{.Totals.Unique}}</span><span class="muted">unique (per 24h)</span></div>
+    <div><span class="big">{{.Totals.Bots}}</span><span class="muted">bots {{if .IncludeBots}}included{{else}}excluded{{end}}</span></div>
+  </div>
+  <h3>Scans over time <span class="muted small">({{if .ChartHourly}}hourly{{else}}daily{{end}}, Europe/London)</span></h3>
+  {{.Chart}}
+</section>
+
+<div class="grid3">
+{{range .Sections}}
+<section class="card">
+  <h3>{{.Title}}</h3>
+  {{if .Rows}}
+  <table class="compact">
+    {{range .Rows}}
+    <tr>
+      <td>{{.Label}}</td>
+      <td class="num">{{.N}}</td>
+      <td class="barcell"><svg class="pctbar" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect width="{{pct .Pct}}" height="8"/></svg></td>
+      <td class="num muted">{{pct .Pct}}%</td>
+    </tr>
+    {{end}}
+  </table>
+  {{else}}<p class="muted">No data yet.</p>{{end}}
+</section>
+{{end}}
+</div>
+{{end}}
+{{end}}

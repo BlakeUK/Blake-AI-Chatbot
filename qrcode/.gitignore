@@ -1,0 +1,7 @@
+/dist/
+/qrtrack
+/qrtrack-linux-*
+*.db
+*.db-wal
+*.db-shm
+qrtrack.env

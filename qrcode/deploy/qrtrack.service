@@ -1,0 +1,45 @@
+[Unit]
+Description=qrtrack: QR-code link tracker
+After=network.target
+
+[Service]
+Type=simple
+User=qrtrack
+Group=qrtrack
+WorkingDirectory=/var/www/qrcode
+EnvironmentFile=/var/www/qrcode/qrtrack.env
+ExecStart=/var/www/qrcode/qrtrack
+Restart=on-failure
+RestartSec=3
+# The app drains its scan queue on SIGTERM; give it time to finish.
+TimeoutStopSec=30
+
+# Sandbox: it needs to bind a local port and write one directory, nothing else.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/www/qrcode/data
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+UMask=0077
+
+# Hard caps. This shares a VPS with the support chatbot, so a runaway here
+# must never be able to starve it.
+MemoryMax=256M
+TasksMax=128
+CPUQuota=50%
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
