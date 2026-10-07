@@ -1,0 +1,38 @@
+name: Diagnose QR tracker
+
+# Read-only. Prints the tracker's service state and the recent /admin request
+# status codes from Caddy's (IP-free) access log, plus non-secret account state.
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "service: $(systemctl is-active qrtrack)"
+            echo "--- recent /admin requests on qr.blakegroup.uk (UTC, method, uri, status)"
+            journalctl -u caddy --since "3 hours ago" --no-pager -o cat 2>/dev/null | grep '"host":"qr.blakegroup.uk"' | python3 -c '
+            import sys, json, datetime
+            rows = []
+            for line in sys.stdin:
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                r = d.get("request", {})
+                if r.get("uri", "").startswith("/admin") and not r.get("uri", "").endswith((".css", ".js")):
+                    rows.append((d.get("ts", 0), r.get("method"), r.get("uri"), d.get("status")))
+            for ts, m, u, s in rows[-40:]:
+                print(datetime.datetime.utcfromtimestamp(ts).strftime("%H:%M:%S"), m, u, s)
+            print("(%d admin requests in the last 3 hours)" % len(rows))
+            '
+            echo "--- account state (no secrets)"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'user=' || username, 'must_change=' || must_change_password, 'updated=' || updated_at from users;"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'login attempts last 3h: total=' || count(*) || ' failed=' || coalesce(sum(success=0),0) from login_attempts where attempted_at > strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 hours');"
