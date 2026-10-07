@@ -938,3 +938,17 @@ func BenchmarkRedirect(b *testing.B) {
 		h.ServeHTTP(httptest.NewRecorder(), r)
 	}
 }
+
+func TestLoginFormIsMobileKeyboardSafe(t *testing.T) {
+	h := newHarness(t)
+	_, body := h.do(h.client(), "GET", "/admin/login", nil, nil)
+	for _, want := range []string{`autocapitalize="none"`, `autocorrect="off"`, `data-show-password`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("login form missing %s", want)
+		}
+	}
+	// A phone keyboard that capitalised the first letter must still get in.
+	if resp, _ := h.rawLogin(h.client(), seedPW, "198.51.100.70"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("baseline login: %d", resp.StatusCode)
+	}
+}

@@ -35,3 +35,4 @@ code { font:13px ui-monospace, SFMono-Regular, Menlo, monospace; background:var(
 .pctbar { width:100%; height:8px; display:block; background:var(--bg); border-radius:4px; } .pctbar rect { fill:var(--accent); }
 .qr { background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px; } .downloads { display:flex; gap:.4rem; flex-wrap:wrap; justify-content:center; }
 .pager { display:flex; gap:1rem; align-items:center; }
+label.check { font-weight:400; display:flex; align-items:center; gap:.5rem; } label.check input { width:auto; margin:0; }

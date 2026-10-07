@@ -195,7 +195,7 @@ func (s *Service) Login(ctx context.Context, username, password, ip string) (str
 	var u User
 	var hash string
 	var must int
-	err := s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, must_change_password FROM users WHERE username = ?`,
+	err := s.DB.QueryRowContext(ctx, `SELECT id, username, password_hash, must_change_password FROM users WHERE username = ? COLLATE NOCASE`,
 		username).Scan(&u.ID, &u.Username, &hash, &must)
 	found := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

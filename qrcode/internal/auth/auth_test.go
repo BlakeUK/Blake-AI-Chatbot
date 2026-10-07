@@ -253,3 +253,17 @@ func TestChangePassword(t *testing.T) {
 	}
 	_ = fmt.Sprint
 }
+
+func TestUsernameIsCaseInsensitiveButPasswordIsNot(t *testing.T) {
+	e := setup(t)
+	e.seed(t)
+	ctx := context.Background()
+	for _, u := range []string{"admin", "Admin", "ADMIN"} {
+		if _, err := e.svc.Login(ctx, u, seedPW, "198.51.100.60"); err != nil {
+			t.Errorf("username %q refused: %v", u, err)
+		}
+	}
+	if _, err := e.svc.Login(ctx, "admin", "INITIAL-PW", "198.51.100.61"); !errors.Is(err, ErrInvalid) {
+		t.Errorf("password must stay case-sensitive, got %v", err)
+	}
+}

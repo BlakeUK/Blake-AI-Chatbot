@@ -11,3 +11,10 @@ document.addEventListener('click', function (e) {
     setTimeout(function () { b.textContent = old; }, 1500);
   });
 });
+document.addEventListener('change', function (e) {
+  if (!e.target || !e.target.hasAttribute || !e.target.hasAttribute('data-show-password')) { return; }
+  var form = e.target.form;
+  if (!form) { return; }
+  var kind = e.target.checked ? 'text' : 'password';
+  form.querySelectorAll('input[autocomplete$="password"]').forEach(function (i) { i.type = kind; });
+});

@@ -4,11 +4,12 @@
   <form method="post" action="/admin/login" autocomplete="on">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>Username
-      <input name="username" type="text" autocomplete="username" required autofocus>
+      <input name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
     </label>
     <label>Password
-      <input name="password" type="password" autocomplete="current-password" required>
+      <input name="password" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required>
     </label>
+    <label class="check"><input type="checkbox" data-show-password> Show password</label>
     <button type="submit" class="primary">Sign in</button>
   </form>
 </section>
