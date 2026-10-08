@@ -1,0 +1,71 @@
+name: Set up outgoing email (SMTP)
+
+# Saves the outgoing-email settings on the support platform, exactly as Admin > Email > Save would,
+# and optionally sends a test email. The password never appears in the repository or on a command
+# line: it comes from the repository secret SMTP_PASSWORD_B64 (the password, base64-encoded so that
+# no character in it can be mangled), is decoded on the server, and is stored encrypted.
+# Delete the secret afterwards; it is not needed again.
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: SMTP server
+        required: true
+        default: eu-smtp-outbound-1.mimecast.com
+      port:
+        description: Port
+        required: true
+        default: "587"
+      security:
+        description: Security
+        type: choice
+        options: [tls, ssl, none]
+        default: tls
+      test_to:
+        description: Send a test email to this address (optional)
+        required: false
+        default: ""
+
+jobs:
+  smtp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the inputs
+        env:
+          HOST: ${{ inputs.host }}
+          PORT: ${{ inputs.port }}
+          TEST_TO: ${{ inputs.test_to }}
+        run: |
+          [[ "$HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])$ ]] || { echo "not a valid host name"; exit 1; }
+          [[ "$PORT" =~ ^[0-9]{1,5}$ ]] || { echo "not a valid port"; exit 1; }
+          [[ -z "$TEST_TO" || "$TEST_TO" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || { echo "not a valid email address"; exit 1; }
+      - name: Apply on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SMTP_HOST: ${{ inputs.host }}
+          SMTP_PORT: ${{ inputs.port }}
+          SMTP_SECURITY: ${{ inputs.security }}
+          SMTP_TEST_TO: ${{ inputs.test_to }}
+          SMTP_USERNAME: no-reply@blake-uk.com
+          SMTP_FROM_EMAIL: no-reply@blake-uk.com
+          SMTP_FROM_NAME: Blake UK Support
+          SMTP_REPLY_TO: support_ticket@blake-uk.com
+          SMTP_PASSWORD_B64: ${{ secrets.SMTP_PASSWORD_B64 }}
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          envs: SMTP_HOST,SMTP_PORT,SMTP_SECURITY,SMTP_TEST_TO,SMTP_USERNAME,SMTP_FROM_EMAIL,SMTP_FROM_NAME,SMTP_REPLY_TO,SMTP_PASSWORD_B64
+          script: |
+            cd /var/www/chat
+            if [ -n "$SMTP_PASSWORD_B64" ]; then SMTP_PASSWORD="$(printf %s "$SMTP_PASSWORD_B64" | base64 -d)"; export SMTP_PASSWORD; fi
+            unset SMTP_PASSWORD_B64
+            # run as whoever owns the database, so its files keep the right owner
+            DB="$(php -r '$c = require "/var/www/chat/config/config.php"; echo $c["db_path"];')"
+            OWNER="$(stat -c %U "$DB")"
+            export SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_USERNAME SMTP_FROM_EMAIL SMTP_FROM_NAME SMTP_REPLY_TO
+            set +e
+            runuser -u "$OWNER" -p -- php scripts/set_smtp.php ${SMTP_TEST_TO:+--test="$SMTP_TEST_TO"}
+            rc=$?
+            echo "finished with code $rc (0 = all good, 2 = settings were saved but the test email failed)"
+            exit 0

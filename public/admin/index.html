@@ -571,6 +571,7 @@ html.embedded [data-embed-hide]{display:none!important}
         <div><label>Password <span id="em-pw-state" style="color:#adb4ba"></span></label><input type="password" id="em-pass" autocomplete="new-password" placeholder="leave blank to keep"></div>
         <div><label>From address</label><input type="text" id="em-from" placeholder="support@blake-uk.com"></div>
         <div><label>From name</label><input type="text" id="em-from-name" placeholder="Blake UK Support"></div>
+        <div><label>Reply-To address (optional)</label><input type="text" id="em-reply" placeholder="support_ticket@blake-uk.com"></div>
         <div><label>Support inbox (receives every ticket)</label><input type="text" id="em-notify" placeholder="sales@blake-uk.com"></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
@@ -1087,12 +1088,13 @@ async function loadEmailSettings(){
   document.getElementById('em-pw-state').textContent=s.has_password?'(saved)':'(not set)';
   document.getElementById('em-from').value=s.from_email||'';
   document.getElementById('em-from-name').value=s.from_name||'';
+  document.getElementById('em-reply').value=s.reply_to||'';
   document.getElementById('em-notify').value=s.notify||'sales@blake-uk.com';
   document.getElementById('em-status').innerHTML=s.configured?'<div class="alert alert-ok">Email is configured.</div>':'<div class="alert alert-warn">Email is not configured yet: ticket emails are being queued and will be sent once the SMTP details are saved.</div>';
   document.querySelector('#em-outbox tbody').innerHTML=d.outbox.length?d.outbox.map(r=>`<tr><td style="white-space:nowrap">${fmtDate(r.created_at)}</td><td>${esc(r.to_addr)}</td><td>${esc(r.subject)}</td><td>${r.status==='sent'?'<span style="color:#7fd19b">sent</span>':r.status==='failed'?'<span style="color:#f5a3a3">failed</span>':'queued'+(r.attempts?` (${r.attempts} tries)`:'')}</td><td style="color:#f5a3a3;font-size:12px">${esc(r.last_error||'')}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No emails yet.</td></tr>';
 }
 async function saveEmailSettings(){
-  const r=await post(API+'/email_settings.php',{csrf,host:document.getElementById('em-host').value.trim(),port:document.getElementById('em-port').value.trim(),security:document.getElementById('em-security').value,username:document.getElementById('em-user').value.trim(),password:document.getElementById('em-pass').value,from_email:document.getElementById('em-from').value.trim(),from_name:document.getElementById('em-from-name').value.trim(),notify_email:document.getElementById('em-notify').value.trim()});
+  const r=await post(API+'/email_settings.php',{csrf,host:document.getElementById('em-host').value.trim(),port:document.getElementById('em-port').value.trim(),security:document.getElementById('em-security').value,username:document.getElementById('em-user').value.trim(),password:document.getElementById('em-pass').value,from_email:document.getElementById('em-from').value.trim(),from_name:document.getElementById('em-from-name').value.trim(),reply_to:document.getElementById('em-reply').value.trim(),notify_email:document.getElementById('em-notify').value.trim()});
   if(r.error)return flash(r.error,true);
   flash('Email settings saved');loadEmailSettings();
 }

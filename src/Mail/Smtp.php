@@ -30,6 +30,7 @@ class Smtp
             'username'   => $get('smtp_username'),
             'from_email' => $get('smtp_from_email'),
             'from_name'  => $get('smtp_from_name', 'Blake UK Support'),
+            'reply_to'   => $get('smtp_reply_to'),              // optional: where customer replies go
             'notify'     => $get('support_notify_email', self::DEFAULT_NOTIFY) ?: self::DEFAULT_NOTIFY,
             'password'   => self::password(),
         ];
@@ -46,6 +47,32 @@ class Smtp
                 OPENSSL_RAW_DATA, hex2bin($r['iv']), hex2bin($r['tag']));
             return $dec === false ? null : $dec;
         } catch (\Throwable $e) { return null; }
+    }
+
+    // Stores one setting (the same upsert the admin form uses).
+    public static function saveSetting(string $key, string $value): void
+    {
+        db()->prepare('INSERT INTO settings (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at')
+            ->execute([$key, $value, time()]);
+    }
+
+    // Encrypts and stores the SMTP password (AES-256-GCM, server key). Never logged.
+    public static function savePassword(string $password): void
+    {
+        $iv = random_bytes(12); $tag = '';
+        $enc = openssl_encrypt($password, 'aes-256-gcm', hex2bin(CFG['encrypt_key']), OPENSSL_RAW_DATA, $iv, $tag);
+        db()->prepare('INSERT INTO api_keys (service, key_enc, iv, tag, updated_at) VALUES (?,?,?,?,?)
+                       ON CONFLICT(service) DO UPDATE SET key_enc=excluded.key_enc, iv=excluded.iv, tag=excluded.tag, updated_at=excluded.updated_at')
+            ->execute(['smtp', bin2hex($enc), bin2hex($iv), bin2hex($tag), time()]);
+    }
+
+    // A Reply-To address is used only if it is a single, well-formed address. Anything else (including
+    // anything that could smuggle in another header line) is silently ignored rather than sent.
+    public static function validReplyTo(?string $v): ?string
+    {
+        $v = trim((string)$v);
+        if ($v === '' || preg_match('/[\r\n<>,;"]/', $v) || !filter_var($v, FILTER_VALIDATE_EMAIL)) return null;
+        return $v;
     }
 
     public static function isConfigured(?array $cfg = null): bool
@@ -118,6 +145,9 @@ class Smtp
             'Content-Type: text/plain; charset=UTF-8',
             'Content-Transfer-Encoding: base64',
         ];
+        if (($rt = self::validReplyTo($cfg['reply_to'] ?? null)) !== null) {
+            array_splice($headers, 2, 0, "Reply-To: <{$rt}>");
+        }
         $body = str_replace(["\r\n", "\r"], "\n", $body);
         $body = str_replace("\n", "\r\n", $body);
         return implode("\r\n", $headers) . "\r\n\r\n" . rtrim(chunk_split(base64_encode($body), 76, "\r\n"));

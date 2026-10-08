@@ -253,6 +253,33 @@ test('Smtp::message builds UTF-8 headers and a base64 body', function () {
     assert_equal("Line 1\r\nLine 2 £5", base64_decode(str_replace("\r\n", '', $body)));
 });
 
+test('Smtp::message adds Reply-To only for a single well-formed address', function () {
+    $base = ['from_name' => 'Blake UK Support', 'from_email' => 'no-reply@blake-uk.com'];
+    $head = fn(string $m) => explode("\r\n\r\n", $m, 2)[0];
+    $m = \Mail\Smtp::message($base + ['reply_to' => 'support_ticket@blake-uk.com'], 'a@b.com', 'S', 'B');
+    assert_true(str_contains($head($m), "\r\nReply-To: <support_ticket@blake-uk.com>\r\n"), 'Reply-To header present');
+    assert_equal(1, substr_count($head($m), 'Reply-To:'));
+    assert_true(!str_contains($head(\Mail\Smtp::message($base, 'a@b.com', 'S', 'B')), 'Reply-To'), 'absent when not set');
+    // anything that could smuggle in another header, or is not one plain address, is dropped
+    foreach (["x@y.com\r\nBcc: spy@evil.com", "x@y.com\nBcc: spy@evil.com", 'a@b.com, c@d.com', '<a@b.com>', 'not an address', '"a"@b.com', '   '] as $bad) {
+        $mm = \Mail\Smtp::message($base + ['reply_to' => $bad], 'a@b.com', 'S', 'B');
+        assert_true(!str_contains($head($mm), 'Reply-To'), 'rejected: ' . json_encode($bad));
+        assert_true(!str_contains($head($mm), 'Bcc'), 'no injected header: ' . json_encode($bad));
+    }
+});
+
+test('Smtp::savePassword stores it encrypted and password() reads it back', function () {
+    $pw = 'T3st!Pw)(q7^Zk2-sample';          // an invented string with awkward characters
+    \Mail\Smtp::savePassword($pw);
+    assert_equal($pw, \Mail\Smtp::password());
+    $raw = db()->query("SELECT key_enc, iv, tag FROM api_keys WHERE service='smtp'")->fetch();
+    assert_true(!str_contains(json_encode($raw), 'q7^Zk2'), 'the password is not stored in readable form');
+    \Mail\Smtp::savePassword('second');         // saving again replaces it
+    assert_equal('second', \Mail\Smtp::password());
+    \Mail\Smtp::saveSetting('smtp_reply_to', 'support_ticket@blake-uk.com');
+    assert_equal('support_ticket@blake-uk.com', \Mail\Smtp::settings()['reply_to']);
+});
+
 test('(reset opening-hours override)', function () { \Support\Hours::$override = null; assert_true(true); });
 
 test('tracking we cannot do (DX / unrecognised) routes straight to Sales with a clear notice', function () {

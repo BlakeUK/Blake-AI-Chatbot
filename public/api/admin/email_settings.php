@@ -44,7 +44,7 @@ $sec = (string)($body['security'] ?? 'tls');
 if (!in_array($sec, ['tls', 'ssl', 'none'], true)) json_err('Security must be tls, ssl or none');
 $port = (int)($body['port'] ?? 587);
 if ($port < 1 || $port > 65535) json_err('Invalid port');
-foreach (['from_email', 'notify_email'] as $k) {
+foreach (['from_email', 'notify_email', 'reply_to'] as $k) {
     $v = trim((string)($body[$k] ?? ''));
     if ($v !== '' && !filter_var($v, FILTER_VALIDATE_EMAIL)) json_err("Invalid email address: {$v}");
 }
@@ -53,15 +53,10 @@ $save('smtp_port', (string)$port);
 $save('smtp_security', $sec);
 $save('smtp_username', trim((string)($body['username'] ?? '')));
 $save('smtp_from_email', trim((string)($body['from_email'] ?? '')));
+$save('smtp_reply_to', trim((string)($body['reply_to'] ?? '')));
 $save('smtp_from_name', trim((string)($body['from_name'] ?? '')) ?: 'Blake UK Support');
 $save('support_notify_email', trim((string)($body['notify_email'] ?? '')) ?: \Mail\Smtp::DEFAULT_NOTIFY);
 $pw = (string)($body['password'] ?? '');
-if ($pw !== '') {
-    $iv = random_bytes(12); $tag = '';
-    $enc = openssl_encrypt($pw, 'aes-256-gcm', hex2bin(CFG['encrypt_key']), OPENSSL_RAW_DATA, $iv, $tag);
-    $pdo->prepare('INSERT INTO api_keys (service, key_enc, iv, tag, updated_at) VALUES (?,?,?,?,?)
-                   ON CONFLICT(service) DO UPDATE SET key_enc=excluded.key_enc, iv=excluded.iv, tag=excluded.tag, updated_at=excluded.updated_at')
-        ->execute(['smtp', bin2hex($enc), bin2hex($iv), bin2hex($tag), time()]);
-}
+if ($pw !== '') \Mail\Smtp::savePassword($pw);
 $pdo->prepare('INSERT INTO audit_log (admin_id, action, target) VALUES (?,?,?)')->execute([$_SESSION['admin_id'], 'email_settings_saved', null]);
 json_out(['ok' => true]);
