@@ -457,3 +457,55 @@ func TestAuditTrail(t *testing.T) {
 		t.Errorf("old audit rows not purged: %d", len(rows))
 	}
 }
+
+func TestRecoverPasswordGetsSomeoneBackInEvenWhenLockedOut(t *testing.T) {
+	e := setup(t)
+	e.seed(t)
+	ctx := context.Background()
+	ip := "198.51.100.77"
+	// forget the password: five wrong tries lock the address out, so even the right password is refused
+	for i := 0; i < 5; i++ {
+		e.svc.Login(ctx, "admin", "definitely-wrong", ip)
+	}
+	var locked *LockedError
+	if _, err := e.svc.Login(ctx, "admin", seedPW, ip); !errors.As(err, &locked) {
+		t.Fatalf("expected a lockout, got %v", err)
+	}
+	other, _ := e.svc.CreateUser(ctx, "keeper", "keepers-start-pw-1", RoleAdmin)
+	keeperTok, _ := e.svc.Login(ctx, "keeper", "keepers-start-pw-1", "198.51.100.78")
+	_ = other
+
+	pw, err := e.svc.RecoverPassword(ctx, "ADMIN") // any letter case
+	if err != nil || len(pw) != 16 || CheckNewPassword(pw) != nil {
+		t.Fatalf("recover: %q %v", pw, err)
+	}
+	// the lockout is gone, the old password is dead, the new one works but must be changed
+	if _, err := e.svc.Login(ctx, "admin", seedPW, ip); !errors.Is(err, ErrInvalid) {
+		t.Errorf("the old password must not work: %v", err)
+	}
+	tok, err := e.svc.Login(ctx, "admin", pw, ip)
+	if err != nil {
+		t.Fatalf("the recovered password should work straight away: %v", err)
+	}
+	if s, _ := e.svc.Authenticate(ctx, tok); !s.User.MustChange {
+		t.Error("a recovered password must force a change")
+	}
+	// it only touched the named user
+	if _, err := e.svc.Authenticate(ctx, keeperTok); err != nil {
+		t.Error("recovering one user must not sign out the others")
+	}
+	// nothing readable is stored, and the audit trail names the user but not the password
+	var hash string
+	e.db.QueryRow(`SELECT password_hash FROM users WHERE username='admin'`).Scan(&hash)
+	rows, _ := e.svc.RecentAudit(ctx, 5)
+	var audit string
+	for _, r := range rows {
+		audit += r.Actor + r.Action + r.Target + r.Detail
+	}
+	if strings.Contains(hash, pw) || strings.Contains(audit, pw) || !strings.Contains(audit, "user.recover") {
+		t.Errorf("password leaked or recovery not audited: %q", audit)
+	}
+	if _, err := e.svc.RecoverPassword(ctx, "nobody"); policyMsg(err) == "" {
+		t.Error("an unknown user must be refused")
+	}
+}

@@ -101,6 +101,11 @@ func main() {
 	if len(os.Args) >= 3 && os.Args[1] == "geocheck" {
 		os.Exit(geocheck(os.Args[2:]))
 	}
+	// `qrtrack resetpassword NAME` is the way back in when nobody can sign in.
+	// Run it on the server; it prints a one-time temporary password.
+	if len(os.Args) >= 2 && os.Args[1] == "resetpassword" {
+		os.Exit(resetPassword(os.Args[2:]))
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "qrtrack:", err)
 		os.Exit(1)
@@ -285,5 +290,43 @@ func geocheck(args []string) int {
 		fmt.Fprintln(os.Stderr, "geocheck: the sample address resolved to nothing")
 		return 1
 	}
+	return 0
+}
+
+// resetPassword gives a user a new temporary password and clears sign-in
+// lockouts. It is the recovery path when every admin is locked out or has
+// forgotten their password. The password goes to standard output once.
+func resetPassword(args []string) int {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: qrtrack resetpassword USERNAME")
+		return 2
+	}
+	cfg, err := loadConfig()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "resetpassword:", err)
+		return 1
+	}
+	ctx := context.Background()
+	d, err := db.Open(cfg.DBPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "resetpassword: open database:", err)
+		return 1
+	}
+	defer d.Close()
+	if err := db.Migrate(ctx, d, qrtrack.Migrations, "migrations"); err != nil {
+		fmt.Fprintln(os.Stderr, "resetpassword: migrate:", err)
+		return 1
+	}
+	key, err := db.Secret(ctx, d, "login_ip_key")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "resetpassword:", err)
+		return 1
+	}
+	pw, err := auth.New(d, key).RecoverPassword(ctx, args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "resetpassword:", err)
+		return 1
+	}
+	fmt.Printf("TEMPORARY PASSWORD for %s: %s\nThey must choose a new password at the next sign-in. Sign-in lockouts were cleared.\n", args[0], pw)
 	return 0
 }

@@ -1,0 +1,37 @@
+name: Reset a QR tracker password
+
+# Last resort when nobody can sign in. Gives the named user a one-time temporary
+# password (printed once in this run's log), forces a change at their next
+# sign-in, signs them out everywhere and clears all sign-in lockouts.
+# Delete this run's logs afterwards.
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: User name to reset
+        required: true
+        default: admin
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the name
+        env:
+          NAME: ${{ inputs.username }}
+        run: |
+          [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$ ]] || { echo "not a valid user name"; exit 1; }
+      - name: Reset on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          RESET_USER: ${{ inputs.username }}
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          envs: RESET_USER
+          script: |
+            set -e
+            set -a; . /var/www/qrcode/qrtrack.env; set +a
+            # run as the service user so the database files keep their owner
+            runuser -u qrtrack -p -- /var/www/qrcode/qrtrack resetpassword "$RESET_USER"

@@ -261,3 +261,33 @@ func (s *Service) PurgeAudit(ctx context.Context, cutoff time.Time) error {
 	_, err := s.DB.ExecContext(ctx, `DELETE FROM audit_log WHERE at < ?`, db.TS(cutoff))
 	return err
 }
+
+// RecoverPassword is the last-resort way back in when nobody can sign in. It
+// is run on the server (`qrtrack resetpassword NAME`), never from the web. It
+// gives the named user a new random temporary password that must be changed at
+// the next sign-in, signs them out everywhere and clears every sign-in lockout.
+// The password is returned to the caller to show once; only a hash is stored
+// and the audit line never contains it.
+func (s *Service) RecoverPassword(ctx context.Context, username string) (string, error) {
+	var id int64
+	err := s.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE username = ? COLLATE NOCASE`, username).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", policy("There is no user called " + username + ".")
+	}
+	if err != nil {
+		return "", err
+	}
+	pw, err := GeneratePassword()
+	if err != nil {
+		return "", err
+	}
+	name, err := s.ResetPassword(ctx, id, pw)
+	if err != nil {
+		return "", err
+	}
+	if _, err := s.DB.ExecContext(ctx, `DELETE FROM login_attempts`); err != nil {
+		return "", err
+	}
+	s.Audit(ctx, "server", "user.recover", name, "reset from the server command line")
+	return pw, nil
+}
