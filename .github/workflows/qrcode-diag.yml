@@ -42,6 +42,13 @@ jobs:
             journalctl -u qrtrack --since "1 hour ago" --no-pager -o cat 2>/dev/null | grep -i -E "geoip|STORE_FULL_IP|listening" | tail -5
             echo "--- scan detail columns filled (counts only)"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'scans=' || count(*), 'with_city=' || coalesce(sum(city<>''),0), 'with_language=' || coalesce(sum(language<>''),0), 'with_destination=' || coalesce(sum(destination_url<>''),0), 'with_ip=' || coalesce(sum(ip<>''),0) from scans;"
+            echo "--- app log: warnings and errors in the last 6 hours (count, then the latest)"
+            journalctl -u qrtrack --since "6 hours ago" --no-pager -o cat 2>/dev/null | grep -E "level=(ERROR|WARN)|panic" > /tmp/qrtrack-problems.txt || true
+            echo "count: $(wc -l < /tmp/qrtrack-problems.txt)"; tail -5 /tmp/qrtrack-problems.txt | cut -c1-220
+            echo "--- web server log, last 10 minutes: lines that still carry a Referer / an IP field (both must be 0)"
+            journalctl -u caddy --since "10 minutes ago" --no-pager -o cat 2>/dev/null | grep '"host":"qr.blakegroup.uk"' > /tmp/qrtrack-caddy.txt || true
+            echo "lines checked: $(wc -l < /tmp/qrtrack-caddy.txt)  with Referer: $(grep -c '"Referer"' /tmp/qrtrack-caddy.txt)  with remote_ip/client_ip: $(grep -cE '"(remote_ip|client_ip)"' /tmp/qrtrack-caddy.txt)"
+            rm -f /tmp/qrtrack-problems.txt /tmp/qrtrack-caddy.txt
             echo "--- database schema and features (no secrets)"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'migrations applied: ' || count(*) || ' (latest ' || max(version) || ')' from schema_migrations;"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'users: ' || count(*) || ' (admins ' || coalesce(sum(role='admin'),0) || ', members ' || coalesce(sum(role='member'),0) || ')' from users;"
