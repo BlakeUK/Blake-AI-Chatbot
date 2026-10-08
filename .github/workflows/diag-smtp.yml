@@ -1,0 +1,41 @@
+name: Diagnose outbound email (SMTP reachability)
+
+# Read-only. From the VPS, tries to open a connection to a mail server on the
+# usual ports, to find out whether the server is allowed to send email out
+# before any credentials exist. It sends no mail and uses no password.
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: SMTP host to test
+        required: true
+        default: eu-smtp-outbound-1.mimecast.com
+
+jobs:
+  smtp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the host name
+        env:
+          HOST: ${{ inputs.host }}
+        run: |
+          [[ "$HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])$ ]] || { echo "not a valid host name"; exit 1; }
+      - name: Test from the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SMTP_TEST_HOST: ${{ inputs.host }}
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          envs: SMTP_TEST_HOST
+          script: |
+            H="$SMTP_TEST_HOST"
+            echo "server's public address: $(curl -s -m 8 https://api.ipify.org || echo unknown)"
+            echo "reverse DNS of that address: $(getent hosts "$(curl -s -m 8 https://api.ipify.org)" 2>/dev/null | awk '{print $2}' || true)"
+            echo "$H resolves to: $(getent ahostsv4 "$H" | awk '{print $1}' | sort -u | head -3 | tr '\n' ' ')"
+            for p in 587 465 25; do
+              if timeout 8 bash -c "exec 3<>/dev/tcp/$H/$p" 2>/dev/null; then r="OPEN (connection accepted)"; else r="BLOCKED or no answer within 8s"; fi
+              echo "port $p: $r"
+            done
+            echo "greeting on 587: $(timeout 8 bash -c "exec 3<>/dev/tcp/$H/587; head -c 160 <&3 | head -1" 2>/dev/null | tr -d '\r' || echo none)"
