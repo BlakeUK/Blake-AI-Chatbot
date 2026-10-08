@@ -572,7 +572,8 @@ html.embedded [data-embed-hide]{display:none!important}
         <div><label>From address</label><input type="text" id="em-from" placeholder="support@blake-uk.com"></div>
         <div><label>From name</label><input type="text" id="em-from-name" placeholder="Blake UK Support"></div>
         <div><label>Reply-To address (optional)</label><input type="text" id="em-reply" placeholder="support_ticket@blake-uk.com"></div>
-        <div><label>Support inbox (receives every ticket)</label><input type="text" id="em-notify" placeholder="sales@blake-uk.com"></div>
+        <div><label>Staff addresses (separate with commas). Each gets the full ticket details, and a blind copy of the customer's confirmation.</label><input type="text" id="em-notify" placeholder="sales@blake-uk.com, daren.loxley@blake-uk.com"></div>
+        <div><label>Support telephone number (shown in ticket emails and on the ticket page)</label><input type="text" id="em-phone" placeholder="0114 000 0000"></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
         <button class="btn btn-primary" onclick="saveEmailSettings()">Save</button>
@@ -1089,12 +1090,13 @@ async function loadEmailSettings(){
   document.getElementById('em-from').value=s.from_email||'';
   document.getElementById('em-from-name').value=s.from_name||'';
   document.getElementById('em-reply').value=s.reply_to||'';
-  document.getElementById('em-notify').value=s.notify||'sales@blake-uk.com';
+  document.getElementById('em-notify').value=s.notify||'sales@blake-uk.com, daren.loxley@blake-uk.com';
+  document.getElementById('em-phone').value=s.phone||'';
   document.getElementById('em-status').innerHTML=s.configured?'<div class="alert alert-ok">Email is configured.</div>':'<div class="alert alert-warn">Email is not configured yet: ticket emails are being queued and will be sent once the SMTP details are saved.</div>';
   document.querySelector('#em-outbox tbody').innerHTML=d.outbox.length?d.outbox.map(r=>`<tr><td style="white-space:nowrap">${fmtDate(r.created_at)}</td><td>${esc(r.to_addr)}</td><td>${esc(r.subject)}</td><td>${r.status==='sent'?'<span style="color:#7fd19b">sent</span>':r.status==='failed'?'<span style="color:#f5a3a3">failed</span>':'queued'+(r.attempts?` (${r.attempts} tries)`:'')}</td><td style="color:#f5a3a3;font-size:12px">${esc(r.last_error||'')}</td></tr>`).join(''):'<tr><td colspan="5" style="color:#adb4ba">No emails yet.</td></tr>';
 }
 async function saveEmailSettings(){
-  const r=await post(API+'/email_settings.php',{csrf,host:document.getElementById('em-host').value.trim(),port:document.getElementById('em-port').value.trim(),security:document.getElementById('em-security').value,username:document.getElementById('em-user').value.trim(),password:document.getElementById('em-pass').value,from_email:document.getElementById('em-from').value.trim(),from_name:document.getElementById('em-from-name').value.trim(),reply_to:document.getElementById('em-reply').value.trim(),notify_email:document.getElementById('em-notify').value.trim()});
+  const r=await post(API+'/email_settings.php',{csrf,host:document.getElementById('em-host').value.trim(),port:document.getElementById('em-port').value.trim(),security:document.getElementById('em-security').value,username:document.getElementById('em-user').value.trim(),password:document.getElementById('em-pass').value,from_email:document.getElementById('em-from').value.trim(),from_name:document.getElementById('em-from-name').value.trim(),reply_to:document.getElementById('em-reply').value.trim(),phone:document.getElementById('em-phone').value.trim(),notify_email:document.getElementById('em-notify').value.trim()});
   if(r.error)return flash(r.error,true);
   flash('Email settings saved');loadEmailSettings();
 }
@@ -2437,6 +2439,27 @@ async function loadTickets(){
     <td><button class="btn btn-secondary" onclick="viewTicket(${t.id})">View</button></td>
   </tr>`).join(''):'<tr><td colspan="7" style="color:#adb4ba">No tickets.</td></tr>';
 }
+async function loadTicketConversation(id){
+  const box=document.getElementById('ticket-conv-'+id); if(!box)return;
+  const d=await get(API+'/ticket_messages.php?ticket_id='+id);
+  if(!d||d.error){box.innerHTML='<span style="color:#f5a3a3">'+esc((d&&d.error)||'Could not load the conversation')+'</span>';return;}
+  box.innerHTML=d.messages.length?d.messages.map(m=>`<div style="margin-bottom:8px;padding:8px 10px;border-radius:6px;background:${m.author==='staff'?'#2b3550':'#262b31'}"><div style="font-size:12px;color:#adb4ba">${m.author==='staff'?esc(m.staff_name||'Staff'):'Customer'} &middot; ${fmtDate(m.created_at)}</div><div style="white-space:pre-wrap;font-size:13px;color:#e8eaed">${esc(m.body)}</div></div>`).join(''):'No replies yet.';
+}
+async function sendTicketReply(id){
+  const ta=document.getElementById('ticket-reply-'+id); const body=(ta.value||'').trim();
+  if(!body)return flash('Type a reply first',true);
+  const r=await post(API+'/ticket_messages.php',{csrf,ticket_id:id,body});
+  if(r.error)return flash(r.error,true);
+  ta.value='';
+  flash(r.emailed?'Reply sent and emailed to the customer':'Reply saved. The customer has no email address, so nothing was emailed.');
+  loadTicketConversation(id);
+}
+async function revokeTicketLink(id){
+  if(!confirm('Stop every link already emailed to this customer from working? Your next reply will include a new link.'))return;
+  const r=await post(API+'/ticket_messages.php',{csrf,action:'revoke_link',ticket_id:id});
+  if(r.error)return flash(r.error,true);
+  flash('Customer link reset');
+}
 async function viewTicket(id){
   document.getElementById('tickets-list-card').style.display='none';
   const card=document.getElementById('ticket-detail-card');
@@ -2481,12 +2504,19 @@ async function viewTicket(id){
       <span class="badge ${t.status==='closed'?'badge-revoked':t.status==='resolved'?'badge-ok':t.status==='waiting'?'badge-pending':t.status==='in_progress'?'badge-active':'badge-ok'}">${esc(t.status)}</span>
       <span class="badge badge-pending">${esc(deptLabel(t.department))}</span>
     </p>`}
-    <h3 style="font-size:14px;margin-bottom:6px">Notes</h3>
+    <h3 style="font-size:14px;margin:18px 0 6px">Conversation with the customer</h3>
+    <p style="font-size:12px;color:#adb4ba;margin-bottom:8px">Replies here are saved on the ticket and emailed to the customer with their secure link. The customer's replies appear here, and staff are emailed. Internal notes (below) are never shown to the customer.</p>
+    <div id="ticket-conv-${t.id}" style="margin-bottom:10px;color:#adb4ba;font-size:13px">Loading...</div>
+    ${canEdit()?`<textarea id="ticket-reply-${t.id}" placeholder="Write a reply to the customer" style="width:100%;min-height:80px;max-width:560px"></textarea><br>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="sendTicketReply(${t.id})">${t.customer_email?'Send reply to customer':'Save reply (no email address for this customer)'}</button>
+    <button class="btn btn-secondary" style="margin-top:8px;margin-left:8px" onclick="revokeTicketLink(${t.id})" title="Stops every link already emailed to the customer from working. The next reply you send includes a new one.">Reset customer link</button>`:''}
+    <h3 style="font-size:14px;margin:22px 0 6px">Notes (internal)</h3>
     <pre style="white-space:pre-wrap;background:#262b31;padding:10px;border-radius:6px;font-family:inherit;font-size:13px;margin-bottom:10px">${esc(t.notes||'No notes yet.')}</pre>
     ${canEdit()?`<textarea id="ticket-note-${t.id}" placeholder="Add a note" style="width:100%;min-height:60px;max-width:400px"></textarea><br>
     <button class="btn btn-secondary" style="margin-top:8px" onclick="addTicketNote(${t.id})">Add Note</button>`:''}
     ${t.session_id?`<p style="margin-top:16px"><button class="btn btn-secondary" onclick="switchTab('chatlogs',document.querySelector('nav button[onclick*=chatlogs]'));viewSession('${esc(t.session_id)}')">View conversation</button></p>`:''}
   `;
+  loadTicketConversation(t.id);
   if(t.channel==='live_chat'&&t.session_mode==='live_active'&&Number(t.session_claimed_by)===Number(myAdminId)){
     startLiveChatPolling(t.session_id);
   }

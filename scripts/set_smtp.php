@@ -5,7 +5,7 @@
 //
 // Everything comes from the environment (so nothing sensitive appears on the command line or in a log):
 //   SMTP_HOST, SMTP_PORT, SMTP_SECURITY (tls|ssl|none), SMTP_USERNAME, SMTP_FROM_EMAIL,
-//   SMTP_FROM_NAME, SMTP_REPLY_TO, SMTP_NOTIFY, SMTP_PASSWORD
+//   SMTP_FROM_NAME, SMTP_REPLY_TO, SMTP_NOTIFY (one or more addresses, comma separated), SMTP_PHONE, SMTP_PASSWORD
 // Only the values that are present (non-empty) are changed. The password is encrypted exactly as the
 // admin form does it and is never printed.
 // Usage: php scripts/set_smtp.php [--test=someone@example.com]
@@ -22,14 +22,20 @@ $port = $env('SMTP_PORT');
 if ($port !== '' && (!ctype_digit($port) || (int)$port < 1 || (int)$port > 65535)) $die('SMTP_PORT must be 1 to 65535');
 $sec = $env('SMTP_SECURITY');
 if ($sec !== '' && !in_array($sec, ['tls', 'ssl', 'none'], true)) $die('SMTP_SECURITY must be tls, ssl or none');
-foreach (['SMTP_FROM_EMAIL', 'SMTP_REPLY_TO', 'SMTP_NOTIFY'] as $k) {
+foreach (['SMTP_FROM_EMAIL', 'SMTP_REPLY_TO'] as $k) {
     $v = $env($k);
     if ($v !== '' && !filter_var($v, FILTER_VALIDATE_EMAIL)) $die("$k is not a valid email address");
 }
 
+foreach (preg_split('/[\s,;]+/', $env('SMTP_NOTIFY'), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $a) {
+    if (!filter_var($a, FILTER_VALIDATE_EMAIL)) $die("SMTP_NOTIFY contains an invalid email address: $a");
+}
+$notify = implode(', ', preg_split('/[\s,;]+/', $env('SMTP_NOTIFY'), -1, PREG_SPLIT_NO_EMPTY) ?: []);
+$phone = $env('SMTP_PHONE');
+if ($phone !== '' && !preg_match('/^[0-9+()\s.-]{5,30}$/', $phone)) $die('SMTP_PHONE can only contain digits, spaces, + ( ) - and .');
 $map = ['smtp_host' => $host, 'smtp_port' => $port, 'smtp_security' => $sec, 'smtp_username' => $env('SMTP_USERNAME'),
         'smtp_from_email' => $env('SMTP_FROM_EMAIL'), 'smtp_from_name' => $env('SMTP_FROM_NAME'),
-        'smtp_reply_to' => $env('SMTP_REPLY_TO'), 'support_notify_email' => $env('SMTP_NOTIFY')];
+        'smtp_reply_to' => $env('SMTP_REPLY_TO'), 'support_notify_email' => $notify, 'support_phone' => $phone];
 $changed = [];
 foreach ($map as $key => $value) {
     if ($value === '') continue;
@@ -48,7 +54,8 @@ echo "changed: " . ($changed ? implode(', ', $changed) : '(nothing)') . "\n";
 echo "host: {$cfg['host']}  port: {$cfg['port']}  security: {$cfg['security']}\n";
 echo "username: {$cfg['username']}  password saved: " . (($cfg['password'] ?? '') !== '' ? 'yes' : 'NO') . "\n";
 echo "from: {$cfg['from_name']} <{$cfg['from_email']}>  reply-to: " . ($cfg['reply_to'] !== '' ? $cfg['reply_to'] : '(none)') . "\n";
-echo "staff copy goes to: {$cfg['notify']}\n";
+echo "staff addresses: {$cfg['notify']}\n";
+echo "support telephone: " . ($cfg['phone'] !== '' ? $cfg['phone'] : '(not set)') . "\n";
 echo "configured: " . (\Mail\Smtp::isConfigured($cfg) ? 'yes' : 'NO') . "\n";
 
 foreach ($argv as $a) {

@@ -21,6 +21,14 @@ on:
         type: choice
         options: [tls, ssl, none]
         default: tls
+      notify:
+        description: Staff addresses, comma separated (leave empty to keep what is saved)
+        required: false
+        default: ""
+      phone:
+        description: Support telephone number (leave empty to keep what is saved)
+        required: false
+        default: ""
       test_to:
         description: Send a test email to this address (optional)
         required: false
@@ -46,6 +54,8 @@ jobs:
           SMTP_PORT: ${{ inputs.port }}
           SMTP_SECURITY: ${{ inputs.security }}
           SMTP_TEST_TO: ${{ inputs.test_to }}
+          SMTP_NOTIFY: ${{ inputs.notify }}
+          SMTP_PHONE: ${{ inputs.phone }}
           SMTP_USERNAME: no-reply@blake-uk.com
           SMTP_FROM_EMAIL: no-reply@blake-uk.com
           SMTP_FROM_NAME: Blake UK Support
@@ -55,7 +65,7 @@ jobs:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          envs: SMTP_HOST,SMTP_PORT,SMTP_SECURITY,SMTP_TEST_TO,SMTP_USERNAME,SMTP_FROM_EMAIL,SMTP_FROM_NAME,SMTP_REPLY_TO,SMTP_PASSWORD_B64
+          envs: SMTP_HOST,SMTP_PORT,SMTP_SECURITY,SMTP_TEST_TO,SMTP_NOTIFY,SMTP_PHONE,SMTP_USERNAME,SMTP_FROM_EMAIL,SMTP_FROM_NAME,SMTP_REPLY_TO,SMTP_PASSWORD_B64
           script: |
             cd /var/www/chat
             if [ -n "$SMTP_PASSWORD_B64" ]; then SMTP_PASSWORD="$(printf %s "$SMTP_PASSWORD_B64" | base64 -d)"; export SMTP_PASSWORD; fi
@@ -63,7 +73,7 @@ jobs:
             # run as whoever owns the database, so its files keep the right owner
             DB="$(php -r '$c = require "/var/www/chat/config/config.php"; echo $c["db_path"];')"
             OWNER="$(stat -c %U "$DB")"
-            export SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_USERNAME SMTP_FROM_EMAIL SMTP_FROM_NAME SMTP_REPLY_TO
+            export SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_NOTIFY SMTP_PHONE SMTP_USERNAME SMTP_FROM_EMAIL SMTP_FROM_NAME SMTP_REPLY_TO
             set +e
             runuser -u "$OWNER" -p -- php scripts/set_smtp.php ${SMTP_TEST_TO:+--test="$SMTP_TEST_TO"}
             rc=$?

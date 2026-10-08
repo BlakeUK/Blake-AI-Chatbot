@@ -11,7 +11,7 @@ namespace Mail;
 
 class Smtp
 {
-    public const DEFAULT_NOTIFY = 'sales@blake-uk.com';
+    public const DEFAULT_NOTIFY = 'sales@blake-uk.com, daren.loxley@blake-uk.com';
 
     public static function settings(): array
     {
@@ -31,7 +31,8 @@ class Smtp
             'from_email' => $get('smtp_from_email'),
             'from_name'  => $get('smtp_from_name', 'Blake UK Support'),
             'reply_to'   => $get('smtp_reply_to'),              // optional: where customer replies go
-            'notify'     => $get('support_notify_email', self::DEFAULT_NOTIFY) ?: self::DEFAULT_NOTIFY,
+            'notify'     => $get('support_notify_email', self::DEFAULT_NOTIFY) ?: self::DEFAULT_NOTIFY,   // one or more addresses
+            'phone'      => $get('support_phone'),                                                     // shown in emails and on the ticket page
             'password'   => self::password(),
         ];
     }
@@ -47,6 +48,17 @@ class Smtp
                 OPENSSL_RAW_DATA, hex2bin($r['iv']), hex2bin($r['tag']));
             return $dec === false ? null : $dec;
         } catch (\Throwable $e) { return null; }
+    }
+
+    // The staff addresses (support inbox setting): split, validated, de-duplicated, in order.
+    public static function staff(?array $cfg = null): array
+    {
+        $raw = (string)(($cfg ?? self::settings())['notify'] ?? '');
+        $out = [];
+        foreach (preg_split('/[\s,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $a) {
+            if (filter_var($a, FILTER_VALIDATE_EMAIL) && !in_array(strtolower($a), array_map('strtolower', $out), true)) $out[] = $a;
+        }
+        return $out;
     }
 
     // Stores one setting (the same upsert the admin form uses).
@@ -83,7 +95,7 @@ class Smtp
 
     // Sends one plain-text email. Throws \RuntimeException with the server's
     // reply on failure.
-    public static function send(string $to, string $subject, string $body, ?array $cfg = null): void
+    public static function send(string $to, string $subject, string $body, ?array $cfg = null, array $bcc = []): void
     {
         $cfg = $cfg ?? self::settings();
         if (!self::isConfigured($cfg)) {
@@ -122,6 +134,12 @@ class Smtp
             }
             self::cmd($fp, 'MAIL FROM:<' . $cfg['from_email'] . '>', 250);
             self::cmd($fp, "RCPT TO:<{$to}>", [250, 251]);
+            // Blind copies are extra envelope recipients only: they never appear in the message headers.
+            // A refused blind copy must not stop the customer's email, so it is skipped.
+            foreach ($bcc as $b) {
+                if (!filter_var($b, FILTER_VALIDATE_EMAIL) || strcasecmp($b, $to) === 0) continue;
+                try { self::cmd($fp, "RCPT TO:<{$b}>", [250, 251]); } catch (\RuntimeException $e) { error_log('Smtp: blind copy to ' . $b . ' refused: ' . $e->getMessage()); }
+            }
             self::cmd($fp, 'DATA', 354);
             fwrite($fp, self::message($cfg, $to, $subject, $body) . "\r\n.\r\n");
             self::expect($fp, 250);

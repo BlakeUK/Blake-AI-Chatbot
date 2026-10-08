@@ -181,13 +181,13 @@ test('full intake conversation raises a ticket, queues both emails and hands bac
     assert_true(str_contains($t['details'], 'Order 55123'));
     assert_true(str_contains($t['details'], 'SR10WB'));
     $to = db()->query('SELECT to_addr FROM email_outbox ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
-    assert_equal(['sales@blake-uk.com', 'dave@example.com'], $to);
+    assert_equal(['sales@blake-uk.com', 'daren.loxley@blake-uk.com', 'dave@example.com'], $to);   // each staff address, then the customer
     $staff = db()->query("SELECT body_text, subject FROM email_outbox WHERE to_addr = 'sales@blake-uk.com'")->fetch();
     assert_true(str_contains($staff['subject'], \Tickets\Mailer::code((int)$t['id'])));
     assert_true(str_contains($staff['body_text'], 'Chat transcript') && str_contains($staff['body_text'], 'SR10WB'));
 });
 
-test('phone number instead of email: ticket raised, only the support inbox is emailed', function () {
+test('phone number instead of email: ticket raised, only the staff addresses are emailed', function () {
     db()->exec('DELETE FROM email_outbox');
     sd_session('sd-6', 'Need a quote for 20 cameras');
     \Chat\Handoff::start('sd-6', 'customer_request');
@@ -195,7 +195,7 @@ test('phone number instead of email: ticket raised, only the support inbox is em
     \Chat\LiveChat::sendCustomerMessage('sd-6', '07700 900456');
     \Chat\LiveChat::sendCustomerMessage('sd-6', 'no');
     assert_true(str_contains(sd_last('sd-6', 'bot'), 'call you on 07700900456'));
-    assert_equal(['sales@blake-uk.com'], db()->query('SELECT to_addr FROM email_outbox')->fetchAll(PDO::FETCH_COLUMN));
+    assert_equal(['sales@blake-uk.com', 'daren.loxley@blake-uk.com'], db()->query('SELECT to_addr FROM email_outbox')->fetchAll(PDO::FETCH_COLUMN));
 });
 
 test('staff can raise a ticket from a chat; the customer is told the ticket number', function () {
@@ -204,7 +204,7 @@ test('staff can raise a ticket from a chat; the customer is told the ticket numb
     $r = \Chat\Handoff::createTicket('sd-7', 9003, ['subject' => 'Replacement LNB', 'email' => 'amy@example.com', 'name' => 'Amy', 'department' => 'technical']);
     assert_true($r['ok']);
     assert_true(str_contains(sd_last('sd-7', 'system'), $r['code']));
-    assert_equal(2, (int)db()->query('SELECT COUNT(*) FROM email_outbox')->fetchColumn());
+    assert_equal(3, (int)db()->query('SELECT COUNT(*) FROM email_outbox')->fetchColumn());   // two staff addresses and the customer
     assert_true(!\Chat\Handoff::createTicket('sd-7', 9003, ['email' => 'not-an-email'])['ok']);
 });
 
