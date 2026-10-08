@@ -8,7 +8,8 @@
 //   SMTP_FROM_NAME, SMTP_REPLY_TO, SMTP_NOTIFY (one or more addresses, comma separated), SMTP_PHONE, SMTP_PASSWORD
 // Only the values that are present (non-empty) are changed. The password is encrypted exactly as the
 // admin form does it and is never printed.
-// Usage: php scripts/set_smtp.php [--test=someone@example.com]
+// Usage: php scripts/set_smtp.php [--test=someone@example.com] [--retry-failed]
+// It always prints how many emails are waiting, sent and failed. --retry-failed puts the failed ones back in the queue.
 
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require_once dirname(__DIR__) . '/src/bootstrap.php';
@@ -57,6 +58,18 @@ echo "from: {$cfg['from_name']} <{$cfg['from_email']}>  reply-to: " . ($cfg['rep
 echo "staff addresses: {$cfg['notify']}\n";
 echo "support telephone: " . ($cfg['phone'] !== '' ? $cfg['phone'] : '(not set)') . "\n";
 echo "configured: " . (\Mail\Smtp::isConfigured($cfg) ? 'yes' : 'NO') . "\n";
+
+if (in_array('--retry-failed', $argv, true)) {
+    $n = db()->exec("UPDATE email_outbox SET status = 'pending', attempts = 0, last_error = NULL WHERE status = 'failed'");
+    echo "failed emails put back in the queue: {$n}\n";
+}
+$rows = db()->query("SELECT status, COUNT(*) AS c, MIN(created_at) AS oldest, MAX(created_at) AS newest FROM email_outbox GROUP BY status")->fetchAll();
+if (!$rows) echo "outbox: empty\n";
+foreach ($rows as $r) {
+    echo "outbox {$r['status']}: {$r['c']} (oldest " . date('d/m/Y H:i', (int)$r['oldest']) . ', newest ' . date('d/m/Y H:i', (int)$r['newest']) . ")\n";
+}
+$err = db()->query("SELECT last_error FROM email_outbox WHERE status = 'failed' AND last_error IS NOT NULL ORDER BY id DESC LIMIT 1")->fetchColumn();
+if ($err) echo "latest failure reason: " . mb_substr((string)$err, 0, 160) . "\n";
 
 foreach ($argv as $a) {
     if (str_starts_with($a, '--test=')) {
