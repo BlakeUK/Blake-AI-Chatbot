@@ -123,20 +123,25 @@ func CleanLinkTarget(raw string) (string, error) {
 	switch {
 	case strings.HasPrefix(l, "mailto:"):
 		addr := strings.TrimSpace(raw[len("mailto:"):])
-		if !mailRe.MatchString(addr) || len(addr) > 120 {
+		if !mailRe.MatchString(addr) || len(addr) > 120 || strings.ContainsFunc(addr, func(r rune) bool { return unicode.IsControl(r) || strings.ContainsRune(`<>"\'`, r) }) {
 			return "", userError("enter a valid email address after mailto:")
 		}
 		return "mailto:" + addr, nil
 	case strings.HasPrefix(l, "tel:"):
 		num := strings.TrimSpace(raw[len("tel:"):])
-		if !phoneRe.MatchString(num) {
-			return "", userError("enter a phone number after tel:, for example tel:+441142235000")
-		}
 		var b strings.Builder
+		digits := 0
 		for i, r := range num {
 			if (r >= '0' && r <= '9') || (i == 0 && r == '+') {
 				b.WriteRune(r)
+				if r != '+' {
+					digits++
+				}
 			}
+		}
+		// judge the cleaned number, so what is stored is always accepted again when the page is edited
+		if !phoneRe.MatchString(num) || digits < 5 || digits > 20 {
+			return "", userError("enter a phone number after tel:, for example tel:+441142235000")
 		}
 		return "tel:" + b.String(), nil
 	}

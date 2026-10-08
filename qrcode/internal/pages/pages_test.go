@@ -397,3 +397,14 @@ func TestBotViewDoesNotMakeAHumanLookLikeARepeatVisitor(t *testing.T) {
 		t.Errorf("views=%d unique=%d, want 2 and 1", tot.Views, tot.Unique)
 	}
 }
+
+func TestMailtoRejectsControlCharactersAndMarkup(t *testing.T) {
+	for _, bad := range []string{"mailto:0@0.\x16", "mailto:a@b.co\x00", "mailto:a<b>@c.co", `mailto:a"b@c.co`, "mailto:a'b@c.co", "mailto:a\u200b@b.co\x7f"} {
+		if got, err := CleanLinkTarget(bad); err == nil {
+			t.Errorf("accepted %q as %q", bad, got)
+		}
+	}
+	if got, err := CleanLinkTarget("mailto:Sales@Blake-UK.com"); err != nil || got != "mailto:Sales@Blake-UK.com" {
+		t.Errorf("a normal address must still work: %q %v", got, err)
+	}
+}

@@ -168,7 +168,7 @@ func run() error {
 	pageWriter := pages.NewWriter(d, 2048, log)
 	pageWriter.Start()
 
-	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london, StoreFullIP: cfg.StoreFullIP}, web.Deps{
+	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london, StoreFullIP: cfg.StoreFullIP, RetentionDays: cfg.RetentionDays}, web.Deps{
 		DB: d, Links: links.NewStore(d), Auth: authSvc, Hasher: scans.NewHasher(d, time.Now),
 		Writer: writer, Geo: resolver, Now: time.Now, Log: log, Assets: qrtrack.Web,
 		Pages: pages.NewStore(d), PageEvents: pageWriter,

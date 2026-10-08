@@ -600,3 +600,65 @@ func probeDesign(js string) error {
 	_, err := d.Normalise()
 	return err
 }
+
+// A page whose address is the start of another page's address must not claim
+// that other page's QR codes (links and links-2).
+func TestQRListIsNotConfusedByAddressesThatShareAStart(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	short := h.makePage(c, pageSpec{slug: "links"})
+	long := h.makePage(c, pageSpec{slug: "links-2"})
+	h.do(c, "POST", fmt.Sprintf("/admin/pages/%d/qr", long), url.Values{"csrf": {h.token(c)}}, nil)
+	_, shortPage := h.do(c, "GET", fmt.Sprintf("/admin/pages/%d", short), nil, nil)
+	_, longPage := h.do(c, "GET", fmt.Sprintf("/admin/pages/%d", long), nil, nil)
+	if strings.Contains(shortPage, "QR for Page links-2") {
+		t.Error("the page 'links' is listing the QR code that belongs to 'links-2'")
+	}
+	if !strings.Contains(longPage, "QR for Page links-2") {
+		t.Error("the page 'links-2' should list its own QR code")
+	}
+	h.do(c, "POST", fmt.Sprintf("/admin/pages/%d/qr", short), url.Values{"csrf": {h.token(c)}}, nil)
+	_, shortPage = h.do(c, "GET", fmt.Sprintf("/admin/pages/%d", short), nil, nil)
+	if !strings.Contains(shortPage, "QR for Page links<") && !strings.Contains(shortPage, "QR for Page links ") && !strings.Contains(shortPage, "QR for Page links\"") {
+		t.Errorf("the page 'links' should list its own QR code now")
+	}
+}
+
+// A QR code made for a page must keep working when the page's address changes.
+func TestChangingAPageAddressKeepsItsQRCodesWorking(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	id := h.makePage(c, pageSpec{slug: "old-address"})
+	other := h.makePage(c, pageSpec{slug: "old-address-two"}) // shares a start with the first: must not be touched
+	h.do(c, "POST", fmt.Sprintf("/admin/pages/%d/qr", id), url.Values{"csrf": {h.token(c)}}, nil)
+	h.do(c, "POST", fmt.Sprintf("/admin/pages/%d/qr", other), url.Values{"csrf": {h.token(c)}}, nil)
+	var code, otherCode string
+	h.db.QueryRow(`SELECT code FROM links WHERE destination_url = 'http://qr.test/l/old-address?s=qr'`).Scan(&code)
+	h.db.QueryRow(`SELECT code FROM links WHERE destination_url = 'http://qr.test/l/old-address-two?s=qr'`).Scan(&otherCode)
+
+	v := url.Values{"csrf": {h.token(c)}, "slug": {"new-address"}, "name": {"Renamed"}, "brand": {"visionplus"}, "theme": {"midnight"}, "accent_same": {"on"},
+		"item_id": {""}, "item_title": {"Site"}, "item_url": {"https://www.visionplus.co.uk"}, "item_icon": {"auto"}, "item_desc": {""}}
+	if r, body := h.do(c, "POST", fmt.Sprintf("/admin/pages/%d", id), v, nil); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("rename: %d %s", r.StatusCode, firstErrors(body))
+	}
+	r, _ := visit(h, "/r/"+code, iphoneUA, "203.0.113.70")
+	if r.Header.Get("Location") != "http://qr.test/l/new-address?s=qr" {
+		t.Errorf("the QR code still points at %q after the page moved", r.Header.Get("Location"))
+	}
+	if r, _ := visit(h, "/l/new-address?s=qr", iphoneUA, "203.0.113.70"); r.StatusCode != 200 {
+		t.Errorf("the new address should serve the page: %d", r.StatusCode)
+	}
+	if r, _ := visit(h, "/l/old-address", iphoneUA, "203.0.113.70"); r.StatusCode != 404 {
+		t.Errorf("the old address should be gone: %d", r.StatusCode)
+	}
+	if r, _ := visit(h, "/r/"+otherCode, iphoneUA, "203.0.113.71"); r.Header.Get("Location") != "http://qr.test/l/old-address-two?s=qr" {
+		t.Errorf("another page's QR code was changed: %q", r.Header.Get("Location"))
+	}
+	// the code's own edit form shows the new address too
+	var lid int64
+	h.db.QueryRow(`SELECT id FROM links WHERE code = ?`, code).Scan(&lid)
+	_, edit := h.do(c, "GET", fmt.Sprintf("/admin/links/%d/edit", lid), nil, nil)
+	if !strings.Contains(edit, "l/new-address?s=qr") || strings.Contains(edit, "l/old-address?s=qr") {
+		t.Error("the QR code's edit form should show the new address")
+	}
+}

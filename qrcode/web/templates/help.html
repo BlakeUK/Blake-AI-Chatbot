@@ -3,6 +3,7 @@
   <div class="banner"><img src="/static/img/max-banner.webp" width="380" height="110" alt="Max, My AI eXpert. Smarter together."></div>
   <div>
     <h1>Help</h1>
+    <p><a class="button primary" href="/admin/manual.pdf">Download the PDF manual</a> <span class="muted small">The same material with screenshots, a contents list, a task finder and an A to Z index.</span></p>
     <p>Everything this system does, what each part is for, and how to use it. Use the contents below to jump to a topic, or press <kbd>Ctrl</kbd>+<kbd>F</kbd> to search this page.</p>
   </div>
 </div>
@@ -13,6 +14,7 @@
     <li><a href="#quick-start">Quick start: your first QR code</a></li>
     <li><a href="#codes">The Codes page</a></li>
     <li><a href="#static-dynamic">Static or dynamic: which should I choose?</a></li>
+    <li><a href="#privacy">What is tracked, and privacy</a></li>
     <li><a href="#creating">Making a QR code, step by step</a></li>
     <li><a href="#types">Every type of QR code, and what to enter</a></li>
     <li><a href="#design">Designing the look of a code</a></li>
@@ -20,15 +22,17 @@
     <li><a href="#tracking">Tracking window and what happens at the end</a></li>
     <li><a href="#limits-password">Scan limits and passwords</a></li>
     <li><a href="#smart-routing">Sending people to different places (smart routing)</a></li>
+    <li><a href="#visitors">What your visitors see</a></li>
     <li><a href="#downloads-printing">Downloading, printing and testing</a></li>
     <li><a href="#reading-stats">Reading the statistics</a></li>
+    <li><a href="#exports">Exporting your data (CSV)</a></li>
     <li><a href="#campaigns">Campaigns</a></li>
     <li><a href="#editing">Editing, disabling and deleting a code</a></li>
     <li><a href="#bulk">Making many codes at once (bulk)</a></li>
     <li><a href="#link-pages">Link pages (like Linktree)</a></li>
     <li><a href="#users">Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</a></li>
     <li><a href="#account">Your account: signing in and your password</a></li>
-    <li><a href="#privacy">What is recorded, and privacy</a></li>
+    <li><a href="#limits">Limits at a glance</a></li>
     <li><a href="#troubleshooting">Troubleshooting and questions</a></li>
     <li><a href="#not-included">What this system does not do</a></li>
     <li><a href="#glossary">Glossary</a></li>
@@ -75,6 +79,7 @@
     <tbody>
       <tr><th>What the picture contains</th><td>A short address on this system. Scans pass through it and are then sent on.</td><td>The content itself (the web address, the Wi-Fi details, the contact card...).</td></tr>
       <tr><th>Counts and analyses scans</th><td>Yes</td><td>No: scans never reach this system.</td></tr>
+      <tr><th>What is recorded about each scan</th><td>Time, approximate place, device, system, browser, language, where sent, referring site name and a scrambled visitor token (full list: <a href="#privacy">What is tracked</a>)</td><td>Nothing at all</td></tr>
       <tr><th>Change where it goes after printing</th><td>Yes, any time</td><td>No, never. Make a new code.</td></tr>
       <tr><th>Start and end dates, scan limit, password, smart routing</th><td>Yes</td><td>No</td></tr>
       <tr><th>Works without internet and without this system</th><td>No: it needs this system to be running</td><td>Yes, for ever</td></tr>
@@ -86,8 +91,62 @@
   <p>You cannot turn a static code into a dynamic one later, because the content is already printed inside the picture.</p>
 </section>
 
+<section class="card helpsec" id="privacy">
+  <h2>4. What is tracked, and privacy</h2>
+  <p><strong>What it is.</strong> A plain list of everything this system records about people, feature by feature, so nobody has to guess. It is built from the same description the system is tested against, and it is repeated in the PDF manual.</p>
+  <div class="callout">
+    <p><strong>In short</strong></p>
+    <ul>
+      <li>A <strong>dynamic</strong> QR code records each scan. A <strong>static</strong> QR code records <strong>nothing</strong>.</li>
+      <li>A <strong>link page</strong> records each view and each press of a web button. Email and phone buttons are not recorded.</li>
+      <li>No names, no email addresses, no tracking cookies and nothing the visitor types. (The only cookie a visitor can ever receive is a 30-minute security token on the password page of a protected code; it holds nothing about them.)</li>
+      <li>{{if .Data.FullIP}}<strong>Full internet-address storage is switched ON for this system</strong>, so each scan of a QR code keeps the visitor&#39;s actual address as well as the scrambled token. Your privacy notice must say so.{{else}}The visitor&#39;s internet address is <strong>not stored</strong>. It is used for a moment to estimate the place and to make a scrambled token, then thrown away.{{end}}</li>
+      <li>Records are deleted automatically after <strong>{{.Data.RetentionDays}} days</strong>.</li>
+      <li>Everyone who is signed in can see the statistics and download exports. Visitors can see nothing.</li>
+    </ul>
+  </div>
+
+  <h3>Feature by feature</h3>
+  {{range .Data.Features}}
+  <div class="trackrow">
+    <h4>{{.Feature}}</h4>
+    <dl>
+      <dt>Recorded</dt><dd>{{.Recorded}}</dd>
+      <dt>Not recorded</dt><dd>{{.NotRecorded}}</dd>
+      <dt>Who can see it</dt><dd>{{.Who}}</dd>
+      <dt>Kept for</dt><dd>{{.Kept}}</dd>
+    </dl>
+  </div>
+  {{end}}
+
+  <h3>Every stored field</h3>
+  <p>These are all the tables that hold information about activity, with every field they contain. If a field is not listed here, it is not stored.</p>
+  {{range .Data.Tables}}
+  <div class="trackrow">
+    <h4>{{.Title}}</h4>
+    <p class="muted small">{{.Note}}</p>
+    <div class="scroll"><table class="compact fieldtable">
+      <thead><tr><th>Field</th><th>What it holds</th></tr></thead>
+      <tbody>{{range .Fields}}<tr><td><code>{{.Column}}</code></td><td>{{.Meaning}}</td></tr>{{end}}</tbody>
+    </table></div>
+  </div>
+  {{end}}
+
+  <h3>The scrambled visitor token</h3>
+  <p>To count &quot;unique&quot; visitors without keeping anyone&#39;s address, each visit is given a token: a one-way scramble of the visitor&#39;s internet address mixed with a secret that is made fresh every day. The same person gets the same token all day, so they are counted once. The token cannot be turned back into an address, and tomorrow&#39;s token for the same person is different, so people cannot be followed from day to day. The daily secrets are deleted after three days.</p>
+  <p>Places are estimates worked out from the internet address using a free location database. Country is usually right; town and region are guesses.</p>
+
+  <h3>Your responsibilities</h3>
+  <ul>
+    <li>Your privacy notice should say that scans of QR codes and visits to link pages are counted, with approximate location, device details and language, and how long they are kept. If full-address storage is on, it must say that too.</li>
+    <li><strong>Exports are personal data.</strong> A CSV includes the scrambled token and the browser&#39;s identification text for every scan. Store and delete exports as you would any personal data.</li>
+    <li>Because no name or address is kept, an individual scan cannot be linked to a person afterwards. There is also no way to delete a single scan; deleting a QR code or a link page deletes all of its records, and everything else is deleted automatically when it reaches {{.Data.RetentionDays}} days.</li>
+    <li>The web server keeps its own system log. Visitor addresses, cookies and the referring page&#39;s address are removed from it, but it does keep the address requested, the browser&#39;s identification text and the language setting, under the server&#39;s own retention settings.</li>
+  </ul>
+</section>
+
 <section class="card helpsec" id="creating">
-  <h2>4. Making a QR code, step by step</h2>
+  <h2>5. Making a QR code, step by step</h2>
   <p><strong>What it is.</strong> The form where you say what the code does and how it looks. Press <strong>New QR code</strong>, then choose a type.</p>
   <ol>
     <li><strong>Details.</strong> The <em>Name</em> is only for you. The <em>Campaign</em> groups codes by where they are used (see <a href="#campaigns">Campaigns</a>). Typing in the campaign box suggests existing ones, and "Leaflet" and "leaflet" are treated as the same campaign.</li>
@@ -100,7 +159,7 @@
 </section>
 
 <section class="card helpsec" id="types">
-  <h2>5. Every type of QR code, and what to enter</h2>
+  <h2>6. Every type of QR code, and what to enter</h2>
   <p><strong>What it is.</strong> The kinds of thing a code can do. Each shows whether it can be static, dynamic or both, then what it does and how to fill it in. This list is generated from the same catalogue the forms use, so it always matches.</p>
   {{range .Data.Types}}
   <div class="typehelp" id="type-{{.Type}}">
@@ -114,7 +173,7 @@
 </section>
 
 <section class="card helpsec" id="design">
-  <h2>6. Designing the look of a code</h2>
+  <h2>7. Designing the look of a code</h2>
   <p><strong>What it is.</strong> The <em>Design</em> panel changes how the code looks without changing what it does. The picture on top is a live preview of a sample code. <strong>How to use each control:</strong></p>
   <dl>
     <dt>Code colour and Background</dt><dd>The colour of the dots and of the paper behind them. The code must be <strong>darker than its background</strong> and the contrast must be at least 4 to 1. If you choose pale yellow dots, or a light code on a dark background, the preview shows a message and the form will not save it: many phone cameras cannot read those.</dd>
@@ -129,7 +188,7 @@
 </section>
 
 <section class="card helpsec" id="save-designs">
-  <h2>7. How to save and reuse designs</h2>
+  <h2>8. How to save and reuse designs</h2>
   <p><strong>What it is.</strong> A <em>saved design</em> remembers the whole look under a name: colours, dot and corner styles, frame, text, error correction and logo. Use it to keep every code on-brand without setting everything up again.</p>
 
   <h3>Saving a design: two ways</h3>
@@ -172,7 +231,7 @@
 </section>
 
 <section class="card helpsec" id="tracking">
-  <h2>8. Tracking window and what happens at the end</h2>
+  <h2>9. Tracking window and what happens at the end</h2>
   <p><strong>What it is.</strong> For a dynamic code, the dates during which scans are counted. <strong>How to use it.</strong></p>
   <ul>
     <li><strong>Preset:</strong> 24 hours, 7, 30 or 90 days, counted from the moment you press Create.</li>
@@ -185,7 +244,7 @@
 </section>
 
 <section class="card helpsec" id="limits-password">
-  <h2>9. Scan limits and passwords</h2>
+  <h2>10. Scan limits and passwords</h2>
   <p><strong>What they are.</strong> Two optional controls on a dynamic code.</p>
   <p><strong>Scan limit.</strong> Stops the code after that many <em>people</em> have scanned it. Bots and link-preview robots do not use up the limit. When it is reached the code behaves as if its window had ended (see above). Leave the box empty for no limit. The code's page shows how many have been used, for example "37 of 500 used". Raising the limit by editing brings the code back to life.</p>
   <p><strong>Password.</strong> Visitors see a page asking for the password and are only sent on when they type it correctly. Good for trade-only pages. Notes:</p>
@@ -199,7 +258,7 @@
 </section>
 
 <section class="card helpsec" id="smart-routing">
-  <h2>10. Sending people to different places (smart routing)</h2>
+  <h2>11. Sending people to different places (smart routing)</h2>
   <p><strong>What it is.</strong> One printed code that sends different people to different addresses, for a dynamic code of type <em>App stores</em> or <em>Smart URL</em>.</p>
   <p><strong>How to use it.</strong></p>
   <ul>
@@ -211,8 +270,26 @@
   </ul>
 </section>
 
+<section class="card helpsec" id="visitors">
+  <h2>12. What your visitors see</h2>
+  <p><strong>What it is.</strong> The experience of the people who scan your codes or open your link pages, so you know what to expect and what to tell them.</p>
+  <dl>
+    <dt>An ordinary dynamic code</dt><dd>The visitor is sent straight on to the destination. Nothing is shown from this system, and it takes a fraction of a second.</dd>
+    <dt>A code that has not started, or has ended</dt><dd>While the tracking window has not started, the code works but is not counted. When it has ended (or the scan limit is reached) it does what you chose: keeps redirecting without counting, shows an <em>This link has expired</em> page, or sends the visitor to your fallback address.</dd>
+    <dt>A password-protected code</dt><dd>A page titled <em>This code is protected</em> asks for the password. The right password sends the visitor on. A wrong one shows <em>That password is not right</em>. After six wrong guesses in a minute they must wait.</dd>
+    <dt>A code you have switched off</dt><dd><em>Link disabled</em>: this link has been switched off.</dd>
+    <dt>A code that was deleted, mistyped or never existed</dt><dd><em>Link not found</em>.</dd>
+    <dt>Too many visits from one visitor</dt><dd><em>Too many requests</em>: please wait a minute. This only affects someone making more than 30 requests a minute.</dd>
+    <dt>A contact card (vCard) or calendar event code</dt><dd>The phone offers to save the contact or add the event.</dd>
+    <dt>A smart-routing or app-stores code</dt><dd>The visitor is sent to whichever address matches their phone, language or country, with no page in between.</dd>
+    <dt>A static code</dt><dd>The phone acts on the content directly (opens the web address, joins the Wi-Fi, shows the text). This system is not involved.</dd>
+    <dt>A link page</dt><dd>A page with the company logo, the heading and a row of buttons. Pressing a web button goes through this system for a moment, to be counted, and on to the destination. Email and phone buttons open the visitor's own app directly. A page that is switched off, deleted or mistyped shows <em>Page not found</em>.</dd>
+  </dl>
+  <p>Visitors never see a sign-in page or any of the admin. None of these pages asks them for any personal details.</p>
+</section>
+
 <section class="card helpsec" id="downloads-printing">
-  <h2>11. Downloading, printing and testing</h2>
+  <h2>13. Downloading, printing and testing</h2>
   <p><strong>What it is.</strong> Getting the picture out of the system and onto paper or a screen. Open a code and use the <em>QR code</em> panel.</p>
   <ul>
     <li><strong>SVG</strong> is a vector picture that stays sharp at any size. Use it for anything professionally printed, and give it to your printer.</li>
@@ -231,7 +308,7 @@
 </section>
 
 <section class="card helpsec" id="reading-stats">
-  <h2>12. Reading the statistics</h2>
+  <h2>14. Reading the statistics</h2>
   <p><strong>What it is.</strong> Open any dynamic code to see how it is performing. Static codes have no statistics, because their scans never reach this system.</p>
   <dl>
     <dt>All scans</dt><dd>Every visit by a person while the code was being tracked.</dd>
@@ -246,8 +323,29 @@
   </dl>
 </section>
 
+<section class="card helpsec" id="exports">
+  <h2>15. Exporting your data (CSV)</h2>
+  <p><strong>What it is.</strong> A spreadsheet file of scan records, to open in Excel or Google Sheets. <strong>How to use it.</strong> On a QR code&#39;s page press <em>Export CSV</em> for that code, or press <em>Export scans</em> in the menu for every code. Link pages have no export yet.</p>
+  <p><strong>What is in it.</strong> One row per scan, oldest first, <strong>including robots</strong>, which are marked <code>is_bot</code> = 1 so you can filter them out. Columns:</p>
+  <div class="scroll"><table class="compact fieldtable">
+    <tbody>
+      <tr><td><code>scanned_at_utc</code>, <code>scanned_at_local</code></td><td>The time, in UTC and in UK time.</td></tr>
+      <tr><td><code>campaign</code>, <code>link_label</code>, <code>link_code</code></td><td>Which campaign, which code (its name) and its short code.</td></tr>
+      <tr><td><code>destination</code>, <code>destination_site</code></td><td>Where that visitor was sent, and a friendly name for the site.</td></tr>
+      <tr><td><code>country</code>, <code>region</code>, <code>town</code></td><td>Estimated place.</td></tr>
+      <tr><td><code>language</code>, <code>device</code>, <code>os</code>, <code>browser</code></td><td>The visitor&#39;s language setting and device details.</td></tr>
+      <tr><td><code>referrer_host</code></td><td>The name of the site or app they came from.</td></tr>
+      <tr><td><code>is_bot</code>, <code>is_unique</code></td><td>1 or 0.</td></tr>
+      <tr><td><code>ip</code></td><td>Empty, unless full-address storage is on.</td></tr>
+      <tr><td><code>ip_hash</code></td><td>The scrambled visitor token (changes daily).</td></tr>
+      <tr><td><code>user_agent</code></td><td>The browser&#39;s full identification text.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Text that a spreadsheet could mistake for a formula is prefixed with an apostrophe, so opening an export cannot run anything. Anyone who is signed in can export, so handle the files as personal data (see <a href="#privacy">What is tracked</a>).</p>
+</section>
+
 <section class="card helpsec" id="campaigns">
-  <h2>13. Campaigns</h2>
+  <h2>16. Campaigns</h2>
   <p><strong>What it is.</strong> A short label saying <em>where</em> a code is used: Leaflet, Exhibition stand, Product box, Van, Trade counter and so on. It is how you compare placements.</p>
   <p><strong>How to use it.</strong></p>
   <ul>
@@ -260,7 +358,7 @@
 </section>
 
 <section class="card helpsec" id="editing">
-  <h2>14. Editing, disabling and deleting a code</h2>
+  <h2>17. Editing, disabling and deleting a code</h2>
   <p><strong>What it is.</strong> The buttons at the top of a code's page.</p>
   <ul>
     <li><strong>Edit.</strong> A <em>dynamic</em> code: change the name, campaign, destination or contents, window, limits, password and look. The tracking address and the type never change, so printed codes keep working. A <em>static</em> code: only the name, campaign and look can change, because its content is printed in the picture.</li>
@@ -270,7 +368,7 @@
 </section>
 
 <section class="card helpsec" id="bulk">
-  <h2>15. Making many codes at once (bulk)</h2>
+  <h2>18. Making many codes at once (bulk)</h2>
   <p><strong>What it is.</strong> One tracked code per row of a spreadsheet, returned as a ZIP file. Good for a catalogue of products. Open <strong>Bulk</strong> in the menu.</p>
   <ol>
     <li>In your spreadsheet put the headings <code>label</code> and <code>url</code> in the first row (and optionally <code>campaign</code>), then one code per row. Save as <strong>CSV</strong>. Example:<br><code>label,url,campaign<br>Aerial A1 box,https://www.blake-uk.com/aerials/a1.html,Product box</code></li>
@@ -288,7 +386,7 @@
 </section>
 
 <section class="card helpsec" id="link-pages">
-  <h2>16. Link pages (like Linktree)</h2>
+  <h2>19. Link pages (like Linktree)</h2>
   <p><strong>What it is.</strong> A <em>link page</em> is a web page, hosted here, that gathers all of a company's links in one place: website, social media, email, phone. It carries the company's logo and a theme, works well on a phone, and counts how many people open it and which buttons they press. Open <strong>Link pages</strong> in the menu.</p>
   <p>Use it where you can only give one address: a social media profile, an email signature, a business card, a poster. Or make a QR code that opens it (see below).</p>
 
@@ -333,23 +431,22 @@
   <h3>Changing, switching off and deleting</h3>
   <ul>
     <li><strong>Edit</strong> changes anything. Buttons you keep stay the same button, so their click history is kept. A button you remove takes its own history with it from the list.</li>
-    <li><strong>Changing the page address</strong> breaks any link people have already shared, so avoid it once a page is out.</li>
+    <li><strong>Changing the page address</strong>: QR codes made with <em>Make a QR code for this page</em> follow the page to its new address automatically. Links you shared anywhere else (a social profile, an email, a printed address) stop working, so avoid changing it once a page is out.</li>
     <li><strong>Switch off</strong> takes the page down without deleting it: visitors see "Page not found". <strong>Switch on</strong> brings it back.</li>
     <li><strong>Delete</strong> removes the page and its statistics for good. Codes that pointed at it keep working but lead to "Page not found".</li>
   </ul>
 
   <h3>Good to know</h3>
   <ul>
-    <li>Link pages follow the same privacy rules as QR codes (see <a href="#privacy">What is recorded</a>): no names, no cookies, and the visitor's address is only stored in a scrambled, daily-changing form. Records are deleted after the retention period.</li>
+    <li>Link pages follow the same privacy rules as QR codes (see <a href="#privacy">What is tracked</a>): no names, no cookies, and the visitor's address is only stored in a scrambled, daily-changing form. Records are deleted after the retention period.</li>
     <li>Pages are marked so that search engines do not list them.</li>
     <li>The three companies and their logos are built in. Adding a fourth company is a small change for a developer (a logo and a colour).</li>
     <li>Logos and social icons are used only to identify the company and the services you link to.</li>
   </ul>
 </section>
 
-
 <section class="card helpsec" id="users">
-  <h2>17. Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</h2>
+  <h2>20. Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</h2>
   <p><strong>What it is.</strong> The people who can sign in. {{if .Data.IsAdmin}}Open <strong>Users</strong> in the menu.{{else}}Only admins see the Users page; ask an admin if you need something changed.{{end}}</p>
   <ul>
     <li><strong>Roles.</strong> An <em>admin</em> can do everything, including managing users. A <em>member</em> can make and manage QR codes, campaigns and designs and read all the statistics, but cannot manage users.</li>
@@ -363,31 +460,51 @@
 </section>
 
 <section class="card helpsec" id="account">
-  <h2>18. Your account: signing in and your password</h2>
+  <h2>21. Your account: signing in and your password</h2>
   <ul>
     <li><strong>Signing in.</strong> The user name is not case sensitive; the password is. After <strong>five wrong tries within 15 minutes</strong> from one place you are locked out for 15 minutes; waiting is enough, and an admin can reset your password if you have forgotten it.</li>
     <li><strong>First sign-in.</strong> You are taken straight to <em>Change password</em>. Enter the temporary password, then your own new one twice. It must be at least 12 characters (up to 72); three or four random words is easy to remember and strong. A <em>Show passwords</em> tick lets you check what you typed.</li>
     <li><strong>Changing your password later.</strong> You can open the same page again from the address <code>/admin/password</code>. Changing it signs out your other sessions.</li>
+    <li><strong>If every admin is locked out or has forgotten their password.</strong> Another admin can reset it from the Users page. If nobody can sign in, whoever looks after the server can run <em>Reset a QR tracker password</em> (a GitHub Actions workflow) or <code>qrtrack resetpassword NAME</code> on the server. It prints a one-time temporary password, forces a change at next sign-in, signs that user out everywhere and clears all lockouts.</li>
     <li><strong>Staying signed in.</strong> You are signed out after 12 hours of inactivity, and in any case after 7 days.</li>
     <li><strong>Signing out.</strong> Use <em>Sign out</em> at the top, especially on a shared computer.</li>
   </ul>
 </section>
 
-<section class="card helpsec" id="privacy">
-  <h2>19. What is recorded, and privacy</h2>
-  <p><strong>What it is.</strong> A summary of what is stored when someone scans a dynamic code. Static codes record nothing.</p>
-  <ul>
-    <li><strong>Recorded:</strong> the exact time; the code and campaign; the approximate country, region and town; the device type, operating system and browser family (never versions or models); the language; where the scan was sent; the site they came from (name only); and a scrambled visitor token.</li>
-    <li><strong>The visitor token</strong> is made from their internet address and a secret that changes every day, so the same person can be counted once in a day, but it cannot be turned back into an address, and it cannot be matched across days.</li>
-    <li><strong>The internet address itself is not stored</strong> unless a system administrator has deliberately switched that on; if they have, a notice shows at the top of every page. It is used only to work out the approximate place and the token, then discarded.</li>
-    <li><strong>Never recorded:</strong> names, email addresses, cookies, or the full address of the page they came from.</li>
-    <li><strong>Kept for</strong> 365 days by default, then deleted automatically.</li>
-    <li>The approximate locations come from a free database by DB-IP, credited at the bottom of pages that use it.</li>
-  </ul>
+<section class="card helpsec" id="limits">
+  <h2>22. Limits at a glance</h2>
+  <p><strong>What it is.</strong> The sizes and numbers the system enforces, in one place.</p>
+  <div class="scroll"><table class="compact fieldtable">
+    <thead><tr><th>Thing</th><th>Limit</th></tr></thead>
+    <tbody>
+      <tr><td>QR code name</td><td>100 characters</td></tr>
+      <tr><td>Campaign name</td><td>60 characters</td></tr>
+      <tr><td>Web address</td><td>2,048 characters; must start <code>http://</code> or <code>https://</code></td></tr>
+      <tr><td>Static code content</td><td>About 900 bytes (less with a logo); plain text up to 800 characters</td></tr>
+      <tr><td>Scan limit on a code</td><td>0 (none) up to 10,000,000</td></tr>
+      <tr><td>Smart routing rules</td><td>Up to 5 per code, first match wins</td></tr>
+      <tr><td>Password on a code</td><td>4 to 72 characters; six wrong guesses a minute per visitor</td></tr>
+      <tr><td>Text under a QR code (frame)</td><td>24 characters</td></tr>
+      <tr><td>Logo</td><td>PNG, JPEG or GIF, up to 1 MB and 4,000 pixels each way; stored at no more than 256 pixels</td></tr>
+      <tr><td>Saved design name</td><td>60 characters</td></tr>
+      <tr><td>PNG downloads</td><td>256, 512 or 1,024 pixels wide, or SVG</td></tr>
+      <tr><td>Bulk (CSV)</td><td>File up to 1 MB; up to 1,000 rows as SVG, 250 with PNG</td></tr>
+      <tr><td>Link page address</td><td>3 to 40 characters: lower-case letters, numbers, dashes</td></tr>
+      <tr><td>Link page name / heading / subheading</td><td>100 / 80 / 160 characters</td></tr>
+      <tr><td>Link page buttons</td><td>Up to 30 per page; title 60 characters, small text 80</td></tr>
+      <tr><td>Visitors</td><td>30 requests a minute per visitor to tracking addresses and link pages</td></tr>
+      <tr><td>User name / password</td><td>3 to 32 characters / at least 12 and no more than 72</td></tr>
+      <tr><td>Sign-in lockout</td><td>5 wrong tries within 15 minutes locks that place out for 15 minutes</td></tr>
+      <tr><td>Sessions</td><td>Signed out after 12 hours without use, and after 7 days at most</td></tr>
+      <tr><td>Lists</td><td>25 codes per page; 50 scans per page; the ten most common values in each breakdown</td></tr>
+      <tr><td>Charts</td><td>By the hour when the tracking window is under 3 days, otherwise by the day (up to 400 days)</td></tr>
+      <tr><td>Records kept</td><td>{{.Data.RetentionDays}} days for scans, link page views and the activity log; 24 hours for sign-in attempts</td></tr>
+    </tbody>
+  </table></div>
 </section>
 
 <section class="card helpsec" id="troubleshooting">
-  <h2>20. Troubleshooting and questions</h2>
+  <h2>23. Troubleshooting and questions</h2>
   <dl>
     <dt>My printed code will not scan.</dt><dd>Check the size (at least about 2 cm), the blank border, and the contrast (dark on light). Scan it from different distances with two phones. Try error correction H and a simpler design (square dots, no logo). For a dynamic code, check the code is not disabled and its window has not ended with <em>show expired page</em>.</dd>
     <dt>The form says the design is "too close to the background".</dt><dd>The code colour is too pale or too similar to the background. Choose a darker code colour or a lighter background.</dd>
@@ -401,12 +518,14 @@
     <dt>The page says "Admins only".</dt><dd>You are signed in as a member. Ask an admin if you need a user managed.</dd>
     <dt>The bulk upload failed.</dt><dd>Read the list: it names the spreadsheet row and the problem. Check the headings are exactly <code>label</code> and <code>url</code>, that every address starts with https://, and that the file is saved as CSV.</dd>
     <dt>I deleted a code by mistake.</dt><dd>It cannot be undone. A dynamic code that was printed will now show "Link not found". Make a new one and, if you still have the old printed copies, replace them.</dd>
+    <dt>Who can see my scans?</dt><dd>Everyone who is signed in, admins and members. Visitors never can. See <a href="#privacy">What is tracked</a>.</dd>
+    <dt>Can I delete one person&#39;s scan?</dt><dd>No. Scans carry no name or address, so one person&#39;s cannot be picked out. Deleting a QR code or link page deletes all its records, and everything is removed automatically after the retention period.</dd>
     <dt>Where do I find the scans in a spreadsheet?</dt><dd>On a code's page press <em>Export CSV</em>, or press <em>Export scans</em> in the menu for every code.</dd>
   </dl>
 </section>
 
 <section class="card helpsec" id="not-included">
-  <h2>21. What this system does not do</h2>
+  <h2>24. What this system does not do</h2>
   <p>So you are not looking for something that is not there:</p>
   <ul>
     <li>It does not host files or general web pages: there is no PDF, MP3, video, menu or landing-page code. The only hosted pages are <a href="#link-pages">Link pages</a>. To send people to a PDF or video, use <em>Website link</em> to point at one that already lives on blake-uk.com or YouTube.</li>
@@ -418,7 +537,7 @@
 </section>
 
 <section class="card helpsec" id="glossary">
-  <h2>22. Glossary</h2>
+  <h2>25. Glossary</h2>
   <dl>
     <dt>Bot</dt><dd>A program, not a person, that visits addresses automatically.</dd>
     <dt>Campaign</dt><dd>A label for where a code is used.</dd>

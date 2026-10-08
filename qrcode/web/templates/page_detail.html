@@ -45,7 +45,7 @@
 <section class="card">
   <h2>Clicks on each button</h2>
   <p class="hint"><strong>What it is.</strong> Which links people actually use. <strong>How to use it.</strong> Move popular buttons to the top, and consider removing ones nobody taps.</p>
-  <table class="compact">
+  <div class="scroll"><table class="compact">
     <thead><tr><th></th><th>Button</th><th>Address</th><th class="num">Clicks</th><th></th><th>Last click</th></tr></thead>
     <tbody>
     {{range .Items}}
@@ -59,7 +59,7 @@
     </tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
   <p class="muted small">Email and phone buttons open the visitor's own app directly, so their taps cannot be counted.</p>
 </section>
 

@@ -219,6 +219,14 @@ func (s *Server) pageUpdate(w http.ResponseWriter, r *http.Request, sess *auth.S
 	in, f := s.parsePageForm(r, p)
 	if len(f.Errors) == 0 {
 		err := s.pages.Update(r.Context(), p.ID, in)
+		if err == nil && in.Slug != p.Slug {
+			// QR codes made for this page follow it to its new address
+			for _, suffix := range []string{"", "?s=qr"} {
+				if _, rerr := s.links.Repoint(r.Context(), s.pageURL(p.Slug)+suffix, s.pageURL(in.Slug)+suffix); rerr != nil {
+					s.log.Error("could not repoint QR codes after a page address change", "err", rerr)
+				}
+			}
+		}
 		if err == nil {
 			s.auth.Audit(r.Context(), sess.User.Username, "page.update", in.Slug, "")
 			http.Redirect(w, r, fmt.Sprintf("/admin/pages/%d", p.ID), http.StatusSeeOther)
@@ -346,7 +354,7 @@ func (s *Server) pageDetail(w http.ResponseWriter, r *http.Request, sess *auth.S
 		}
 		sections = append(sections, section{c.title, bd})
 	}
-	qrs, _ := s.links.ByDestinationPrefix(ctx, s.pageURL(p.Slug))
+	qrs, _ := s.links.ByDestination(ctx, s.pageURL(p.Slug), s.pageURL(p.Slug)+"?s=qr")
 	brand, _ := pages.BrandByID(p.Brand)
 	theme, _ := pages.ThemeByID(p.Theme)
 	ctr := "0"

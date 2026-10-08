@@ -7,5 +7,5 @@ import "embed"
 //go:embed migrations/*.sql
 var Migrations embed.FS
 
-//go:embed web/templates/*.html web/static/*
+//go:embed web/templates/*.html web/static/* web/manual/*
 var Web embed.FS

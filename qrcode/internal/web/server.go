@@ -39,6 +39,7 @@ type Config struct {
 	TrustedProxies  []*net.IPNet
 	RateLimitPerMin int  // per hashed client, on /r/<code>
 	StoreFullIP     bool // keep the visitor address with each scan (off by default)
+	RetentionDays   int  // how long scans, page events and the activity log are kept; shown in Help (main runs the purge)
 	Location        *time.Location
 }
 
@@ -185,6 +186,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/links/new", s.authed(s.newLink))
 	mux.HandleFunc("GET /admin/preview.svg", s.authed(s.preview))
 	mux.HandleFunc("GET /admin/help", s.authed(s.help))
+	mux.HandleFunc("GET /admin/manual.pdf", s.authed(s.manual))
 	mux.HandleFunc("GET /admin/pages", s.authed(s.pagesList))
 	mux.HandleFunc("GET /admin/pages/new", s.authed(s.pageNew))
 	mux.HandleFunc("POST /admin/pages", s.authed(s.pageCreate))

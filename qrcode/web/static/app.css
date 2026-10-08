@@ -12,8 +12,8 @@ h1 { font-size:1.5rem; margin:.2rem 0 1rem; } h2 { font-size:1.15rem; margin:.2r
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; }
 .narrow { max-width:420px; margin:2rem auto; } .center { text-align:center; }
 .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; } .between { justify-content:space-between; }
-.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1rem; }
-.grid3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); gap:1rem; }
+.grid3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr)); gap:1rem; }
 label { display:block; margin:.7rem 0; font-weight:600; }
 input, select { display:block; width:100%; margin-top:.25rem; padding:.55rem .65rem; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:6px; }
 fieldset { border:1px solid var(--line); border-radius:8px; margin:.8rem 0; padding:.25rem .9rem .6rem; } legend { font-weight:600; padding:0 .3rem; }
@@ -39,7 +39,7 @@ label.check { font-weight:400; display:flex; align-items:center; gap:.5rem; } la
 .nowrap { white-space:nowrap; } .scans th, .scans td { padding:.35rem .5rem; font-size:.9rem; border-bottom:1px solid var(--line); }
 .credit { max-width:1100px; margin:0 auto; padding:0 1.25rem 1.5rem; color:var(--muted); font-size:.8rem; }
 tfoot th { border-top:2px solid var(--line); border-bottom:none; }
-.formgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:1rem; align-items:start; }
+.formgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr)); gap:1rem; align-items:start; }
 .formcol { min-width:0; }
 .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:.75rem; margin-bottom:1.25rem; }
 .typecard { display:flex; flex-direction:column; gap:.25rem; padding:.8rem 1rem; background:var(--card); border:1px solid var(--line); border-radius:10px; text-decoration:none; color:var(--ink); }
@@ -96,3 +96,12 @@ kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; 
 .brandchip { vertical-align:middle; width:auto; } .brandcards { margin:.6rem 0 0; } .brandcard { align-items:flex-start; gap:.6rem; }
 .qrlist { padding-left:1.1rem; margin:.6rem 0 0; } .iconcell { width:2rem; } .iconcell .ico { width:18px; height:18px; display:block; }
 .ico { width:1em; height:1em; } .hidden-nojs { display:none; } .js .hidden-nojs { display:inline-block; }
+
+/* long addresses must wrap rather than push the page wider than a phone screen */
+.card li, .card p, .card a, .card code, .card td.small, .card td.muted, main code { overflow-wrap:anywhere; }
+
+.trackednote { background:color-mix(in srgb,var(--accent) 8%,transparent); border-radius:6px; padding:.35rem .6rem; }
+.callout { border-left:4px solid var(--accent); background:color-mix(in srgb,var(--accent) 7%,transparent); border-radius:6px; padding:.5rem 1rem; margin:.6rem 0; } .callout ul { margin:.3rem 0; }
+.trackrow { border-top:1px solid var(--line); padding:.4rem 0 .2rem; margin-top:.6rem; } .trackrow h4 { margin:.2rem 0 .3rem; font-size:1.02rem; } .trackrow dl { margin:0; display:grid; grid-template-columns:9.5rem 1fr; gap:.15rem .8rem; } .trackrow dt { font-weight:700; margin:0; color:var(--muted); } .trackrow dd { margin:0 0 .35rem; }
+@media (max-width:640px) { .trackrow dl { grid-template-columns:1fr; } .trackrow dt { margin-top:.35rem; } }
+.fieldtable td:first-child { white-space:nowrap; vertical-align:top; } .fieldtable td { vertical-align:top; }

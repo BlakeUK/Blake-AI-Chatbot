@@ -117,6 +117,21 @@ A hosted "all our links" page per company, at `https://<domain>/l/<address>`, ma
 * **Statistics:** views, unique visitors, views via QR, clicks per button, views per day, and breakdowns. Same privacy rules as scans (daily-salted hash, no address stored, bots excluded, retention purge).
 * Pages are `noindex`. Tables: `link_pages`, `link_page_items`, `page_events` (migration 0004).
 
+## Help, the PDF manual and "what is tracked"
+
+* **Help** (`/admin/help`, from `web/templates/help.html`) documents every function. Each page also has a "What is this / How to use it / What is tracked" box (`internal/web/help.go`).
+* **What is tracked** is written once, in `internal/web/tracking.go`: every feature, who can see it, how long it is kept, and every stored field. A test compares it with the real database columns, so adding a column or table without describing it fails the build.
+* **The PDF manual** (`web/manual/qrtrack-manual.pdf`, downloadable from Help at `/admin/manual.pdf`) is built from the running Help page plus fictional demo screenshots, with a cover, contents, task finder, appendices and an A to Z index. Rebuild it whenever Help changes (a test fails until you do):
+
+  ```
+  go build -o /tmp/qrtrack ./cmd/qrtrack
+  QRTRACK_BIN=/tmp/qrtrack GEOIP_DB=/path/to/dbip-city-lite.mmdb python3 tools/manual/build_manual.py
+  ```
+
+  Needs Python with `playwright` (and its Chromium), `beautifulsoup4`, `pillow`, `pdfplumber`, `pypdf`.
+* Help's quoted limits are checked against the code's constants by tests, so they cannot drift.
+* The password-recovery command is `qrtrack resetpassword NAME` (workflow: *Reset a QR tracker password*).
+
 ## Users and roles
 
 * **Admin:** everything, including the Users page.

@@ -48,7 +48,7 @@
     </label>
     <label>Page address
       <span class="addr"><span class="muted">{{.BaseURL}}/l/</span><input name="slug" type="text" maxlength="40" value="{{.Slug}}" placeholder="visionplus" autocapitalize="none" autocomplete="off" spellcheck="false"></span>
-      <span class="muted small">Lower-case letters, numbers and dashes. Leave empty to use the name. Changing it later breaks links people have already shared.</span>
+      <span class="muted small">Lower-case letters, numbers and dashes. Leave empty to use the name. If you change it later, QR codes made from this tab follow automatically, but links shared anywhere else will stop working.</span>
       {{with index .Errors "slug"}}<span class="field-error">{{.}}</span>{{end}}
     </label>
     <label>Heading <input name="title" type="text" maxlength="80" value="{{.Title}}" placeholder="Official Links">{{with index .Errors "title"}}<span class="field-error">{{.}}</span>{{end}}</label>

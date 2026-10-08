@@ -547,10 +547,20 @@ func (s *Store) Update(ctx context.Context, id int64, in Input) error {
 	return tx.Commit()
 }
 
-// ByDestinationPrefix lists the dynamic codes whose destination starts with
-// prefix, newest first. A link page uses it to show the QR codes pointing at it.
-func (s *Store) ByDestinationPrefix(ctx context.Context, prefix string) ([]*Link, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+cols+` FROM links WHERE kind = 'dynamic' AND instr(destination_url, ?) = 1 ORDER BY id DESC`, prefix)
+// ByDestination lists the dynamic codes whose destination is exactly one of
+// the given addresses, newest first. A link page uses it to show the QR codes
+// that open it. (Matching by prefix would let a page called "links" claim the
+// codes of a page called "links-2".)
+func (s *Store) ByDestination(ctx context.Context, urls ...string) ([]*Link, error) {
+	if len(urls) == 0 {
+		return nil, nil
+	}
+	marks := strings.TrimSuffix(strings.Repeat("?,", len(urls)), ",")
+	args := make([]any, len(urls))
+	for i, u := range urls {
+		args[i] = u
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+cols+` FROM links WHERE kind = 'dynamic' AND destination_url IN (`+marks+`) ORDER BY id DESC`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -564,6 +574,19 @@ func (s *Store) ByDestinationPrefix(ctx context.Context, prefix string) ([]*Link
 		out = append(out, l)
 	}
 	return out, rows.Err()
+}
+
+// Repoint changes the destination of every dynamic code that points exactly at
+// from, to to, and keeps the address remembered for the edit form in step. It
+// returns how many codes changed. A link page uses it so that its QR codes
+// follow the page when the page's address changes.
+func (s *Store) Repoint(ctx context.Context, from, to string) (int64, error) {
+	res, err := s.DB.ExecContext(ctx, `UPDATE links SET destination_url = ?, data = json_set(CASE WHEN json_valid(data) THEN data ELSE '{}' END, '$.url', ?), updated_at = ?
+		WHERE kind = 'dynamic' AND destination_url = ?`, to, to, db.TS(s.Now()), from)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // Rules returns a link's smart-routing rules in priority order.

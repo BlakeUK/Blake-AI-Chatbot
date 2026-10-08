@@ -22,7 +22,7 @@
     <td>
       <form method="post" action="/admin/users/{{.ID}}/role" class="inline row">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <select name="role">
+        <select name="role" aria-label="Role for {{.Username}}">
           <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Admin</option>
           <option value="member" {{if eq .Role "member"}}selected{{end}}>Member</option>
         </select>
@@ -34,7 +34,7 @@
     <td>
       <form method="post" action="/admin/users/{{.ID}}/reset" class="inline row" data-confirm="Reset this person's password and sign them out everywhere?">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <input type="password" name="password" autocomplete="new-password" placeholder="new temporary password (blank = generate)" minlength="12">
+        <input type="password" name="password" autocomplete="new-password" placeholder="new temporary password (blank = generate)" minlength="12" aria-label="New temporary password for {{.Username}}">
         <button type="submit">Reset password</button>
       </form>
       {{if ne .ID $.Data.Me}}

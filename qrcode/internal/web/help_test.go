@@ -2,6 +2,8 @@ package web
 
 import (
 	"fmt"
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/auth"
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/pages"
 	"image/color"
 	"net/http"
 	"net/url"
@@ -322,5 +324,53 @@ func TestSavingDesigns(t *testing.T) {
 	h.db.QueryRow(`SELECT COUNT(*) FROM audit_log WHERE action='design.save'`).Scan(&n)
 	if n < 3 {
 		t.Errorf("design saves were not audited (%d)", n)
+	}
+}
+
+// Every row's controls on the Users page must have a name a screen reader can announce.
+func TestUsersPageControlsAreLabelled(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	h.do(c, "POST", "/admin/users", url.Values{"csrf": {h.token(c)}, "username": {"labelled"}, "role": {"member"}, "password": {"labelled-temp-pass-1"}}, nil)
+	_, page := h.do(c, "GET", "/admin/users", nil, nil)
+	for _, want := range []string{`aria-label="Role for admin"`, `aria-label="Role for labelled"`, `aria-label="New temporary password for labelled"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("Users page missing %q", want)
+		}
+	}
+}
+
+// Help quotes specific limits. If a limit in the code changes, this fails until Help says the same.
+func TestHelpQuotesTheRealLimits(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	_, help := h.do(c, "GET", "/admin/help", nil, nil)
+	words := map[int]string{3: "three", 4: "four", 5: "five", 6: "six", 10: "ten"}
+	svc := auth.New(h.db, []byte("k"))
+	for what, want := range map[string]string{
+		"sign-in failures before lockout": fmt.Sprintf("%s wrong tries within %d minutes", words[auth.MaxFailures], int(auth.FailureWindow.Minutes())),
+		"lockout length":                  fmt.Sprintf("locked out for %d minutes", int(auth.LockoutDuration.Minutes())),
+		"idle sign-out":                   fmt.Sprintf("after %d hours of inactivity", int(svc.IdleTTL.Hours())),
+		"absolute sign-out":               fmt.Sprintf("after %d days", int(svc.AbsTTL.Hours()/24)),
+		"codes per page":                  fmt.Sprintf("more than %d codes", perPage),
+		"scans per page":                  fmt.Sprintf("%d to a page", recentPerPage),
+		"bulk rows as SVG":                "up to 1,000 rows",
+		"bulk rows with PNG":              fmt.Sprintf("up to %d rows", bulkMaxRowsPNG),
+		"buttons on a link page":          fmt.Sprintf("up to %d buttons", pages.MaxItems),
+		"link page heading":               "Heading",
+		"breakdown size":                  "ten most common",
+		"default retention":               "365 days",
+		"call to action length":           "24 characters",
+		"minimum password":                "at least 12 characters",
+	} {
+		if !strings.Contains(help, want) {
+			t.Errorf("Help should say %q (%s); the code's limit may have changed", want, what)
+		}
+	}
+	if bulkMaxRowsSVG != 1000 {
+		t.Errorf("bulkMaxRowsSVG is %d but Help says 1,000", bulkMaxRowsSVG)
+	}
+	if auth.MaxFailures > 10 || words[auth.MaxFailures] == "" {
+		t.Errorf("add %d to the number words in this test", auth.MaxFailures)
 	}
 }

@@ -55,5 +55,6 @@
   <summary>What is this? How do I use it?</summary>
   <p><strong>What it is.</strong> {{.What}}</p>
   <p><strong>How to use it.</strong> {{.How}} <a href="/admin/help#{{.Anchor}}">Read more in Help</a></p>
+  {{if .Tracked}}<p class="trackednote"><strong>What is tracked.</strong> {{.Tracked}} <a href="/admin/help#privacy">Full list</a></p>{{end}}
 </details>
 {{end}}{{end}}

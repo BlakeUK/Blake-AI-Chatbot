@@ -1,0 +1,59 @@
+/* Print stylesheet for the PDF manual (A4). Blake UK blue is #485cc7. */
+* { box-sizing: border-box; }
+html { font-family: "Carlito", "Liberation Sans", "DejaVu Sans", sans-serif; font-size: 10.6pt; line-height: 1.42; color: #1b2230; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; }
+h1, h2, h3, h4 { font-family: "Liberation Sans", "DejaVu Sans", sans-serif; color: #1c2766; line-height: 1.2; break-after: avoid; }
+h2 { font-size: 17pt; margin: 0 0 4mm; padding-bottom: 2mm; border-bottom: 2px solid #485cc7; }
+h3 { font-size: 12.2pt; margin: 6mm 0 2mm; color: #2c3a8c; }
+h4 { font-size: 10.8pt; margin: 3mm 0 1mm; }
+p { margin: 0 0 2.6mm; orphans: 3; widows: 3; }
+a { color: #2c3a8c; text-decoration: none; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; background: #eef0fb; border-radius: 2px; padding: 0 1.2mm; overflow-wrap: anywhere; }
+kbd { border: 1px solid #aeb4d6; border-radius: 2px; padding: 0 1.2mm; font-size: 8.8pt; background: #f6f7fd; }
+ul, ol { margin: 0 0 3mm; padding-left: 6mm; } li { margin: 0 0 1.2mm; }
+dl { margin: 0 0 3mm; } dt { font-weight: 700; margin-top: 2.2mm; break-after: avoid; } dd { margin: 0.4mm 0 0 0; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 9.4pt; }
+th, td { border: 1px solid #d3d7ec; padding: 1.4mm 2mm; text-align: left; vertical-align: top; }
+th { background: #eef0fb; color: #1c2766; }
+tr { break-inside: avoid; }
+.muted { color: #5b6479; } .small { font-size: 9pt; }
+.badge { display: inline-block; font-size: 8pt; border: 1px solid #485cc7; color: #2c3a8c; border-radius: 99px; padding: 0 2mm; margin-left: 1.5mm; vertical-align: middle; font-weight: 400; }
+.badge.off { border-color: #8a90a8; color: #5b6479; }
+.helpsec { margin: 0 0 8mm; }
+.helpsec > h2 { break-before: auto; }
+.callout { border-left: 3mm solid #485cc7; background: #eef0fb; padding: 2.5mm 4mm; margin: 2mm 0 4mm; break-inside: avoid; }
+.callout ul { margin: 1mm 0 0; }
+.trackrow { border-top: 1px solid #d3d7ec; padding-top: 1.5mm; margin-top: 2.5mm; break-inside: avoid; }
+.trackrow dl { display: grid; grid-template-columns: 27mm 1fr; column-gap: 4mm; margin: 0; }
+.trackrow dt { margin: 0 0 1mm; color: #4a5370; } .trackrow dd { margin: 0 0 1mm; }
+.typehelp { border-top: 1px solid #d3d7ec; padding-top: 1.5mm; margin-top: 2mm; break-inside: avoid; }
+.typehelp h3 { margin: 1mm 0; font-size: 11.2pt; }
+.scroll { overflow: visible; }
+figure { margin: 4mm 0 5mm; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; max-height: 118mm; border: 1px solid #c9cee6; border-radius: 2mm; box-shadow: 0 1.2mm 3mm rgba(28, 39, 102, .12); }
+figcaption { font-size: 8.8pt; color: #5b6479; margin-top: 1.6mm; }
+figure.wide img { max-height: 140mm; }
+/* cover */
+.cover { width: 210mm; height: 297mm; position: relative; overflow: hidden; background: #fff; break-after: page; }
+.cover .hero { position: absolute; left: 0; right: 0; top: 52mm; height: 128mm; background: linear-gradient(135deg, #485cc7 0%, #2c3a8c 70%, #1c2766 100%); color: #fff; padding: 26mm 22mm 0; }
+.cover .hero svg { position: absolute; right: -20mm; top: -10mm; opacity: .35; }
+.cover .eyebrow { font: 700 11pt "Liberation Sans", sans-serif; letter-spacing: .32em; margin: 0 0 6mm; color: #cdd4ff; }
+.cover h1 { font-size: 40pt; color: #fff; margin: 0 0 8mm; letter-spacing: -.01em; }
+.cover .lead { font-size: 13.5pt; max-width: 125mm; color: #e6e9ff; margin: 0; }
+.cover .logo { position: absolute; left: 22mm; top: 18mm; height: 17mm; }
+.cover .maxcard { position: absolute; left: 22mm; right: 22mm; top: 198mm; background: #fff; border: 1px solid #d3d7ec; border-radius: 4mm; padding: 5mm 7mm; box-shadow: 0 2mm 6mm rgba(28, 39, 102, .15); display: flex; align-items: center; justify-content: space-between; gap: 8mm; }
+.cover .maxcard img.banner { height: 21mm; flex: none; } .cover .brands { display: flex; align-items: center; gap: 5mm; flex: 1; justify-content: flex-end; } .cover .brands img { height: 7mm; width: auto; }
+.cover .foot { position: absolute; left: 22mm; right: 22mm; bottom: 16mm; color: #4a5370; font-size: 9.5pt; display: flex; justify-content: space-between; border-top: 1px solid #d3d7ec; padding-top: 3mm; }
+/* front matter */
+.frontpage { break-after: page; } .frontpage h2 { margin-top: 0; }
+.toc ol { list-style: none; padding: 0; margin: 0; } .toc li { display: flex; align-items: baseline; margin: 0 0 1.6mm; font-size: 11pt; }
+.toc li .t { flex: none; } .toc li .dots { flex: 1; border-bottom: 1px dotted #9aa1c4; margin: 0 2mm; transform: translateY(-1mm); } .toc li .n { flex: none; font-weight: 700; min-width: 8mm; text-align: right; }
+.toc li .num { display: inline-block; width: 9mm; color: #485cc7; font-weight: 700; }
+.index2 { columns: 2; column-gap: 10mm; } .index2 .letter { font: 700 12pt "Liberation Sans", sans-serif; color: #485cc7; margin: 3mm 0 1mm; break-after: avoid; }
+.index2 .term { display: flex; align-items: baseline; font-size: 9.6pt; margin: 0 0 .8mm; break-inside: avoid; } .index2 .term .t { flex: none; } .index2 .term .dots { flex: 1; border-bottom: 1px dotted #b3b9d6; margin: 0 1.5mm; } .index2 .term .n { flex: none; text-align: right; max-width: 38%; }
+.tasks td:first-child { width: 62%; } .tasks td:last-child { white-space: nowrap; }
+.backcover { height: 250mm; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: #4a5370; break-before: page; }
+.backcover img { height: 18mm; margin-bottom: 8mm; }
+.matrix td.y { text-align: center; color: #1c8a3c; font-weight: 700; } .matrix td.n { text-align: center; color: #9aa1c4; }
+/* column and field names are never broken in the middle of a word */
+.fieldtable td:first-child { width: 56mm; } .fieldtable code { white-space: nowrap; overflow-wrap: normal; }
