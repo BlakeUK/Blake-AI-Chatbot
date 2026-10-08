@@ -250,6 +250,8 @@ test('the page shows the ticket and the conversation, never the internal notes, 
     }
     assert_true(!str_contains($r['body'], 'INTERNAL') && !str_contains($r['body'], 'time waster'), 'internal notes stay internal');
     assert_true(!str_contains($r['body'], '<script'), 'no scripts at all');
+    assert_str_contains('<meta name="referrer" content="no-referrer">', $r['body'], 'the page also sets its own policy, in case another header is added in front of ours');
+    assert_str_contains('<meta name="referrer" content="no-referrer">', \Tickets\CustomerPage::handle('/bad', 'GET', [], '/x')['body'], 'and so does the not-found page');
     $h = implode("\n", $r['headers']);
     foreach (['Referrer-Policy: no-referrer', 'Cache-Control: no-store', 'X-Robots-Tag: noindex', "frame-ancestors 'none'", "default-src 'none'"] as $needle) assert_str_contains($needle, $h);
 });

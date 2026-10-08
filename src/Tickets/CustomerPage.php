@@ -120,7 +120,7 @@ class CustomerPage
     private static function shell(string $title, string $inner): string
     {
         return '<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<meta name="robots" content="noindex, nofollow"><title>' . self::h($title) . ' | Blake UK Support</title><style>'
+            . '<meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title>' . self::h($title) . ' | Blake UK Support</title><style>'
             . 'body{margin:0;background:#f3f5fb;color:#1b2230;font:16px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}'
             . 'header{background:#fff;border-bottom:1px solid #d9deef;padding:14px 20px}header img{height:34px;display:block}'
             . 'main{max-width:720px;margin:0 auto;padding:22px 16px 48px}h1{font-size:1.5rem;margin:.2em 0;color:#1c2766}h2{font-size:1.1rem;margin:1.6em 0 .5em;color:#2c3a8c}'
