@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -321,7 +322,9 @@ func TestAppStoresAndSmartRouting(t *testing.T) {
 		dests = append(dests, d)
 	}
 	rows.Close()
-	if len(dests) != 3 || dests[0] != "https://apps.apple.com/app/id1" || dests[1] != "https://play.google.com/store/apps/details?id=x" || dests[2] != "https://www.example.com/app" {
+	sort.Strings(dests) // the three scans were sent in random order (map iteration), so compare as a set
+	wantDests := []string{"https://apps.apple.com/app/id1", "https://play.google.com/store/apps/details?id=x", "https://www.example.com/app"}
+	if len(dests) != 3 || dests[0] != wantDests[0] || dests[1] != wantDests[1] || dests[2] != wantDests[2] {
 		t.Errorf("each scan must record where THAT visitor was sent: %v", dests)
 	}
 
