@@ -39,4 +39,8 @@ jobs:
               if timeout 8 bash -c "exec 3<>/dev/tcp/$H/$p" 2>/dev/null; then r="OPEN (connection accepted)"; else r="BLOCKED or no answer within 8s"; fi
               echo "port $p: $r"
             done
+            echo "--- the server's own firewall (outbound rules that could block mail)"
+            echo "ufw: $(ufw status 2>/dev/null | head -1 || echo 'not installed')"
+            echo "iptables OUTPUT policy and rules: $(iptables -S OUTPUT 2>/dev/null | tr '\n' ';' | cut -c1-200 || echo 'cannot read')"
+            echo "nftables output rules: $(nft list ruleset 2>/dev/null | grep -ciE 'dport (25|465|587)' || echo 0) rules mentioning mail ports"
             echo "greeting on 587: $(timeout 8 bash -c "exec 3<>/dev/tcp/$H/587; head -c 160 <&3 | head -1" 2>/dev/null | tr -d '\r' || echo none)"
