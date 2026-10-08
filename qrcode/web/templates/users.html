@@ -1,6 +1,7 @@
 {{define "content"}}
 {{with .Data}}
 <h1>Users</h1>
+{{template "helpbox" $}}
 <p class="muted">Admins can do everything, including managing users. Members can create and manage QR codes and see statistics, but cannot manage users.</p>
 
 {{if .Reset}}

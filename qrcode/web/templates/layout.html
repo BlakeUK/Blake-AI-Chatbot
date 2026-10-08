@@ -4,34 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{{.Title}} · QR Tracker</title>
+<title>{{.Title}} · Blake UK QR Codes</title>
+<link rel="icon" type="image/png" href="/static/img/favicon.png">
 <link rel="stylesheet" href="/static/app.css">
 <script src="/static/app.js" defer></script>
 </head>
 <body>
-{{if .User}}<header class="top">
-  <a class="brand" href="/admin/">QR Tracker</a>
+<header class="top">
+  {{if .User}}
+  <a class="brand" href="/admin/">QR Codes</a>
   <nav>
-    <a href="/admin/">Links</a>
-    <a href="/admin/campaigns">Campaigns</a>
+    <a href="/admin/">Codes</a>
     <a href="/admin/links/new">New QR code</a>
+    <a href="/admin/campaigns">Campaigns</a>
     <a href="/admin/bulk">Bulk</a>
     <a href="/admin/templates">Designs</a>
-    <a href="/admin/scans.csv">Export scans</a>
+    <a href="/admin/scans.csv" title="Download every scan as a spreadsheet file">Export scans</a>
     {{if .User.IsAdmin}}<a href="/admin/users">Users</a>{{end}}
-    <a href="/admin/password">Password</a>
+    <a href="/admin/help">Help</a>
   </nav>
   <form method="post" action="/admin/logout" class="inline">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <button class="linklike" type="submit">Sign out ({{.User.Username}})</button>
   </form>
-</header>{{end}}
+  {{end}}
+  <div class="brandmark">
+    {{if .User}}<a class="max" href="/admin/help" title="Max, your guide. Open Help."><img src="/static/img/max-head.png" width="43" height="40" alt="Max, the Blake UK AI assistant"></a>
+    {{else}}<img class="max" src="/static/img/max-head.png" width="43" height="40" alt="Max, the Blake UK AI assistant">{{end}}
+    <a class="logo" href="https://www.blake-uk.com/" rel="noopener noreferrer" title="Blake UK website">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/static/img/blake-logo-white.png">
+        <img src="/static/img/blake-logo-blue.png" width="106" height="34" alt="Blake UK">
+      </picture>
+    </a>
+  </div>
+</header>
 <main>
 {{if .FullIP}}<p class="notice">Full IP address storage is <strong>on</strong>. Visitor addresses are kept with each scan until the retention period ends, so your privacy notice must say so.</p>{{end}}
-{{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+{{if .Flash}}<p class="flash" role="status">{{.Flash}}</p>{{end}}
 {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
 {{template "content" .}}
 </main>
 {{if .GeoCredit}}<footer class="credit">Approximate locations: <a href="https://db-ip.com" rel="noopener noreferrer">IP Geolocation by DB-IP</a>. Town and region are estimates and can be wrong, especially on mobile networks.</footer>{{end}}
 </body>
 </html>{{end}}
+
+{{define "helpbox"}}{{with .Help}}
+<details class="helpbox" open>
+  <summary>What is this? How do I use it?</summary>
+  <p><strong>What it is.</strong> {{.What}}</p>
+  <p><strong>How to use it.</strong> {{.How}} <a href="/admin/help#{{.Anchor}}">Read more in Help</a></p>
+</details>
+{{end}}{{end}}

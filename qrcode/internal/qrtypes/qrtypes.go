@@ -62,8 +62,9 @@ type Spec struct {
 	Label       string
 	Group       string // Links, Contact, Social, Other
 	Description string
-	Static      bool // can be a static code
-	Dynamic     bool // can be a dynamic (tracked) code
+	HowTo       string // plain-English "what to enter" guidance, shown in the form and in Help
+	Static      bool   // can be a static code
+	Dynamic     bool   // can be a dynamic (tracked) code
 	Fields      []Field
 }
 
@@ -104,7 +105,37 @@ func social(typ, label, host string) Spec {
 		Fields:      []Field{urlField("url", label+" link", "Paste the address of your "+label+" page.", "https://www."+host+"/yourpage")}}
 }
 
-var catalogue = buildCatalogue()
+var catalogue = withHowTo(buildCatalogue())
+
+const socialHowTo = "Open the page, profile or post in your browser (or the app's Share button) and copy its link, then paste it here. The address is checked, so a link to the wrong site is caught."
+
+var howTo = map[string]string{
+	"url":           "Type or paste the full web address, starting with https://. Open it in your browser first to make sure it works. As a dynamic code you can change the address later without reprinting; as a static code it is built into the picture for good.",
+	"google_form":   "In Google Forms click Send, choose the link tab and copy the link (it starts docs.google.com or forms.gle). Paste it here. Scanning opens the form on the phone.",
+	"google_review": "In your Google Business Profile choose Ask for reviews and copy your short review link (it starts g.page). Paste it here. Scanning opens your Google review box.",
+	"app_stores":    "Paste your App Store link, your Google Play link and a web page for everyone else. iPhones and iPads go to the App Store, Android phones to Google Play, and computers to the web page. Use one printed code for all of them.",
+	"smart_url":     "Set a default address, then add up to five rules. Each rule says: if the visitor's device, system, language or country is this, send them to that address. Rules are checked top to bottom and the first match wins; anyone who matches none goes to the default. Country rules need two-letter codes such as GB or FR.",
+	"vcard":         "Fill in the details you want people to save. Only a name or a company is required. Scanning offers to add the contact to the phone. As a dynamic code you can correct the details later without reprinting; as a static code the details are printed in the picture, which makes the code denser, so keep it short.",
+	"email":         "Enter the address to write to, and optionally a subject and a message. Scanning opens the phone's email app with these already filled in.",
+	"sms":           "Enter the phone number with its country code (for example +44) and an optional message. Scanning opens the messages app ready to send.",
+	"phone":         "Enter the phone number with its country code. Scanning offers to call it.",
+	"whatsapp":      "Enter the WhatsApp number with its country code, digits only (for example 447700900123), and an optional first message. Scanning opens a WhatsApp chat with that number.",
+	"location":      "Enter the latitude and longitude of the place. In Google Maps, right-click the spot and click the two numbers at the top of the menu to copy them. Scanning opens the map at that point.",
+	"event":         "Give the event a title, a start and an end (UK time), and optionally where and some details. Scanning offers to add the event to the phone's calendar.",
+	"wifi":          "Enter the network name exactly as it appears (capital letters matter), the password, and the security type (most business and home Wi-Fi is WPA). Scanning offers to join the network without anyone typing the password. Wi-Fi codes are always static, because the phone is not online yet when it scans.",
+	"text":          "Type the message. Scanning simply shows the text. It needs no internet connection.",
+}
+
+func withHowTo(s []Spec) []Spec {
+	for i := range s {
+		if h, ok := howTo[s[i].Type]; ok {
+			s[i].HowTo = h
+		} else if s[i].Group == "Social" {
+			s[i].HowTo = socialHowTo
+		}
+	}
+	return s
+}
 
 func buildCatalogue() []Spec {
 	s := []Spec{

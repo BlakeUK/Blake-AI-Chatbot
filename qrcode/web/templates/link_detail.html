@@ -20,6 +20,7 @@
     </form>
   </div>
 </div>
+{{template "helpbox" $}}
 
 <div class="grid2">
   <section class="card">
@@ -30,6 +31,7 @@
     <pre class="content">{{.Link.Content}}</pre>
     {{else}}
     <h2>Tracking URL</h2>
+    <p class="hint"><strong>What it is.</strong> The short address hidden inside the QR picture. Every scan passes through it, which is how scans are counted and why the destination can be changed later. <strong>How to use it.</strong> You rarely need to copy it, but you can paste it into a message to test the code without a printer.</p>
     <p><code class="wrap">{{.ShortURL}}</code> <button type="button" data-copy="{{.ShortURL}}">Copy</button></p>
     {{if .Link.DestinationURL}}<p>Destination: <strong>{{.Site}}</strong><br><a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
     {{else}}<p>Delivers a {{.TypeLabel}} to the phone.</p>{{end}}
@@ -46,6 +48,7 @@
 
   <section class="card center">
     <h2>QR code</h2>
+    <p class="hint"><strong>What it is.</strong> The picture to print or share. <strong>How to use it.</strong> Download SVG for printing at any size (best for leaflets, packaging and signs) or PNG for documents and screens (the number is the width in pixels). Scan it with a phone before you print. To change the look, use Edit.</p>
     <img class="qr" src="/admin/links/{{.Link.ID}}/qr.svg?v={{.Link.UpdatedAt.Unix}}" alt="QR code for {{.Link.Label}}" width="240">
     <p class="muted small">Error correction {{.Link.QRECC}}. Change the look, logo or text with Edit. Always scan a printed code to test it.</p>
     <p class="downloads">
@@ -59,6 +62,7 @@
 <section class="card">
   <div class="row between">
     <h2>Scans</h2>
+    <p class="hint"><strong>What it is.</strong> How many people scanned this code. <strong>How to use it.</strong> <em>All scans</em> counts every visit; <em>unique</em> counts each visitor once a day; bots such as link previews in chat apps are left out unless you press Include bots. <a href="/admin/help#reading-stats">Help</a></p>
     <div class="row">
       {{if .IncludeBots}}<a class="button" href="/admin/links/{{.Link.ID}}">Hide bots</a>
       {{else}}<a class="button" href="/admin/links/{{.Link.ID}}?bots=1">Include bots</a>{{end}}
@@ -74,6 +78,7 @@
   {{.Chart}}
 </section>
 
+<p class="hint"><strong>Breakdowns.</strong> The ten most common devices, systems, browsers, languages, countries, regions, towns and referring sites among the scans above. Places are estimates from the visitor's internet address, so treat towns as a guide.</p>
 <div class="grid3">
 {{range .Sections}}
 <section class="card">
@@ -97,6 +102,7 @@
 <section class="card">
   <div class="row between">
     <h2>Individual scans <span class="muted">({{.RecentTotal}})</span></h2>
+    <p class="hint">Every scan, newest first, with the exact UK time. <em>New visitor</em> marks someone not seen on this code in the last 24 hours. Use Export CSV to open them in a spreadsheet.</p>
     <a class="button" href="/admin/links/{{.Link.ID}}/scans.csv">Export CSV</a>
   </div>
   {{if .Recent}}

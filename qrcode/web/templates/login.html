@@ -1,6 +1,7 @@
 {{define "content"}}
 <section class="card narrow">
   <h1>Sign in</h1>
+  <p class="hint">Use the user name and password you were given. The user name is not case sensitive, the password is. After five wrong tries from one place you are locked out for 15 minutes. Forgotten it? Ask an admin to reset your password.</p>
   <form method="post" action="/admin/login" autocomplete="on">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>Username

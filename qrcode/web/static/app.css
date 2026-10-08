@@ -49,3 +49,26 @@ pre.content { white-space:pre-wrap; word-break:break-all; background:var(--bg); 
 .big-code { font-size:1.25rem; padding:.3rem .6rem; letter-spacing:.05em; user-select:all; }
 textarea { display:block; width:100%; margin-top:.25rem; padding:.55rem .65rem; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:6px; }
 input[type=color] { height:2.4rem; padding:.15rem; } input[type=file] { padding:.4rem; }
+
+/* header branding: Max and the Blake logo at the top right */
+.top { gap:1rem 1.25rem; } .top nav { flex:1; flex-wrap:wrap; row-gap:.2rem; }
+.brandmark { display:flex; align-items:center; gap:.7rem; margin-left:auto; flex:none; }
+.brandmark img { display:block; height:auto; } .brandmark .max img, img.max { border-radius:50%; }
+.brandmark a { display:block; line-height:0; }
+.top:not(:has(nav)) { justify-content:flex-end; }
+/* help */
+.helpbox { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px; padding:.5rem 1rem; margin:0 0 1rem; }
+.helpbox summary { cursor:pointer; font-weight:600; } .helpbox p { margin:.45rem 0; }
+.hint { color:var(--muted); font-size:.9rem; margin:.2rem 0 .8rem; } .hint strong { color:var(--ink); font-weight:600; }
+.savebox { margin-top:1rem; padding:.8rem 1rem; border:1px dashed var(--accent); border-radius:8px; background:var(--bg); }
+.savebox h3 { margin-top:0; }
+.helphead { display:flex; gap:1.25rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+.helphead .banner { background:#fff; border:1px solid var(--line); border-radius:12px; padding:.4rem .8rem; line-height:0; } .helphead .banner img { max-width:100%; height:auto; }
+.helphead > div:last-child { flex:1; min-width:260px; }
+.toc ol { columns:2 320px; column-gap:2rem; padding-left:1.2rem; margin:.3rem 0 0; } .toc li { margin:.15rem 0; break-inside:avoid; }
+.helpsec { scroll-margin-top:1rem; } .helpsec h3 { margin:1rem 0 .3rem; } .helpsec dt { font-weight:700; margin-top:.7rem; } .helpsec dd { margin:.15rem 0 0 0; }
+.helpsec ul, .helpsec ol { padding-left:1.3rem; } .helpsec li { margin:.25rem 0; }
+.typehelp { border-top:1px solid var(--line); padding-top:.4rem; margin-top:.6rem; scroll-margin-top:1rem; } .typehelp h3 { margin:.3rem 0; } .typehelp p { margin:.25rem 0; }
+kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 .35rem; font-size:.85em; background:var(--card); }
+.designs { grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); } .designs .card { margin:0; }
+@media (max-width:640px) { .top nav { order:3; flex-basis:100%; } .brandmark { margin-left:0; } }

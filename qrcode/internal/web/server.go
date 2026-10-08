@@ -128,10 +128,10 @@ func (s *Server) loadTemplates() error {
 		"prev": func(p int) int { return p - 1 },
 		"next": func(p int) int { return p + 1 },
 	}
-	pages := []string{"login", "password", "links", "link_choose", "link_form", "link_detail", "campaigns", "users", "bulk", "templates", "unlock", "error"}
+	pages := []string{"login", "password", "links", "link_choose", "link_form", "link_detail", "campaigns", "users", "bulk", "templates", "template_form", "help", "unlock", "error"}
 	s.tmpl = map[string]*template.Template{}
 	for _, p := range pages {
-		t, err := template.New("").Funcs(funcs).ParseFS(s.assets, "web/templates/layout.html", "web/templates/"+p+".html")
+		t, err := template.New("").Funcs(funcs).ParseFS(s.assets, "web/templates/layout.html", "web/templates/design_card.html", "web/templates/"+p+".html")
 		if err != nil {
 			return fmt.Errorf("template %s: %w", p, err)
 		}
@@ -166,7 +166,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/scans.csv", s.authed(s.csvExportAll))
 	mux.HandleFunc("GET /admin/links/new", s.authed(s.newLink))
 	mux.HandleFunc("GET /admin/preview.svg", s.authed(s.preview))
+	mux.HandleFunc("GET /admin/help", s.authed(s.help))
 	mux.HandleFunc("GET /admin/templates", s.authed(s.templatesPage))
+	mux.HandleFunc("GET /admin/templates/new", s.authed(s.designNew))
+	mux.HandleFunc("POST /admin/templates", s.authed(s.designSave))
 	mux.HandleFunc("POST /admin/templates/{id}/delete", s.authed(s.deleteTemplate))
 	mux.HandleFunc("GET /admin/bulk", s.authed(s.bulkForm))
 	mux.HandleFunc("POST /admin/bulk", s.authed(s.bulkCreate))
@@ -214,7 +217,7 @@ func (s *Server) headers(next http.Handler) http.Handler {
 func (s *Server) limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limit := int64(64 << 10)
-		if r.Method == http.MethodPost && (strings.HasPrefix(r.URL.Path, "/admin/links") || r.URL.Path == "/admin/bulk") {
+		if r.Method == http.MethodPost && (strings.HasPrefix(r.URL.Path, "/admin/links") || r.URL.Path == "/admin/bulk" || r.URL.Path == "/admin/templates") {
 			limit = 3 << 20 // a logo (up to 1 MB) or a CSV file
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
@@ -287,12 +290,16 @@ type pageData struct {
 	Flash string
 	Error string
 	Data  any
+	Help  *helpInfo // the "What this is / How to use it" box; set automatically by render
 
 	GeoCredit bool // show the DB-IP attribution its licence requires
 	FullIP    bool // full IP storage is switched on: say so on every page
 }
 
 func (s *Server) render(w http.ResponseWriter, status int, page string, pd pageData) {
+	if h, ok := pageHelp[page]; ok && pd.Help == nil {
+		pd.Help = &h
+	}
 	t, ok := s.tmpl[page]
 	if !ok {
 		http.Error(w, "template missing", http.StatusInternalServerError)

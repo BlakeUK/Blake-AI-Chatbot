@@ -238,15 +238,6 @@ func (s *Server) preview(w http.ResponseWriter, r *http.Request, sess *auth.Sess
 
 // ---------- saved designs ----------
 
-func (s *Server) templatesPage(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
-	list, err := s.links.Templates(r.Context())
-	if err != nil {
-		s.serverError(w, "templates", err)
-		return
-	}
-	s.render(w, http.StatusOK, "templates", s.page(sess, "Saved designs", map[string]any{"Templates": list}))
-}
-
 func (s *Server) deleteTemplate(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	s.links.DeleteTemplate(r.Context(), id)

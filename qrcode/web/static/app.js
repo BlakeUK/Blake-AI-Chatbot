@@ -51,3 +51,17 @@ document.addEventListener('change', function (e) {
   form.addEventListener('input', later);
   form.addEventListener('change', later);
 })();
+
+// "Save design only" needs a name: ask for it in place rather than losing the page.
+document.addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('[data-save-design]') : null;
+  if (!b) { return; }
+  var name = b.form && b.form.querySelector('[data-design-name]');
+  if (name && !name.value.trim()) {
+    e.preventDefault();
+    name.focus();
+    name.setCustomValidity('Give the design a name so you can find it later.');
+    name.reportValidity();
+    name.addEventListener('input', function () { name.setCustomValidity(''); }, { once: true });
+  }
+});

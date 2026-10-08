@@ -1,0 +1,18 @@
+{{define "content"}}
+{{with .Data}}
+<h1>{{if .TemplateID}}Edit design{{else}}New design{{end}}</h1>
+{{template "helpbox" $}}
+<form class="formgrid" method="post" action="/admin/templates" enctype="multipart/form-data" data-preview data-template="{{if .TemplateID}}{{.TemplateID}}{{end}}">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <input type="hidden" name="template_id" value="{{if .TemplateID}}{{.TemplateID}}{{end}}">
+  <div class="formcol">{{template "designcard" .}}</div>
+  <div class="formcol">
+    <section class="card">
+      <h2>Where it can be used</h2>
+      <p class="muted">Saved designs are shared with everyone who signs in here. Use one when you make a QR code (the <em>Use a saved design</em> links), on the <em>Designs</em> page, or in <em>Bulk</em>. A design only stores the look: changing it later does not alter codes you have already made.</p>
+      <p><a class="button" href="/admin/templates">Back to saved designs</a></p>
+    </section>
+  </div>
+</form>
+{{end}}
+{{end}}

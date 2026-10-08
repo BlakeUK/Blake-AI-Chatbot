@@ -1,0 +1,375 @@
+{{define "content"}}
+<div class="helphead">
+  <div class="banner"><img src="/static/img/max-banner.webp" width="380" height="110" alt="Max, My AI eXpert. Smarter together."></div>
+  <div>
+    <h1>Help</h1>
+    <p>Everything this system does, what each part is for, and how to use it. Use the contents below to jump to a topic, or press <kbd>Ctrl</kbd>+<kbd>F</kbd> to search this page.</p>
+  </div>
+</div>
+
+<nav class="toc card" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#quick-start">Quick start: your first QR code</a></li>
+    <li><a href="#codes">The Codes page</a></li>
+    <li><a href="#static-dynamic">Static or dynamic: which should I choose?</a></li>
+    <li><a href="#creating">Making a QR code, step by step</a></li>
+    <li><a href="#types">Every type of QR code, and what to enter</a></li>
+    <li><a href="#design">Designing the look of a code</a></li>
+    <li><a href="#save-designs">How to save and reuse designs</a></li>
+    <li><a href="#tracking">Tracking window and what happens at the end</a></li>
+    <li><a href="#limits-password">Scan limits and passwords</a></li>
+    <li><a href="#smart-routing">Sending people to different places (smart routing)</a></li>
+    <li><a href="#downloads-printing">Downloading, printing and testing</a></li>
+    <li><a href="#reading-stats">Reading the statistics</a></li>
+    <li><a href="#campaigns">Campaigns</a></li>
+    <li><a href="#editing">Editing, disabling and deleting a code</a></li>
+    <li><a href="#bulk">Making many codes at once (bulk)</a></li>
+    <li><a href="#users">Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</a></li>
+    <li><a href="#account">Your account: signing in and your password</a></li>
+    <li><a href="#privacy">What is recorded, and privacy</a></li>
+    <li><a href="#troubleshooting">Troubleshooting and questions</a></li>
+    <li><a href="#not-included">What this system does not do</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+  </ol>
+</nav>
+
+<section class="card helpsec" id="quick-start">
+  <h2>1. Quick start: your first QR code</h2>
+  <p><strong>What it is.</strong> The shortest route to a working, tracked QR code.</p>
+  <ol>
+    <li>Press <strong>New QR code</strong> in the menu.</li>
+    <li>Choose <strong>Dynamic (tracked)</strong> and <strong>Website link</strong>.</li>
+    <li>Give it a <strong>Name</strong> (for example "Autumn leaflet") and a <strong>Campaign</strong> (for example "Leaflet").</li>
+    <li>Paste the web address you want people to reach, starting with <code>https://</code>.</li>
+    <li>Look at the preview on the right. Change the colours or add your logo if you like.</li>
+    <li>Press <strong>Create QR code</strong>.</li>
+    <li>On the page that opens, download the picture: <strong>SVG</strong> for printing, <strong>PNG</strong> for documents and screens.</li>
+    <li><strong>Scan it with a phone</strong> before you print anything. Check it opens the right page.</li>
+    <li>Come back to this code's page at any time to see how many people have scanned it.</li>
+  </ol>
+</section>
+
+<section class="card helpsec" id="codes">
+  <h2>2. The Codes page</h2>
+  <p><strong>What it is.</strong> A list of every QR code, newest first. It is the page you land on after signing in.</p>
+  <p><strong>How to use it.</strong></p>
+  <ul>
+    <li><strong>Name</strong>: click it to open the code, download it, edit it and see its statistics.</li>
+    <li><strong>Type</strong> and the green <em>dynamic</em> or grey <em>static</em> badge show what kind of code it is.</li>
+    <li><strong>Campaign</strong>: click one to show only the codes in that campaign. Press <em>clear</em> to see everything again.</li>
+    <li><strong>Short URL</strong>: the tracking address inside a dynamic code. Static codes do not have one.</li>
+    <li><strong>Destination</strong>: where a scan goes, with a friendly name such as Facebook or "Blake UK website".</li>
+    <li><strong>Window</strong>: <em>scheduled</em> (not started yet), <em>active</em> (counting now) or <em>ended</em> (no longer counting, though the code may still work), with the dates.</li>
+    <li><strong>Scans</strong> and <strong>Unique</strong>: how many scans and how many different visitors. Bots are not counted. See <a href="#reading-stats">Reading the statistics</a>.</li>
+    <li>With more than 25 codes the list is split into pages; use <em>Newer</em> and <em>Older</em> at the bottom.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="static-dynamic">
+  <h2>3. Static or dynamic: which should I choose?</h2>
+  <p><strong>What it is.</strong> The one big choice you make for every code, and it cannot be changed afterwards.</p>
+  <div class="scroll"><table class="compare">
+    <thead><tr><th></th><th>Dynamic (tracked)</th><th>Static</th></tr></thead>
+    <tbody>
+      <tr><th>What the picture contains</th><td>A short address on this system. Scans pass through it and are then sent on.</td><td>The content itself (the web address, the Wi-Fi details, the contact card...).</td></tr>
+      <tr><th>Counts and analyses scans</th><td>Yes</td><td>No: scans never reach this system.</td></tr>
+      <tr><th>Change where it goes after printing</th><td>Yes, any time</td><td>No, never. Make a new code.</td></tr>
+      <tr><th>Start and end dates, scan limit, password, smart routing</th><td>Yes</td><td>No</td></tr>
+      <tr><th>Works without internet and without this system</th><td>No: it needs this system to be running</td><td>Yes, for ever</td></tr>
+      <tr><th>The picture</th><td>Simple and easy to scan, because the address is short</td><td>Denser if the content is long</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Rule of thumb.</strong> Anything for marketing, packaging or print that you want to measure or might need to fix: <strong>dynamic</strong>. Wi-Fi, a fixed message or a contact card that will never change and must always work: <strong>static</strong>. If you are unsure, choose dynamic.</p>
+  <p>Some types are only possible one way. <strong>Wi-Fi and Plain text are static only</strong> (the phone is not online yet when it scans a Wi-Fi code). <strong>App stores and Smart URL are dynamic only</strong> (they need this system to decide where to send each person). The chooser only offers combinations that work.</p>
+  <p>You cannot turn a static code into a dynamic one later, because the content is already printed inside the picture.</p>
+</section>
+
+<section class="card helpsec" id="creating">
+  <h2>4. Making a QR code, step by step</h2>
+  <p><strong>What it is.</strong> The form where you say what the code does and how it looks. Press <strong>New QR code</strong>, then choose a type.</p>
+  <ol>
+    <li><strong>Details.</strong> The <em>Name</em> is only for you. The <em>Campaign</em> groups codes by where they are used (see <a href="#campaigns">Campaigns</a>). Typing in the campaign box suggests existing ones, and "Leaflet" and "leaflet" are treated as the same campaign.</li>
+    <li><strong>The type's own boxes.</strong> What you enter depends on the type; the grey text under the heading tells you. See <a href="#types">Every type of QR code</a>.</li>
+    <li><strong>Tracking window</strong> and <strong>Limits and protection</strong> (dynamic codes only). See <a href="#tracking">Tracking window</a> and <a href="#limits-password">Scan limits and passwords</a>.</li>
+    <li><strong>Design.</strong> Colours, shapes, frame, text and logo, with a live preview. See <a href="#design">Designing the look</a>. You can also save the design for next time: <a href="#save-designs">How to save and reuse designs</a>.</li>
+    <li>Press <strong>Create QR code</strong>. If something is wrong, the page stays open and tells you what to fix, next to the box concerned.</li>
+  </ol>
+  <p>Boxes marked with an asterisk (*) are required. The form refuses anything that would make a broken code: a web address that is not <code>http</code> or <code>https</code>, a design too pale to scan, content too long to fit in a QR code, and so on.</p>
+</section>
+
+<section class="card helpsec" id="types">
+  <h2>5. Every type of QR code, and what to enter</h2>
+  <p><strong>What it is.</strong> The kinds of thing a code can do. Each shows whether it can be static, dynamic or both, then what it does and how to fill it in. This list is generated from the same catalogue the forms use, so it always matches.</p>
+  {{range .Data.Types}}
+  <div class="typehelp" id="type-{{.Type}}">
+    <h3>{{.Label}}
+      {{if .Dynamic}}<span class="badge active">dynamic</span>{{end}}{{if .Static}}<span class="badge off">static</span>{{end}}</h3>
+    <p>{{.Description}}</p>
+    <p><strong>How to use it.</strong> {{.HowTo}}</p>
+    <p class="muted small">Boxes: {{range $i, $f := .Fields}}{{if $i}}, {{end}}{{$f.Label}}{{if $f.Required}} (required){{end}}{{end}}.</p>
+  </div>
+  {{end}}
+</section>
+
+<section class="card helpsec" id="design">
+  <h2>6. Designing the look of a code</h2>
+  <p><strong>What it is.</strong> The <em>Design</em> panel changes how the code looks without changing what it does. The picture on top is a live preview of a sample code. <strong>How to use each control:</strong></p>
+  <dl>
+    <dt>Code colour and Background</dt><dd>The colour of the dots and of the paper behind them. The code must be <strong>darker than its background</strong> and the contrast must be at least 4 to 1. If you choose pale yellow dots, or a light code on a dark background, the preview shows a message and the form will not save it: many phone cameras cannot read those.</dd>
+    <dt>Dot style</dt><dd><em>square</em> (classic), <em>rounded</em> (softened squares) or <em>dots</em> (circles).</dd>
+    <dt>Corner style and Corner colour</dt><dd>The three large squares in the corners. <em>square</em>, <em>rounded</em> or <em>circle</em>. Tick <em>Corners match the dots</em> to use one colour, or untick it to colour the corners differently (they must also be dark enough).</dd>
+    <dt>Frame and Text under the code</dt><dd><em>none</em>, <em>box</em> (a coloured border with a label underneath) or <em>banner</em> (just a label strip). The text is up to 24 characters, for example "SCAN ME" or "SCAN FOR THE MANUAL". If you choose a frame and leave the text empty it says "SCAN ME".</dd>
+    <dt>Error correction</dt><dd>How much of the picture can be dirty, scratched or covered and still scan. <em>L</em> 7%, <em>M</em> 15% (the default), <em>Q</em> 25%, <em>H</em> 30%. Higher is more forgiving but makes the code denser. Use H on rough surfaces such as packaging.</dd>
+    <dt>Logo in the centre</dt><dd>Upload a PNG, JPEG or GIF up to 1 MB. It is resized to fit in the middle, covering about 5% of the code. A logo hides part of the code, so the error correction is raised to at least Q automatically. The upload is re-saved as a clean image; other kinds of file are refused.</dd>
+  </dl>
+  <p><strong>The preview and the real thing.</strong> The preview is a sample of how the style looks; the real code holds your real address. Always scan a real printed code with a phone before you use it.</p>
+  <p><strong>Safe combinations.</strong> Every colour, shape, frame and logo combination offered here has been tested by decoding the result with real QR-reading software. If something is risky, the form refuses it rather than letting you print a code that does not work.</p>
+</section>
+
+<section class="card helpsec" id="save-designs">
+  <h2>7. How to save and reuse designs</h2>
+  <p><strong>What it is.</strong> A <em>saved design</em> remembers the whole look under a name: colours, dot and corner styles, frame, text, error correction and logo. Use it to keep every code on-brand without setting everything up again.</p>
+
+  <h3>Saving a design: two ways</h3>
+  <p><strong>Way 1: on its own (easiest).</strong></p>
+  <ol>
+    <li>Press <strong>Designs</strong> in the menu, then <strong>New design</strong>.</li>
+    <li>Choose the colours, shapes, frame, text and logo. Watch the preview.</li>
+    <li>Type a name under <strong>Save this design to use again</strong>, for example "Blake UK blue".</li>
+    <li>Press <strong>Save design</strong>. You land on the Designs page and see it there with a thumbnail.</li>
+  </ol>
+  <p><strong>Way 2: while making or editing a code.</strong></p>
+  <ol>
+    <li>Set the design as you like in the <em>Design</em> panel.</li>
+    <li>Type a name in the <em>Design name</em> box under <em>Save this design to use again</em>.</li>
+    <li>Either press <strong>Save design only</strong> (saves just the design; your code is not created yet), or press <strong>Create QR code</strong> / <strong>Save changes</strong> (saves the design <em>and</em> the code).</li>
+  </ol>
+  <p>If you press <em>Save design only</em> without typing a name, the page asks you for one.</p>
+
+  <h3>Using a saved design</h3>
+  <ul>
+    <li><strong>When making a code:</strong> choose a type, and under <em>Design</em> click the design's name next to <em>Use a saved design</em>. The panel fills in with it (including the logo). You can still adjust it for this code.</li>
+    <li><strong>From the Designs page:</strong> press <em>Use for a new code</em> under a design. That opens the form for a website link with the design applied; change the type from the New QR code chooser if you need a different one.</li>
+    <li><strong>In bulk:</strong> pick it from the <em>Design</em> list on the <a href="#bulk">Bulk</a> page so that every code in the batch uses it.</li>
+  </ul>
+
+  <h3>Changing, replacing and deleting</h3>
+  <ul>
+    <li><strong>Change a design:</strong> Designs, then <em>Edit</em> under it, make your changes and press <em>Save design</em>. Because the name is the same, it <strong>replaces</strong> the old version.</li>
+    <li><strong>Save a variation:</strong> open a design with Edit, change the name, and save. You now have both.</li>
+    <li><strong>Delete a design:</strong> press <em>Delete</em> under it and confirm. Codes already made with it are not affected.</li>
+  </ul>
+
+  <h3>Good to know</h3>
+  <ul>
+    <li>Designs are <strong>shared by everyone</strong> who signs in, so a colleague can use the brand design you saved.</li>
+    <li>A design only stores the <em>look</em>. It never contains a web address or any content.</li>
+    <li>Applying a design <strong>copies</strong> it to the code. Editing the saved design later does not change codes already made; to restyle an existing code, open it and use <em>Edit</em>.</li>
+    <li>Design names are not case sensitive ("Blake blue" and "blake BLUE" are the same name) and can be up to 60 characters.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="tracking">
+  <h2>8. Tracking window and what happens at the end</h2>
+  <p><strong>What it is.</strong> For a dynamic code, the dates during which scans are counted. <strong>How to use it.</strong></p>
+  <ul>
+    <li><strong>Preset:</strong> 24 hours, 7, 30 or 90 days, counted from the moment you press Create.</li>
+    <li><strong>Custom:</strong> choose <em>Custom</em> and type the start and end, in UK time. Daylight saving is handled for you.</li>
+    <li><strong>Before the start</strong> the code already works and sends people on, but the scans are not counted.</li>
+    <li><strong>When the window ends</strong> (or the scan limit is reached) the code does one of three things, your choice: <em>keep redirecting and stop counting</em> (the default, so printed codes never break), <em>show an "expired" page</em>, or <em>send people to a fallback address</em> such as your home page.</li>
+    <li>You can edit the window at any time, for example to extend a campaign. Scans already recorded stay.</li>
+  </ul>
+  <p>The code status on the Codes page is <em>scheduled</em>, <em>active</em> or <em>ended</em>. A code you have switched off shows a <em>disabled</em> badge.</p>
+</section>
+
+<section class="card helpsec" id="limits-password">
+  <h2>9. Scan limits and passwords</h2>
+  <p><strong>What they are.</strong> Two optional controls on a dynamic code.</p>
+  <p><strong>Scan limit.</strong> Stops the code after that many <em>people</em> have scanned it. Bots and link-preview robots do not use up the limit. When it is reached the code behaves as if its window had ended (see above). Leave the box empty for no limit. The code's page shows how many have been used, for example "37 of 500 used". Raising the limit by editing brings the code back to life.</p>
+  <p><strong>Password.</strong> Visitors see a page asking for the password and are only sent on when they type it correctly. Good for trade-only pages. Notes:</p>
+  <ul>
+    <li>The password is 4 to 72 characters. It is stored scrambled, never readable.</li>
+    <li>A visit is only counted as a scan once the right password is entered.</li>
+    <li>Wrong guesses are slowed down: after six in a minute a visitor has to wait.</li>
+    <li>Editing a code with the password box empty <strong>keeps</strong> the current password. Tick <em>Remove the password</em> to take it off, or type a new one to change it.</li>
+    <li>The password protects the destination, but the printed code itself is not secret: anyone can scan it and see the password page.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="smart-routing">
+  <h2>10. Sending people to different places (smart routing)</h2>
+  <p><strong>What it is.</strong> One printed code that sends different people to different addresses, for a dynamic code of type <em>App stores</em> or <em>Smart URL</em>.</p>
+  <p><strong>How to use it.</strong></p>
+  <ul>
+    <li><strong>App stores:</strong> enter your App Store link, Google Play link and a web page for everyone else. iPhones and iPads go to the first, Android to the second, all others to the third.</li>
+    <li><strong>Smart URL:</strong> set a default address, then up to five rules. Each rule has three parts: what to look at (operating system, device type, language or country), the value, and where to send people who match. Rules are checked from top to bottom and <strong>the first match wins</strong>. Anyone matching none goes to the default.</li>
+    <li><strong>Values:</strong> operating system is iOS, Android, Windows, macOS, Linux or ChromeOS. Device is mobile, tablet or desktop. Language is a code such as <code>en</code> or <code>fr-FR</code> (<code>cy</code> matches Welsh in any region). Country is a two-letter code such as GB or FR.</li>
+    <li>Each scan records where <em>that</em> visitor was actually sent, so the statistics show how your rules are used.</li>
+    <li>Country rules rely on the approximate location database; if a visitor's country cannot be worked out, a country rule will not match them.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="downloads-printing">
+  <h2>11. Downloading, printing and testing</h2>
+  <p><strong>What it is.</strong> Getting the picture out of the system and onto paper or a screen. Open a code and use the <em>QR code</em> panel.</p>
+  <ul>
+    <li><strong>SVG</strong> is a vector picture that stays sharp at any size. Use it for anything professionally printed, and give it to your printer.</li>
+    <li><strong>PNG 256, 512, 1024</strong> are ordinary pictures that many pixels wide. Use them in documents, emails, slides and websites. 1024 is best for anything that will be enlarged. A code with a frame is taller than it is wide.</li>
+    <li>The download always uses the code's current design. If you change the design, download it again.</li>
+    <li>The picture of a <em>dynamic</em> code does not change when you edit where it goes, so printed copies stay valid.</li>
+  </ul>
+  <p><strong>Printing checklist.</strong></p>
+  <ol>
+    <li>Make it big enough: at least about 2 cm (0.8 in) across for scanning from close up, and bigger for posters or anything scanned from further away (as a rough guide, one tenth of the scanning distance).</li>
+    <li>Keep the blank border around the code. Do not crop it, and do not print over it.</li>
+    <li>Keep strong contrast: dark code on a light background. Never print it inverted (light on dark).</li>
+    <li>Avoid shiny, curved or heavily textured surfaces that reflect light. On rough or curved surfaces use error correction H.</li>
+    <li><strong>Scan a printed test with two different phones</strong> (one iPhone and one Android if you can) before printing the full run.</li>
+  </ol>
+</section>
+
+<section class="card helpsec" id="reading-stats">
+  <h2>12. Reading the statistics</h2>
+  <p><strong>What it is.</strong> Open any dynamic code to see how it is performing. Static codes have no statistics, because their scans never reach this system.</p>
+  <dl>
+    <dt>All scans</dt><dd>Every visit by a person while the code was being tracked.</dd>
+    <dt>Unique</dt><dd>Different visitors. A visitor counts once in any 24 hours, so someone who scans three times in a morning is one unique visitor. The figure uses a scrambled form of their internet address, not the address itself.</dd>
+    <dt>Bots</dt><dd>Robots, not people: search engines, and the "link preview" fetchers that chat apps like WhatsApp and Slack use when a link is pasted. They are recorded but kept out of the headline numbers. Press <em>Include bots</em> to see them, or <em>Hide bots</em> to hide them again.</dd>
+    <dt>Scans over time</dt><dd>A bar chart in UK time: by the hour when the tracking window is under three days, otherwise by the day. Hover over a bar for its number.</dd>
+    <dt>Breakdown boxes</dt><dd>The ten most common values for device (mobile, tablet, desktop), operating system, browser, language, country, region, town and referring site, each with a percentage.</dd>
+    <dt>Referrer</dt><dd>The website or app the visitor came from, when their phone tells us (for example <code>l.facebook.com</code>). Only the site name is kept, never the full address.</dd>
+    <dt>Individual scans</dt><dd>Every scan, newest first, 50 to a page: exact UK date and time, campaign, approximate place, device, system, browser, language and where they were sent. <em>New visitor</em> marks someone not seen on this code in the previous 24 hours.</dd>
+    <dt>Place</dt><dd>Worked out from the visitor's internet address using a free location database, so it is an <strong>estimate</strong>. Country is usually right; the town is often just the nearest big town; mobile networks and VPNs can show the wrong region.</dd>
+    <dt>Export CSV</dt><dd>Downloads the scans as a spreadsheet file. <em>Export CSV</em> on a code gives that code; <em>Export scans</em> in the menu gives every code, with the campaign on each row. Times appear in both UTC and UK time.</dd>
+  </dl>
+</section>
+
+<section class="card helpsec" id="campaigns">
+  <h2>13. Campaigns</h2>
+  <p><strong>What it is.</strong> A short label saying <em>where</em> a code is used: Leaflet, Exhibition stand, Product box, Van, Trade counter and so on. It is how you compare placements.</p>
+  <p><strong>How to use it.</strong></p>
+  <ul>
+    <li>Set it when you create or edit a code. Type your own or pick a suggestion.</li>
+    <li>The <strong>Campaigns</strong> page adds up the scans, unique visitors and bots for every campaign, with the last scan time. Codes with no campaign are listed last.</li>
+    <li>Click a campaign name, on that page or on the Codes page, to list just its codes.</li>
+    <li>Capital letters do not matter: "Leaflet" and "leaflet" are one campaign. Names can be up to 60 characters.</li>
+    <li>It is one flat list (no folders inside folders).</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="editing">
+  <h2>14. Editing, disabling and deleting a code</h2>
+  <p><strong>What it is.</strong> The buttons at the top of a code's page.</p>
+  <ul>
+    <li><strong>Edit.</strong> A <em>dynamic</em> code: change the name, campaign, destination or contents, window, limits, password and look. The tracking address and the type never change, so printed codes keep working. A <em>static</em> code: only the name, campaign and look can change, because its content is printed in the picture.</li>
+    <li><strong>Disable / Enable</strong> (dynamic only). Switches the code off without deleting it: visitors see a "Link disabled" page. Enable turns it back on. Use it to pause a campaign.</li>
+    <li><strong>Delete.</strong> Removes the code <em>and all its scans</em>, and cannot be undone. A deleted dynamic code stops working wherever it is printed (scans show "Link not found"). Deleting a static code does not affect printed copies, which keep working.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="bulk">
+  <h2>15. Making many codes at once (bulk)</h2>
+  <p><strong>What it is.</strong> One tracked code per row of a spreadsheet, returned as a ZIP file. Good for a catalogue of products. Open <strong>Bulk</strong> in the menu.</p>
+  <ol>
+    <li>In your spreadsheet put the headings <code>label</code> and <code>url</code> in the first row (and optionally <code>campaign</code>), then one code per row. Save as <strong>CSV</strong>. Example:<br><code>label,url,campaign<br>Aerial A1 box,https://www.blake-uk.com/aerials/a1.html,Product box</code></li>
+    <li>On the Bulk page choose the file.</li>
+    <li>Set a default <em>campaign</em> for rows without one, the <em>tracking window</em>, and the <em>images</em> you want (SVG only, PNG only, or both).</li>
+    <li>Optionally pick a saved <em>Design</em> (so all the codes match your brand) and the error correction.</li>
+    <li>Press <strong>Create codes and download ZIP</strong>.</li>
+  </ol>
+  <p>The ZIP holds a picture of each code (named by its code) and <code>codes.csv</code>, which lists each row's label, campaign, destination, tracking address and code so you can match them to your products.</p>
+  <ul>
+    <li><strong>All or nothing:</strong> if any row is wrong (for example an address that does not start with https://), nothing is created and the page lists the rows to fix, by spreadsheet row number.</li>
+    <li><strong>Limits:</strong> up to 1,000 rows when you ask for SVG only, and up to 250 rows when PNG is included (PNG takes longer to draw). Split larger files.</li>
+    <li>Bulk makes dynamic website-link codes. They appear on the Codes page like any other.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="users">
+  <h2>16. Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</h2>
+  <p><strong>What it is.</strong> The people who can sign in. {{if .Data.IsAdmin}}Open <strong>Users</strong> in the menu.{{else}}Only admins see the Users page; ask an admin if you need something changed.{{end}}</p>
+  <ul>
+    <li><strong>Roles.</strong> An <em>admin</em> can do everything, including managing users. A <em>member</em> can make and manage QR codes, campaigns and designs and read all the statistics, but cannot manage users.</li>
+    <li><strong>Add a user.</strong> Enter a user name (3 to 32 letters, numbers, dots, dashes or underscores), choose a role, and either type a temporary password (at least 12 characters) or leave it blank to have one generated. A generated password is shown <strong>once</strong> on the screen: copy it and pass it to the person securely. The new person must choose their own password when they first sign in.</li>
+    <li><strong>Reset a password.</strong> Press <em>Reset password</em> next to the person (blank for a generated one). They are signed out everywhere, their old password stops working, and they must choose a new one at next sign-in. Use this for forgotten passwords.</li>
+    <li><strong>Change a role.</strong> Pick the role and press Save. The person is signed out so the change takes effect cleanly.</li>
+    <li><strong>Remove a user.</strong> Press Remove and confirm. They are signed out at once and can no longer sign in. QR codes they made stay.</li>
+    <li><strong>Safety rules.</strong> You cannot remove yourself, and the last admin can never be removed or made a member, so the system can never be left with nobody in charge.</li>
+    <li><strong>Recent activity</strong> lists who did what and when (creating codes, adding users, resetting passwords, saving designs...). It never records passwords.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="account">
+  <h2>17. Your account: signing in and your password</h2>
+  <ul>
+    <li><strong>Signing in.</strong> The user name is not case sensitive; the password is. After <strong>five wrong tries within 15 minutes</strong> from one place you are locked out for 15 minutes; waiting is enough, and an admin can reset your password if you have forgotten it.</li>
+    <li><strong>First sign-in.</strong> You are taken straight to <em>Change password</em>. Enter the temporary password, then your own new one twice. It must be at least 12 characters (up to 72); three or four random words is easy to remember and strong. A <em>Show passwords</em> tick lets you check what you typed.</li>
+    <li><strong>Changing your password later.</strong> You can open the same page again from the address <code>/admin/password</code>. Changing it signs out your other sessions.</li>
+    <li><strong>Staying signed in.</strong> You are signed out after 12 hours of inactivity, and in any case after 7 days.</li>
+    <li><strong>Signing out.</strong> Use <em>Sign out</em> at the top, especially on a shared computer.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="privacy">
+  <h2>18. What is recorded, and privacy</h2>
+  <p><strong>What it is.</strong> A summary of what is stored when someone scans a dynamic code. Static codes record nothing.</p>
+  <ul>
+    <li><strong>Recorded:</strong> the exact time; the code and campaign; the approximate country, region and town; the device type, operating system and browser family (never versions or models); the language; where the scan was sent; the site they came from (name only); and a scrambled visitor token.</li>
+    <li><strong>The visitor token</strong> is made from their internet address and a secret that changes every day, so the same person can be counted once in a day, but it cannot be turned back into an address, and it cannot be matched across days.</li>
+    <li><strong>The internet address itself is not stored</strong> unless a system administrator has deliberately switched that on; if they have, a notice shows at the top of every page. It is used only to work out the approximate place and the token, then discarded.</li>
+    <li><strong>Never recorded:</strong> names, email addresses, cookies, or the full address of the page they came from.</li>
+    <li><strong>Kept for</strong> 365 days by default, then deleted automatically.</li>
+    <li>The approximate locations come from a free database by DB-IP, credited at the bottom of pages that use it.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="troubleshooting">
+  <h2>19. Troubleshooting and questions</h2>
+  <dl>
+    <dt>My printed code will not scan.</dt><dd>Check the size (at least about 2 cm), the blank border, and the contrast (dark on light). Scan it from different distances with two phones. Try error correction H and a simpler design (square dots, no logo). For a dynamic code, check the code is not disabled and its window has not ended with <em>show expired page</em>.</dd>
+    <dt>The form says the design is "too close to the background".</dt><dd>The code colour is too pale or too similar to the background. Choose a darker code colour or a lighter background.</dd>
+    <dt>"That is too long to fit in a QR code."</dt><dd>A static code holds its content directly, so very long text or a big contact card does not fit. Shorten it, or make it a dynamic code (which only holds a short address).</dd>
+    <dt>I want to change where a printed code goes.</dt><dd>Only dynamic codes can be changed. Open it, press Edit and change the address. A static code can never be changed; make a new one.</dd>
+    <dt>I made a static code but want tracking.</dt><dd>That is not possible. Make a new dynamic code and use that one from now on.</dd>
+    <dt>The scan count looks too low.</dt><dd>Only people are counted, and only while the window is active. Bots, link previews and scans before the start date are not counted. Check the dates, press <em>Include bots</em> to see the robots, and remember a scan limit stops counting.</dd>
+    <dt>The scan count looks too high.</dt><dd>Several people may be scanning, and <em>All scans</em> counts repeat visits by the same person. Look at <em>Unique</em> for different visitors.</dd>
+    <dt>The town is wrong.</dt><dd>Towns are estimates from the visitor's internet address. Mobile networks and VPNs often show the wrong one. Use country, and treat regions and towns as a guide.</dd>
+    <dt>I cannot sign in.</dt><dd>Check Caps Lock (the password is case sensitive), try again with the <em>Show password</em> tick if available, and wait 15 minutes if you have had five wrong tries. If you still cannot, ask an admin to reset your password.</dd>
+    <dt>The page says "Admins only".</dt><dd>You are signed in as a member. Ask an admin if you need a user managed.</dd>
+    <dt>The bulk upload failed.</dt><dd>Read the list: it names the spreadsheet row and the problem. Check the headings are exactly <code>label</code> and <code>url</code>, that every address starts with https://, and that the file is saved as CSV.</dd>
+    <dt>I deleted a code by mistake.</dt><dd>It cannot be undone. A dynamic code that was printed will now show "Link not found". Make a new one and, if you still have the old printed copies, replace them.</dd>
+    <dt>Where do I find the scans in a spreadsheet?</dt><dd>On a code's page press <em>Export CSV</em>, or press <em>Export scans</em> in the menu for every code.</dd>
+  </dl>
+</section>
+
+<section class="card helpsec" id="not-included">
+  <h2>20. What this system does not do</h2>
+  <p>So you are not looking for something that is not there:</p>
+  <ul>
+    <li>It does not host files or build web pages: there is no PDF, MP3, video, menu or landing-page code. To send people to a PDF or video, use <em>Website link</em> to point at one that already lives on blake-uk.com or YouTube.</li>
+    <li>It does not run advertising or retargeting pixels (Google Tag Manager, Facebook pixel), which would slow every scan and need a cookie banner.</li>
+    <li>It has no public interface for other software yet, no two-factor sign-in, and no email alerts.</li>
+    <li>Campaigns are a single list, not folders.</li>
+  </ul>
+</section>
+
+<section class="card helpsec" id="glossary">
+  <h2>21. Glossary</h2>
+  <dl>
+    <dt>Bot</dt><dd>A program, not a person, that visits addresses automatically.</dd>
+    <dt>Campaign</dt><dd>A label for where a code is used.</dd>
+    <dt>Dynamic code</dt><dd>A tracked code whose destination can be changed.</dd>
+    <dt>Static code</dt><dd>An untracked code that holds its content itself.</dd>
+    <dt>Error correction</dt><dd>Extra information in the code that lets it scan even when damaged.</dd>
+    <dt>Quiet zone</dt><dd>The blank border round a code. Scanners need it.</dd>
+    <dt>SVG</dt><dd>A picture format that can be made any size without going blurry.</dd>
+    <dt>PNG</dt><dd>A common picture format with a fixed number of pixels.</dd>
+    <dt>CSV</dt><dd>A plain spreadsheet file that Excel and Google Sheets can open and save.</dd>
+    <dt>Referrer</dt><dd>The site or app a visitor came from.</dd>
+    <dt>Tracking address</dt><dd>The short web address inside a dynamic code.</dd>
+    <dt>Unique visitor</dt><dd>A person counted once in a 24-hour period.</dd>
+  </dl>
+  <p class="muted small">Missing something? Ask Max: the Max button at the top right of every page brings you back here.</p>
+</section>
+{{end}}

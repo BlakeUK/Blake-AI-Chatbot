@@ -1,6 +1,7 @@
 {{define "content"}}
 {{with .Data}}
 <h1>Bulk QR codes</h1>
+{{template "helpbox" $}}
 <p class="muted">Upload a CSV and get one tracked QR code per row, as a ZIP of images plus a CSV listing each code's address. Either every row is created or none is.</p>
 {{if .Errors}}<section class="card"><p class="error">Nothing was created.</p><ul>{{range .Errors}}<li class="field-error">{{.}}</li>{{end}}</ul></section>{{end}}
 <form class="card" method="post" action="/admin/bulk" enctype="multipart/form-data">

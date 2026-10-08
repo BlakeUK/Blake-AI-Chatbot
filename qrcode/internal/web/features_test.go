@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"html"
 	"image"
 	"image/color"
 	"image/png"
@@ -893,3 +894,44 @@ func TestDesignTemplatesPage(t *testing.T) {
 }
 
 func nil2() context.Context { return context.Background() }
+
+// The preview images must carry the design in their address. html/template
+// once escaped the & and = between the parameters, so every thumbnail drew the
+// default black-and-white code and no test noticed because none fetched them.
+func TestPreviewAddressesCarryTheDesign(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	fields := url.Values{"template_name": {"Blake blue"}, "fg": {"#0b2a6f"}, "bg": {"#ffffff"}, "pattern": {"dots"}, "eye": {"circle"}, "eye_same": {"on"},
+		"frame": {"box"}, "cta": {"SCAN FOR MANUAL"}, "qr_ecc": {"M"}, "csrf": {h.token(c)}}
+	if r, _ := h.do(c, "POST", "/admin/templates", fields, nil); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save design: %d", r.StatusCode)
+	}
+	imgSrcs := func(page string) []string {
+		var out []string
+		for _, part := range strings.Split(page, `src="`)[1:] {
+			src := part[:strings.Index(part, `"`)]
+			if strings.Contains(src, "/admin/preview.svg") {
+				out = append(out, html.UnescapeString(src)) // decode the HTML exactly as a browser does
+			}
+		}
+		return out
+	}
+	check := func(where, page string) {
+		srcs := imgSrcs(page)
+		if len(srcs) == 0 {
+			t.Fatalf("%s: no preview image found", where)
+		}
+		for _, src := range srcs {
+			resp, body := h.do(c, "GET", src, nil, nil)
+			if resp.StatusCode != 200 || !strings.Contains(body, "SCAN FOR MANUAL") || !strings.Contains(body, "#0b2a6f") || !strings.Contains(body, "<circle") {
+				t.Errorf("%s: %s did not draw the saved design (status %d)", where, src, resp.StatusCode)
+			}
+		}
+	}
+	_, designs := h.do(c, "GET", "/admin/templates", nil, nil)
+	check("designs page thumbnail", designs)
+	_, edit := h.do(c, "GET", "/admin/templates/new?template=1", nil, nil)
+	check("design editor, before any script runs", edit)
+	_, form := h.do(c, "GET", "/admin/links/new?kind=dynamic&type=url&template=1", nil, nil)
+	check("code form with a template applied, before any script runs", form)
+}

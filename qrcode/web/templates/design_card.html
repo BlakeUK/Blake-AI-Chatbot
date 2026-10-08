@@ -1,0 +1,58 @@
+{{define "designcard"}}
+<section class="card" id="design">
+  <h2>Design</h2>
+  <p class="hint"><strong>What it is.</strong> The look of the code: colours, dot and corner shapes, a frame with a few words, and a logo in the middle. <strong>How to use it.</strong> Change anything and the preview updates. Keep the code dark on a light background so it scans reliably; the form will warn you if you go too far. <a href="/admin/help#design">Help</a></p>
+  <img id="qr-preview" class="qr" alt="Preview of the QR code" width="240" src="{{.PreviewSrc}}">
+  <p id="qr-preview-error" class="field-error"></p>
+  <p class="muted small">The preview is a sample. Always scan a printed test code before you use it.</p>
+  {{with index .Errors "design"}}<p class="field-error">{{.}}</p>{{end}}
+  <div class="grid2">
+    <label>Code colour<input type="color" name="fg" value="{{.Design.FG}}"></label>
+    <label>Background<input type="color" name="bg" value="{{.Design.BG}}"></label>
+  </div>
+  <div class="grid2">
+    <label>Dot style<select name="pattern">{{$p := .Design.Pattern}}{{range .Patterns}}<option value="{{.}}" {{if eq . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+    <label>Corner style<select name="eye">{{$e := .Design.Eye}}{{range .Eyes}}<option value="{{.}}" {{if eq . $e}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  </div>
+  <div class="grid2">
+    <label>Corner colour<input type="color" name="eye_color" value="{{if .Design.EyeColor}}{{.Design.EyeColor}}{{else}}{{.Design.FG}}{{end}}"></label>
+    <label class="check"><input type="checkbox" name="eye_same" {{if not .Design.EyeColor}}checked{{end}}> Corners match the dots</label>
+  </div>
+  <div class="grid2">
+    <label>Frame<select name="frame">{{$f := .Design.Frame}}{{range .Frames}}<option value="{{.}}" {{if eq . $f}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+    <label>Text under the code<input name="cta" type="text" maxlength="24" value="{{.Design.CTA}}" placeholder="SCAN ME"></label>
+  </div>
+  <label>Error correction
+    <select name="qr_ecc">{{$q := .QRECC}}
+      <option value="L" {{if eq $q "L"}}selected{{end}}>L: 7% (smallest code)</option>
+      <option value="M" {{if or (eq $q "M") (eq $q "")}}selected{{end}}>M: 15% (default)</option>
+      <option value="Q" {{if eq $q "Q"}}selected{{end}}>Q: 25%</option>
+      <option value="H" {{if eq $q "H"}}selected{{end}}>H: 30% (best with a logo)</option>
+    </select>
+    <span class="muted small">How much of the code can be dirty or covered and still scan. Higher makes a denser code. Adding a logo raises it automatically.</span>
+    {{with index .Errors "qr_ecc"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+  <label>Logo in the centre <span class="muted">(PNG, JPEG or GIF, up to 1 MB)</span>
+    <input type="file" name="logo" accept="image/png,image/jpeg,image/gif">
+    {{with index .Errors "logo"}}<span class="field-error">{{.}}</span>{{end}}
+  </label>
+  {{if .HasLogo}}<label class="check"><input type="checkbox" name="remove_logo"> Remove the current logo</label>{{end}}
+
+  <div class="savebox" id="save-design">
+    <h3>Save this design to use again</h3>
+    <p class="muted small"><strong>What it is.</strong> A saved design remembers every setting above, including the logo, under a name. <strong>How to use it.</strong> Type a name, then press <em>{{if .DesignOnly}}Save design{{else}}Save design only{{end}}</em>{{if not .DesignOnly}} (saves just the design) or press {{if .Editing}}Save changes{{else}}Create QR code{{end}} (saves the design and the code){{end}}. Later, pick it from <em>Designs</em>, from <em>Use a saved design</em> when making a code, or in <em>Bulk</em>. Saving under an existing name replaces that design.</p>
+    <label>Design name
+      <input name="template_name" type="text" maxlength="60" value="{{.TemplateName}}" placeholder="e.g. Blake UK blue" data-design-name>
+      {{with index .Errors "template_name"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    {{if .DesignOnly}}
+      <button type="submit" class="primary">Save design</button>
+    {{else}}
+      <button type="submit" formaction="/admin/templates" formnovalidate data-save-design>Save design only</button>
+    {{end}}
+  </div>
+  {{if and (not .Editing) (not .DesignOnly) .Templates}}
+  <p class="small"><strong>Use a saved design:</strong> {{range .Templates}}<a href="/admin/links/new?kind={{$.Kind}}&amp;type={{$.Type}}&amp;template={{.ID}}">{{.Name}}</a> {{end}}</p>
+  {{end}}
+</section>
+{{end}}

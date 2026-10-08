@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -52,6 +53,10 @@ type formView struct {
 	Patterns    []string
 	Eyes        []string
 	Frames      []string
+
+	DesignOnly   bool   // the standalone "New design" page, which has no QR code attached
+	TemplateName string // the name of the design being edited or saved
+	LinkID       int64  // the code being edited, so a design saved from its form keeps its logo
 }
 
 var presets = map[string]time.Duration{
@@ -91,7 +96,7 @@ func (fv *formView) setFields(vals, errs map[string]string) {
 // formFromLink fills the form from a saved code, for editing.
 func (s *Server) formFromLink(ctx context.Context, l *links.Link, spec qrtypes.Spec) *formView {
 	fv := s.baseForm(ctx, l.Kind, spec)
-	fv.Editing, fv.ID = true, l.ID
+	fv.Editing, fv.ID, fv.LinkID = true, l.ID, l.ID
 	fv.Label, fv.Campaign, fv.QRECC = l.Label, l.Campaign, l.QRECC
 	fv.HasLogo, fv.HasPassword = l.HasLogo, l.PasswordHash != ""
 	if l.MaxScans > 0 {
@@ -126,6 +131,13 @@ func designFrom(get func(string) string) qr.Design {
 		d.EyeColor = ""
 	}
 	return d
+}
+
+// PreviewSrc is the address of the preview image. It is built here and marked
+// as a URL because html/template would otherwise treat everything after the ?
+// as one value and escape the & and = between the parameters.
+func (fv *formView) PreviewSrc() template.URL {
+	return template.URL("/admin/preview.svg?" + fv.PreviewQS())
 }
 
 // PreviewQS is the query string for the live preview image.

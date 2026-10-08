@@ -3,6 +3,7 @@
   <h1>Campaigns</h1>
   <a class="button" href="/admin/scans.csv">Export all scans (CSV)</a>
 </div>
+{{template "helpbox" $}}
 <p class="muted">Where your QR codes are used, and how each placement performs. Give a link a campaign with Edit (leaflet, exhibition stand, product box ...). Counts exclude bots and link-preview fetchers.</p>
 {{if .Data.Rows}}
 <div class="scroll">

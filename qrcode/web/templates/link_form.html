@@ -1,6 +1,7 @@
 {{define "content"}}
 {{with .Data}}
 <h1>{{if .Editing}}Edit{{else}}New{{end}} {{.Spec.Label}} QR code <span class="badge {{if eq .Kind "dynamic"}}active{{else}}off{{end}}">{{.Kind}}</span></h1>
+{{template "helpbox" $}}
 {{if .Errors._}}<p class="error" role="alert">{{index .Errors "_"}}</p>{{end}}
 
 <form class="formgrid" method="post" enctype="multipart/form-data" data-preview
@@ -10,10 +11,12 @@
   <input type="hidden" name="kind" value="{{.Kind}}">
   <input type="hidden" name="type" value="{{.Type}}">
   <input type="hidden" name="template_id" value="{{if .TemplateID}}{{.TemplateID}}{{end}}">
+  <input type="hidden" name="link_id" value="{{if .Editing}}{{.ID}}{{end}}">
 
   <div class="formcol">
   <section class="card">
     <h2>Details</h2>
+    <p class="hint"><strong>What it is.</strong> Labels that keep your codes organised. <strong>How to use it.</strong> Give each code a clear name such as "Autumn leaflet, front page", and choose or type a campaign for where it will be used. <a href="/admin/help#campaigns">Help</a></p>
     <label>Name <span class="muted">(only you see this)</span>
       <input name="label" type="text" maxlength="100" value="{{.Label}}" required>
       {{with index .Errors "label"}}<span class="field-error">{{.}}</span>{{end}}
@@ -27,7 +30,7 @@
 
   <section class="card">
     <h2>{{.Spec.Label}}</h2>
-    <p class="muted small">{{.Spec.Description}}</p>
+    <p class="hint"><strong>What it is.</strong> {{.Spec.Description}} <strong>How to use it.</strong> {{.Spec.HowTo}} <a href="/admin/help#types">Help</a></p>
     {{if .Fixed}}
       <p class="notice">This is a static code, so its content is printed inside the code itself and cannot be changed. To change it, create a new code.</p>
       <pre class="content">{{.FixedText}}</pre>
@@ -49,6 +52,7 @@
   {{if eq .Kind "dynamic"}}
   <section class="card">
     <h2>Tracking window</h2>
+    <p class="hint"><strong>What it is.</strong> The dates during which scans are counted. <strong>How to use it.</strong> Pick a preset (it counts from now) or Custom to type exact UK start and end times. Choose what should happen when the window ends or the scan limit is reached. <a href="/admin/help#tracking">Help</a></p>
     <label>Preset
       <select name="window">
         <option value="24h" {{if eq .Window "24h"}}selected{{end}}>24 hours from now</option>
@@ -80,6 +84,7 @@
 
   <section class="card">
     <h2>Limits and protection</h2>
+    <p class="hint"><strong>What it is.</strong> Optional controls over who gets through. <strong>How to use it.</strong> A scan limit stops the code after that many people (for a limited offer). A password makes visitors type it before they are sent on (for trade-only pages). Leave both empty for an open code. <a href="/admin/help#limits-password">Help</a></p>
     <label>Scan limit <span class="muted">(people, not bots; empty = unlimited)</span>
       <input name="max_scans" type="number" min="0" step="1" value="{{.MaxScans}}" placeholder="e.g. 500">
       {{with index .Errors "max_scans"}}<span class="field-error">{{.}}</span>{{end}}
@@ -94,49 +99,7 @@
   </div>
 
   <div class="formcol">
-  <section class="card">
-    <h2>Design</h2>
-    <img id="qr-preview" class="qr" alt="Preview of the QR code" width="240" src="/admin/preview.svg?{{.PreviewQS}}">
-    <p id="qr-preview-error" class="field-error"></p>
-    <p class="muted small">The preview is a sample. Always scan a printed code to test it before you use it.</p>
-    {{with index .Errors "design"}}<p class="field-error">{{.}}</p>{{end}}
-    <div class="grid2">
-      <label>Code colour<input type="color" name="fg" value="{{.Design.FG}}"></label>
-      <label>Background<input type="color" name="bg" value="{{.Design.BG}}"></label>
-    </div>
-    <div class="grid2">
-      <label>Dot style<select name="pattern">{{$p := .Design.Pattern}}{{range .Patterns}}<option value="{{.}}" {{if eq . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-      <label>Corner style<select name="eye">{{$e := .Design.Eye}}{{range .Eyes}}<option value="{{.}}" {{if eq . $e}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-    </div>
-    <div class="grid2">
-      <label>Corner colour<input type="color" name="eye_color" value="{{if .Design.EyeColor}}{{.Design.EyeColor}}{{else}}{{.Design.FG}}{{end}}"></label>
-      <label class="check"><input type="checkbox" name="eye_same" {{if not .Design.EyeColor}}checked{{end}}> Corners match the dots</label>
-    </div>
-    <div class="grid2">
-      <label>Frame<select name="frame">{{$f := .Design.Frame}}{{range .Frames}}<option value="{{.}}" {{if eq . $f}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-      <label>Text under the code<input name="cta" type="text" maxlength="24" value="{{.Design.CTA}}" placeholder="SCAN ME"></label>
-    </div>
-    <label>Error correction
-      <select name="qr_ecc">{{$q := .QRECC}}
-        <option value="L" {{if eq $q "L"}}selected{{end}}>L: 7% (smallest code)</option>
-        <option value="M" {{if or (eq $q "M") (eq $q "")}}selected{{end}}>M: 15% (default)</option>
-        <option value="Q" {{if eq $q "Q"}}selected{{end}}>Q: 25%</option>
-        <option value="H" {{if eq $q "H"}}selected{{end}}>H: 30% (best with a logo)</option>
-      </select>
-      {{with index .Errors "qr_ecc"}}<span class="field-error">{{.}}</span>{{end}}
-    </label>
-    <label>Logo in the centre <span class="muted">(PNG, JPEG or GIF, up to 1 MB. Error correction is raised automatically.)</span>
-      <input type="file" name="logo" accept="image/png,image/jpeg,image/gif">
-      {{with index .Errors "logo"}}<span class="field-error">{{.}}</span>{{end}}
-    </label>
-    {{if .HasLogo}}<label class="check"><input type="checkbox" name="remove_logo"> Remove the current logo</label>{{end}}
-    <label>Save this design as <span class="muted">(reuse it on other codes)</span>
-      <input name="template_name" type="text" maxlength="60" placeholder="e.g. Blake UK blue">
-    </label>
-    {{if and (not .Editing) .Templates}}
-    <p class="small">Use a saved design: {{range .Templates}}<a href="/admin/links/new?kind={{$.Data.Kind}}&amp;type={{$.Data.Type}}&amp;template={{.ID}}">{{.Name}}</a> {{end}}</p>
-    {{end}}
-  </section>
+  {{template "designcard" .}}
 
   <div class="row">
     <button type="submit" class="primary">{{if .Editing}}Save changes{{else}}Create QR code{{end}}</button>

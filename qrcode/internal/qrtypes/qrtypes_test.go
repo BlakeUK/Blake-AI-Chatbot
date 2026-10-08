@@ -249,3 +249,19 @@ func TestAppStoresAndSmartURLRules(t *testing.T) {
 		}
 	}
 }
+
+func TestEveryTypeExplainsItself(t *testing.T) {
+	for _, s := range All() {
+		if len(s.HowTo) < 40 {
+			t.Errorf("%s has no useful HowTo text: %q", s.Type, s.HowTo)
+		}
+		if s.Description == "" {
+			t.Errorf("%s has no description", s.Type)
+		}
+		for _, f := range s.Fields {
+			if f.Label == "" {
+				t.Errorf("%s.%s has no label", s.Type, f.Name)
+			}
+		}
+	}
+}

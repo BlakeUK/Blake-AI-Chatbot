@@ -1,20 +1,30 @@
 {{define "content"}}
-<h1>Saved designs</h1>
-<p class="muted">Reusable looks (colours, dot and corner styles, frame, logo). Save one from the design section when creating or editing a QR code.</p>
-{{if .Data.Templates}}
-<table>
-  <thead><tr><th>Name</th><th>Logo</th><th></th></tr></thead>
-  <tbody>
-  {{range .Data.Templates}}
-  <tr><td>{{.Name}}</td><td>{{if .HasLogo}}yes{{else}}no{{end}}</td>
-    <td>
+<div class="row between">
+  <h1>Saved designs</h1>
+  <a class="button primary" href="/admin/templates/new">New design</a>
+</div>
+{{template "helpbox" .}}
+{{if .Data.Designs}}
+<div class="cards designs">
+{{range .Data.Designs}}
+  <section class="card center">
+    <img class="qr" src="{{.Src}}" width="150" height="150" alt="Preview of the design {{.Name}}" loading="lazy">
+    <h3>{{.Name}}</h3>
+    <p class="muted small">{{if .HasLogo}}Includes a logo{{else}}No logo{{end}}</p>
+    <p class="downloads">
       <a class="button" href="/admin/links/new?kind=dynamic&amp;type=url&amp;template={{.ID}}">Use for a new code</a>
-      <form method="post" action="/admin/templates/{{.ID}}/delete" class="inline" data-confirm="Delete the design {{.Name}}? Codes already made with it are not affected.">
-        <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="danger">Delete</button>
-      </form>
-    </td></tr>
-  {{end}}
-  </tbody>
-</table>
-{{else}}<section class="card"><p>No saved designs yet.</p></section>{{end}}
+      <a class="button" href="/admin/templates/new?template={{.ID}}">Edit</a>
+    </p>
+    <form method="post" action="/admin/templates/{{.ID}}/delete" class="inline" data-confirm="Delete the design {{.Name}}? Codes already made with it are not affected.">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="danger">Delete</button>
+    </form>
+  </section>
+{{end}}
+</div>
+{{else}}
+<section class="card">
+  <p>You have not saved any designs yet.</p>
+  <p><strong>How to save one:</strong> press <em>New design</em>, choose the colours, shapes, frame and logo, type a name, and press <em>Save design</em>. Or, while making any QR code, type a name under <em>Save this design to use again</em> and press <em>Save design only</em>. See <a href="/admin/help#save-designs">Help</a> for the steps.</p>
+</section>
+{{end}}
 {{end}}
