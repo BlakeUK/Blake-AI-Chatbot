@@ -31,16 +31,39 @@ jobs:
           envs: SMTP_TEST_HOST
           script: |
             H="$SMTP_TEST_HOST"
-            echo "server's public address: $(curl -s -m 8 https://api.ipify.org || echo unknown)"
-            echo "reverse DNS of that address: $(getent hosts "$(curl -s -m 8 https://api.ipify.org)" 2>/dev/null | awk '{print $2}' || true)"
-            if timeout 8 bash -c "exec 3<>/dev/tcp/github.com/443" 2>/dev/null; then echo "control (github.com:443, must be OPEN): OPEN"; else echo "control (github.com:443, must be OPEN): FAILED, so this test cannot be trusted"; fi
-            echo "$H resolves to: $(getent ahostsv4 "$H" | awk '{print $1}' | sort -u | head -3 | tr '\n' ' ')"
-            for p in 587 465 25; do
-              if timeout 8 bash -c "exec 3<>/dev/tcp/$H/$p" 2>/dev/null; then r="OPEN (connection accepted)"; else r="BLOCKED or no answer within 8s"; fi
-              echo "port $p: $r"
-            done
-            echo "--- the server's own firewall (outbound rules that could block mail)"
-            echo "ufw: $(ufw status 2>/dev/null | head -1 || echo 'not installed')"
-            echo "iptables OUTPUT policy and rules: $(iptables -S OUTPUT 2>/dev/null | tr '\n' ';' | cut -c1-200 || echo 'cannot read')"
-            echo "nftables output rules: $(nft list ruleset 2>/dev/null | grep -ciE 'dport (25|465|587)' || echo 0) rules mentioning mail ports"
-            echo "greeting on 587: $(timeout 8 bash -c "exec 3<>/dev/tcp/$H/587; head -c 160 <&3 | head -1" 2>/dev/null | tr -d '\r' || echo none)"
+            echo "== where this runs: user $(id -un); public address $(curl -s -m 8 https://api.ipify.org || echo unknown)"
+            echo "   default route: $(ip -4 route show default 2>&1 | head -1)"
+            echo "   IPv6 route: $(ip -6 route show default 2>&1 | head -1 || true)"
+            echo "== firewall tools and rules on this server"
+            for t in iptables nft ufw firewall-cmd traceroute tcptraceroute mtr nc nmap; do command -v $t >/dev/null 2>&1 && echo "   have: $t"; done
+            echo "   services: $(systemctl is-active ufw nftables firewalld netfilter-persistent 2>&1 | tr '\n' ' ')"
+            echo "   iptables rules:"; iptables -S 2>&1 | head -30 | sed 's/^/     /'
+            echo "   nftables ruleset:"; nft list ruleset 2>&1 | head -50 | sed 's/^/     /'
+            echo "   ufw:"; ufw status verbose 2>&1 | head -14 | sed 's/^/     /'
+            probe() {
+              ip="$(getent ahostsv4 "$1" | awk 'NR==1{print $1}')"
+              [ -z "$ip" ] && { echo "   $1:$2  (no IPv4 address)"; return; }
+              s0="$(date +%s.%N)"
+              err="$(timeout 6 bash -c "exec 3<>/dev/tcp/$ip/$2" 2>&1)"; rc=$?
+              t="$(awk -v a="$s0" -v b="$(date +%s.%N)" 'BEGIN{printf "%.1f", b-a}')"
+              case $rc in
+                0)   r="OPEN" ;;
+                124) r="TIMED OUT after ${t}s: packets silently dropped, nothing answered" ;;
+                *)   r="REJECTED in ${t}s: $(echo "$err" | tail -1 | sed 's/.*: //')" ;;
+              esac
+              printf '   %-34s %-5s -> %s\n' "$1 ($ip)" "$2" "$r"
+            }
+            echo "== connection tests (IPv4, exact addresses)"
+            echo "   -- ordinary ports, must be OPEN:"
+            probe github.com 443; probe github.com 22
+            echo "   -- a mail port that is not SMTP:"
+            probe imap.gmail.com 993
+            echo "   -- SMTP on the standard ports:"
+            for p in 587 465 25; do probe smtp.gmail.com $p; done
+            probe smtp.office365.com 587
+            for p in 587 465 25; do probe "$H" $p; done
+            echo "   -- SMTP on the alternative port 2525:"
+            probe smtp.sendgrid.net 2525; probe smtp.mailgun.org 2525
+            echo "   -- every address behind $H on 587:"
+            for ip in $(getent ahostsv4 "$H" | awk '{print $1}' | sort -u | head -6); do probe "$ip" 587; done
+            if command -v traceroute >/dev/null 2>&1; then echo "== where packets to $H:587 stop"; traceroute -T -p 587 -n -w 2 -m 14 "$H" 2>&1 | tail -16 | sed 's/^/   /'; fi
