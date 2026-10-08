@@ -295,12 +295,15 @@ func (in Input) Clean(selfHost string) (Input, map[string]string) {
 
 func validECC(s string) bool { return s == "L" || s == "M" || s == "Q" || s == "H" }
 
+// pointsAtSelf reports whether a destination would send a scan back into this
+// tracker's own redirector (/r/...), which would loop. Other pages on the same
+// host, such as a hosted link page at /l/..., are perfectly good destinations.
 func pointsAtSelf(raw, selfHost string) bool {
 	if selfHost == "" {
 		return false
 	}
 	u, err := url.Parse(raw)
-	return err == nil && strings.EqualFold(u.Host, selfHost)
+	return err == nil && strings.EqualFold(u.Host, selfHost) && strings.HasPrefix(u.Path, "/r/")
 }
 
 // ErrNotFound is returned when no link matches.
@@ -542,6 +545,25 @@ func (s *Store) Update(ctx context.Context, id int64, in Input) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// ByDestinationPrefix lists the dynamic codes whose destination starts with
+// prefix, newest first. A link page uses it to show the QR codes pointing at it.
+func (s *Store) ByDestinationPrefix(ctx context.Context, prefix string) ([]*Link, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+cols+` FROM links WHERE kind = 'dynamic' AND instr(destination_url, ?) = 1 ORDER BY id DESC`, prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Link
+	for rows.Next() {
+		l, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
 }
 
 // Rules returns a link's smart-routing rules in priority order.

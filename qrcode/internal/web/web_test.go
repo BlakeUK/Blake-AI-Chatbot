@@ -28,6 +28,7 @@ import (
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/db"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/geo"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/links"
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/pages"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/scans"
 )
 
@@ -57,15 +58,16 @@ func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(
 func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
 
 type harness struct {
-	t      *testing.T
-	srv    *Server
-	ts     *httptest.Server
-	db     *sql.DB
-	clk    *clock
-	logs   *syncBuf
-	writer *scans.Writer
-	links  *links.Store
-	auth   *auth.Service
+	t          *testing.T
+	srv        *Server
+	ts         *httptest.Server
+	db         *sql.DB
+	clk        *clock
+	logs       *syncBuf
+	writer     *scans.Writer
+	pageWriter *pages.Writer
+	links      *links.Store
+	auth       *auth.Service
 }
 
 func newHarness(t *testing.T, tweak ...func(*Config)) *harness {
@@ -102,18 +104,21 @@ func newHarness(t *testing.T, tweak ...func(*Config)) *harness {
 	for _, f := range tweak {
 		f(&cfg)
 	}
+	pw := pages.NewWriter(d, 1024, log)
+	pw.Start()
 	srv, err := New(cfg, Deps{DB: d, Links: st, Auth: a, Hasher: scans.NewHasher(d, clk.Now), Writer: w,
-		Geo: &geo.Resolver{}, Now: clk.Now, Log: log, Assets: qrtrack.Web})
+		Geo: &geo.Resolver{}, Now: clk.Now, Log: log, Assets: qrtrack.Web, PageEvents: pw})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := httptest.NewServer(srv.Handler())
-	h := &harness{t: t, srv: srv, ts: ts, db: d, clk: clk, logs: logs, writer: w, links: st, auth: a}
+	h := &harness{t: t, srv: srv, ts: ts, db: d, clk: clk, logs: logs, writer: w, pageWriter: pw, links: st, auth: a}
 	t.Cleanup(func() {
 		ts.Close()
 		cctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		w.Close(cctx)
+		pw.Close(cctx)
 		d.Close()
 	})
 	return h

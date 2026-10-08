@@ -1,0 +1,100 @@
+{{define "content"}}
+{{with .Data}}
+<h1>{{if .Editing}}Edit link page{{else}}New link page{{end}}</h1>
+{{template "helpbox" $}}
+{{if .Errors}}<p class="error" role="alert">Some things need fixing. They are marked below.</p>{{end}}
+
+<form class="formgrid pageform" method="post" action="{{if .Editing}}/admin/pages/{{.ID}}{{else}}/admin/pages{{end}}" data-pageform>
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+
+  <div class="formcol">
+  <section class="card">
+    <h2>1. Company</h2>
+    <p class="hint"><strong>What it is.</strong> Whose page this is. It sets the logo and the company's colours. <strong>How to use it.</strong> Click one.</p>
+    <div class="choices">
+      {{$b := .Brand}}{{range .Brands}}
+      <label class="choice"><input type="radio" name="brand" value="{{.ID}}" {{if eq .ID $b}}checked{{end}}>
+        <span class="choicebody"><img src="{{.LogoOnLight}}" height="30" alt=""><strong>{{.Name}}</strong></span></label>
+      {{end}}
+    </div>
+    {{with index .Errors "brand"}}<span class="field-error">{{.}}</span>{{end}}
+  </section>
+
+  <section class="card">
+    <h2>2. Theme</h2>
+    <p class="hint"><strong>What it is.</strong> The look of the page: layout, background and button style. <strong>How to use it.</strong> Click one and watch the preview change. You can switch at any time. <a href="/admin/help#link-pages">Help</a></p>
+    <div class="choices">
+      {{$t := .Theme}}{{range .Themes}}
+      <label class="choice"><input type="radio" name="theme" value="{{.ID}}" {{if eq .ID $t}}checked{{end}}>
+        <span class="choicebody"><span class="swatch swatch-{{.ID}}" aria-hidden="true"></span><strong>{{.Name}}</strong><span class="muted small">{{.Description}}</span></span></label>
+      {{end}}
+    </div>
+    {{with index .Errors "theme"}}<span class="field-error">{{.}}</span>{{end}}
+    <div class="grid2 accentrow">
+      <label>Accent colour <span class="muted">(icons, bars, buttons)</span>
+        <input type="color" name="accent" value="{{if .Accent}}{{.Accent}}{{else}}#dd9833{{end}}">
+      </label>
+      <label class="check"><input type="checkbox" name="accent_same" {{if .AccentSame}}checked{{end}}> Use the company's own colour</label>
+    </div>
+    {{with index .Errors "accent"}}<span class="field-error">{{.}}</span>{{end}}
+  </section>
+
+  <section class="card">
+    <h2>3. The page</h2>
+    <p class="hint"><strong>What it is.</strong> The words at the top and the web address of the page. <strong>How to use it.</strong> The heading appears under the logo; leave it empty for "Official Links". The page address is the part after <code>/l/</code>.</p>
+    <label>Name <span class="muted">(only you see this)</span>
+      <input name="name" type="text" maxlength="100" value="{{.Name}}" required>
+      {{with index .Errors "name"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    <label>Page address
+      <span class="addr"><span class="muted">{{.BaseURL}}/l/</span><input name="slug" type="text" maxlength="40" value="{{.Slug}}" placeholder="visionplus" autocapitalize="none" autocomplete="off" spellcheck="false"></span>
+      <span class="muted small">Lower-case letters, numbers and dashes. Leave empty to use the name. Changing it later breaks links people have already shared.</span>
+      {{with index .Errors "slug"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    <label>Heading <input name="title" type="text" maxlength="80" value="{{.Title}}" placeholder="Official Links">{{with index .Errors "title"}}<span class="field-error">{{.}}</span>{{end}}</label>
+    <label>Subheading <span class="muted">(optional)</span> <input name="subtitle" type="text" maxlength="160" value="{{.Subtitle}}">{{with index .Errors "subtitle"}}<span class="field-error">{{.}}</span>{{end}}</label>
+    <label class="check"><input type="checkbox" name="show_urls" {{if .ShowURLs}}checked{{end}}> Show the web address under each button's title</label>
+    <label class="check"><input type="checkbox" name="show_socials" {{if .ShowSocials}}checked{{end}}> Show a row of social icons at the bottom</label>
+  </section>
+
+  <section class="card">
+    <h2>4. Buttons</h2>
+    <p class="hint"><strong>What it is.</strong> The links people tap, top to bottom. <strong>How to use it.</strong> Give each a title and a web address (<code>https://...</code>). Use <code>mailto:name@example.com</code> for email and <code>tel:+441142235000</code> for a phone number. The icon is chosen from the address unless you pick one. Use the arrows to reorder and the cross to remove; empty rows are ignored.</p>
+    {{with index .Errors "items"}}<p class="field-error">{{.}}</p>{{end}}
+    <div class="btnrows" data-rows>
+      {{range .Rows}}
+      <div class="btnrow" data-row>
+        <input type="hidden" name="item_id" value="{{if .ID}}{{.ID}}{{end}}">
+        <div class="btnfields">
+          <label>Title <input name="item_title" type="text" maxlength="60" value="{{.Title}}" placeholder="e.g. Website">{{if .ErrTitle}}<span class="field-error">{{.ErrTitle}}</span>{{end}}</label>
+          <label>Address <input name="item_url" type="text" maxlength="2048" value="{{.URL}}" placeholder="https://" autocapitalize="none" spellcheck="false">{{if .ErrURL}}<span class="field-error">{{.ErrURL}}</span>{{end}}</label>
+          <label>Icon <select name="item_icon">{{$ic := .Icon}}{{range $.Data.Icons}}<option value="{{.}}" {{if eq . $ic}}selected{{end}}>{{.}}</option>{{end}}</select>{{if .ErrIcon}}<span class="field-error">{{.ErrIcon}}</span>{{end}}</label>
+          <label>Small text <span class="muted">(optional, replaces the address)</span> <input name="item_desc" type="text" maxlength="80" value="{{.Desc}}">{{if .ErrDesc}}<span class="field-error">{{.ErrDesc}}</span>{{end}}</label>
+        </div>
+        <div class="btnctl">
+          <button type="button" data-up title="Move up" aria-label="Move up">&uarr;</button>
+          <button type="button" data-down title="Move down" aria-label="Move down">&darr;</button>
+          <button type="button" data-remove title="Remove" aria-label="Remove" class="danger">&times;</button>
+        </div>
+      </div>
+      {{end}}
+    </div>
+    <p><button type="button" data-add class="hidden-nojs">Add another button</button> <span class="muted small">Need more rows? Save, then edit again.</span></p>
+  </section>
+
+  <div class="row">
+    <button type="submit" class="primary">{{if .Editing}}Save changes{{else}}Create page{{end}}</button>
+    <a class="button" href="{{if .Editing}}/admin/pages/{{.ID}}{{else}}/admin/pages{{end}}">Cancel</a>
+  </div>
+  </div>
+
+  <div class="formcol previewcol">
+    <section class="card previewcard">
+      <h2>Live preview</h2>
+      <p class="muted small">Shows your choices as you make them. Buttons open in a new tab.</p>
+      <iframe id="page-preview" class="pagepreview" title="Live preview of the link page" src="{{.PreviewSrc}}"></iframe>
+    </section>
+  </div>
+</form>
+{{end}}
+{{end}}

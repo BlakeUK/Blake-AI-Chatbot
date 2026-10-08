@@ -25,6 +25,7 @@
     <li><a href="#campaigns">Campaigns</a></li>
     <li><a href="#editing">Editing, disabling and deleting a code</a></li>
     <li><a href="#bulk">Making many codes at once (bulk)</a></li>
+    <li><a href="#link-pages">Link pages (like Linktree)</a></li>
     <li><a href="#users">Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</a></li>
     <li><a href="#account">Your account: signing in and your password</a></li>
     <li><a href="#privacy">What is recorded, and privacy</a></li>
@@ -286,8 +287,69 @@
   </ul>
 </section>
 
+<section class="card helpsec" id="link-pages">
+  <h2>16. Link pages (like Linktree)</h2>
+  <p><strong>What it is.</strong> A <em>link page</em> is a web page, hosted here, that gathers all of a company's links in one place: website, social media, email, phone. It carries the company's logo and a theme, works well on a phone, and counts how many people open it and which buttons they press. Open <strong>Link pages</strong> in the menu.</p>
+  <p>Use it where you can only give one address: a social media profile, an email signature, a business card, a poster. Or make a QR code that opens it (see below).</p>
+
+  <h3>Making a page</h3>
+  <ol>
+    <li>Press <strong>New link page</strong>. To save time, use <strong>Start from an example</strong> on the Link pages page: it fills in a page for Blake UK, VisionPlus or Solwise. <strong>The example addresses are placeholders: check every one before you publish.</strong></li>
+    <li><strong>Company.</strong> Click Blake UK, VisionPlus or Solwise. This sets the logo and the company's colours.</li>
+    <li><strong>Theme.</strong> Click one and watch the preview:
+      <ul>
+        <li><strong>Midnight</strong>: deep navy, glowing curves in the accent colour, glass-style buttons with round icon badges and a row of social tiles at the bottom.</li>
+        <li><strong>Daylight</strong>: light and clean, white buttons on a soft background, the company colour for the icons.</li>
+        <li><strong>Bold</strong>: a dark page tinted with the company colour, with solid, company-coloured buttons.</li>
+      </ul>
+      Dark themes use the company's logo made for dark backgrounds; Daylight uses the one for light backgrounds. You can change theme at any time without losing anything.</li>
+    <li><strong>Accent colour.</strong> By default the page uses the company's own colour. To use a different one, untick <em>Use the company's own colour</em> and pick one. If it would be hard to read on that theme (for example navy on Midnight), the form explains and refuses it.</li>
+    <li><strong>The page.</strong> The <em>Name</em> is just for you. The <em>Page address</em> is the part after <code>/l/</code> in the web address; leave it empty to use the name. Lower-case letters, numbers and dashes only. The <em>Heading</em> appears under the logo ("Official Links" if left empty) and the <em>Subheading</em> is optional. Two tick boxes choose whether each button shows its web address underneath and whether the social icons row appears.</li>
+    <li><strong>Buttons.</strong> For each button give a <em>Title</em> and an <em>Address</em>:
+      <ul>
+        <li>A web address starting <code>https://</code> opens that page.</li>
+        <li><code>mailto:name@example.com</code> starts an email.</li>
+        <li><code>tel:+441142235000</code> offers to call that number.</li>
+      </ul>
+      The <em>Icon</em> is chosen from the address (Facebook, Instagram, LinkedIn, TikTok, YouTube, X, Pinterest, WhatsApp, email, phone, location, or a globe) unless you pick another. <em>Small text</em> replaces the address shown underneath. Use the arrows to move a button up or down and the cross to remove it. Empty rows are ignored. A page can have up to 30 buttons. Use <em>Add another button</em> for more rows.</li>
+    <li><strong>Live preview.</strong> The phone beside the form shows your page as it is right now, including things you have not saved. Buttons in the preview open in a new tab. Nothing is published or counted until you press <strong>Create page</strong> (or <strong>Save changes</strong>).</li>
+  </ol>
+
+  <h3>Sharing it, and a QR code for it</h3>
+  <ul>
+    <li>After saving, the page's own screen shows its public address with a <em>Copy</em> button. Anyone can open it; no sign-in is needed.</li>
+    <li>Press <strong>Make a QR code for this page</strong>. This makes a normal, tracked QR code (see <a href="#creating">Making a QR code</a>) in the company's colour with the words "SCAN FOR OUR LINKS". Use <em>Edit</em> on that code to change its colours, frame or logo, then download it as usual. You can make as many as you like, for example one for a poster and one for a leaflet, and give each its own campaign.</li>
+    <li>Visits that arrive through a QR code are counted separately as <em>via a QR code</em>.</li>
+  </ul>
+
+  <h3>Reading the statistics</h3>
+  <ul>
+    <li><strong>Views</strong>: how many times the page was opened. <strong>Unique visitors</strong>: each person once a day. <strong>Via a QR code</strong>: views that came from one of this page's QR codes. <strong>Button clicks</strong>, and <strong>clicked something</strong>: the share of views where a button was pressed.</li>
+    <li><strong>Views over time</strong>: a chart by day (UK time) for the last 30 days.</li>
+    <li><strong>Clicks on each button</strong>: which links people use, with the time of the last click. Email and phone buttons open the visitor's own app directly, so their taps cannot be counted.</li>
+    <li>Boxes below show where views came from (QR code or a direct link), device, operating system, language, country and referring site. Bots, such as link previews in chat apps, are left out.</li>
+  </ul>
+
+  <h3>Changing, switching off and deleting</h3>
+  <ul>
+    <li><strong>Edit</strong> changes anything. Buttons you keep stay the same button, so their click history is kept. A button you remove takes its own history with it from the list.</li>
+    <li><strong>Changing the page address</strong> breaks any link people have already shared, so avoid it once a page is out.</li>
+    <li><strong>Switch off</strong> takes the page down without deleting it: visitors see "Page not found". <strong>Switch on</strong> brings it back.</li>
+    <li><strong>Delete</strong> removes the page and its statistics for good. Codes that pointed at it keep working but lead to "Page not found".</li>
+  </ul>
+
+  <h3>Good to know</h3>
+  <ul>
+    <li>Link pages follow the same privacy rules as QR codes (see <a href="#privacy">What is recorded</a>): no names, no cookies, and the visitor's address is only stored in a scrambled, daily-changing form. Records are deleted after the retention period.</li>
+    <li>Pages are marked so that search engines do not list them.</li>
+    <li>The three companies and their logos are built in. Adding a fourth company is a small change for a developer (a logo and a colour).</li>
+    <li>Logos and social icons are used only to identify the company and the services you link to.</li>
+  </ul>
+</section>
+
+
 <section class="card helpsec" id="users">
-  <h2>16. Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</h2>
+  <h2>17. Users and roles{{if not .Data.IsAdmin}} (admins only){{end}}</h2>
   <p><strong>What it is.</strong> The people who can sign in. {{if .Data.IsAdmin}}Open <strong>Users</strong> in the menu.{{else}}Only admins see the Users page; ask an admin if you need something changed.{{end}}</p>
   <ul>
     <li><strong>Roles.</strong> An <em>admin</em> can do everything, including managing users. A <em>member</em> can make and manage QR codes, campaigns and designs and read all the statistics, but cannot manage users.</li>
@@ -301,7 +363,7 @@
 </section>
 
 <section class="card helpsec" id="account">
-  <h2>17. Your account: signing in and your password</h2>
+  <h2>18. Your account: signing in and your password</h2>
   <ul>
     <li><strong>Signing in.</strong> The user name is not case sensitive; the password is. After <strong>five wrong tries within 15 minutes</strong> from one place you are locked out for 15 minutes; waiting is enough, and an admin can reset your password if you have forgotten it.</li>
     <li><strong>First sign-in.</strong> You are taken straight to <em>Change password</em>. Enter the temporary password, then your own new one twice. It must be at least 12 characters (up to 72); three or four random words is easy to remember and strong. A <em>Show passwords</em> tick lets you check what you typed.</li>
@@ -312,7 +374,7 @@
 </section>
 
 <section class="card helpsec" id="privacy">
-  <h2>18. What is recorded, and privacy</h2>
+  <h2>19. What is recorded, and privacy</h2>
   <p><strong>What it is.</strong> A summary of what is stored when someone scans a dynamic code. Static codes record nothing.</p>
   <ul>
     <li><strong>Recorded:</strong> the exact time; the code and campaign; the approximate country, region and town; the device type, operating system and browser family (never versions or models); the language; where the scan was sent; the site they came from (name only); and a scrambled visitor token.</li>
@@ -325,7 +387,7 @@
 </section>
 
 <section class="card helpsec" id="troubleshooting">
-  <h2>19. Troubleshooting and questions</h2>
+  <h2>20. Troubleshooting and questions</h2>
   <dl>
     <dt>My printed code will not scan.</dt><dd>Check the size (at least about 2 cm), the blank border, and the contrast (dark on light). Scan it from different distances with two phones. Try error correction H and a simpler design (square dots, no logo). For a dynamic code, check the code is not disabled and its window has not ended with <em>show expired page</em>.</dd>
     <dt>The form says the design is "too close to the background".</dt><dd>The code colour is too pale or too similar to the background. Choose a darker code colour or a lighter background.</dd>
@@ -344,18 +406,19 @@
 </section>
 
 <section class="card helpsec" id="not-included">
-  <h2>20. What this system does not do</h2>
+  <h2>21. What this system does not do</h2>
   <p>So you are not looking for something that is not there:</p>
   <ul>
-    <li>It does not host files or build web pages: there is no PDF, MP3, video, menu or landing-page code. To send people to a PDF or video, use <em>Website link</em> to point at one that already lives on blake-uk.com or YouTube.</li>
+    <li>It does not host files or general web pages: there is no PDF, MP3, video, menu or landing-page code. The only hosted pages are <a href="#link-pages">Link pages</a>. To send people to a PDF or video, use <em>Website link</em> to point at one that already lives on blake-uk.com or YouTube.</li>
     <li>It does not run advertising or retargeting pixels (Google Tag Manager, Facebook pixel), which would slow every scan and need a cookie banner.</li>
     <li>It has no public interface for other software yet, no two-factor sign-in, and no email alerts.</li>
     <li>Campaigns are a single list, not folders.</li>
+    <li>Link pages count views and button clicks but are not exported to CSV, and a page cannot yet be copied to start a new one.</li>
   </ul>
 </section>
 
 <section class="card helpsec" id="glossary">
-  <h2>21. Glossary</h2>
+  <h2>22. Glossary</h2>
   <dl>
     <dt>Bot</dt><dd>A program, not a person, that visits addresses automatically.</dd>
     <dt>Campaign</dt><dd>A label for where a code is used.</dd>

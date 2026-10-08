@@ -56,6 +56,21 @@ var pageHelp = map[string]helpInfo{
 		How:    "Set the look, type a name and press Save design. Saving under the name of an existing design replaces it.",
 		Anchor: "save-designs",
 	},
+	"pages": {
+		What:   "Link pages are hosted pages that gather all of a company's links in one place, like Linktree. Each one has the company's logo, a theme, and a list of buttons. You can put the page address in a social profile, or make a QR code that opens it.",
+		How:    "Press New link page, or start from an example for Blake UK, VisionPlus or Solwise. Open a page to see how many people viewed it and which buttons they pressed.",
+		Anchor: "link-pages",
+	},
+	"page_form": {
+		What:   "Where you build a link page: choose the company and theme, write the heading, and list the buttons. The phone on the right is a live preview.",
+		How:    "Work down the page. Everything you change shows in the preview straight away, but nothing is published until you press the button at the bottom.",
+		Anchor: "link-pages",
+	},
+	"page_detail": {
+		What:   "One link page: its public address, the QR codes that open it, and how many people viewed it and pressed each button.",
+		How:    "Copy the address to share it, or make a QR code for it. Use Edit to change buttons or theme, and Switch off to take the page down without deleting it.",
+		Anchor: "link-pages",
+	},
 	"users": {
 		What:   "The people who can sign in to this system. Admins can manage QR codes and people; members can manage QR codes only.",
 		How:    "Add a person with a name, a role and a temporary password (or leave it blank to have one made). Use Reset password if someone is locked out. The activity log shows who did what.",

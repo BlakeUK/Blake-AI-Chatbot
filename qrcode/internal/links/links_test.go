@@ -507,3 +507,19 @@ func TestDesignTemplates(t *testing.T) {
 		t.Errorf("missing template: %v", err)
 	}
 }
+
+func TestOnlyTheRedirectorCountsAsPointingAtSelf(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"https://qr.example.com/r/abcdefgh":   true,
+		"https://QR.example.com/r/anything":   true,
+		"https://qr.example.com/l/visionplus": false, // a hosted link page is a fine destination
+		"https://qr.example.com/":             false,
+		"https://other.example.com/r/abc":     false,
+	} {
+		in := Input{Label: "x", Destination: raw, Start: time.Now(), End: time.Now().Add(time.Hour), ExpiryMode: RedirectUntracked}
+		_, errs := in.Clean("qr.example.com")
+		if got := errs["destination"] != ""; got != want {
+			t.Errorf("destination %s: refused=%v, want %v", raw, got, want)
+		}
+	}
+}

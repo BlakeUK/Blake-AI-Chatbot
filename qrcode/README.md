@@ -85,7 +85,8 @@ Checked against the feature list on qrcode-tiger.com. "Done" means built and cov
 | WhatsApp, location, calendar event | **Done** (static or dynamic) |
 | App stores (right store for iPhone / Android) | **Done** |
 | Smart URL / multi-URL by device, system, language, country | **Done** (first matching rule wins; up to 5 rules). By time of day or scan number: not built. |
-| File QR (PDF, images), MP3, video, menu, landing page builder, link page, GS1 Digital Link | **Not built.** These need hosted files and a page builder. Use the Website link type to point at a PDF or video that already lives on blake-uk.com or YouTube. |
+| Link page (link-in-bio, like Linktree) | **Done**: see Link pages below. Three themes, three company brands, live preview, view and click statistics, one-press QR code. |
+| File QR (PDF, images), MP3, video, menu, landing page builder, GS1 Digital Link | **Not built.** These need hosted files and a general page builder. Use the Website link type to point at a PDF or video that already lives on blake-uk.com or YouTube. |
 | Colours, dot style, corner style, centre logo, frame with text | **Done**, with a live preview. Designs that would not scan (low contrast, inverted, logo too large) are refused. Every style is decoded by a real QR reader in the tests. |
 | Saved design templates | **Done** (Designs page; reuse in the form and in bulk) |
 | Download PNG (256 / 512 / 1024) and SVG | **Done**. PDF export: not built. |
@@ -103,6 +104,18 @@ Checked against the feature list on qrcode-tiger.com. "Done" means built and cov
 | API, Zapier, HubSpot, Canva, MCP server | **Not built yet** |
 | AI insights, mobile apps, 27 interface languages | Not built |
 | GDPR / anonymised data | **Done**: no IP stored by default (see below) |
+
+## Link pages
+
+A hosted "all our links" page per company, at `https://<domain>/l/<address>`, managed on the **Link pages** tab.
+
+* **Companies:** Blake UK, VisionPlus, Solwise. Each has logos for light and dark backgrounds (`web/static/img/brands/`) and its own colour. A company is a small entry in `internal/pages/brands.go`.
+* **Themes:** Midnight (dark navy, glowing curves, glass buttons), Daylight (clean light), Bold (solid brand-coloured buttons). Styles live in `web/static/pages.css`; colours arrive per page from `/l/<address>/theme.css`, because the Content Security Policy forbids inline styles.
+* **Buttons:** web addresses (clicks counted through `/l/<address>/go/<id>`, destination read only from the database), `mailto:` and `tel:` (direct). Icons are chosen from the address. Editing keeps a button's id, so its click history survives.
+* **Live preview** in the editor (a same-origin frame of `/admin/pages/preview`, which draws unsaved values and counts nothing).
+* **QR code for a page:** one press makes a normal tracked dynamic code pointing at `/l/<address>?s=qr`, so views via QR are counted separately.
+* **Statistics:** views, unique visitors, views via QR, clicks per button, views per day, and breakdowns. Same privacy rules as scans (daily-salted hash, no address stored, bots excluded, retention purge).
+* Pages are `noindex`. Tables: `link_pages`, `link_page_items`, `page_events` (migration 0004).
 
 ## Users and roles
 
@@ -123,6 +136,7 @@ internal/db/               SQLite (pure Go driver), WAL, embedded versioned migr
 internal/links/            validation, 8-char base62 codes, window logic, CRUD
 internal/scans/            daily-salt hashing, async batched writer, stats, CSV, retention purge
 internal/qr/               PNG and SVG rendering: colours, dot and corner styles, logo, frame; contrast checks
+internal/pages/             link pages: brands, themes, validation, storage, view/click statistics
 internal/qrtypes/          the catalogue of QR types: form fields and how each becomes a payload
 internal/ua/               coarse device / OS / browser / bot classification (no versions)
 internal/geo/              offline town / region / country lookup, hot-reloads a refreshed database

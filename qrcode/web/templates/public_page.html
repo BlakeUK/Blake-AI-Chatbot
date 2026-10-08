@@ -1,0 +1,53 @@
+{{define "public"}}<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="{{.Look.BG2}}">
+<title>{{.Title}} · {{.Look.Brand.Name}}</title>
+<link rel="icon" type="image/png" href="/static/img/favicon.png">
+<link rel="stylesheet" href="/static/pages.css">
+<link rel="stylesheet" href="{{.CSSHref}}">
+</head>
+<body class="lp theme-{{.Look.Theme.ID}} brand-{{.Look.Brand.ID}}">
+<main class="lp-card">
+  <svg class="lp-deco" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="lpglow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter>
+      <pattern id="lpdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1.15" fill="currentColor"/></pattern>
+      <linearGradient id="lpfade" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#fff"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <mask id="lpmask"><rect width="400" height="800" fill="url(#lpfade)"/></mask>
+    </defs>
+    <g fill="none" stroke="currentColor" stroke-linecap="round">
+      <path d="M232 -8 C 292 66 346 106 408 122" stroke-width="5" opacity=".35" filter="url(#lpglow)"/>
+      <path d="M232 -8 C 292 66 346 106 408 122" stroke-width="1.6"/>
+      <path d="M-8 648 C 72 678 160 724 262 796" stroke-width="7" opacity=".3" filter="url(#lpglow)"/>
+      <path d="M-8 648 C 72 678 160 724 262 796" stroke-width="2.6"/>
+      <path d="M-8 660 C 78 692 168 740 278 808" stroke-width="1" opacity=".7"/>
+    </g>
+    <path d="M-8 664 C 78 696 168 744 278 812 L-8 812 Z" fill="url(#lpdots)" mask="url(#lpmask)" opacity=".75"/>
+  </svg>
+  <header class="lp-head">
+    <img class="lp-logo" src="{{.Look.Logo}}" alt="{{.Look.Brand.Name}}">
+    <h1 class="lp-title">{{.Title}}</h1>
+    {{if .Subtitle}}<p class="lp-sub">{{.Subtitle}}</p>{{end}}
+    <span class="lp-bar"></span>
+  </header>
+  <ul class="lp-links">
+    {{range .Items}}
+    <li class="lp-li"><a class="lp-btn" href="{{.Href}}" {{if .New}}target="_blank" rel="noopener noreferrer"{{else}}rel="noopener"{{end}}>
+      <span class="lp-ico">{{.Icon}}</span>
+      <span class="lp-txt"><strong>{{.Title}}</strong>{{if .Desc}}<small>{{.Desc}}</small>{{end}}</span>
+      <span class="lp-chev">{{$.Chevron}}</span>
+    </a></li>
+    {{end}}
+  </ul>
+  {{if .Socials}}
+  <nav class="lp-socials" aria-label="Social media">
+    {{range .Socials}}<a class="lp-soc" href="{{.Href}}" aria-label="{{.Title}}" {{if .New}}target="_blank" rel="noopener noreferrer"{{else}}rel="noopener"{{end}}>{{.Icon}}</a>{{end}}
+  </nav>
+  {{end}}
+</main>
+</body>
+</html>{{end}}

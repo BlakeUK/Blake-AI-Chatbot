@@ -143,6 +143,13 @@ if ! healthy; then
         warn "Rolling back to the previous binary"
         cp -f "$APP_DIR/qrtrack.prev" "$APP_DIR/qrtrack"
         systemctl restart qrtrack || true
+        # Do not leave before knowing whether the rollback worked.
+        for _ in $(seq 1 30); do healthy && break; sleep 1; done
+        if healthy; then
+            warn "Rolled back: the previous version is running again."
+        else
+            warn "The previous version did not come back healthy either. Check: journalctl -u qrtrack"
+        fi
     fi
     die "deploy failed; the support site was not touched"
 fi

@@ -1,0 +1,68 @@
+/* Public link pages (/l/<address>). Colours come from /l/<address>/theme.css as
+   --accent --ink --bg1 --bg2; this file holds everything else. No inline styles
+   are used anywhere because the Content Security Policy forbids them. */
+.lp { margin:0; min-height:100vh; display:flex; justify-content:center; align-items:flex-start; background:#05090f; color:#fff;
+      font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; -webkit-text-size-adjust:100%; }
+.lp *, .lp *::before, .lp *::after { box-sizing:border-box; }
+.lp-card { position:relative; isolation:isolate; overflow:hidden; width:100%; max-width:460px; min-height:100vh;
+           padding:max(48px,env(safe-area-inset-top)) 20px max(34px,env(safe-area-inset-bottom));
+           background:linear-gradient(168deg,var(--bg1) 0%,var(--bg2) 100%); }
+@media (min-width:520px) { .lp { padding:32px 16px; } .lp-card { min-height:0; border-radius:30px; box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); } }
+.lp-deco { position:absolute; inset:0; width:100%; height:100%; z-index:-1; color:var(--accent); pointer-events:none; }
+.lp-head { text-align:center; margin-bottom:26px; }
+.lp-logo { display:block; margin:0 auto; width:auto; height:auto; max-width:76%; max-height:72px; object-fit:contain; }
+.lp-title { margin:22px 0 0; font-size:1.05rem; font-weight:400; letter-spacing:.3em; text-transform:none; }
+.lp-sub { margin:10px auto 0; max-width:34ch; font-size:.95rem; opacity:.78; }
+.lp-bar { display:block; width:58px; height:3px; margin:16px auto 0; border-radius:3px; background:var(--accent); }
+.lp-links { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+.lp-btn { position:relative; display:flex; align-items:center; gap:14px; min-height:74px; padding:11px 16px 11px 12px; border-radius:999px;
+          color:inherit; text-decoration:none; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; -webkit-tap-highlight-color:transparent; }
+.lp-btn:hover { transform:translateY(-2px); }
+.lp-btn:active { transform:translateY(0) scale(.99); }
+.lp-btn:focus-visible, .lp-soc:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+.lp-ico { flex:none; width:52px; height:52px; border-radius:50%; display:grid; place-items:center; background:var(--accent); color:var(--ink); }
+.lp-ico .ico { width:25px; height:25px; display:block; }
+.lp-txt { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.lp-txt strong { font-size:1.14rem; font-weight:700; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lp-txt small { font-size:.8rem; opacity:.7; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lp-chev { flex:none; color:var(--accent); display:grid; place-items:center; }
+.lp-chev .ico { width:22px; height:22px; display:block; }
+.lp-socials { display:flex; flex-wrap:wrap; justify-content:center; gap:14px; margin-top:30px; }
+.lp-soc { width:54px; height:54px; border-radius:16px; display:grid; place-items:center; color:inherit; text-decoration:none; transition:transform .18s ease; }
+.lp-soc:hover { transform:translateY(-2px); }
+.lp-soc .ico { width:24px; height:24px; display:block; }
+.lp-li { opacity:0; transform:translateY(10px); animation:lp-in .55s cubic-bezier(.2,.7,.2,1) forwards; }
+.lp-li:nth-child(1) { animation-delay:.04s } .lp-li:nth-child(2) { animation-delay:.09s } .lp-li:nth-child(3) { animation-delay:.14s }
+.lp-li:nth-child(4) { animation-delay:.19s } .lp-li:nth-child(5) { animation-delay:.24s } .lp-li:nth-child(6) { animation-delay:.29s }
+.lp-li:nth-child(n+7) { animation-delay:.33s }
+@keyframes lp-in { to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce) { .lp-li { animation:none; opacity:1; transform:none; } .lp-btn, .lp-soc { transition:none; } }
+
+/* ---- Midnight: deep navy, glowing curves, glass buttons, round icon badges ---- */
+.theme-midnight .lp-btn { background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.028)); border:1px solid rgba(255,255,255,.14);
+                          box-shadow:0 10px 26px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.07); }
+.theme-midnight .lp-btn:hover { border-color:color-mix(in srgb,var(--accent) 55%,transparent); box-shadow:0 14px 30px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent); }
+.theme-midnight .lp-ico { background:radial-gradient(circle at 30% 22%,color-mix(in srgb,var(--accent) 62%,#fff) 0%,var(--accent) 62%); box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent); }
+.theme-midnight .lp-txt small { color:#aab4c3; opacity:1; }
+.theme-midnight .lp-soc { background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03)); border:1px solid rgba(255,255,255,.15); box-shadow:0 8px 20px rgba(0,0,0,.35); }
+
+/* ---- Daylight: clean and light ---- */
+.theme-daylight { background:#e7ebf2; color:#101828; }
+.theme-daylight .lp-card { box-shadow:0 24px 60px rgba(16,24,40,.14), 0 0 0 1px rgba(16,24,40,.06); }
+.theme-daylight .lp-deco { opacity:.22; }
+.theme-daylight .lp-title { color:#101828; }
+.theme-daylight .lp-btn { background:#fff; border:1px solid rgba(16,24,40,.09); box-shadow:0 6px 18px rgba(16,24,40,.08); }
+.theme-daylight .lp-btn:hover { border-color:var(--accent); box-shadow:0 10px 24px rgba(16,24,40,.13); }
+.theme-daylight .lp-txt small { color:#566075; opacity:1; }
+.theme-daylight .lp-soc { background:#fff; color:var(--accent); border:1px solid rgba(16,24,40,.09); box-shadow:0 6px 16px rgba(16,24,40,.08); }
+
+/* ---- Bold: dark tinted page, solid brand-coloured buttons ---- */
+.theme-bold { background:var(--bg2); }
+.theme-bold .lp-deco { opacity:.5; }
+.theme-bold .lp-btn { background:var(--accent); color:var(--ink); border:1px solid rgba(255,255,255,.18); box-shadow:0 10px 24px rgba(0,0,0,.35); }
+.theme-bold .lp-btn:hover { box-shadow:0 14px 30px rgba(0,0,0,.45); }
+.theme-bold .lp-ico { background:color-mix(in srgb,var(--ink) 15%,transparent); color:var(--ink); }
+.theme-bold .lp-chev { color:var(--ink); }
+.theme-bold .lp-txt small { opacity:.78; }
+.theme-bold .lp-soc { background:var(--accent); color:var(--ink); box-shadow:0 8px 20px rgba(0,0,0,.35); }
+.theme-bold .lp-btn:focus-visible, .theme-bold .lp-soc:focus-visible { outline-color:#fff; }

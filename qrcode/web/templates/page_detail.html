@@ -1,0 +1,83 @@
+{{define "content"}}
+{{with .Data}}
+<div class="row between">
+  <h1>{{.Page.Name}} {{if .Page.Enabled}}<span class="badge active">live</span>{{else}}<span class="badge off">switched off</span>{{end}}</h1>
+  <div class="row">
+    <a class="button" href="{{.URL}}" target="_blank" rel="noopener noreferrer">Open page</a>
+    <a class="button" href="/admin/pages/{{.Page.ID}}/edit">Edit</a>
+    <form method="post" action="/admin/pages/{{.Page.ID}}/toggle" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">{{if .Page.Enabled}}Switch off{{else}}Switch on{{end}}</button></form>
+    <form method="post" action="/admin/pages/{{.Page.ID}}/delete" class="inline" data-confirm="Delete this page and all of its statistics? Anyone with the link will see 'Page not found'.">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="danger">Delete</button></form>
+  </div>
+</div>
+{{template "helpbox" $}}
+
+<div class="grid2">
+  <section class="card">
+    <h2>The page</h2>
+    <p class="hint"><strong>What it is.</strong> The public address people visit. <strong>How to use it.</strong> Share the link, add it to a social profile, or make a QR code for it (right).</p>
+    <p><code class="wrap">{{.URL}}</code> <button type="button" data-copy="{{.URL}}">Copy</button></p>
+    <p><img class="brandchip" src="{{.Brand.LogoOnLight}}" height="26" alt="{{.Brand.Name}}"> &nbsp; {{.Theme.Name}} theme</p>
+    <p class="muted small">{{len .Page.Items}} button{{if ne (len .Page.Items) 1}}s{{end}}. Pages are not listed on search engines.</p>
+  </section>
+  <section class="card">
+    <h2>QR codes for this page</h2>
+    <p class="hint"><strong>What it is.</strong> A normal tracked QR code that opens this page. <strong>How to use it.</strong> Press the button, then use <em>Edit</em> on the new code to change its colours or add a logo, and download it. Visits that come through a QR code are counted as "QR code" below.</p>
+    <form method="post" action="/admin/pages/{{.Page.ID}}/qr"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="primary">Make a QR code for this page</button></form>
+    {{if .QRs}}<ul class="qrlist">{{range .QRs}}<li><a href="/admin/links/{{.ID}}">{{.Label}}</a> <span class="muted small">{{.ScanCount}} scan{{if ne .ScanCount 1}}s{{end}}</span></li>{{end}}</ul>{{end}}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Views and clicks</h2>
+  <p class="hint"><strong>What it is.</strong> How many people opened the page and tapped a button. <strong>How to use it.</strong> <em>Views</em> counts each visit; <em>unique</em> counts a person once a day. Bots such as link previews are left out. <a href="/admin/help#link-pages">Help</a></p>
+  <div class="stats">
+    <div><span class="big">{{.Totals.Views}}</span><span class="muted">views</span></div>
+    <div><span class="big">{{.Totals.Unique}}</span><span class="muted">unique visitors</span></div>
+    <div><span class="big">{{.Totals.ViaQR}}</span><span class="muted">via a QR code</span></div>
+    <div><span class="big">{{.Totals.Clicks}}</span><span class="muted">button clicks</span></div>
+    <div><span class="big">{{.CTR}}%</span><span class="muted">clicked something</span></div>
+  </div>
+  <h3>Views over time <span class="muted small">(daily, UK time, last 30 days)</span></h3>
+  {{.Chart}}
+</section>
+
+<section class="card">
+  <h2>Clicks on each button</h2>
+  <p class="hint"><strong>What it is.</strong> Which links people actually use. <strong>How to use it.</strong> Move popular buttons to the top, and consider removing ones nobody taps.</p>
+  <table class="compact">
+    <thead><tr><th></th><th>Button</th><th>Address</th><th class="num">Clicks</th><th></th><th>Last click</th></tr></thead>
+    <tbody>
+    {{range .Items}}
+    <tr>
+      <td class="iconcell">{{.Icon}}</td>
+      <td><strong>{{.Item.Title}}</strong></td>
+      <td class="muted small">{{.Item.URL}}</td>
+      <td class="num">{{.Clicks}}</td>
+      <td class="barcell"><svg class="pctbar" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect width="{{pct .Pct}}" height="8"/></svg></td>
+      <td class="muted small nowrap">{{if .Last.IsZero}}never{{else}}{{dt .Last}}{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  <p class="muted small">Email and phone buttons open the visitor's own app directly, so their taps cannot be counted.</p>
+</section>
+
+<div class="grid3">
+{{range .Sections}}
+<section class="card">
+  <h3>{{.Title}}</h3>
+  {{if .Rows}}
+  <table class="compact">
+    {{range .Rows}}
+    <tr><td>{{.Label}}</td><td class="num">{{.N}}</td>
+      <td class="barcell"><svg class="pctbar" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect width="{{pct .Pct}}" height="8"/></svg></td>
+      <td class="num muted">{{pct .Pct}}%</td></tr>
+    {{end}}
+  </table>
+  {{else}}<p class="muted">No views yet.</p>{{end}}
+</section>
+{{end}}
+</div>
+{{end}}
+{{end}}

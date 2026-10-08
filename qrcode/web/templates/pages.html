@@ -1,0 +1,40 @@
+{{define "content"}}
+<div class="row between">
+  <h1>Link pages</h1>
+  <a class="button primary" href="/admin/pages/new">New link page</a>
+</div>
+{{template "helpbox" $}}
+
+{{if .Data.Rows}}
+<div class="scroll"><table>
+  <thead><tr><th>Page</th><th>Company</th><th>Theme</th><th>Address</th><th class="num">Views</th><th class="num">Clicks</th><th>Status</th></tr></thead>
+  <tbody>
+  {{range .Data.Rows}}
+  <tr>
+    <td><a href="/admin/pages/{{.Page.ID}}"><strong>{{.Page.Name}}</strong></a></td>
+    <td><img class="brandchip" src="{{.Brand.LogoOnLight}}" height="22" alt="{{.Brand.Name}}"></td>
+    <td>{{.Theme.Name}}</td>
+    <td><code>{{.URL}}</code> <a class="small" href="{{.URL}}" target="_blank" rel="noopener noreferrer">open</a></td>
+    <td class="num">{{.Totals.Views}}</td>
+    <td class="num">{{.Totals.Clicks}}</td>
+    <td>{{if .Page.Enabled}}<span class="badge active">live</span>{{else}}<span class="badge off">switched off</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table></div>
+{{else}}
+<section class="card">
+  <p>You have not made a link page yet.</p>
+</section>
+{{end}}
+
+<section class="card">
+  <h2>Start from an example</h2>
+  <p class="hint"><strong>What it is.</strong> A ready-made page for one of the three companies, with that company's logo and colours. <strong>How to use it.</strong> Pick a company, then edit the buttons and pick a theme. The example addresses are placeholders: check each one before you publish.</p>
+  <div class="cards brandcards">
+    {{range .Data.Brands}}
+    <a class="typecard brandcard" href="/admin/pages/new?brand={{.ID}}&amp;example=1"><img src="{{.LogoOnLight}}" height="34" alt="{{.Name}}"><span class="muted small">Start a {{.Name}} page</span></a>
+    {{end}}
+  </div>
+</section>
+{{end}}

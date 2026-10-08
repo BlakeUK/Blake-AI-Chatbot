@@ -23,6 +23,7 @@ import (
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/db"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/geo"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/links"
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/pages"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/scans"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/web"
 )
@@ -159,10 +160,13 @@ func run() error {
 
 	writer := scans.NewWriter(d, 4096, log)
 	writer.Start()
+	pageWriter := pages.NewWriter(d, 2048, log)
+	pageWriter.Start()
 
 	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london, StoreFullIP: cfg.StoreFullIP}, web.Deps{
 		DB: d, Links: links.NewStore(d), Auth: authSvc, Hasher: scans.NewHasher(d, time.Now),
 		Writer: writer, Geo: resolver, Now: time.Now, Log: log, Assets: qrtrack.Web,
+		Pages: pages.NewStore(d), PageEvents: pageWriter,
 	})
 	if err != nil {
 		return err
@@ -209,6 +213,9 @@ func run() error {
 	if err := writer.Close(shutdownCtx); err != nil {
 		log.Error("scan writer did not drain in time", "err", err)
 	}
+	if err := pageWriter.Close(shutdownCtx); err != nil {
+		log.Error("page event writer did not drain in time", "err", err)
+	}
 	log.Info("stopped", "scans_dropped", writer.Dropped(), "scans_failed", writer.Failed())
 	return nil
 }
@@ -227,6 +234,15 @@ func maintenance(stop <-chan struct{}, a *auth.Service, g *geo.Resolver, retenti
 			log.Error("retention purge", "err", err)
 		} else if n > 0 {
 			log.Info("retention purge", "scans_deleted", n, "older_than_days", retentionDays)
+		}
+		cutoff := now.AddDate(0, 0, -retentionDays)
+		if n, err := pages.Purge(ctx, a.DB, cutoff); err != nil {
+			log.Error("link page retention purge", "err", err)
+		} else if n > 0 {
+			log.Info("link page retention purge", "events_deleted", n)
+		}
+		if err := a.PurgeAudit(ctx, cutoff); err != nil {
+			log.Error("audit log purge", "err", err)
 		}
 		if err := a.Purge(ctx); err != nil {
 			log.Error("session purge", "err", err)

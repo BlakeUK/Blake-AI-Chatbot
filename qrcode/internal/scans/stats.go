@@ -85,7 +85,6 @@ func Series(ctx context.Context, d *sql.DB, linkID int64, from, to time.Time, ho
 		return nil, err
 	}
 	defer rows.Close()
-
 	counts := map[string]int64{}
 	for rows.Next() {
 		var hour string
@@ -93,16 +92,35 @@ func Series(ctx context.Context, d *sql.DB, linkID int64, from, to time.Time, ho
 		if err := rows.Scan(&hour, &n); err != nil {
 			return nil, err
 		}
+		counts[hour] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return Regroup(counts, from, to, hourly, loc), nil
+}
+
+// Regroup turns counts per UTC hour (keyed "2006-01-02T15") into chart bars,
+// one per hour or per local day between from and to, with empty bars filled in.
+// Other event tables (link-page views) use it to get the same London-day
+// handling as QR scans.
+func Regroup(hourCounts map[string]int64, from, to time.Time, hourly bool, loc *time.Location) []Bucket {
+	if !to.After(from) {
+		return nil
+	}
+	if !hourly {
+		if min := to.AddDate(0, 0, -maxBuckets); from.Before(min) {
+			from = min
+		}
+	}
+	counts := map[string]int64{}
+	for hour, n := range hourCounts {
 		t, err := time.Parse("2006-01-02T15", hour)
 		if err != nil {
 			continue
 		}
 		counts[bucketKey(t.In(loc), hourly)] += n
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
 	var out []Bucket
 	cur := from.In(loc)
 	if hourly {
@@ -122,7 +140,7 @@ func Series(ctx context.Context, d *sql.DB, linkID int64, from, to time.Time, ho
 			cur = time.Date(cur.Year(), cur.Month(), cur.Day()+1, 0, 0, 0, 0, loc)
 		}
 	}
-	return out, nil
+	return out
 }
 
 func bucketKey(t time.Time, hourly bool) string {

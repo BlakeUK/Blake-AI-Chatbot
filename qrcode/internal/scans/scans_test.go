@@ -420,3 +420,23 @@ func TestScanCountForLimitsCountsPeopleNotBots(t *testing.T) {
 		t.Errorf("scan_count = %d, want 3 (2 bots must not count towards a limit)", n)
 	}
 }
+
+// A robot that fetched the link must not make the first real visitor from the
+// same network address look like a returning one.
+func TestBotDoesNotMakeAHumanLookLikeARepeatVisitor(t *testing.T) {
+	d := testDB(t)
+	id := addLink(t, d)
+	w := NewWriter(d, 64, quiet())
+	w.Start()
+	defer w.Close(context.Background())
+	now := time.Now()
+	w.Submit(Scan{LinkID: id, At: now, IPHash: "same", DeviceClass: "bot", IsBot: true})
+	w.Submit(Scan{LinkID: id, At: now.Add(time.Second), IPHash: "same", DeviceClass: "mobile"})
+	w.Submit(Scan{LinkID: id, At: now.Add(2 * time.Second), IPHash: "same", DeviceClass: "mobile"}) // now a genuine repeat
+	w.Flush(context.Background())
+	var unique int
+	d.QueryRow(`SELECT COALESCE(SUM(is_unique),0) FROM scans WHERE link_id = ? AND is_bot = 0`, id).Scan(&unique)
+	if unique != 1 {
+		t.Errorf("unique human scans = %d, want 1 (the first person counts once; their repeat does not)", unique)
+	}
+}

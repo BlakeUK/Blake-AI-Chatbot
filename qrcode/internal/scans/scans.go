@@ -237,7 +237,7 @@ func (w *Writer) insert(ctx context.Context, batch []Scan) error {
 		return err
 	}
 	defer tx.Rollback()
-	seen, err := tx.PrepareContext(ctx, `SELECT 1 FROM scans WHERE link_id = ? AND ip_hash = ? AND scanned_at > ? LIMIT 1`)
+	seen, err := tx.PrepareContext(ctx, `SELECT 1 FROM scans WHERE link_id = ? AND ip_hash = ? AND is_bot = 0 AND scanned_at > ? LIMIT 1`)
 	if err != nil {
 		return err
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/auth"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/geo"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/links"
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/pages"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/scans"
 )
 
@@ -42,33 +43,38 @@ type Config struct {
 }
 
 type Server struct {
-	cfg     Config
-	log     *slog.Logger
-	db      *sql.DB
-	links   *links.Store
-	auth    *auth.Service
-	hasher  *scans.Hasher
-	writer  *scans.Writer
-	geo     *geo.Resolver
-	limit   *limiter
-	pwLimit *limiter // wrong-password attempts on protected codes
-	now     func() time.Time
-	tmpl    map[string]*template.Template
-	assets  fs.FS
-	secure  bool
-	host    string
+	cfg        Config
+	log        *slog.Logger
+	db         *sql.DB
+	links      *links.Store
+	auth       *auth.Service
+	hasher     *scans.Hasher
+	writer     *scans.Writer
+	geo        *geo.Resolver
+	limit      *limiter
+	pwLimit    *limiter // wrong-password attempts on protected codes
+	pages      *pages.Store
+	pageEvents *pages.Writer
+	public     *template.Template // the standalone public link page
+	now        func() time.Time
+	tmpl       map[string]*template.Template
+	assets     fs.FS
+	secure     bool
+	host       string
 }
 
 type Deps struct {
-	DB     *sql.DB
-	Links  *links.Store
-	Auth   *auth.Service
-	Hasher *scans.Hasher
-	Writer *scans.Writer
-	Geo    *geo.Resolver
-	Now    func() time.Time
-	Log    *slog.Logger
-	Assets fs.FS
+	DB         *sql.DB
+	Links      *links.Store
+	Auth       *auth.Service
+	Hasher     *scans.Hasher
+	Writer     *scans.Writer
+	Geo        *geo.Resolver
+	Now        func() time.Time
+	Log        *slog.Logger
+	Assets     fs.FS
+	Pages      *pages.Store  // optional: created from DB when nil
+	PageEvents *pages.Writer // optional: page views and clicks are simply not counted when nil
 }
 
 func New(cfg Config, d Deps) (*Server, error) {
@@ -85,7 +91,11 @@ func New(cfg Config, d Deps) (*Server, error) {
 	if d.Now == nil {
 		d.Now = time.Now
 	}
+	if d.Pages == nil {
+		d.Pages = pages.NewStore(d.DB)
+	}
 	s := &Server{
+		pages: d.Pages, pageEvents: d.PageEvents,
 		cfg: cfg, log: d.Log, db: d.DB, links: d.Links, auth: d.Auth, hasher: d.Hasher,
 		writer: d.Writer, geo: d.Geo, now: d.Now, assets: d.Assets,
 		secure: u.Scheme == "https", host: u.Host,
@@ -128,7 +138,7 @@ func (s *Server) loadTemplates() error {
 		"prev": func(p int) int { return p - 1 },
 		"next": func(p int) int { return p + 1 },
 	}
-	pages := []string{"login", "password", "links", "link_choose", "link_form", "link_detail", "campaigns", "users", "bulk", "templates", "template_form", "help", "unlock", "error"}
+	pages := []string{"pages", "page_form", "page_detail", "login", "password", "links", "link_choose", "link_form", "link_detail", "campaigns", "users", "bulk", "templates", "template_form", "help", "unlock", "error"}
 	s.tmpl = map[string]*template.Template{}
 	for _, p := range pages {
 		t, err := template.New("").Funcs(funcs).ParseFS(s.assets, "web/templates/layout.html", "web/templates/design_card.html", "web/templates/"+p+".html")
@@ -137,6 +147,11 @@ func (s *Server) loadTemplates() error {
 		}
 		s.tmpl[p] = t
 	}
+	pub, err := template.New("").Funcs(funcs).ParseFS(s.assets, "web/templates/public_page.html")
+	if err != nil {
+		return fmt.Errorf("template public: %w", err)
+	}
+	s.public = pub
 	return nil
 }
 
@@ -153,6 +168,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin/", http.StatusFound) })
 	mux.HandleFunc("GET /r/{code}", s.redirect)
+	mux.HandleFunc("GET /l/{slug}", s.publicPage)
+	mux.HandleFunc("GET /l/{slug}/theme.css", s.pageCSS)
+	mux.HandleFunc("GET /l/{slug}/go/{id}", s.pageGo)
 	mux.HandleFunc("POST /r/{code}", s.redirect) // password form for protected codes
 
 	mux.HandleFunc("GET /admin/login", s.loginForm)
@@ -167,6 +185,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/links/new", s.authed(s.newLink))
 	mux.HandleFunc("GET /admin/preview.svg", s.authed(s.preview))
 	mux.HandleFunc("GET /admin/help", s.authed(s.help))
+	mux.HandleFunc("GET /admin/pages", s.authed(s.pagesList))
+	mux.HandleFunc("GET /admin/pages/new", s.authed(s.pageNew))
+	mux.HandleFunc("POST /admin/pages", s.authed(s.pageCreate))
+	mux.HandleFunc("GET /admin/pages/{id}", s.authed(s.pageDetail))
+	mux.HandleFunc("GET /admin/pages/{id}/edit", s.authed(s.pageEdit))
+	mux.HandleFunc("POST /admin/pages/{id}", s.authed(s.pageUpdate))
+	mux.HandleFunc("POST /admin/pages/{id}/toggle", s.authed(s.pageToggle))
+	mux.HandleFunc("POST /admin/pages/{id}/delete", s.authed(s.pageDelete))
+	mux.HandleFunc("POST /admin/pages/{id}/qr", s.authed(s.pageQR))
+	mux.HandleFunc("GET /admin/pages/preview", s.authed(s.previewPage))
+	mux.HandleFunc("GET /admin/pages/preview.css", s.authed(s.previewCSS))
 	mux.HandleFunc("GET /admin/templates", s.authed(s.templatesPage))
 	mux.HandleFunc("GET /admin/templates/new", s.authed(s.designNew))
 	mux.HandleFunc("POST /admin/templates", s.authed(s.designSave))
@@ -199,7 +228,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+		h.Set("Content-Security-Policy", s.csp())
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "DENY")
@@ -212,6 +241,12 @@ func (s *Server) headers(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// csp is the Content-Security-Policy sent with every page: scripts, styles and
+// images only from this site, no framing.
+func (s *Server) csp() string {
+	return "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 }
 
 func (s *Server) limitBody(next http.Handler) http.Handler {
