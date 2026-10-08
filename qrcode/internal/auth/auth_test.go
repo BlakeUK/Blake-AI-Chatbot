@@ -267,3 +267,193 @@ func TestUsernameIsCaseInsensitiveButPasswordIsNot(t *testing.T) {
 		t.Errorf("password must stay case-sensitive, got %v", err)
 	}
 }
+
+// ---------- user management ----------
+
+func policyMsg(err error) string {
+	var pe *PolicyError
+	if errors.As(err, &pe) {
+		return pe.Msg
+	}
+	return ""
+}
+
+func TestCreateUserRulesAndFirstLogin(t *testing.T) {
+	e := setup(t)
+	e.seed(t)
+	ctx := context.Background()
+
+	for name, user := range map[string]string{"too short": "ab", "starts with dash": "-bob", "space": "bo b", "slash": "a/b/c", "too long": strings.Repeat("a", 33), "empty": ""} {
+		if _, err := e.svc.CreateUser(ctx, user, "a-long-enough-pw1", RoleMember); policyMsg(err) == "" {
+			t.Errorf("%s: user name %q accepted", name, user)
+		}
+	}
+	if _, err := e.svc.CreateUser(ctx, "alice", "short", RoleMember); policyMsg(err) == "" {
+		t.Error("short password accepted")
+	}
+	if _, err := e.svc.CreateUser(ctx, "alice", "a-long-enough-pw1", "superuser"); policyMsg(err) == "" {
+		t.Error("unknown role accepted")
+	}
+	id, err := e.svc.CreateUser(ctx, "alice", "a-long-enough-pw1", RoleMember)
+	if err != nil || id == 0 {
+		t.Fatalf("create: %v", err)
+	}
+	// names that differ only by case are the same person
+	for _, dup := range []string{"alice", "Alice", "ALICE", "Admin", "ADMIN"} {
+		if _, err := e.svc.CreateUser(ctx, dup, "a-long-enough-pw1", RoleMember); !strings.Contains(policyMsg(err), "already taken") {
+			t.Errorf("duplicate %q: %v", dup, err)
+		}
+	}
+	// the new person signs in with the initial password and is forced to change it
+	tok, err := e.svc.Login(ctx, "alice", "a-long-enough-pw1", "198.51.100.80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _ := e.svc.Authenticate(ctx, tok)
+	if !s.User.MustChange || s.User.Role != RoleMember || s.User.IsAdmin() {
+		t.Errorf("new user session: %+v", s.User)
+	}
+	// stored as a hash only
+	var hash string
+	e.db.QueryRow(`SELECT password_hash FROM users WHERE username='alice'`).Scan(&hash)
+	if strings.Contains(hash, "a-long-enough-pw1") {
+		t.Error("initial password stored in plaintext")
+	}
+}
+
+func TestLastAdminCanNeverBeRemovedOrDemoted(t *testing.T) {
+	e := setup(t)
+	e.seed(t)
+	ctx := context.Background()
+	var adminID int64
+	e.db.QueryRow(`SELECT id FROM users WHERE username='admin'`).Scan(&adminID)
+	memberID, _ := e.svc.CreateUser(ctx, "mallory", "a-long-enough-pw1", RoleMember)
+
+	if _, err := e.svc.DeleteUser(ctx, adminID, adminID); !strings.Contains(policyMsg(err), "own account") {
+		t.Errorf("removing yourself: %v", err)
+	}
+	// a member (hypothetically acting) still cannot remove the only admin
+	if _, err := e.svc.DeleteUser(ctx, adminID, memberID); !strings.Contains(policyMsg(err), "last admin") {
+		t.Errorf("removing the last admin: %v", err)
+	}
+	if _, err := e.svc.SetRole(ctx, adminID, RoleMember); !strings.Contains(policyMsg(err), "last admin") {
+		t.Errorf("demoting the last admin: %v", err)
+	}
+	// with a second admin, either can be removed or demoted, but never both
+	second, _ := e.svc.CreateUser(ctx, "bob", "a-long-enough-pw1", RoleAdmin)
+	if _, err := e.svc.SetRole(ctx, second, RoleMember); err != nil {
+		t.Fatalf("demote one of two admins: %v", err)
+	}
+	if _, err := e.svc.SetRole(ctx, second, RoleAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if name, err := e.svc.DeleteUser(ctx, second, adminID); err != nil || name != "bob" {
+		t.Fatalf("remove second admin: %q %v", name, err)
+	}
+	if _, err := e.svc.DeleteUser(ctx, adminID, memberID); !strings.Contains(policyMsg(err), "last admin") {
+		t.Errorf("admin count must be back to one: %v", err)
+	}
+	if _, err := e.svc.DeleteUser(ctx, 9999, adminID); !strings.Contains(policyMsg(err), "no longer exists") {
+		t.Errorf("missing user: %v", err)
+	}
+}
+
+func TestRemoveResetAndDemoteEndSessions(t *testing.T) {
+	e := setup(t)
+	e.seed(t)
+	ctx := context.Background()
+	login := func(user, pw string) string {
+		tok, err := e.svc.Login(ctx, user, pw, "198.51.100.90")
+		if err != nil {
+			t.Fatalf("login %s: %v", user, err)
+		}
+		return tok
+	}
+	idOf := func(name string) int64 {
+		var id int64
+		e.db.QueryRow(`SELECT id FROM users WHERE username=?`, name).Scan(&id)
+		return id
+	}
+	e.svc.CreateUser(ctx, "carol", "carols-start-pw-1", RoleAdmin)
+	e.svc.CreateUser(ctx, "dave", "daves-start-pw-1", RoleMember)
+	e.svc.CreateUser(ctx, "erin", "erins-start-pw-1", RoleAdmin)
+	carol, dave, erin := login("carol", "carols-start-pw-1"), login("dave", "daves-start-pw-1"), login("erin", "erins-start-pw-1")
+
+	// reset: old password dead, session gone, must change again
+	if _, err := e.svc.ResetPassword(ctx, idOf("dave"), "short"); policyMsg(err) == "" {
+		t.Error("reset accepted a short password")
+	}
+	if name, err := e.svc.ResetPassword(ctx, idOf("dave"), "daves-NEW-temp-pw-2"); err != nil || name != "dave" {
+		t.Fatalf("reset: %q %v", name, err)
+	}
+	if _, err := e.svc.Authenticate(ctx, dave); !errors.Is(err, ErrNoSession) {
+		t.Error("reset must sign the person out everywhere")
+	}
+	if _, err := e.svc.Login(ctx, "dave", "daves-start-pw-1", "198.51.100.91"); !errors.Is(err, ErrInvalid) {
+		t.Error("old password still works after reset")
+	}
+	tok := login("dave", "daves-NEW-temp-pw-2")
+	if s, _ := e.svc.Authenticate(ctx, tok); !s.User.MustChange {
+		t.Error("reset password must force a change at next sign-in")
+	}
+
+	// demote: powers of an old session are not kept
+	if _, err := e.svc.SetRole(ctx, idOf("carol"), RoleMember); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Authenticate(ctx, carol); !errors.Is(err, ErrNoSession) {
+		t.Error("demoted user kept an old session")
+	}
+
+	// remove: their sessions disappear with them
+	if _, err := e.svc.DeleteUser(ctx, idOf("erin"), idOf("admin")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Authenticate(ctx, erin); !errors.Is(err, ErrNoSession) {
+		t.Error("removed user's session still valid")
+	}
+	if _, err := e.svc.Login(ctx, "erin", "erins-start-pw-1", "198.51.100.92"); !errors.Is(err, ErrInvalid) {
+		t.Error("removed user can still sign in")
+	}
+	list, err := e.svc.ListUsers(ctx)
+	if err != nil || len(list) != 3 { // admin, carol, dave
+		t.Fatalf("list: %v %d", err, len(list))
+	}
+}
+
+func TestGeneratedPasswordsMeetPolicyAndAreUnambiguous(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 500; i++ {
+		p, err := GeneratePassword()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckNewPassword(p); err != nil || len(p) != 16 {
+			t.Fatalf("generated password %q fails policy: %v", p, err)
+		}
+		if strings.ContainsAny(p, "0O1lI") {
+			t.Fatalf("look-alike character in %q", p)
+		}
+		if seen[p] {
+			t.Fatal("duplicate generated password")
+		}
+		seen[p] = true
+	}
+}
+
+func TestAuditTrail(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	e.svc.Audit(ctx, "admin", "user.create", "alice", "role=member")
+	*e.now = e.now.Add(time.Minute)
+	e.svc.Audit(ctx, "admin", "user.delete", "alice", "")
+	rows, err := e.svc.RecentAudit(ctx, 10)
+	if err != nil || len(rows) != 2 || rows[0].Action != "user.delete" || rows[1].Detail != "role=member" {
+		t.Fatalf("audit rows: %v %+v", err, rows)
+	}
+	*e.now = e.now.Add(48 * time.Hour)
+	e.svc.PurgeAudit(ctx, e.now.Add(-24*time.Hour))
+	if rows, _ := e.svc.RecentAudit(ctx, 10); len(rows) != 0 {
+		t.Errorf("old audit rows not purged: %d", len(rows))
+	}
+}

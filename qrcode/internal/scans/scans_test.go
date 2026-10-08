@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -397,5 +398,25 @@ func TestCampaignTotals(t *testing.T) {
 	}
 	if got[len(got)-1].Campaign != "" {
 		t.Error("uncategorised links must be listed last")
+	}
+}
+
+func TestScanCountForLimitsCountsPeopleNotBots(t *testing.T) {
+	d := testDB(t)
+	id := addLink(t, d)
+	w := NewWriter(d, 64, quiet())
+	w.Start()
+	defer w.Close(context.Background())
+	now := time.Now()
+	for i := 0; i < 3; i++ {
+		w.Submit(Scan{LinkID: id, At: now, IPHash: fmt.Sprint("h", i), DeviceClass: "mobile"})
+	}
+	w.Submit(Scan{LinkID: id, At: now, IPHash: "b1", DeviceClass: "bot", IsBot: true})
+	w.Submit(Scan{LinkID: id, At: now, IPHash: "b2", DeviceClass: "bot", IsBot: true})
+	w.Flush(context.Background())
+	var n int
+	d.QueryRow(`SELECT scan_count FROM links WHERE id = ?`, id).Scan(&n)
+	if n != 3 {
+		t.Errorf("scan_count = %d, want 3 (2 bots must not count towards a limit)", n)
 	}
 }

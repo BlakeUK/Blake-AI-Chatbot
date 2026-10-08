@@ -18,3 +18,36 @@ document.addEventListener('change', function (e) {
   var kind = e.target.checked ? 'text' : 'password';
   form.querySelectorAll('input[autocomplete$="password"]').forEach(function (i) { i.type = kind; });
 });
+
+// Live preview of the QR design on the create/edit form. The server draws the
+// preview and refuses designs that would not scan; we show its reason.
+(function () {
+  var form = document.querySelector('form[data-preview]');
+  if (!form) { return; }
+  var img = document.getElementById('qr-preview');
+  var err = document.getElementById('qr-preview-error');
+  var timer;
+  function query() {
+    var p = new URLSearchParams();
+    ['fg', 'bg', 'pattern', 'eye', 'frame', 'cta', 'qr_ecc'].forEach(function (n) {
+      var e = form.elements[n];
+      if (e) { p.set(n, e.value); }
+    });
+    var same = form.elements['eye_same'];
+    if (same && same.checked) { p.set('eye_same', '1'); }
+    else if (form.elements['eye_color']) { p.set('eye_color', form.elements['eye_color'].value); }
+    if (form.dataset.link) { p.set('link', form.dataset.link); }
+    else if (form.dataset.template) { p.set('template', form.dataset.template); }
+    return p.toString();
+  }
+  function refresh() {
+    var url = '/admin/preview.svg?' + query();
+    fetch(url, { credentials: 'same-origin' }).then(function (r) {
+      if (r.ok) { err.textContent = ''; img.src = url; return; }
+      return r.text().then(function (m) { err.textContent = m; });
+    }).catch(function () {});
+  }
+  function later() { clearTimeout(timer); timer = setTimeout(refresh, 250); }
+  form.addEventListener('input', later);
+  form.addEventListener('change', later);
+})();

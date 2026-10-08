@@ -1,0 +1,13 @@
+{{define "content"}}
+<section class="card narrow">
+  <h1>This code is protected</h1>
+  <p>Enter the password to continue.</p>
+  <form method="post" action="/r/{{.Data.Code}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Password
+      <input name="password" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+    </label>
+    <button type="submit" class="primary">Continue</button>
+  </form>
+</section>
+{{end}}

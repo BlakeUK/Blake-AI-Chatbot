@@ -59,7 +59,15 @@ func TestUpgradeFromFirstReleaseKeepsData(t *testing.T) {
 	}
 	var applied int
 	d.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&applied)
-	if applied != 2 {
-		t.Errorf("%d migrations recorded, want 2", applied)
+	entries, _ := fs.ReadDir(qrtrack.Migrations, "migrations")
+	if applied != len(entries) {
+		t.Errorf("%d migrations recorded, want %d", applied, len(entries))
+	}
+	var role string
+	var scanCount int
+	d.QueryRow(`SELECT role FROM users`).Scan(&role)
+	d.QueryRow(`SELECT scan_count FROM links`).Scan(&scanCount)
+	if role != "admin" || scanCount != 1 {
+		t.Errorf("existing admin must stay an admin and scan_count must be backfilled: role=%q scan_count=%d", role, scanCount)
 	}
 }

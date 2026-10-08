@@ -52,8 +52,12 @@ func (e *LockedError) Error() string { return "too many failed sign-in attempts"
 type User struct {
 	ID         int64
 	Username   string
+	Role       string
 	MustChange bool
 }
+
+// IsAdmin reports whether the user may manage other users.
+func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
 type Session struct {
 	ID   int64
@@ -241,9 +245,9 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Session, err
 	var sess Session
 	var seen, expires string
 	var must int
-	err := s.DB.QueryRowContext(ctx, `SELECT s.id, s.csrf_token, s.last_seen_at, s.expires_at, u.id, u.username, u.must_change_password
+	err := s.DB.QueryRowContext(ctx, `SELECT s.id, s.csrf_token, s.last_seen_at, s.expires_at, u.id, u.username, u.role, u.must_change_password
 		FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`, hashToken(token)).
-		Scan(&sess.ID, &sess.CSRF, &seen, &expires, &sess.User.ID, &sess.User.Username, &must)
+		Scan(&sess.ID, &sess.CSRF, &seen, &expires, &sess.User.ID, &sess.User.Username, &sess.User.Role, &must)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoSession
 	}

@@ -186,6 +186,18 @@ func (h *harness) token(c *http.Client) string {
 }
 
 func (h *harness) createViaForm(c *http.Client, v url.Values) (*http.Response, string) {
+	// older tests were written against a form with one "destination" box; the
+	// form is now driven by the QR type, whose address field is f_url.
+	if v.Get("kind") == "" {
+		v.Set("kind", "dynamic")
+	}
+	if v.Get("type") == "" {
+		v.Set("type", "url")
+	}
+	if d, ok := v["destination"]; ok {
+		v.Set("f_url", d[0])
+		v.Del("destination")
+	}
 	v.Set("csrf", h.token(c))
 	return h.do(c, "POST", "/admin/links", v, nil)
 }
@@ -696,7 +708,7 @@ func TestLinkValidationRejectsBadInput(t *testing.T) {
 		v := base()
 		mut(v)
 		resp, body := h.createViaForm(c, v)
-		if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(body, "field-error") {
+		if resp.StatusCode != http.StatusUnprocessableEntity || !(strings.Contains(body, "field-error") || strings.Contains(body, `class="error"`)) {
 			t.Errorf("%s: status %d (want 422 with a field error)", name, resp.StatusCode)
 		}
 	}
@@ -732,7 +744,7 @@ func TestEditToggleDeleteLifecycle(t *testing.T) {
 	tok := h.token(c)
 
 	resp, _ := h.do(c, "POST", fmt.Sprintf("/admin/links/%d", l.ID), url.Values{
-		"csrf": {tok}, "label": {"Renamed"}, "destination": {"https://www.blake-uk.com/category/sale.html"},
+		"csrf": {tok}, "label": {"Renamed"}, "f_url": {"https://www.blake-uk.com/category/sale.html"},
 		"window": {"custom"}, "start": {"2026-10-01T09:00"}, "end": {"2026-12-01T09:00"},
 		"expiry_mode": {"show_expired_page"}, "qr_ecc": {"Q"}}, nil)
 	if resp.StatusCode != http.StatusSeeOther {
@@ -814,7 +826,7 @@ func TestPagesAreCSPClean(t *testing.T) {
 	h.scan(l.Code, "203.0.113.50", iphoneUA)
 	h.scanCount(l.ID)
 	inline := regexp.MustCompile(`(?i)\sstyle\s*=|<style|<script[^>]*>[^<]|\son[a-z]+\s*=`)
-	pages := []string{"/admin/login", "/admin/", "/admin/links/new", fmt.Sprintf("/admin/links/%d", l.ID),
+	pages := []string{"/admin/login", "/admin/", "/admin/links/new", "/admin/links/new?kind=dynamic&type=url", "/admin/links/new?kind=static&type=wifi", "/admin/users", "/admin/bulk", "/admin/templates", fmt.Sprintf("/admin/links/%d", l.ID),
 		fmt.Sprintf("/admin/links/%d?bots=1", l.ID), fmt.Sprintf("/admin/links/%d/edit", l.ID), "/admin/password", "/admin/campaigns", "/admin/?campaign=Leaflet", "/admin/?uncategorised=1", "/nope"}
 	for _, p := range pages {
 		resp, body := h.do(c, "GET", p, nil, nil)
@@ -1088,7 +1100,7 @@ func TestCampaignFormFilterAndSpelling(t *testing.T) {
 	if rows("/admin/?campaign=leaflet") != 2 || rows("/admin/?campaign=Product+box") != 1 || rows("/admin/?uncategorised=1") != 1 || rows("/admin/") != 4 {
 		t.Error("campaign filtering returned the wrong rows")
 	}
-	_, form := h.do(c, "GET", "/admin/links/new", nil, nil)
+	_, form := h.do(c, "GET", "/admin/links/new?kind=dynamic&type=url", nil, nil)
 	for _, want := range []string{`name="campaign"`, `list="campaign-suggestions"`, "Exhibition stand", "Product box", "Leaflet"} {
 		if !strings.Contains(form, want) {
 			t.Errorf("form missing %q", want)

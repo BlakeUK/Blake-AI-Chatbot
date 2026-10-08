@@ -2,16 +2,19 @@
 {{with .Data}}
 <div class="row between">
   <h1>{{.Link.Label}}
-    <span class="badge {{.Status}}">{{.Status}}</span>
+    <span class="badge {{if .Link.IsStatic}}off{{else}}{{.Status}}{{end}}">{{if .Link.IsStatic}}static{{else}}{{.Status}}{{end}}</span>
+    <span class="badge">{{.TypeLabel}}</span>
     {{if not .Link.Enabled}}<span class="badge off">disabled</span>{{end}}
   </h1>
   <div class="row">
     <a class="button" href="/admin/links/{{.Link.ID}}/edit">Edit</a>
+    {{if not .Link.IsStatic}}
     <form method="post" action="/admin/links/{{.Link.ID}}/toggle" class="inline">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">
       <button type="submit">{{if .Link.Enabled}}Disable{{else}}Enable{{end}}</button>
     </form>
-    <form method="post" action="/admin/links/{{.Link.ID}}/delete" class="inline" data-confirm="Delete this link and all of its scan history? Printed QR codes will stop working.">
+    {{end}}
+    <form method="post" action="/admin/links/{{.Link.ID}}/delete" class="inline" data-confirm="Delete this QR code{{if not .Link.IsStatic}} and all of its scan history? Printed codes will stop working{{end}}?">
       <input type="hidden" name="csrf" value="{{$.CSRF}}">
       <button type="submit" class="danger">Delete</button>
     </form>
@@ -20,23 +23,31 @@
 
 <div class="grid2">
   <section class="card">
+    {{if .Link.IsStatic}}
+    <h2>Static code</h2>
+    <p class="notice">This code holds its content directly, so scans are <strong>not tracked</strong> and the content <strong>cannot be changed</strong>. It works offline and will keep working forever, even if this service is switched off.</p>
+    <p class="muted small">Contents of the code:</p>
+    <pre class="content">{{.Link.Content}}</pre>
+    {{else}}
     <h2>Tracking URL</h2>
-    <p><code class="wrap">{{.ShortURL}}</code>
-       <button type="button" data-copy="{{.ShortURL}}">Copy</button></p>
+    <p><code class="wrap">{{.ShortURL}}</code> <button type="button" data-copy="{{.ShortURL}}">Copy</button></p>
+    {{if .Link.DestinationURL}}<p>Destination: <strong>{{.Site}}</strong><br><a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
+    {{else}}<p>Delivers a {{.TypeLabel}} to the phone.</p>{{end}}
+    {{if .Rules}}<p class="small"><strong>Smart routing</strong> (first match wins):</p>
+      <ol class="small">{{range .Rules}}<li>if {{.Match}} is <strong>{{.Value}}</strong> go to <a href="{{.URL}}" rel="noopener noreferrer nofollow">{{trunc 50 .URL}}</a></li>{{end}}<li>otherwise the destination above</li></ol>{{end}}
+    <p class="muted">Window: {{dt .Link.TrackStart}} to {{dt .Link.TrackEnd}} (UK time)<br><strong>{{.Countdown}}</strong></p>
+    <p class="muted small">
+      {{if gt .Link.MaxScans 0}}Scan limit: {{.Link.ScanCount}} of {{.Link.MaxScans}} used. {{end}}
+      {{if .Link.PasswordHash}}<span class="badge active">password protected</span> {{end}}
+      After the window or limit: {{if eq (printf "%s" .Link.ExpiryMode) "redirect_untracked"}}keeps redirecting, no longer counted{{else if eq (printf "%s" .Link.ExpiryMode) "show_expired_page"}}shows an expired page{{else}}redirects to {{trunc 50 .Link.FallbackURL}}{{end}}</p>
+    {{end}}
     <p>Campaign: {{if .Link.Campaign}}<a href="/admin/?campaign={{.Link.Campaign | urlquery}}"><strong>{{.Link.Campaign}}</strong></a>{{else}}<span class="muted">none (set one with Edit)</span>{{end}}</p>
-    <p>Destination: <strong>{{.Site}}</strong><br><a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
-    <p class="muted">Window: {{dt .Link.TrackStart}} to {{dt .Link.TrackEnd}} (Europe/London)<br>
-       <strong>{{.Countdown}}</strong></p>
-    <p class="muted small">After the window:
-      {{if eq (printf "%s" .Link.ExpiryMode) "redirect_untracked"}}keeps redirecting, no longer counted
-      {{else if eq (printf "%s" .Link.ExpiryMode) "show_expired_page"}}shows an expired page
-      {{else}}redirects to {{trunc 50 .Link.FallbackURL}}{{end}}</p>
   </section>
 
   <section class="card center">
     <h2>QR code</h2>
-    <img class="qr" src="/admin/links/{{.Link.ID}}/qr.svg" alt="QR code for {{.ShortURL}}" width="220" height="220">
-    <p class="muted small">Error correction {{.Link.QRECC}}. Change it with Edit.</p>
+    <img class="qr" src="/admin/links/{{.Link.ID}}/qr.svg?v={{.Link.UpdatedAt.Unix}}" alt="QR code for {{.Link.Label}}" width="240">
+    <p class="muted small">Error correction {{.Link.QRECC}}. Change the look, logo or text with Edit. Always scan a printed code to test it.</p>
     <p class="downloads">
       {{range $px := .Sizes}}<a class="button" href="/admin/links/{{$.Data.Link.ID}}/qr.png?size={{$px}}&amp;download=1">PNG {{$px}}</a>{{end}}
       <a class="button" href="/admin/links/{{.Link.ID}}/qr.svg?download=1">SVG</a>
@@ -44,6 +55,7 @@
   </section>
 </div>
 
+{{if not .Link.IsStatic}}
 <section class="card">
   <div class="row between">
     <h2>Scans</h2>
@@ -58,7 +70,7 @@
     <div><span class="big">{{.Totals.Unique}}</span><span class="muted">unique (per 24h)</span></div>
     <div><span class="big">{{.Totals.Bots}}</span><span class="muted">bots {{if .IncludeBots}}included{{else}}excluded{{end}}</span></div>
   </div>
-  <h3>Scans over time <span class="muted small">({{if .ChartHourly}}hourly{{else}}daily{{end}}, Europe/London)</span></h3>
+  <h3>Scans over time <span class="muted small">({{if .ChartHourly}}hourly{{else}}daily{{end}}, UK time)</span></h3>
   {{.Chart}}
 </section>
 
@@ -81,6 +93,7 @@
 </section>
 {{end}}
 </div>
+
 <section class="card">
   <div class="row between">
     <h2>Individual scans <span class="muted">({{.RecentTotal}})</span></h2>
@@ -90,7 +103,7 @@
   <div class="scroll">
   <table class="compact scans">
     <thead><tr>
-      <th>Date and time (London)</th><th>Campaign</th><th>Place (approx.)</th><th>Device</th><th>OS</th><th>Browser</th>
+      <th>Date and time (UK)</th><th>Campaign</th><th>Place (approx.)</th><th>Device</th><th>OS</th><th>Browser</th>
       <th>Language</th><th>Destination</th>{{if .ShowIP}}<th>IP address</th>{{end}}<th></th>
     </tr></thead>
     <tbody>
@@ -101,7 +114,7 @@
       <td>{{place .}}</td>
       <td>{{.DeviceClass}}</td><td>{{.OS}}</td><td>{{.Browser}}</td>
       <td>{{if .Language}}{{lang .Language}}{{else}}<span class="muted">unknown</span>{{end}}</td>
-      <td title="{{.Destination}}">{{site .Destination}}</td>
+      <td title="{{.Destination}}">{{if .Destination}}{{site .Destination}}{{else}}<span class="muted">document</span>{{end}}</td>
       {{if $.Data.ShowIP}}<td><code>{{if .IP}}{{.IP}}{{else}}-{{end}}</code></td>{{end}}
       <td>{{if .IsBot}}<span class="badge off">bot</span>{{else if .IsUnique}}<span class="badge active">new visitor</span>{{end}}</td>
     </tr>
@@ -116,5 +129,6 @@
   </p>
   {{else}}<p class="muted">No scans recorded yet.</p>{{end}}
 </section>
+{{end}}
 {{end}}
 {{end}}

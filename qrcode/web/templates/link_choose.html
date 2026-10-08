@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>New QR code</h1>
+<section class="card">
+  <h2>Static or dynamic?</h2>
+  <div class="scroll"><table class="compare">
+    <thead><tr><th></th><th>Dynamic (tracked)</th><th>Static</th></tr></thead>
+    <tbody>
+      <tr><th>Counts scans and shows where, when and on what device</th><td>Yes</td><td>No</td></tr>
+      <tr><th>Change where it goes after it is printed</th><td>Yes</td><td>No, never</td></tr>
+      <tr><th>Start/end dates, scan limit, password, smart routing</th><td>Yes</td><td>No</td></tr>
+      <tr><th>Works offline and keeps working if this service is ever switched off</th><td>No, it needs this service</td><td>Yes, forever</td></tr>
+      <tr><th>Best for</th><td>Marketing: leaflets, packaging, exhibition stands</td><td>Wi-Fi, plain text, contact cards, anything that never changes</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted small">A static code cannot be turned into a dynamic one later: the content is printed inside the code. If in doubt, choose dynamic.</p>
+</section>
+
+<h2>Dynamic (tracked) codes</h2>
+<div class="cards">
+{{range .Data.Dynamic}}
+  <a class="typecard" href="/admin/links/new?kind=dynamic&amp;type={{.Type}}"><strong>{{.Label}}</strong><span class="muted small">{{.Description}}</span></a>
+{{end}}
+</div>
+
+<h2>Static codes</h2>
+<div class="cards">
+{{range .Data.Static}}
+  <a class="typecard" href="/admin/links/new?kind=static&amp;type={{.Type}}"><strong>{{.Label}}</strong><span class="muted small">{{.Description}}</span></a>
+{{end}}
+</div>
+{{end}}

@@ -1,8 +1,14 @@
-# qrtrack: QR-code link tracker
+# qrtrack: QR-code generator and scan tracker
 
-Create a short tracking link, get a QR code for it, and see who scanned it. A phone scan hits
-`https://<domain>/r/<code>`, is counted (privacy-first), and is redirected with a `302` to the
-destination you chose. One static Go binary, SQLite, no JavaScript dependencies.
+Create QR codes, style them, and see who scanned them. Choose per code:
+
+* **Dynamic (tracked):** the QR holds a short address, `https://<domain>/r/<code>`. A scan is counted (privacy-first)
+  and the visitor is redirected, so you can change the destination after printing, set dates, a scan limit, a
+  password, or route people by device, system, language or country.
+* **Static:** the QR holds the content itself (a web address, Wi-Fi details, a contact card ...). Nothing is tracked
+  or editable, and it works offline for ever, even if this service is switched off.
+
+One static Go binary, SQLite, no JavaScript dependencies.
 
 It lives in `/var/www/qrcode` on the VPS as its own user, its own systemd unit and its own port. It does not
 share code, data, services or deploys with the support chatbot in `/var/www/chat`.
@@ -66,6 +72,48 @@ These are the places where this differs from, or fills a gap in, the written spe
 19. **Exact time** is stored to the second in UTC and shown, and exported, in Europe/London time.
 20. **Language** is the first language in the browser's `Accept-Language` header, shown as "English (en-GB)".
 
+## Feature comparison with QR Tiger
+
+Checked against the feature list on qrcode-tiger.com. "Done" means built and covered by tests.
+
+| QR Tiger feature | Here |
+|---|---|
+| Static and dynamic codes, chosen per code | **Done** |
+| URL, Google Form, Google Review, Facebook, Instagram, YouTube, TikTok, X, Pinterest, LinkedIn | **Done** (static or dynamic; the address is checked against the right site) |
+| vCard / contact card | **Done** (static, or dynamic: the phone is offered the contact) |
+| Wi-Fi, plain text, email, SMS, phone | **Done** (static only: they must work offline) |
+| WhatsApp, location, calendar event | **Done** (static or dynamic) |
+| App stores (right store for iPhone / Android) | **Done** |
+| Smart URL / multi-URL by device, system, language, country | **Done** (first matching rule wins; up to 5 rules). By time of day or scan number: not built. |
+| File QR (PDF, images), MP3, video, menu, landing page builder, link page, GS1 Digital Link | **Not built.** These need hosted files and a page builder. Use the Website link type to point at a PDF or video that already lives on blake-uk.com or YouTube. |
+| Colours, dot style, corner style, centre logo, frame with text | **Done**, with a live preview. Designs that would not scan (low contrast, inverted, logo too large) are refused. Every style is decoded by a real QR reader in the tests. |
+| Saved design templates | **Done** (Designs page; reuse in the form and in bulk) |
+| Download PNG (256 / 512 / 1024) and SVG | **Done**. PDF export: not built. |
+| Edit the destination and the design after printing | **Done** (dynamic codes; a static code's content can never change) |
+| Scan analytics: count, unique, time, place, device, OS, browser, language, referrer | **Done**, with CSV export |
+| Folders | **Campaigns** (one flat level) with their own totals page. Nested folders: not built. |
+| Alerts, watchlist, top-10 view | **Not built** (alerts need the outgoing email account that is not set up yet) |
+| Expiry by date and by scan limit | **Done**. Expiry by IP address: not built. |
+| Password-protected codes | **Done** (wrong guesses are throttled) |
+| Bulk generation from CSV | **Done**: up to 1000 rows as SVG or 250 as PNG per file (QR Tiger: 3000) |
+| Teams, user roles | **Done**: admin and member roles, add / remove / reset passwords, activity log |
+| Two-factor sign-in | **Not built** |
+| White-labelled links | The whole service runs on your own domain. Different domains per code: not built. |
+| Google Tag Manager / Facebook pixel / GA4 retargeting | **Deliberately not built.** It needs an intermediate page that runs third-party scripts before redirecting: slower scans, conflicts with the strict Content-Security-Policy, and in the UK needs a cookie-consent banner. |
+| API, Zapier, HubSpot, Canva, MCP server | **Not built yet** |
+| AI insights, mobile apps, 27 interface languages | Not built |
+| GDPR / anonymised data | **Done**: no IP stored by default (see below) |
+
+## Users and roles
+
+* **Admin:** everything, including the Users page.
+* **Member:** create and manage QR codes, campaigns, designs and see statistics. Cannot manage users.
+* New users get a temporary password (typed or generated) and must choose their own at first sign-in. A generated
+  password is shown once and never stored in readable form.
+* Resetting a password, changing a role or removing a user signs that person out everywhere at once.
+* The last admin can never be removed or demoted, and you cannot remove yourself.
+* The Users page keeps a log of who did what (never passwords or addresses), purged after the retention period.
+
 ## Layout
 
 ```
@@ -74,7 +122,8 @@ internal/auth/             bcrypt, sessions (SHA-256 of token stored), lockout, 
 internal/db/               SQLite (pure Go driver), WAL, embedded versioned migrations
 internal/links/            validation, 8-char base62 codes, window logic, CRUD
 internal/scans/            daily-salt hashing, async batched writer, stats, CSV, retention purge
-internal/qr/               PNG and SVG rendering
+internal/qr/               PNG and SVG rendering: colours, dot and corner styles, logo, frame; contrast checks
+internal/qrtypes/          the catalogue of QR types: form fields and how each becomes a payload
 internal/ua/               coarse device / OS / browser / bot classification (no versions)
 internal/geo/              offline town / region / country lookup, hot-reloads a refreshed database
 internal/web/              handlers, templates glue, CSRF, headers, rate limiting, client-IP trust

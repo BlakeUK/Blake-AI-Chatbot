@@ -1,27 +1,54 @@
 {{define "content"}}
 {{with .Data}}
-<h1>{{if .Editing}}Edit link{{else}}New tracked link{{end}}</h1>
-<form class="card" method="post" action="{{if .Editing}}/admin/links/{{.ID}}{{else}}/admin/links{{end}}">
+<h1>{{if .Editing}}Edit{{else}}New{{end}} {{.Spec.Label}} QR code <span class="badge {{if eq .Kind "dynamic"}}active{{else}}off{{end}}">{{.Kind}}</span></h1>
+{{if .Errors._}}<p class="error" role="alert">{{index .Errors "_"}}</p>{{end}}
+
+<form class="formgrid" method="post" enctype="multipart/form-data" data-preview
+      action="{{if .Editing}}/admin/links/{{.ID}}{{else}}/admin/links{{end}}"
+      data-link="{{if .Editing}}{{.ID}}{{end}}" data-template="{{if .TemplateID}}{{.TemplateID}}{{end}}">
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <input type="hidden" name="kind" value="{{.Kind}}">
+  <input type="hidden" name="type" value="{{.Type}}">
+  <input type="hidden" name="template_id" value="{{if .TemplateID}}{{.TemplateID}}{{end}}">
 
-  <label>Label
-    <input name="label" type="text" maxlength="100" value="{{.Label}}" required>
-    {{with index .Errors "label"}}<span class="field-error">{{.}}</span>{{end}}
-  </label>
+  <div class="formcol">
+  <section class="card">
+    <h2>Details</h2>
+    <label>Name <span class="muted">(only you see this)</span>
+      <input name="label" type="text" maxlength="100" value="{{.Label}}" required>
+      {{with index .Errors "label"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    <label>Campaign <span class="muted">(where it is used: leaflet, exhibition stand, product box ...)</span>
+      <input name="campaign" type="text" list="campaign-suggestions" maxlength="60" value="{{.Campaign}}" autocomplete="off" placeholder="e.g. Exhibition stand">
+      <datalist id="campaign-suggestions">{{range .Suggestions}}<option value="{{.}}">{{end}}</datalist>
+      {{with index .Errors "campaign"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+  </section>
 
-  <label>Campaign <span class="muted">(where this QR code is used: leaflet, exhibition stand, product box ...)</span>
-    <input name="campaign" type="text" list="campaign-suggestions" maxlength="60" value="{{.Campaign}}" autocomplete="off" placeholder="e.g. Exhibition stand">
-    <datalist id="campaign-suggestions">{{range .Suggestions}}<option value="{{.}}">{{end}}</datalist>
-    {{with index .Errors "campaign"}}<span class="field-error">{{.}}</span>{{end}}
-  </label>
+  <section class="card">
+    <h2>{{.Spec.Label}}</h2>
+    <p class="muted small">{{.Spec.Description}}</p>
+    {{if .Fixed}}
+      <p class="notice">This is a static code, so its content is printed inside the code itself and cannot be changed. To change it, create a new code.</p>
+      <pre class="content">{{.FixedText}}</pre>
+    {{else}}
+      {{range .Fields}}
+      <label {{if eq .Kind "checkbox"}}class="check"{{end}}>{{if ne .Kind "checkbox"}}{{.Label}}{{if .Required}} *{{end}}{{end}}
+        {{if eq .Kind "textarea"}}<textarea name="{{.Input}}" rows="3" {{if .Max}}maxlength="{{.Max}}"{{end}}>{{.Value}}</textarea>
+        {{else if eq .Kind "select"}}{{$v := .Value}}<select name="{{.Input}}">{{range .Options}}<option value="{{.Value}}" {{if eq .Value $v}}selected{{end}}>{{.Label}}</option>{{end}}</select>
+        {{else if eq .Kind "checkbox"}}<input type="checkbox" name="{{.Input}}" {{if .Checked}}checked{{end}}> {{.Label}}
+        {{else if eq .Kind "number"}}<input type="number" step="any" name="{{.Input}}" value="{{.Value}}" {{if .Placeholder}}placeholder="{{.Placeholder}}"{{end}}>
+        {{else}}<input type="{{.Kind}}" name="{{.Input}}" value="{{.Value}}" {{if .Max}}maxlength="{{.Max}}"{{end}} {{if .Placeholder}}placeholder="{{.Placeholder}}"{{end}} {{if .Required}}required{{end}}>{{end}}
+        {{if .Help}}<span class="muted small">{{.Help}}</span>{{end}}
+        {{if .Error}}<span class="field-error">{{.Error}}</span>{{end}}
+      </label>
+      {{end}}
+    {{end}}
+  </section>
 
-  <label>Destination URL
-    <input name="destination" type="url" maxlength="2048" value="{{.Destination}}" placeholder="https://www.blake-uk.com/..." required>
-    {{with index .Errors "destination"}}<span class="field-error">{{.}}</span>{{end}}
-  </label>
-
-  <fieldset>
-    <legend>Tracking window</legend>
+  {{if eq .Kind "dynamic"}}
+  <section class="card">
+    <h2>Tracking window</h2>
     <label>Preset
       <select name="window">
         <option value="24h" {{if eq .Window "24h"}}selected{{end}}>24 hours from now</option>
@@ -32,44 +59,89 @@
       </select>
     </label>
     <div class="grid2">
-      <label>Start <span class="muted">(Europe/London)</span>
-        <input name="start" type="datetime-local" value="{{.Start}}">
-      </label>
-      <label>End <span class="muted">(Europe/London)</span>
-        <input name="end" type="datetime-local" value="{{.End}}">
-      </label>
+      <label>Start <span class="muted">(UK time)</span><input name="start" type="datetime-local" value="{{.Start}}"></label>
+      <label>End <span class="muted">(UK time)</span><input name="end" type="datetime-local" value="{{.End}}"></label>
     </div>
     {{with index .Errors "window"}}<span class="field-error">{{.}}</span>{{end}}
-    <p class="muted small">Scans are only counted inside the window. The link keeps working outside it.</p>
-  </fieldset>
+    <p class="muted small">Scans are only counted inside the window. The code keeps working outside it.</p>
 
-  <label>After the window ends
-    <select name="expiry_mode">
-      <option value="redirect_untracked" {{if eq .ExpiryMode "redirect_untracked"}}selected{{end}}>Keep redirecting, stop counting (default)</option>
-      <option value="show_expired_page" {{if eq .ExpiryMode "show_expired_page"}}selected{{end}}>Show an "expired" page</option>
-      <option value="redirect_fallback_url" {{if eq .ExpiryMode "redirect_fallback_url"}}selected{{end}}>Redirect to a fallback URL</option>
-    </select>
-    {{with index .Errors "expiry_mode"}}<span class="field-error">{{.}}</span>{{end}}
-  </label>
+    <label>When the window ends, or the scan limit is reached
+      <select name="expiry_mode">
+        <option value="redirect_untracked" {{if eq .ExpiryMode "redirect_untracked"}}selected{{end}}>Keep redirecting, stop counting (default)</option>
+        <option value="show_expired_page" {{if eq .ExpiryMode "show_expired_page"}}selected{{end}}>Show an "expired" page</option>
+        <option value="redirect_fallback_url" {{if eq .ExpiryMode "redirect_fallback_url"}}selected{{end}}>Redirect to a fallback address</option>
+      </select>
+    </label>
+    <label>Fallback address <span class="muted">(only for "Redirect to a fallback address")</span>
+      <input name="fallback_url" type="url" maxlength="2048" value="{{.FallbackURL}}" placeholder="https://www.blake-uk.com/">
+      {{with index .Errors "fallback_url"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+  </section>
 
-  <label>Fallback URL <span class="muted">(only used for "Redirect to a fallback URL")</span>
-    <input name="fallback_url" type="url" maxlength="2048" value="{{.FallbackURL}}" placeholder="https://www.blake-uk.com/">
-    {{with index .Errors "fallback_url"}}<span class="field-error">{{.}}</span>{{end}}
-  </label>
+  <section class="card">
+    <h2>Limits and protection</h2>
+    <label>Scan limit <span class="muted">(people, not bots; empty = unlimited)</span>
+      <input name="max_scans" type="number" min="0" step="1" value="{{.MaxScans}}" placeholder="e.g. 500">
+      {{with index .Errors "max_scans"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    <label>Password {{if .HasPassword}}<span class="badge active">set</span>{{end}} <span class="muted">(visitors must enter it before they are sent on)</span>
+      <input name="link_password" type="password" autocomplete="new-password" maxlength="72" placeholder="{{if .HasPassword}}leave empty to keep the current password{{else}}no password{{end}}">
+      {{with index .Errors "password"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    {{if .HasPassword}}<label class="check"><input type="checkbox" name="clear_password"> Remove the password</label>{{end}}
+  </section>
+  {{end}}
+  </div>
 
-  <label>QR error correction
-    <select name="qr_ecc">
-      <option value="L" {{if eq .QRECC "L"}}selected{{end}}>L: 7% (smallest code)</option>
-      <option value="M" {{if or (eq .QRECC "M") (eq .QRECC "")}}selected{{end}}>M: 15% (default)</option>
-      <option value="Q" {{if eq .QRECC "Q"}}selected{{end}}>Q: 25%</option>
-      <option value="H" {{if eq .QRECC "H"}}selected{{end}}>H: 30% (best if printed small or with a logo)</option>
-    </select>
-    {{with index .Errors "qr_ecc"}}<span class="field-error">{{.}}</span>{{end}}
-  </label>
+  <div class="formcol">
+  <section class="card">
+    <h2>Design</h2>
+    <img id="qr-preview" class="qr" alt="Preview of the QR code" width="240" src="/admin/preview.svg?{{.PreviewQS}}">
+    <p id="qr-preview-error" class="field-error"></p>
+    <p class="muted small">The preview is a sample. Always scan a printed code to test it before you use it.</p>
+    {{with index .Errors "design"}}<p class="field-error">{{.}}</p>{{end}}
+    <div class="grid2">
+      <label>Code colour<input type="color" name="fg" value="{{.Design.FG}}"></label>
+      <label>Background<input type="color" name="bg" value="{{.Design.BG}}"></label>
+    </div>
+    <div class="grid2">
+      <label>Dot style<select name="pattern">{{$p := .Design.Pattern}}{{range .Patterns}}<option value="{{.}}" {{if eq . $p}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+      <label>Corner style<select name="eye">{{$e := .Design.Eye}}{{range .Eyes}}<option value="{{.}}" {{if eq . $e}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+    </div>
+    <div class="grid2">
+      <label>Corner colour<input type="color" name="eye_color" value="{{if .Design.EyeColor}}{{.Design.EyeColor}}{{else}}{{.Design.FG}}{{end}}"></label>
+      <label class="check"><input type="checkbox" name="eye_same" {{if not .Design.EyeColor}}checked{{end}}> Corners match the dots</label>
+    </div>
+    <div class="grid2">
+      <label>Frame<select name="frame">{{$f := .Design.Frame}}{{range .Frames}}<option value="{{.}}" {{if eq . $f}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+      <label>Text under the code<input name="cta" type="text" maxlength="24" value="{{.Design.CTA}}" placeholder="SCAN ME"></label>
+    </div>
+    <label>Error correction
+      <select name="qr_ecc">{{$q := .QRECC}}
+        <option value="L" {{if eq $q "L"}}selected{{end}}>L: 7% (smallest code)</option>
+        <option value="M" {{if or (eq $q "M") (eq $q "")}}selected{{end}}>M: 15% (default)</option>
+        <option value="Q" {{if eq $q "Q"}}selected{{end}}>Q: 25%</option>
+        <option value="H" {{if eq $q "H"}}selected{{end}}>H: 30% (best with a logo)</option>
+      </select>
+      {{with index .Errors "qr_ecc"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    <label>Logo in the centre <span class="muted">(PNG, JPEG or GIF, up to 1 MB. Error correction is raised automatically.)</span>
+      <input type="file" name="logo" accept="image/png,image/jpeg,image/gif">
+      {{with index .Errors "logo"}}<span class="field-error">{{.}}</span>{{end}}
+    </label>
+    {{if .HasLogo}}<label class="check"><input type="checkbox" name="remove_logo"> Remove the current logo</label>{{end}}
+    <label>Save this design as <span class="muted">(reuse it on other codes)</span>
+      <input name="template_name" type="text" maxlength="60" placeholder="e.g. Blake UK blue">
+    </label>
+    {{if and (not .Editing) .Templates}}
+    <p class="small">Use a saved design: {{range .Templates}}<a href="/admin/links/new?kind={{$.Data.Kind}}&amp;type={{$.Data.Type}}&amp;template={{.ID}}">{{.Name}}</a> {{end}}</p>
+    {{end}}
+  </section>
 
   <div class="row">
-    <button type="submit" class="primary">{{if .Editing}}Save changes{{else}}Create link{{end}}</button>
+    <button type="submit" class="primary">{{if .Editing}}Save changes{{else}}Create QR code{{end}}</button>
     <a class="button" href="{{if .Editing}}/admin/links/{{.ID}}{{else}}/admin/{{end}}">Cancel</a>
+  </div>
   </div>
 </form>
 {{end}}

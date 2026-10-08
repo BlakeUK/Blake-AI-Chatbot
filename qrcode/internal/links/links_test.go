@@ -324,3 +324,186 @@ func TestCampaignValidationAndCanonicalSpelling(t *testing.T) {
 		t.Errorf("update campaign = %q", g.Campaign)
 	}
 }
+
+// ---------- kinds, types, rules, logo, limits ----------
+
+func dyn(label string) Input {
+	now := time.Now().UTC().Truncate(time.Second)
+	return Input{Label: label, Destination: "https://www.blake-uk.com/", Start: now, End: now.Add(time.Hour), ExpiryMode: RedirectUntracked, QRECC: "M"}
+}
+
+func TestStaticVersusDynamicValidation(t *testing.T) {
+	// A static code needs only content: no web address, no window, no limits.
+	st := Input{Label: "Guest Wi-Fi", Kind: KindStatic, QRType: "wifi", Content: "WIFI:T:WPA;S:Guest;P:x;;", MaxScans: 99, PasswordHash: "hash",
+		Rules: []Rule{{"os", "iOS", "https://a.example"}}}
+	out, errs := st.Clean("")
+	if len(errs) != 0 {
+		t.Fatalf("static: %v", errs)
+	}
+	if out.Destination != "" || out.MaxScans != 0 || out.PasswordHash != "" || len(out.Rules) != 0 {
+		t.Errorf("a static code must drop tracking-only settings: %+v", out)
+	}
+	if _, errs := (Input{Label: "x", Kind: KindStatic}).Clean(""); errs["content"] == "" {
+		t.Error("static with no content accepted")
+	}
+	// Dynamic still needs a valid destination and window.
+	if _, errs := (Input{Label: "x", Kind: KindDynamic}).Clean(""); errs["destination"] == "" || errs["window"] == "" {
+		t.Errorf("dynamic with nothing: %v", errs)
+	}
+	if _, errs := (Input{Label: "x", Kind: "weird", Content: "c"}).Clean(""); errs["kind"] == "" {
+		t.Error("unknown kind accepted")
+	}
+	// A dynamic document (vCard) has no address, but does have a window.
+	now := time.Now()
+	doc := Input{Label: "Contact", Kind: KindDynamic, QRType: "vcard", Content: "BEGIN:VCARD", Start: now, End: now.Add(time.Hour), ExpiryMode: RedirectUntracked}
+	if _, errs := doc.Clean(""); len(errs) != 0 {
+		t.Errorf("dynamic vCard: %v", errs)
+	}
+	lim := dyn("x")
+	lim.MaxScans = -1
+	if _, errs := lim.Clean(""); errs["max_scans"] == "" {
+		t.Error("negative scan limit accepted")
+	}
+	lim.MaxScans = 10_000_001
+	if _, errs := lim.Clean(""); errs["max_scans"] == "" {
+		t.Error("absurd scan limit accepted")
+	}
+	r := dyn("x")
+	r.Rules = []Rule{{"os", "iOS", "javascript:alert(1)"}}
+	if _, errs := r.Clean(""); errs["rules"] == "" {
+		t.Error("rule with a hostile URL accepted")
+	}
+}
+
+func TestStoreKindsRulesLogoAndPassword(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+
+	in := dyn("App")
+	in.QRType, in.Design = "app_stores", `{"pattern":"dots"}`
+	in.Rules = []Rule{{"os", "iOS", "https://apps.apple.com/x"}, {"os", "Android", "https://play.google.com/y"}}
+	in.Logo, in.PasswordHash, in.MaxScans = []byte("PNGDATA"), "$2a$10$hash", 50
+	l, err := s.Create(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.Kind != KindDynamic || l.QRType != "app_stores" || !l.HasLogo || !l.HasRules || l.MaxScans != 50 || l.PasswordHash == "" || l.Design != `{"pattern":"dots"}` {
+		t.Fatalf("created: %+v", l)
+	}
+	rules, _ := s.Rules(ctx, l.ID)
+	if len(rules) != 2 || rules[0].Value != "iOS" || rules[1].Value != "Android" {
+		t.Errorf("rules: %+v", rules)
+	}
+	if logo, _ := s.Logo(ctx, l.ID); string(logo) != "PNGDATA" {
+		t.Errorf("logo = %q", logo)
+	}
+
+	// Edit: keep the password, replace the rules, remove the logo.
+	up := dyn("App 2")
+	up.KeepPassword = true
+	up.Rules = []Rule{{"country", "GB", "https://www.blake-uk.com/uk"}}
+	up.LogoSet = true // nil logo + LogoSet = remove
+	if err := s.Update(ctx, l.ID, up); err != nil {
+		t.Fatal(err)
+	}
+	g, _ := s.Get(ctx, l.ID)
+	if g.Label != "App 2" || g.PasswordHash != "$2a$10$hash" || g.HasLogo || !g.HasRules || g.MaxScans != 0 {
+		t.Errorf("after edit: %+v", g)
+	}
+	if rules, _ := s.Rules(ctx, l.ID); len(rules) != 1 || rules[0].Match != "country" {
+		t.Errorf("rules after edit: %+v", rules)
+	}
+	// Edit without KeepPassword and an empty hash removes the protection; no rules clears the flag.
+	up2 := dyn("App 3")
+	if err := s.Update(ctx, l.ID, up2); err != nil {
+		t.Fatal(err)
+	}
+	g, _ = s.Get(ctx, l.ID)
+	if g.PasswordHash != "" || g.HasRules {
+		t.Errorf("protection/rules not cleared: %+v", g)
+	}
+
+	// A static code: content is immutable, the rest is editable.
+	st, err := s.Create(ctx, Input{Label: "Wi-Fi", Kind: KindStatic, QRType: "wifi", Content: "WIFI:T:nopass;S:Guest;;", Data: `{"ssid":"Guest"}`, QRECC: "M"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.IsStatic() || st.DestinationURL != "" {
+		t.Errorf("static: %+v", st)
+	}
+	edit := Input{Label: "Renamed", Campaign: "Reception", Content: "WIFI:T:nopass;S:EVIL;;", Destination: "https://evil.example", QRECC: "H", Design: `{"fg":"#003366"}`}
+	if err := s.Update(ctx, st.ID, edit); err != nil {
+		t.Fatal(err)
+	}
+	g, _ = s.Get(ctx, st.ID)
+	if g.Label != "Renamed" || g.Campaign != "Reception" || g.QRECC != "H" || g.Design != `{"fg":"#003366"}` {
+		t.Errorf("static editable fields: %+v", g)
+	}
+	if g.Content != "WIFI:T:nopass;S:Guest;;" || g.DestinationURL != "" {
+		t.Errorf("a static code's content must never change once printed: %+v", g)
+	}
+}
+
+func TestCreateManyIsAllOrNothing(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	good := []Input{dyn("a"), dyn("b"), dyn("c")}
+	made, err := s.CreateMany(ctx, good)
+	if err != nil || len(made) != 3 {
+		t.Fatalf("create many: %v %d", err, len(made))
+	}
+	codes := map[string]bool{}
+	for _, l := range made {
+		codes[l.Code] = true
+	}
+	if len(codes) != 3 {
+		t.Error("codes not unique")
+	}
+	var before int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&before)
+	bad := dyn("bad")
+	bad.Kind = "nonsense" // violates the table's CHECK constraint on the third row
+	if _, err := s.CreateMany(ctx, []Input{dyn("d"), dyn("e"), bad}); err == nil {
+		t.Fatal("expected failure")
+	}
+	var after int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&after)
+	if after != before {
+		t.Errorf("a failed bulk create left %d rows behind", after-before)
+	}
+}
+
+func TestDesignTemplates(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	if err := s.SaveTemplate(ctx, "  Blake   brand ", `{"fg":"#0b2a6f"}`, []byte("LOGO")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveTemplate(ctx, "blake BRAND", `{"fg":"#000000"}`, nil); err != nil { // same name, any case: replaces
+		t.Fatal(err)
+	}
+	if err := s.SaveTemplate(ctx, "Second", `{}`, nil); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.Templates(ctx)
+	if len(list) != 2 || list[0].Name != "Blake brand" || list[0].Design != `{"fg":"#000000"}` || list[0].HasLogo {
+		t.Fatalf("templates: %+v", list)
+	}
+	tpl, logo, err := s.TemplateByID(ctx, list[1].ID)
+	if err != nil || tpl.Name != "Second" || logo != nil {
+		t.Errorf("by id: %+v %v %v", tpl, logo, err)
+	}
+	if err := s.SaveTemplate(ctx, "   ", "{}", nil); err == nil {
+		t.Error("blank name accepted")
+	}
+	if err := s.SaveTemplate(ctx, strings.Repeat("n", 61), "{}", nil); err == nil {
+		t.Error("61-char name accepted")
+	}
+	s.DeleteTemplate(ctx, list[0].ID)
+	if list, _ := s.Templates(ctx); len(list) != 1 {
+		t.Errorf("after delete: %d", len(list))
+	}
+	if _, _, err := s.TemplateByID(ctx, 9999); err != ErrNotFound {
+		t.Errorf("missing template: %v", err)
+	}
+}

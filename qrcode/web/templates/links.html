@@ -3,26 +3,28 @@
   <h1>Tracked links <span class="muted">({{.Data.Total}})</span>
     {{if .Data.Filter.Uncategorised}}<span class="badge">no campaign</span> <a class="small" href="/admin/">clear</a>{{else if .Data.Filter.Campaign}}<span class="badge">{{.Data.Filter.Campaign}}</span> <a class="small" href="/admin/">clear</a>{{end}}
   </h1>
-  <a class="button primary" href="/admin/links/new">New link</a>
+  <a class="button primary" href="/admin/links/new">New QR code</a>
 </div>
 {{if .Data.Rows}}
 <div class="scroll">
 <table>
   <thead><tr>
-    <th>Label</th><th>Campaign</th><th>Short URL</th><th>Destination</th><th>Window</th>
+    <th>Name</th><th>Type</th><th>Campaign</th><th>Short URL</th><th>Destination</th><th>Window</th>
     <th class="num">Scans</th><th class="num">Unique</th><th>Last scan</th>
   </tr></thead>
   <tbody>
   {{range .Data.Rows}}
   <tr>
     <td><a href="/admin/links/{{.Link.ID}}">{{.Link.Label}}</a>{{if not .Link.Enabled}} <span class="badge off">disabled</span>{{end}}</td>
+    <td>{{.Type}}<br><span class="badge {{if .Link.IsStatic}}off{{else}}active{{end}}">{{.Link.Kind}}</span></td>
     <td>{{if .Link.Campaign}}<a href="/admin/?campaign={{.Link.Campaign | urlquery}}">{{.Link.Campaign}}</a>{{else}}<span class="muted">none</span>{{end}}</td>
-    <td><code>{{.ShortURL}}</code></td>
-    <td title="{{.Link.DestinationURL}}"><strong>{{.Site}}</strong><br><span class="muted small">{{trunc 40 .Link.DestinationURL}}</span></td>
-    <td><span class="badge {{.Status}}">{{.Status}}</span><br><span class="muted small">{{dtShort .Link.TrackStart}} to {{dtShort .Link.TrackEnd}}</span></td>
+    <td>{{if .Link.IsStatic}}<span class="muted small">none (not tracked)</span>{{else}}<code>{{.ShortURL}}</code>{{end}}</td>
+    <td title="{{.Link.DestinationURL}}">{{if .Link.DestinationURL}}<strong>{{.Site}}</strong><br><span class="muted small">{{trunc 40 .Link.DestinationURL}}</span>{{else}}<span class="muted small">{{if .Link.IsStatic}}holds its content{{else}}document{{end}}</span>{{end}}</td>
+    {{if .Link.IsStatic}}<td class="muted">-</td><td class="num muted">-</td><td class="num muted">-</td><td class="muted small">untracked</td>
+    {{else}}<td><span class="badge {{.Status}}">{{.Status}}</span><br><span class="muted small">{{dtShort .Link.TrackStart}} to {{dtShort .Link.TrackEnd}}</span></td>
     <td class="num">{{.Totals.All}}</td>
     <td class="num">{{.Totals.Unique}}</td>
-    <td>{{if .Totals.Last.IsZero}}<span class="muted">never</span>{{else}}{{dt .Totals.Last}}{{end}}</td>
+    <td>{{if .Totals.Last.IsZero}}<span class="muted">never</span>{{else}}{{dt .Totals.Last}}{{end}}</td>{{end}}
   </tr>
   {{end}}
   </tbody>

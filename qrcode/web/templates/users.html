@@ -1,0 +1,83 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Users</h1>
+<p class="muted">Admins can do everything, including managing users. Members can create and manage QR codes and see statistics, but cannot manage users.</p>
+
+{{if .Reset}}
+<section class="card notice">
+  <h2>Temporary password for {{.Reset.User}}</h2>
+  <p><code class="big-code">{{.Reset.Password}}</code></p>
+  <p>Give this to them securely. <strong>It is shown only once</strong> and is not stored anywhere readable. They must choose a new password when they sign in, and any sessions they had are closed.</p>
+</section>
+{{end}}
+
+<div class="scroll">
+<table>
+  <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+  <tbody>
+  {{range .Users}}
+  <tr>
+    <td><strong>{{.Username}}</strong>{{if eq .ID $.Data.Me}} <span class="badge active">you</span>{{end}}</td>
+    <td>
+      <form method="post" action="/admin/users/{{.ID}}/role" class="inline row">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <select name="role">
+          <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Admin</option>
+          <option value="member" {{if eq .Role "member"}}selected{{end}}>Member</option>
+        </select>
+        <button type="submit">Save</button>
+      </form>
+    </td>
+    <td>{{if .MustChange}}<span class="badge">must change password</span>{{else}}active{{end}}{{if .Sessions}}<br><span class="muted small">{{.Sessions}} signed in</span>{{end}}</td>
+    <td class="nowrap">{{dt .CreatedAt}}</td>
+    <td>
+      <form method="post" action="/admin/users/{{.ID}}/reset" class="inline row" data-confirm="Reset this person's password and sign them out everywhere?">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="password" name="password" autocomplete="new-password" placeholder="new temporary password (blank = generate)" minlength="12">
+        <button type="submit">Reset password</button>
+      </form>
+      {{if ne .ID $.Data.Me}}
+      <form method="post" action="/admin/users/{{.ID}}/delete" class="inline" data-confirm="Remove {{.Username}}? They will be signed out immediately and can no longer sign in.">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button type="submit" class="danger">Remove</button>
+      </form>
+      {{end}}
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<section class="card">
+  <h2>Add a user</h2>
+  <form method="post" action="/admin/users" class="grid2">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>User name <span class="muted">(3 to 32 letters, numbers, . - _)</span>
+      <input name="username" type="text" value="{{.FormUser}}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+    </label>
+    <label>Role
+      <select name="role">
+        <option value="member" {{if eq .FormRole "member"}}selected{{end}}>Member</option>
+        <option value="admin" {{if eq .FormRole "admin"}}selected{{end}}>Admin</option>
+      </select>
+    </label>
+    <label>Temporary password <span class="muted">(at least 12 characters; leave blank to generate one)</span>
+      <input name="password" type="password" autocomplete="new-password" minlength="12">
+    </label>
+    <div class="row"><button type="submit" class="primary">Add user</button></div>
+  </form>
+  <p class="muted small">The new person must choose their own password the first time they sign in.</p>
+</section>
+
+<section class="card">
+  <h2>Recent activity</h2>
+  {{if .Audit}}
+  <div class="scroll"><table class="compact scans">
+    <thead><tr><th>When (UK)</th><th>Who</th><th>What</th><th>About</th><th></th></tr></thead>
+    <tbody>{{range .Audit}}<tr><td class="nowrap">{{dtSec .At}}</td><td>{{.Actor}}</td><td>{{.Action}}</td><td>{{.Target}}</td><td class="muted">{{.Detail}}</td></tr>{{end}}</tbody>
+  </table></div>
+  {{else}}<p class="muted">Nothing yet.</p>{{end}}
+</section>
+{{end}}
+{{end}}

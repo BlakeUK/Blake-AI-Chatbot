@@ -1,0 +1,38 @@
+{{define "content"}}
+{{with .Data}}
+<h1>Bulk QR codes</h1>
+<p class="muted">Upload a CSV and get one tracked QR code per row, as a ZIP of images plus a CSV listing each code's address. Either every row is created or none is.</p>
+{{if .Errors}}<section class="card"><p class="error">Nothing was created.</p><ul>{{range .Errors}}<li class="field-error">{{.}}</li>{{end}}</ul></section>{{end}}
+<form class="card" method="post" action="/admin/bulk" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <label>CSV file <span class="muted">(first row must be headers: <code>label,url</code> and optionally <code>campaign</code>)</span>
+    <input type="file" name="csv" accept=".csv,text/csv" required>
+  </label>
+  <label>Campaign for rows that do not have one
+    <input name="campaign" list="bulk-campaigns" maxlength="60" value="{{.Campaign}}" autocomplete="off">
+    <datalist id="bulk-campaigns">{{range .Campaigns}}<option value="{{.}}">{{end}}</datalist>
+  </label>
+  <div class="grid2">
+    <label>Tracking window
+      <select name="window"><option value="24h">24 hours</option><option value="7d">7 days</option><option value="30d">30 days</option><option value="90d" selected>90 days</option></select>
+    </label>
+    <label>Images
+      <select name="format">
+        <option value="svg" {{if eq .Format "svg"}}selected{{end}}>SVG only (up to 1000 rows, best for print)</option>
+        <option value="png" {{if eq .Format "png"}}selected{{end}}>PNG only (up to 250 rows)</option>
+        <option value="both" {{if eq .Format "both"}}selected{{end}}>SVG and PNG (up to 250 rows)</option>
+      </select>
+    </label>
+  </div>
+  <label>Design
+    <select name="template"><option value="">Plain black and white</option>{{range .Templates}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
+    <span class="muted small">Save designs from the New QR code form, then use them here.</span>
+  </label>
+  <label>Error correction
+    <select name="qr_ecc"><option value="L">L</option><option value="M" selected>M</option><option value="Q">Q</option><option value="H">H</option></select>
+  </label>
+  <button type="submit" class="primary">Create codes and download ZIP</button>
+</form>
+<p class="muted small">Example file:<br><code>label,url,campaign<br>Aerial A1 box,https://www.blake-uk.com/aerials/a1.html,Product box<br>Aerial A2 box,https://www.blake-uk.com/aerials/a2.html,Product box</code></p>
+{{end}}
+{{end}}

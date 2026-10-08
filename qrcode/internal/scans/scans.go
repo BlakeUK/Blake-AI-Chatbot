@@ -250,6 +250,11 @@ func (w *Writer) insert(ctx context.Context, batch []Scan) error {
 		return err
 	}
 	defer ins.Close()
+	bump, err := tx.PrepareContext(ctx, `UPDATE links SET scan_count = scan_count + 1 WHERE id = ?`)
+	if err != nil {
+		return err
+	}
+	defer bump.Close()
 	for _, s := range batch {
 		// A scan is "unique" if this hashed visitor has not scanned this link
 		// in the 24 hours before it. Earlier rows in this same transaction
@@ -264,6 +269,11 @@ func (w *Writer) insert(ctx context.Context, batch []Scan) error {
 			s.Region, s.City, s.Language, s.Destination, s.DeviceClass,
 			s.OS, s.Browser, s.RefererHost, s.UserAgent, b2i(s.IsBot), b2i(unique)); err != nil {
 			return err
+		}
+		if !s.IsBot { // the scan limit counts people, not link-preview bots
+			if _, err := bump.ExecContext(ctx, s.LinkID); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit()

@@ -56,9 +56,34 @@ type Link struct {
 	FallbackURL    string
 	QRECC          string
 	Campaign       string
+	Kind           string // "dynamic" (tracked, editable) or "static" (the content itself is in the QR code)
+	QRType         string // url, wifi, vcard ... (see package qrtypes)
+	Data           string // the type's form fields as JSON, so the form can be re-filled on edit
+	Content        string // static: exact text in the QR. dynamic vCard/event: the document served.
+	Design         string // QR styling as JSON
+	HasLogo        bool
+	MaxScans       int
+	ScanCount      int
+	PasswordHash   string
+	HasRules       bool
 	Enabled        bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+const (
+	KindDynamic = "dynamic"
+	KindStatic  = "static"
+)
+
+// IsStatic reports whether the code carries its content directly (untracked).
+func (l *Link) IsStatic() bool { return l.Kind == KindStatic }
+
+// Rule sends a visitor to URL when they match (Match is os, device, language or country).
+type Rule struct {
+	Match string
+	Value string
+	URL   string
 }
 
 // StatusAt reports where t falls relative to the tracking window. The window
@@ -152,6 +177,21 @@ type Input struct {
 	FallbackURL string
 	QRECC       string
 	Campaign    string
+
+	Kind     string // "" means dynamic
+	QRType   string // "" means url
+	Data     string // JSON of the type's form fields
+	Content  string // static content, or a dynamic document (vCard / event)
+	Design   string // JSON
+	MaxScans int
+	Rules    []Rule
+
+	// PasswordHash is a bcrypt hash; KeepPassword (edits only) leaves the stored one alone.
+	PasswordHash string
+	KeepPassword bool
+	// Logo is a processed PNG. On edit, LogoSet says whether to replace (or, with nil Logo, remove) it.
+	Logo    []byte
+	LogoSet bool
 }
 
 // Clean validates in and returns the normalised copy plus per-field messages.
@@ -160,6 +200,18 @@ type Input struct {
 func (in Input) Clean(selfHost string) (Input, map[string]string) {
 	errs := map[string]string{}
 	out := in
+	if out.Kind == "" {
+		out.Kind = KindDynamic
+	}
+	if out.QRType == "" {
+		out.QRType = "url"
+	}
+	if out.Kind != KindDynamic && out.Kind != KindStatic {
+		errs["kind"] = "Choose static or dynamic."
+	}
+	if out.Data == "" {
+		out.Data = "{}"
+	}
 	out.Label = strings.TrimSpace(in.Label)
 	switch n := utf8.RuneCountInString(out.Label); {
 	case n == 0:
@@ -167,7 +219,34 @@ func (in Input) Clean(selfHost string) (Input, map[string]string) {
 	case n > MaxLabelRunes:
 		errs["label"] = fmt.Sprintf("Label must be %d characters or fewer.", MaxLabelRunes)
 	}
-	if d, err := ValidateURL(in.Destination); err != nil {
+	out.Campaign = strings.Join(strings.Fields(in.Campaign), " ")
+	if utf8.RuneCountInString(out.Campaign) > MaxCampaignRunes {
+		errs["campaign"] = fmt.Sprintf("Campaign must be %d characters or fewer.", MaxCampaignRunes)
+	}
+	for _, r := range out.Campaign {
+		if unicode.IsControl(r) {
+			errs["campaign"] = "Campaign must not contain control characters."
+			break
+		}
+	}
+	if in.QRECC == "" {
+		out.QRECC = "M"
+	} else if !validECC(in.QRECC) {
+		errs["qr_ecc"] = "Error correction must be L, M, Q or H."
+	}
+	if out.Kind == KindStatic {
+		// A static code is just its content: no redirect, window, limits or password.
+		if out.Content == "" {
+			errs["content"] = "There is nothing to put in the QR code."
+		}
+		out.Destination, out.FallbackURL, out.ExpiryMode = "", "", RedirectUntracked
+		out.MaxScans, out.PasswordHash, out.Rules = 0, "", nil
+		return out, errs
+	}
+
+	if in.Destination == "" && out.Content != "" {
+		// a dynamic document (vCard, event): there is no web address to validate
+	} else if d, err := ValidateURL(in.Destination); err != nil {
 		errs["destination"] = "Destination " + err.Error() + "."
 	} else {
 		out.Destination = d
@@ -200,20 +279,16 @@ func (in Input) Clean(selfHost string) (Input, map[string]string) {
 			out.FallbackURL = f
 		}
 	}
-	out.Campaign = strings.Join(strings.Fields(in.Campaign), " ")
-	if utf8.RuneCountInString(out.Campaign) > MaxCampaignRunes {
-		errs["campaign"] = fmt.Sprintf("Campaign must be %d characters or fewer.", MaxCampaignRunes)
+	if in.MaxScans < 0 || in.MaxScans > 10_000_000 {
+		errs["max_scans"] = "The scan limit must be between 0 (no limit) and 10,000,000."
 	}
-	for _, r := range out.Campaign {
-		if unicode.IsControl(r) {
-			errs["campaign"] = "Campaign must not contain control characters."
-			break
+	for i, r := range in.Rules {
+		if _, err := ValidateURL(r.URL); err != nil || pointsAtSelf(r.URL, selfHost) {
+			errs["rules"] = fmt.Sprintf("Rule %d has an invalid address.", i+1)
 		}
 	}
-	if in.QRECC == "" {
-		out.QRECC = "M"
-	} else if !validECC(in.QRECC) {
-		errs["qr_ecc"] = "Error correction must be L, M, Q or H."
+	if len(in.Rules) > 10 {
+		errs["rules"] = "At most 10 rules."
 	}
 	return out, errs
 }
@@ -242,17 +317,20 @@ func NewStore(d *sql.DB) *Store {
 	return &Store{DB: d, Now: time.Now, GenCode: GenerateCode}
 }
 
-const cols = `id, code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, campaign, enabled, created_at, updated_at`
+// cols deliberately leaves out the logo image: it can be large and the
+// redirect path, which reads this row on every scan, never needs it.
+const cols = `id, code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, campaign,
+	kind, qr_type, data, content, design, (logo IS NOT NULL), max_scans, scan_count, password_hash, has_rules, enabled, created_at, updated_at`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
 func scan(r rowScanner) (*Link, error) {
 	var l Link
-	var start, end, created, updated string
-	var mode string
-	var enabled int
-	if err := r.Scan(&l.ID, &l.Code, &l.Label, &l.DestinationURL, &start, &end, &mode,
-		&l.FallbackURL, &l.QRECC, &l.Campaign, &enabled, &created, &updated); err != nil {
+	var start, end, created, updated, mode string
+	var enabled, logo, rules int
+	if err := r.Scan(&l.ID, &l.Code, &l.Label, &l.DestinationURL, &start, &end, &mode, &l.FallbackURL, &l.QRECC, &l.Campaign,
+		&l.Kind, &l.QRType, &l.Data, &l.Content, &l.Design, &logo, &l.MaxScans, &l.ScanCount, &l.PasswordHash, &rules,
+		&enabled, &created, &updated); err != nil {
 		return nil, err
 	}
 	var err error
@@ -270,34 +348,129 @@ func scan(r rowScanner) (*Link, error) {
 	}
 	l.ExpiryMode = ExpiryMode(mode)
 	l.Enabled = enabled == 1
+	l.HasLogo = logo == 1
+	l.HasRules = rules == 1
 	return &l, nil
 }
 
-// Create inserts a link from validated input, retrying on the (astronomically
-// unlikely) event that a generated code is already taken.
-func (s *Store) Create(ctx context.Context, in Input) (*Link, error) {
-	now := db.TS(s.Now())
+type execer interface {
+	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
+}
+
+// insert writes one link (and its rules) using x, retrying on a code clash.
+func (s *Store) insert(ctx context.Context, x execer, in Input, now string) (int64, error) {
+	if in.Kind == "" {
+		in.Kind = KindDynamic
+	}
+	if in.QRType == "" {
+		in.QRType = "url"
+	}
+	if in.Data == "" {
+		in.Data = "{}"
+	}
+	if in.ExpiryMode == "" {
+		in.ExpiryMode = RedirectUntracked
+	}
 	in.Campaign = s.canonicalCampaign(ctx, in.Campaign)
+	start, end := in.Start, in.End
+	if in.Kind == KindStatic || start.IsZero() {
+		start, end = s.Now(), s.Now() // a static code has no tracking window
+	}
+	var logo any
+	if len(in.Logo) > 0 {
+		logo = in.Logo
+	}
 	for attempt := 0; attempt < 8; attempt++ {
 		code, err := s.GenCode()
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
-		res, err := s.DB.ExecContext(ctx, `INSERT INTO links
-			(code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, campaign, enabled, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-			code, in.Label, in.Destination, db.TS(in.Start), db.TS(in.End), string(in.ExpiryMode),
-			in.FallbackURL, in.QRECC, in.Campaign, now, now)
+		res, err := x.ExecContext(ctx, `INSERT INTO links
+			(code, label, destination_url, track_start, track_end, expiry_mode, fallback_url, qr_ecc, campaign,
+			 kind, qr_type, data, content, design, logo, max_scans, password_hash, has_rules, enabled, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+			code, in.Label, in.Destination, db.TS(start), db.TS(end), string(in.ExpiryMode), in.FallbackURL, in.QRECC, in.Campaign,
+			in.Kind, in.QRType, in.Data, in.Content, in.Design, logo, in.MaxScans, in.PasswordHash, b2i(len(in.Rules) > 0), now, now)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed: links.code") {
 				continue
 			}
-			return nil, err
+			return 0, err
 		}
 		id, _ := res.LastInsertId()
-		return s.Get(ctx, id)
+		if err := writeRules(ctx, x, id, in.Rules); err != nil {
+			return 0, err
+		}
+		return id, nil
 	}
-	return nil, errors.New("could not generate a unique short code")
+	return 0, errors.New("could not generate a unique short code")
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func writeRules(ctx context.Context, x execer, id int64, rules []Rule) error {
+	if _, err := x.ExecContext(ctx, `DELETE FROM link_rules WHERE link_id = ?`, id); err != nil {
+		return err
+	}
+	for i, r := range rules {
+		if _, err := x.ExecContext(ctx, `INSERT INTO link_rules(link_id, position, match, value, url) VALUES (?, ?, ?, ?, ?)`,
+			id, i, r.Match, r.Value, r.URL); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Create inserts a link from validated input.
+func (s *Store) Create(ctx context.Context, in Input) (*Link, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	id, err := s.insert(ctx, tx, in, db.TS(s.Now()))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, id)
+}
+
+// CreateMany inserts every link or none: bulk creation is all-or-nothing.
+func (s *Store) CreateMany(ctx context.Context, ins []Input) ([]*Link, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	now := db.TS(s.Now())
+	ids := make([]int64, 0, len(ins))
+	for _, in := range ins {
+		id, err := s.insert(ctx, tx, in, now)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	out := make([]*Link, 0, len(ids))
+	for _, id := range ids {
+		l, err := s.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, nil
 }
 
 func (s *Store) Get(ctx context.Context, id int64) (*Link, error) {
@@ -316,29 +489,91 @@ func (s *Store) ByCode(ctx context.Context, code string) (*Link, error) {
 	return l, err
 }
 
-// Update changes label, destination, window, expiry behaviour and QR level.
-// The short code never changes, so printed QR codes keep working.
+// Update saves an edit. The short code never changes, so printed codes keep
+// working. A static code's content can never change (it is printed in the code
+// itself): only its label, campaign, look and error correction can.
 func (s *Store) Update(ctx context.Context, id int64, in Input) error {
-	in.Campaign = s.canonicalCampaign(ctx, in.Campaign)
-	res, err := s.DB.ExecContext(ctx, `UPDATE links SET label=?, destination_url=?, track_start=?, track_end=?,
-		expiry_mode=?, fallback_url=?, qr_ecc=?, campaign=?, updated_at=? WHERE id=?`,
-		in.Label, in.Destination, db.TS(in.Start), db.TS(in.End), string(in.ExpiryMode),
-		in.FallbackURL, in.QRECC, in.Campaign, db.TS(s.Now()), id)
+	cur, err := s.Get(ctx, id)
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return ErrNotFound
+	in.Campaign = s.canonicalCampaign(ctx, in.Campaign)
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
 	}
-	return nil
+	defer tx.Rollback()
+	now := db.TS(s.Now())
+
+	if cur.IsStatic() {
+		if _, err := tx.ExecContext(ctx, `UPDATE links SET label=?, campaign=?, qr_ecc=?, design=?, updated_at=? WHERE id=?`,
+			in.Label, in.Campaign, in.QRECC, in.Design, now, id); err != nil {
+			return err
+		}
+	} else {
+		pw, passwordSQL := in.PasswordHash, "password_hash=?,"
+		if in.KeepPassword {
+			passwordSQL, pw = "", ""
+		}
+		args := []any{in.Label, in.Destination, db.TS(in.Start), db.TS(in.End), string(in.ExpiryMode), in.FallbackURL, in.QRECC, in.Campaign,
+			in.Data, in.Content, in.Design, in.MaxScans, b2i(len(in.Rules) > 0), now}
+		q := `UPDATE links SET label=?, destination_url=?, track_start=?, track_end=?, expiry_mode=?, fallback_url=?, qr_ecc=?, campaign=?,
+			data=?, content=?, design=?, max_scans=?, has_rules=?, ` + passwordSQL + ` updated_at=? WHERE id=?`
+		if passwordSQL != "" {
+			args = append(args[:13], pw, now, id)
+			// order: ..., max_scans, has_rules, password_hash, updated_at, id
+		} else {
+			args = append(args[:13], now, id)
+		}
+		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
+			return err
+		}
+		if err := writeRules(ctx, tx, id, in.Rules); err != nil {
+			return err
+		}
+	}
+	if in.LogoSet {
+		var logo any
+		if len(in.Logo) > 0 {
+			logo = in.Logo
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE links SET logo = ? WHERE id = ?`, logo, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// Rules returns a link's smart-routing rules in priority order.
+func (s *Store) Rules(ctx context.Context, id int64) ([]Rule, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT match, value, url FROM link_rules WHERE link_id = ? ORDER BY position`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Rule
+	for rows.Next() {
+		var r Rule
+		if err := rows.Scan(&r.Match, &r.Value, &r.URL); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// Logo returns a link's stored centre logo (a PNG), or nil.
+func (s *Store) Logo(ctx context.Context, id int64) ([]byte, error) {
+	var b []byte
+	err := s.DB.QueryRowContext(ctx, `SELECT logo FROM links WHERE id = ?`, id).Scan(&b)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return b, err
 }
 
 func (s *Store) SetEnabled(ctx context.Context, id int64, enabled bool) error {
-	v := 0
-	if enabled {
-		v = 1
-	}
-	res, err := s.DB.ExecContext(ctx, `UPDATE links SET enabled=?, updated_at=? WHERE id=?`, v, db.TS(s.Now()), id)
+	res, err := s.DB.ExecContext(ctx, `UPDATE links SET enabled=?, updated_at=? WHERE id=?`, b2i(enabled), db.TS(s.Now()), id)
 	if err != nil {
 		return err
 	}
@@ -348,7 +583,7 @@ func (s *Store) SetEnabled(ctx context.Context, id int64, enabled bool) error {
 	return nil
 }
 
-// Delete removes a link and, via ON DELETE CASCADE, all of its scans.
+// Delete removes a link and, via ON DELETE CASCADE, its scans and rules.
 func (s *Store) Delete(ctx context.Context, id int64) error {
 	res, err := s.DB.ExecContext(ctx, `DELETE FROM links WHERE id=?`, id)
 	if err != nil {
@@ -358,6 +593,67 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ---------- saved designs ----------
+
+// Template is a saved QR design that can be applied to new codes.
+type Template struct {
+	ID      int64
+	Name    string
+	Design  string
+	HasLogo bool
+}
+
+// SaveTemplate stores (or replaces, by name) a design template.
+func (s *Store) SaveTemplate(ctx context.Context, name, design string, logo []byte) error {
+	name = strings.Join(strings.Fields(name), " ")
+	if name == "" || utf8.RuneCountInString(name) > 60 {
+		return templateNameError{}
+	}
+	var l any
+	if len(logo) > 0 {
+		l = logo
+	}
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO qr_templates(name, design, logo, created_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET design = excluded.design, logo = excluded.logo`, name, design, l, db.TS(s.Now()))
+	return err
+}
+
+func (s *Store) Templates(ctx context.Context) ([]Template, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, name, design, (logo IS NOT NULL) FROM qr_templates ORDER BY name COLLATE NOCASE`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Template
+	for rows.Next() {
+		var t Template
+		var logo int
+		if err := rows.Scan(&t.ID, &t.Name, &t.Design, &logo); err != nil {
+			return nil, err
+		}
+		t.HasLogo = logo == 1
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// TemplateByID returns a template and its logo.
+func (s *Store) TemplateByID(ctx context.Context, id int64) (Template, []byte, error) {
+	var t Template
+	var logo []byte
+	err := s.DB.QueryRowContext(ctx, `SELECT id, name, design, logo FROM qr_templates WHERE id = ?`, id).Scan(&t.ID, &t.Name, &t.Design, &logo)
+	if errors.Is(err, sql.ErrNoRows) {
+		return t, nil, ErrNotFound
+	}
+	t.HasLogo = len(logo) > 0
+	return t, logo, err
+}
+
+func (s *Store) DeleteTemplate(ctx context.Context, id int64) error {
+	_, err := s.DB.ExecContext(ctx, `DELETE FROM qr_templates WHERE id = ?`, id)
+	return err
 }
 
 // Filter narrows List to one campaign, or to links that have none.
@@ -434,3 +730,8 @@ func (s *Store) canonicalCampaign(ctx context.Context, name string) string {
 	}
 	return name
 }
+
+// templateNameError is shown to the person naming a design, so it is a sentence.
+type templateNameError struct{}
+
+func (templateNameError) Error() string { return "A template name must be 1 to 60 characters." }

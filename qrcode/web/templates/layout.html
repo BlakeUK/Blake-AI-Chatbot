@@ -14,8 +14,11 @@
   <nav>
     <a href="/admin/">Links</a>
     <a href="/admin/campaigns">Campaigns</a>
-    <a href="/admin/links/new">New link</a>
-    <a href="/admin/scans.csv">Export all scans</a>
+    <a href="/admin/links/new">New QR code</a>
+    <a href="/admin/bulk">Bulk</a>
+    <a href="/admin/templates">Designs</a>
+    <a href="/admin/scans.csv">Export scans</a>
+    {{if .User.IsAdmin}}<a href="/admin/users">Users</a>{{end}}
     <a href="/admin/password">Password</a>
   </nav>
   <form method="post" action="/admin/logout" class="inline">

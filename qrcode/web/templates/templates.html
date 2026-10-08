@@ -1,0 +1,20 @@
+{{define "content"}}
+<h1>Saved designs</h1>
+<p class="muted">Reusable looks (colours, dot and corner styles, frame, logo). Save one from the design section when creating or editing a QR code.</p>
+{{if .Data.Templates}}
+<table>
+  <thead><tr><th>Name</th><th>Logo</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.Templates}}
+  <tr><td>{{.Name}}</td><td>{{if .HasLogo}}yes{{else}}no{{end}}</td>
+    <td>
+      <a class="button" href="/admin/links/new?kind=dynamic&amp;type=url&amp;template={{.ID}}">Use for a new code</a>
+      <form method="post" action="/admin/templates/{{.ID}}/delete" class="inline" data-confirm="Delete the design {{.Name}}? Codes already made with it are not affected.">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="danger">Delete</button>
+      </form>
+    </td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<section class="card"><p>No saved designs yet.</p></section>{{end}}
+{{end}}

@@ -29,6 +29,7 @@ import (
 const (
 	sessionCookie = "qrtrack_session"
 	preCSRFCookie = "qrtrack_csrf"
+	unlockCookie  = "qrtrack_unlock"
 	perPage       = 25
 )
 
@@ -41,20 +42,21 @@ type Config struct {
 }
 
 type Server struct {
-	cfg    Config
-	log    *slog.Logger
-	db     *sql.DB
-	links  *links.Store
-	auth   *auth.Service
-	hasher *scans.Hasher
-	writer *scans.Writer
-	geo    *geo.Resolver
-	limit  *limiter
-	now    func() time.Time
-	tmpl   map[string]*template.Template
-	assets fs.FS
-	secure bool
-	host   string
+	cfg     Config
+	log     *slog.Logger
+	db      *sql.DB
+	links   *links.Store
+	auth    *auth.Service
+	hasher  *scans.Hasher
+	writer  *scans.Writer
+	geo     *geo.Resolver
+	limit   *limiter
+	pwLimit *limiter // wrong-password attempts on protected codes
+	now     func() time.Time
+	tmpl    map[string]*template.Template
+	assets  fs.FS
+	secure  bool
+	host    string
 }
 
 type Deps struct {
@@ -87,7 +89,8 @@ func New(cfg Config, d Deps) (*Server, error) {
 		cfg: cfg, log: d.Log, db: d.DB, links: d.Links, auth: d.Auth, hasher: d.Hasher,
 		writer: d.Writer, geo: d.Geo, now: d.Now, assets: d.Assets,
 		secure: u.Scheme == "https", host: u.Host,
-		limit: newLimiter(cfg.RateLimitPerMin, d.Now),
+		limit:   newLimiter(cfg.RateLimitPerMin, d.Now),
+		pwLimit: newLimiter(6, d.Now),
 	}
 	if err := s.loadTemplates(); err != nil {
 		return nil, err
@@ -125,7 +128,7 @@ func (s *Server) loadTemplates() error {
 		"prev": func(p int) int { return p - 1 },
 		"next": func(p int) int { return p + 1 },
 	}
-	pages := []string{"login", "password", "links", "link_form", "link_detail", "campaigns", "error"}
+	pages := []string{"login", "password", "links", "link_choose", "link_form", "link_detail", "campaigns", "users", "bulk", "templates", "unlock", "error"}
 	s.tmpl = map[string]*template.Template{}
 	for _, p := range pages {
 		t, err := template.New("").Funcs(funcs).ParseFS(s.assets, "web/templates/layout.html", "web/templates/"+p+".html")
@@ -150,6 +153,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin/", http.StatusFound) })
 	mux.HandleFunc("GET /r/{code}", s.redirect)
+	mux.HandleFunc("POST /r/{code}", s.redirect) // password form for protected codes
 
 	mux.HandleFunc("GET /admin/login", s.loginForm)
 	mux.HandleFunc("POST /admin/login", s.loginSubmit)
@@ -160,7 +164,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/{$}", s.authed(s.list))
 	mux.HandleFunc("GET /admin/campaigns", s.authed(s.campaigns))
 	mux.HandleFunc("GET /admin/scans.csv", s.authed(s.csvExportAll))
-	mux.HandleFunc("GET /admin/links/new", s.authed(s.newForm))
+	mux.HandleFunc("GET /admin/links/new", s.authed(s.newLink))
+	mux.HandleFunc("GET /admin/preview.svg", s.authed(s.preview))
+	mux.HandleFunc("GET /admin/templates", s.authed(s.templatesPage))
+	mux.HandleFunc("POST /admin/templates/{id}/delete", s.authed(s.deleteTemplate))
+	mux.HandleFunc("GET /admin/bulk", s.authed(s.bulkForm))
+	mux.HandleFunc("POST /admin/bulk", s.authed(s.bulkCreate))
+	mux.HandleFunc("GET /admin/users", s.adminOnly(s.usersList))
+	mux.HandleFunc("POST /admin/users", s.adminOnly(s.userCreate))
+	mux.HandleFunc("POST /admin/users/{id}/reset", s.adminOnly(s.userReset))
+	mux.HandleFunc("POST /admin/users/{id}/delete", s.adminOnly(s.userDelete))
+	mux.HandleFunc("POST /admin/users/{id}/role", s.adminOnly(s.userRole))
 	mux.HandleFunc("POST /admin/links", s.authed(s.create))
 	mux.HandleFunc("GET /admin/links/{id}", s.authed(s.detail))
 	mux.HandleFunc("GET /admin/links/{id}/edit", s.authed(s.editForm))
@@ -199,7 +213,11 @@ func (s *Server) headers(next http.Handler) http.Handler {
 
 func (s *Server) limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+		limit := int64(64 << 10)
+		if r.Method == http.MethodPost && (strings.HasPrefix(r.URL.Path, "/admin/links") || r.URL.Path == "/admin/bulk") {
+			limit = 3 << 20 // a logo (up to 1 MB) or a CSV file
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -348,7 +366,15 @@ func (s *Server) authed(h authedHandler) http.HandlerFunc {
 			return
 		}
 		if r.Method == http.MethodPost {
-			if err := r.ParseForm(); err != nil {
+			// ParseForm alone would mark a multipart upload (a logo, a CSV) as
+			// parsed without reading it, hiding the CSRF token inside it.
+			var err error
+			if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+				err = r.ParseMultipartForm(4 << 20)
+			} else {
+				err = r.ParseForm()
+			}
+			if err != nil {
 				s.errorPage(w, http.StatusBadRequest, "Bad request", "The form could not be read.")
 				return
 			}

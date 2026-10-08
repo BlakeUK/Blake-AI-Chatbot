@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"html/template"
@@ -14,6 +15,7 @@ import (
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/auth"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/links"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/qr"
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/qrtypes"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/scans"
 )
 
@@ -26,7 +28,15 @@ type linkRow struct {
 	Status   links.Status
 	ShortURL string
 	Site     string // friendly destination name, e.g. Facebook
+	Type     string // human name of the QR type
 	Totals   scans.Totals
+}
+
+func typeLabel(t string) string {
+	if sp, ok := qrtypes.Get(t); ok {
+		return sp.Label
+	}
+	return t
 }
 
 func (s *Server) list(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
@@ -52,7 +62,7 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request, sess *auth.Session
 	now := s.now()
 	rows := make([]linkRow, len(ls))
 	for i, l := range ls {
-		rows[i] = linkRow{Link: l, Status: l.StatusAt(now), ShortURL: s.shortURL(l.Code), Site: links.SiteName(l.DestinationURL), Totals: totals[l.ID]}
+		rows[i] = linkRow{Link: l, Status: l.StatusAt(now), ShortURL: s.shortURL(l.Code), Site: links.SiteName(l.DestinationURL), Type: typeLabel(l.QRType), Totals: totals[l.ID]}
 	}
 	// Keep the active filter on the pager links.
 	q := url.Values{}
@@ -98,90 +108,7 @@ func (s *Server) serverError(w http.ResponseWriter, what string, err error) {
 
 // ---------- create / edit ----------
 
-const (
-	inputLayout   = "2006-01-02T15:04"
-	recentPerPage = 50
-)
-
-type linkForm struct {
-	ID          int64
-	Editing     bool
-	Label       string
-	Destination string
-	Window      string
-	Start, End  string
-	ExpiryMode  string
-	FallbackURL string
-	QRECC       string
-	Campaign    string
-	Suggestions []string
-	Errors      map[string]string
-}
-
-var presets = map[string]time.Duration{
-	"24h": 24 * time.Hour,
-	"7d":  7 * 24 * time.Hour,
-	"30d": 30 * 24 * time.Hour,
-	"90d": 90 * 24 * time.Hour,
-}
-
-func (s *Server) newForm(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
-	now := s.now().In(s.cfg.Location)
-	f := linkForm{Window: "7d", ExpiryMode: string(links.RedirectUntracked), QRECC: "M",
-		Start: now.Format(inputLayout), End: now.Add(presets["7d"]).Format(inputLayout)}
-	f.Suggestions = s.campaignSuggestions(r.Context())
-	s.render(w, http.StatusOK, "link_form", s.page(sess, "New link", f))
-}
-
-// parseForm turns the submitted form into a validated links.Input. For a
-// preset window the window starts now; for "custom" the typed start and end
-// are read as Europe/London local time and stored as UTC.
-func (s *Server) parseForm(r *http.Request) (links.Input, linkForm) {
-	f := linkForm{
-		Label: r.PostFormValue("label"), Destination: strings.TrimSpace(r.PostFormValue("destination")),
-		Window: r.PostFormValue("window"), Start: r.PostFormValue("start"), End: r.PostFormValue("end"),
-		ExpiryMode: r.PostFormValue("expiry_mode"), FallbackURL: strings.TrimSpace(r.PostFormValue("fallback_url")),
-		QRECC: r.PostFormValue("qr_ecc"), Campaign: r.PostFormValue("campaign"), Errors: map[string]string{},
-	}
-	in := links.Input{
-		Label: f.Label, Destination: f.Destination, ExpiryMode: links.ExpiryMode(f.ExpiryMode),
-		FallbackURL: f.FallbackURL, QRECC: f.QRECC, Campaign: f.Campaign,
-	}
-	if d, ok := presets[f.Window]; ok {
-		in.Start = s.now().UTC().Truncate(time.Second)
-		in.End = in.Start.Add(d)
-	} else {
-		st, e1 := time.ParseInLocation(inputLayout, f.Start, s.cfg.Location)
-		en, e2 := time.ParseInLocation(inputLayout, f.End, s.cfg.Location)
-		if e1 != nil || e2 != nil {
-			f.Errors["window"] = "Enter a valid start and end date and time."
-		} else {
-			in.Start, in.End = st.UTC(), en.UTC()
-		}
-	}
-	clean, errs := in.Clean(s.host)
-	for k, v := range errs {
-		if _, exists := f.Errors[k]; !exists {
-			f.Errors[k] = v
-		}
-	}
-	return clean, f
-}
-
-func (s *Server) create(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
-	in, f := s.parseForm(r)
-	if len(f.Errors) > 0 {
-		f.Suggestions = s.campaignSuggestions(r.Context())
-		s.render(w, http.StatusUnprocessableEntity, "link_form", s.page(sess, "New link", f))
-		return
-	}
-	l, err := s.links.Create(r.Context(), in)
-	if err != nil {
-		s.serverError(w, "create link", err)
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("/admin/links/%d", l.ID), http.StatusSeeOther)
-}
+const recentPerPage = 50
 
 func (s *Server) loadLink(w http.ResponseWriter, r *http.Request) *links.Link {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -201,16 +128,61 @@ func (s *Server) loadLink(w http.ResponseWriter, r *http.Request) *links.Link {
 	return l
 }
 
+// newLink first asks what kind of code (static or dynamic) and which type,
+// then shows that type's form.
+func (s *Server) newLink(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	kind, typ := r.URL.Query().Get("kind"), r.URL.Query().Get("type")
+	spec, ok := qrtypes.Get(typ)
+	if (kind != qrtypes.KindStatic && kind != qrtypes.KindDynamic) || !ok || !spec.Supports(kind) {
+		s.render(w, http.StatusOK, "link_choose", s.page(sess, "New QR code", map[string]any{
+			"Dynamic": qrtypes.For(qrtypes.KindDynamic), "Static": qrtypes.For(qrtypes.KindStatic),
+		}))
+		return
+	}
+	fv := s.baseForm(r.Context(), kind, spec)
+	if tid, _ := strconv.ParseInt(r.URL.Query().Get("template"), 10, 64); tid > 0 {
+		if t, _, err := s.links.TemplateByID(r.Context(), tid); err == nil {
+			var d qr.Design
+			json.Unmarshal([]byte(t.Design), &d)
+			if nd, err := d.Normalise(); err == nil {
+				fv.Design, fv.TemplateID, fv.HasLogo = nd, t.ID, t.HasLogo
+			}
+		}
+	}
+	s.render(w, http.StatusOK, "link_form", s.page(sess, "New "+spec.Label+" QR code", fv))
+}
+
+func (s *Server) create(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	kind, typ := r.PostFormValue("kind"), r.PostFormValue("type")
+	spec, ok := qrtypes.Get(typ)
+	if (kind != qrtypes.KindStatic && kind != qrtypes.KindDynamic) || !ok || !spec.Supports(kind) {
+		s.errorPage(w, http.StatusBadRequest, "Bad request", "Choose a type of QR code first.")
+		return
+	}
+	in, fv := s.parseLinkForm(r, kind, spec, nil)
+	if len(fv.Errors) > 0 {
+		s.render(w, http.StatusUnprocessableEntity, "link_form", s.page(sess, "New "+spec.Label+" QR code", fv))
+		return
+	}
+	l, err := s.links.Create(r.Context(), in)
+	if err != nil {
+		s.serverError(w, "create link", err)
+		return
+	}
+	if err := s.saveTemplateIfAsked(r.Context(), r, in, nil); err != nil {
+		s.log.Warn("template not saved", "err", err)
+	}
+	s.auth.Audit(r.Context(), sess.User.Username, "qr.create", l.Code, kind+" "+typ)
+	http.Redirect(w, r, fmt.Sprintf("/admin/links/%d", l.ID), http.StatusSeeOther)
+}
+
 func (s *Server) editForm(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
 	l := s.loadLink(w, r)
 	if l == nil {
 		return
 	}
-	f := linkForm{ID: l.ID, Editing: true, Label: l.Label, Destination: l.DestinationURL, Window: "custom",
-		Start: l.TrackStart.In(s.cfg.Location).Format(inputLayout), End: l.TrackEnd.In(s.cfg.Location).Format(inputLayout),
-		ExpiryMode: string(l.ExpiryMode), FallbackURL: l.FallbackURL, QRECC: l.QRECC, Campaign: l.Campaign}
-	f.Suggestions = s.campaignSuggestions(r.Context())
-	s.render(w, http.StatusOK, "link_form", s.page(sess, "Edit link", f))
+	spec, _ := qrtypes.Get(l.QRType)
+	s.render(w, http.StatusOK, "link_form", s.page(sess, "Edit QR code", s.formFromLink(r.Context(), l, spec)))
 }
 
 func (s *Server) update(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
@@ -218,18 +190,67 @@ func (s *Server) update(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 	if l == nil {
 		return
 	}
-	in, f := s.parseForm(r)
-	f.ID, f.Editing = l.ID, true
-	if len(f.Errors) > 0 {
-		f.Suggestions = s.campaignSuggestions(r.Context())
-		s.render(w, http.StatusUnprocessableEntity, "link_form", s.page(sess, "Edit link", f))
+	spec, _ := qrtypes.Get(l.QRType)
+	in, fv := s.parseLinkForm(r, l.Kind, spec, l)
+	if len(fv.Errors) > 0 {
+		s.render(w, http.StatusUnprocessableEntity, "link_form", s.page(sess, "Edit QR code", fv))
 		return
 	}
 	if err := s.links.Update(r.Context(), l.ID, in); err != nil {
 		s.serverError(w, "update link", err)
 		return
 	}
+	if err := s.saveTemplateIfAsked(r.Context(), r, in, l); err != nil {
+		s.log.Warn("template not saved", "err", err)
+	}
+	s.auth.Audit(r.Context(), sess.User.Username, "qr.update", l.Code, "")
 	http.Redirect(w, r, fmt.Sprintf("/admin/links/%d", l.ID), http.StatusSeeOther)
+}
+
+// preview draws a sample code in the design given by the query string, for the
+// live preview beside the form. A design that would not scan is refused with a
+// plain-text reason the page shows instead of an image.
+func (s *Server) preview(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	q := r.URL.Query().Get
+	d, err := designFrom(q).Normalise()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	ecc := q("qr_ecc")
+	if !qr.ValidECC(ecc) {
+		ecc = "M"
+	}
+	var logo []byte
+	if id, _ := strconv.ParseInt(q("link"), 10, 64); id > 0 {
+		logo, _ = s.links.Logo(r.Context(), id)
+	} else if tid, _ := strconv.ParseInt(q("template"), 10, 64); tid > 0 {
+		_, logo, _ = s.links.TemplateByID(r.Context(), tid)
+	}
+	svg, err := qr.RenderSVG(qr.Options{Content: s.shortURL("AbCd1234"), ECC: ecc, Design: d, Logo: logo})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Write(svg)
+}
+
+// ---------- saved designs ----------
+
+func (s *Server) templatesPage(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	list, err := s.links.Templates(r.Context())
+	if err != nil {
+		s.serverError(w, "templates", err)
+		return
+	}
+	s.render(w, http.StatusOK, "templates", s.page(sess, "Saved designs", map[string]any{"Templates": list}))
+}
+
+func (s *Server) deleteTemplate(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	s.links.DeleteTemplate(r.Context(), id)
+	http.Redirect(w, r, "/admin/templates", http.StatusSeeOther)
 }
 
 func (s *Server) toggle(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
@@ -366,10 +387,18 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 		"Link": l, "Status": status, "ShortURL": s.shortURL(l.Code), "Totals": totals[l.ID],
 		"Chart": chartSVG(series, hourly), "ChartHourly": hourly, "Sections": sections,
 		"Countdown": countdown(l, now), "IncludeBots": includeBots, "Sizes": qr.Sizes,
-		"Site": links.SiteName(l.DestinationURL), "Recent": recent, "RecentTotal": recentTotal,
+		"Site": links.SiteName(l.DestinationURL), "TypeLabel": typeLabel(l.QRType), "Rules": linkRules(r.Context(), s.links, l), "Recent": recent, "RecentTotal": recentTotal,
 		"SP": sp, "SPages": recentPages, "SPHasPrev": sp > 1, "SPHasNext": sp < recentPages, "BotsQ": botsQ,
 		"ShowIP": s.cfg.StoreFullIP,
 	}))
+}
+
+func linkRules(ctx context.Context, st *links.Store, l *links.Link) []links.Rule {
+	if !l.HasRules {
+		return nil
+	}
+	rules, _ := st.Rules(ctx, l.ID)
+	return rules
 }
 
 func countdown(l *links.Link, now time.Time) string {
@@ -446,11 +475,30 @@ func maxf(a, b float64) float64 {
 
 // ---------- QR and CSV downloads ----------
 
-func (s *Server) qrECC(r *http.Request, l *links.Link) string {
-	if v := r.URL.Query().Get("ecc"); qr.ValidECC(v) {
-		return v
+// qrOptions is what to draw for a saved code: the short tracking address for a
+// dynamic code, or the content itself for a static one, in the code's own
+// design, logo and error-correction level.
+func (s *Server) qrOptions(ctx context.Context, r *http.Request, l *links.Link) qr.Options {
+	content := s.shortURL(l.Code)
+	if l.IsStatic() {
+		content = l.Content
 	}
-	return l.QRECC
+	var d qr.Design
+	json.Unmarshal([]byte(l.Design), &d)
+	if nd, err := d.Normalise(); err == nil {
+		d = nd
+	} else {
+		d = qr.Design{}
+	}
+	ecc := l.QRECC
+	if v := r.URL.Query().Get("ecc"); qr.ValidECC(v) {
+		ecc = v
+	}
+	var logo []byte
+	if l.HasLogo {
+		logo, _ = s.links.Logo(ctx, l.ID)
+	}
+	return qr.Options{Content: content, ECC: ecc, Design: d, Logo: logo}
 }
 
 func (s *Server) qrPNG(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
@@ -467,7 +515,7 @@ func (s *Server) qrPNG(w http.ResponseWriter, r *http.Request, sess *auth.Sessio
 		}
 		size = n
 	}
-	b, err := qr.PNG(s.shortURL(l.Code), s.qrECC(r, l), size)
+	b, err := qr.RenderPNG(s.qrOptions(r.Context(), r, l), size)
 	if err != nil {
 		s.serverError(w, "render qr png", err)
 		return
@@ -484,7 +532,7 @@ func (s *Server) qrSVG(w http.ResponseWriter, r *http.Request, sess *auth.Sessio
 	if l == nil {
 		return
 	}
-	b, err := qr.SVG(s.shortURL(l.Code), s.qrECC(r, l))
+	b, err := qr.RenderSVG(s.qrOptions(r.Context(), r, l))
 	if err != nil {
 		s.serverError(w, "render qr svg", err)
 		return

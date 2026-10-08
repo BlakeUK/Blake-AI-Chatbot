@@ -1,22 +1,36 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/geo"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/links"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/scans"
 	"github.com/BlakeUK/Blake-AI-Chatbot/qrcode/internal/ua"
 )
 
+// visitor is what we know about the person scanning, used for smart rules and
+// recorded with the scan.
+type visitor struct {
+	ip, hash string
+	info     ua.Info
+	loc      geo.Location
+	lang     string
+}
+
 // redirect is the hot path every QR scan takes. Order matters: cheap checks
-// first, one indexed lookup, then a 302 to the stored destination. Logging
-// the scan is a non-blocking channel send, so it can never slow the redirect.
-// The target is only ever read from the database, never from the request, so
-// this cannot be used as an open redirect.
+// first, one indexed lookup, then a 302 to the stored destination. Logging the
+// scan is a non-blocking channel send, so it can never slow the redirect. The
+// target only ever comes from the database, never from the request, so this
+// cannot be used as an open redirect. Static codes never reach this handler:
+// they hold their content directly and are not tracked.
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Cache-Control", "no-store")
@@ -25,7 +39,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	hash, herr := s.hasher.Hash(ctx, ip)
 	if herr != nil {
 		// Hashing needs the database; if it is unavailable we still prefer to
-		// keep redirecting. We fall back to an unlogged, per-IP-less limiter key.
+		// keep redirecting, just without logging or per-visitor limits.
 		s.log.Error("ip hash failed", "err", herr)
 		hash = ""
 	}
@@ -50,58 +64,179 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 		s.errorPage(w, http.StatusInternalServerError, "Something went wrong", "Please try again shortly.")
 		return
 	}
+	if l.IsStatic() {
+		s.errorPage(w, http.StatusNotFound, "Link not found", "This is a static QR code. It does not use this address.")
+		return
+	}
 	if !l.Enabled {
 		s.errorPage(w, http.StatusGone, "Link disabled", "This link has been switched off.")
 		return
 	}
+	// POST exists only to submit the password form of a protected code. Anywhere
+	// else it would let a script run up the scan count without being a scan.
+	if r.Method == http.MethodPost && l.PasswordHash == "" {
+		w.Header().Set("Allow", "GET, HEAD")
+		s.errorPage(w, http.StatusMethodNotAllowed, "Not allowed", "This address only accepts a normal visit.")
+		return
+	}
 
 	now := s.now()
-	switch l.StatusAt(now) {
-	case links.Active:
-		// HEAD requests (prefetchers, uptime checks) are served but not counted.
-		if r.Method == http.MethodGet && hash != "" {
-			s.record(r, l, ip, hash, now)
+	status := l.StatusAt(now)
+	// A scan limit ends the code exactly like the end of its window does.
+	if status == links.Active && l.MaxScans > 0 && l.ScanCount >= l.MaxScans {
+		status = links.Ended
+	}
+	if status == links.Ended {
+		s.ended(w, r, l)
+		return
+	}
+
+	v := visitor{ip: ip, hash: hash, info: ua.Parse(truncate(r.UserAgent(), 512)), loc: s.geo.Lookup(ip), lang: parseLanguage(r.Header.Get("Accept-Language"))}
+	if l.PasswordHash != "" && !s.unlocked(w, r, l, hash) {
+		return
+	}
+	s.deliver(w, r, l, v, status == links.Active, now)
+}
+
+// ended applies the link's chosen behaviour once its window or scan limit is over.
+func (s *Server) ended(w http.ResponseWriter, r *http.Request, l *links.Link) {
+	switch l.ExpiryMode {
+	case links.ShowExpiredPage:
+		s.errorPage(w, http.StatusGone, "This link has expired", "This QR code is no longer active.")
+	case links.RedirectFallbackURL:
+		http.Redirect(w, r, l.FallbackURL, http.StatusFound)
+	default: // keep redirecting, no longer counted
+		if l.DestinationURL == "" && l.Content != "" {
+			s.serveDocument(w, r, l)
+			return
 		}
 		http.Redirect(w, r, l.DestinationURL, http.StatusFound)
-	case links.Scheduled:
-		// Before the window opens the link already works; it just isn't counted.
-		http.Redirect(w, r, l.DestinationURL, http.StatusFound)
-	default: // Ended: behaviour chosen per link
-		switch l.ExpiryMode {
-		case links.ShowExpiredPage:
-			s.errorPage(w, http.StatusGone, "This link has expired", "This QR code is no longer active.")
-		case links.RedirectFallbackURL:
-			http.Redirect(w, r, l.FallbackURL, http.StatusFound)
-		default:
-			http.Redirect(w, r, l.DestinationURL, http.StatusFound)
-		}
 	}
 }
 
-func (s *Server) record(r *http.Request, l *links.Link, ip, hash string, now time.Time) {
-	agent := truncate(r.UserAgent(), 512)
-	info := ua.Parse(agent)
-	loc := s.geo.Lookup(ip)
+// deliver sends the visitor where this code points and, while the code is
+// being tracked, records the scan.
+func (s *Server) deliver(w http.ResponseWriter, r *http.Request, l *links.Link, v visitor, counted bool, now time.Time) {
+	// HEAD requests (prefetchers, uptime checks) are served but never counted.
+	count := counted && r.Method != http.MethodHead && v.hash != ""
+	if l.DestinationURL == "" && l.Content != "" { // a vCard or calendar event
+		if count {
+			s.record(r, l, "", v, now)
+		}
+		s.serveDocument(w, r, l)
+		return
+	}
+	target := l.DestinationURL
+	if l.HasRules {
+		if rules, err := s.links.Rules(r.Context(), l.ID); err == nil {
+			if t, ok := matchRule(rules, v); ok {
+				target = t
+			}
+		}
+	}
+	if count {
+		s.record(r, l, target, v, now)
+	}
+	status := http.StatusFound
+	if r.Method == http.MethodPost { // after a password form: do not resubmit it
+		status = http.StatusSeeOther
+	}
+	http.Redirect(w, r, target, status)
+}
+
+// matchRule returns the address of the first rule the visitor satisfies.
+func matchRule(rules []links.Rule, v visitor) (string, bool) {
+	for _, ru := range rules {
+		var hit bool
+		switch ru.Match {
+		case "os":
+			hit = strings.EqualFold(v.info.OS, ru.Value)
+		case "device":
+			hit = strings.EqualFold(v.info.DeviceClass, ru.Value)
+		case "country":
+			hit = strings.EqualFold(v.loc.CountryISO, ru.Value)
+		case "language":
+			want, have := strings.ToLower(ru.Value), strings.ToLower(v.lang)
+			hit = have != "" && (have == want || strings.HasPrefix(have, want+"-"))
+		}
+		if hit {
+			return ru.URL, true
+		}
+	}
+	return "", false
+}
+
+// serveDocument returns a vCard or calendar event so the phone offers to save it.
+func (s *Server) serveDocument(w http.ResponseWriter, r *http.Request, l *links.Link) {
+	ct, name := "text/vcard; charset=utf-8", "contact.vcf"
+	if l.QRType == "event" {
+		ct, name = "text/calendar; charset=utf-8", "event.ics"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, name))
+	if r.Method != http.MethodHead {
+		w.Write([]byte(l.Content))
+	}
+}
+
+// unlocked returns true when the visitor may proceed. For a password-protected
+// code it shows the password page, and checks the answer on POST. Wrong
+// answers are throttled per visitor and per code.
+func (s *Server) unlocked(w http.ResponseWriter, r *http.Request, l *links.Link, hash string) bool {
+	page := func(status int, msg, csrf string) {
+		s.render(w, status, "unlock", pageData{Title: "Protected", CSRF: csrf, Error: msg, Data: map[string]string{"Code": l.Code}})
+	}
+	if r.Method != http.MethodPost {
+		tok := randString()
+		s.setCookie(w, unlockCookie, tok, "/r/", s.now().Add(30*time.Minute))
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusOK)
+			return false
+		}
+		page(http.StatusOK, "", tok)
+		return false
+	}
+	c, err := r.Cookie(unlockCookie)
+	if err != nil || !eq(r.PostFormValue("csrf"), c.Value) {
+		s.errorPage(w, http.StatusForbidden, "Forbidden", "That page expired. Scan the code again.")
+		return false
+	}
+	if hash != "" && !s.pwLimit.Allow(hash+l.Code) {
+		w.Header().Set("Retry-After", "60")
+		s.errorPage(w, http.StatusTooManyRequests, "Too many attempts", "Please wait a minute before trying again.")
+		return false
+	}
+	pw := r.PostFormValue("password")
+	if len(pw) > 72 || bcrypt.CompareHashAndPassword([]byte(l.PasswordHash), []byte(pw)) != nil {
+		tok := randString()
+		s.setCookie(w, unlockCookie, tok, "/r/", s.now().Add(30*time.Minute))
+		page(http.StatusUnauthorized, "That password is not right.", tok)
+		return false
+	}
+	return true
+}
+
+func (s *Server) record(r *http.Request, l *links.Link, target string, v visitor, now time.Time) {
 	sc := scans.Scan{
 		LinkID:      l.ID,
 		At:          now,
-		IPHash:      hash,
-		Country:     loc.CountryISO,
-		CountryName: loc.Country,
-		Region:      loc.Region,
-		City:        loc.City,
-		Language:    parseLanguage(r.Header.Get("Accept-Language")),
-		Destination: l.DestinationURL, // a snapshot: the link can be edited later
-		DeviceClass: info.DeviceClass,
-		OS:          info.OS,
-		Browser:     info.Browser,
+		IPHash:      v.hash,
+		Country:     v.loc.CountryISO,
+		CountryName: v.loc.Country,
+		Region:      v.loc.Region,
+		City:        v.loc.City,
+		Language:    v.lang,
+		Destination: target, // what this scan was actually sent to (rules can differ per visitor)
+		DeviceClass: v.info.DeviceClass,
+		OS:          v.info.OS,
+		Browser:     v.info.Browser,
 		RefererHost: refererHost(r.Referer()),
-		UserAgent:   agent,
-		IsBot:       info.IsBot,
+		UserAgent:   truncate(r.UserAgent(), 512),
+		IsBot:       v.info.IsBot,
 	}
 	// The full address is kept only if the operator has switched that on.
 	if s.cfg.StoreFullIP {
-		sc.IP = ip
+		sc.IP = v.ip
 	}
 	s.writer.Submit(sc)
 }

@@ -42,6 +42,11 @@ jobs:
             journalctl -u qrtrack --since "1 hour ago" --no-pager -o cat 2>/dev/null | grep -i -E "geoip|STORE_FULL_IP|listening" | tail -5
             echo "--- scan detail columns filled (counts only)"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'scans=' || count(*), 'with_city=' || coalesce(sum(city<>''),0), 'with_language=' || coalesce(sum(language<>''),0), 'with_destination=' || coalesce(sum(destination_url<>''),0), 'with_ip=' || coalesce(sum(ip<>''),0) from scans;"
+            echo "--- database schema and features (no secrets)"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'migrations applied: ' || count(*) || ' (latest ' || max(version) || ')' from schema_migrations;"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'users: ' || count(*) || ' (admins ' || coalesce(sum(role='admin'),0) || ', members ' || coalesce(sum(role='member'),0) || ')' from users;"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'codes: ' || count(*) || ' (dynamic ' || coalesce(sum(kind='dynamic'),0) || ', static ' || coalesce(sum(kind='static'),0) || ')' from links;"
+            sqlite3 /var/www/qrcode/data/qrtrack.db "select 'tables: ' || group_concat(name, ', ') from sqlite_master where type='table' and name in ('audit_log','link_rules','qr_templates');"
             echo "--- account state (no secrets)"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'user=' || username, 'must_change=' || must_change_password, 'updated=' || updated_at from users;"
             sqlite3 /var/www/qrcode/data/qrtrack.db "select 'login attempts last 3h: total=' || count(*) || ' failed=' || coalesce(sum(success=0),0) from login_attempts where attempted_at > strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 hours');"
