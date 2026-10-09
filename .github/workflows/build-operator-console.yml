@@ -141,6 +141,38 @@ jobs:
           echo "Built version: $VERSION"
           ls -la publish
 
+      - name: Write the release notes
+        run: |
+          VERSION=$(jq -r '.version' publish/version.json)
+          {
+            echo "## Blake UK Operator Console $VERSION"
+            echo
+            echo "| File | For |"
+            echo "|---|---|"
+            echo "| \`blake-uk-operator-console-setup.exe\` | Windows (recommended installer) |"
+            echo "| \`blake-uk-operator-console.msi\` | Windows (for managed installs) |"
+            echo "| \`blake-uk-operator-console.deb\` | Debian / Ubuntu Linux |"
+            echo
+            echo "Built from commit \`${GITHUB_SHA::7}\` by [this workflow run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+            echo
+            echo "**Installing:** the installers are not code-signed, so Windows may show a SmartScreen warning: choose *More info*, then *Run anyway*. If you want to check a download, compare it with \`SHA256SUMS.txt\` (in PowerShell: \`Get-FileHash <file>\`)."
+            echo
+            echo "**Updating:** an installed app shows an *Update* button when a newer build is published. The same files are also served from the company website."
+            echo
+            echo "SHA-256:"
+            echo '```'
+            cat publish/SHA256SUMS.txt
+            echo '```'
+          } > publish/RELEASE_NOTES.md
+
+      - name: Keep the prepared files for the GitHub release
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-publish
+          path: publish
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Ensure the downloads directory exists on the VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -169,3 +201,56 @@ jobs:
           script: |
             chown -R www-data:www-data /var/www/blakegroup/public/downloads
             ls -la /var/www/blakegroup/public/downloads
+
+  # The installers are also attached to GitHub releases, so they can be downloaded from the repository:
+  #   console-v<version>  one permanent release per version
+  #   console-latest      a rolling release that always holds the newest build (a fixed link)
+  # This runs even if the upload to the VPS fails, because the files are already prepared.
+  publish-to-github:
+    needs: publish-to-vps
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the prepared files
+        uses: actions/download-artifact@v4
+        with:
+          name: console-publish
+          path: publish
+
+      - name: Read the version
+        id: v
+        run: echo "version=$(jq -r '.version' publish/version.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Release for this version (kept)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: console-v${{ steps.v.outputs.version }}
+          name: Operator Console ${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          body_path: publish/RELEASE_NOTES.md
+          make_latest: "false"
+          fail_on_unmatched_files: false
+          files: |
+            publish/blake-uk-operator-console-setup.exe
+            publish/blake-uk-operator-console.msi
+            publish/blake-uk-operator-console.deb
+            publish/SHA256SUMS.txt
+            publish/version.json
+
+      - name: Rolling release with the newest build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: console-latest
+          name: Operator Console, newest build (${{ steps.v.outputs.version }})
+          target_commitish: ${{ github.sha }}
+          body_path: publish/RELEASE_NOTES.md
+          make_latest: "true"
+          fail_on_unmatched_files: false
+          files: |
+            publish/blake-uk-operator-console-setup.exe
+            publish/blake-uk-operator-console.msi
+            publish/blake-uk-operator-console.deb
+            publish/SHA256SUMS.txt
+            publish/version.json
