@@ -54,7 +54,12 @@ jobs:
           "$(go env GOPATH)/bin/govulncheck" ./...
 
       - name: Tests (race detector)
-        run: go test -race -count=1 ./...
+        # Two print-format tests draw and decode every style in four formats (about 160 s here). The race detector slows them
+        # past Go's 10 minute limit on a small runner, and they have no concurrency to check, so they run in the next step.
+        run: go test -race -count=1 -skip 'TestTransparentBackgroundsInEveryFormat|TestPDFAndEPSScanAndMatchThePNG' ./...
+
+      - name: Tests (print-format rendering, no race detector)
+        run: go test -count=1 -timeout 20m -run 'TestTransparentBackgroundsInEveryFormat|TestPDFAndEPSScanAndMatchThePNG' ./internal/qr
 
       - name: Latency target (p99 under 5 ms at 500 req/s)
         run: QRTRACK_BENCH=1 go test -count=1 -run TestRedirectLatency -v ./internal/web
