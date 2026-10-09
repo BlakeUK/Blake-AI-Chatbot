@@ -31,3 +31,14 @@
 .wr .wr-note ul { margin:.3rem 0 0; padding-left:1.2rem; }
 .wr ol.wr-changes { padding-left:1.3rem; margin:.3rem 0 0; } .wr ol.wr-changes li { margin:0 0 .7rem; } .wr ol.wr-changes .wr-why { color:var(--muted); display:block; }
 .wr input[type=checkbox] { width:auto; margin:0 .3rem 0 0; }
+
+/* the two modes, as buttons */
+.wr .wr-modes { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 16px; }
+.wr .wr-mode { background:#fff; color:var(--blue); border:1px solid #c9d2f6; border-radius:999px; padding:.55rem 1.3rem; box-shadow:0 1px 2px rgba(28,39,102,.08); transition:background .15s, color .15s, box-shadow .15s, transform .15s; }
+.wr .wr-mode:hover { background:#eef0fb; transform:translateY(-1px); }
+.wr .wr-mode.wr-on { background:linear-gradient(135deg,#6a7fe8,#485cc7); color:#fff; border-color:transparent; box-shadow:0 4px 14px rgba(72,92,199,.4); }
+.wr input[type=text], .wr textarea { font:inherit; padding:.5rem .6rem; border:1px solid #aab3d6; border-radius:8px; background:#fff; color:var(--ink); max-width:100%; }
+.wr textarea { width:100%; resize:vertical; min-height:96px; }
+.wr textarea:focus, .wr input[type=text]:focus, .wr select:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(72,92,199,.18); }
+.wr mark { background:#ffe9a8; color:#5a4300; border-radius:4px; padding:0 .2em; font-weight:600; }
+.wr ul.wr-checks { margin:.2rem 0 0; padding-left:1.2rem; } .wr ul.wr-checks li { margin:0 0 .45rem; }

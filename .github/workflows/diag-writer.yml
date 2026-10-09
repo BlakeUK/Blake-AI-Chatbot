@@ -6,6 +6,11 @@ name: Diagnose the writing assistant (real model)
 on:
   workflow_dispatch:
     inputs:
+      which:
+        description: Which check to run
+        type: choice
+        options: [reply, improve]
+        default: reply
       model:
         description: Model to try (leave empty for the one the tool uses)
         required: false
@@ -24,15 +29,16 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           WRITER_MODEL: ${{ inputs.model }}
+          WRITER_WHICH: ${{ inputs.which }}
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
           command_timeout: 8m
-          envs: WRITER_MODEL
+          envs: WRITER_MODEL,WRITER_WHICH
           script: |
             cd /var/www/chat
             echo "== which models this server is set up to use"
             php -r 'require "src/bootstrap.php"; foreach (["gemini_chat_model","gemini_extract_model","gemini_writer_model"] as $k) { $q = db()->prepare("SELECT value FROM settings WHERE key = ?"); $q->execute([$k]); echo $k, " (setting): ", var_export($q->fetchColumn(), true), "\n"; } echo "config gemini_flash: ", CFG["gemini_flash"], "\nconfig gemini_pro: ", CFG["gemini_pro"], "\n";'
             echo "== the check"
-            php scripts/diag/writer_check.php
+            if [ "$WRITER_WHICH" = "improve" ]; then php scripts/diag/writer_check.php; else php scripts/diag/writer_reply_check.php; fi

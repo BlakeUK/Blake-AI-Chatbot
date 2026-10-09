@@ -130,21 +130,9 @@ class Client
 
     // One edit of a pasted message. The editing rules go in as the system instruction, and the answer is
     // constrained to a JSON object (the edited message, how heavy the edit was, and what changed and why).
-    public function editJson(string $model, string $system, string $user): string
+    public function editJson(string $model, string $system, string $user, ?array $schema = null): string
     {
-        $schema = [
-            'type' => 'OBJECT',
-            'properties' => [
-                'improved' => ['type' => 'STRING'],
-                'level'    => ['type' => 'STRING', 'enum' => ['none', 'light', 'moderate', 'full']],
-                'changes'  => ['type' => 'ARRAY', 'items' => [
-                    'type' => 'OBJECT',
-                    'properties' => ['change' => ['type' => 'STRING'], 'why' => ['type' => 'STRING']],
-                    'required' => ['change', 'why'],
-                ]],
-            ],
-            'required' => ['improved', 'level', 'changes'],
-        ];
+        $schema ??= \Writer\Editor::improveSchema();
         return $this->generateWithThinkingFallback(
             $model,
             [['role' => 'user', 'parts' => [['text' => $user]]]],

@@ -131,6 +131,57 @@ with sync_playwright() as p:
     ok("and the tool opens and is usable in the frame", fr.locator("#writer-mount [data-w=go]").is_visible() and fr.locator("#writer-mount [data-w=audience]").is_visible())
     host.screenshot(path="/tmp/writer_console.png")
 
+    print("== E. reply mode, and the tab buttons")
+    PASTE_TO = """([sel, h]) => { const dt = new DataTransfer(); dt.setData('text/html', h); dt.setData('text/plain', 'x');
+        const el = document.querySelector(sel); el.focus(); el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }"""
+    pg.unroute("**/api/writer.php")
+    pg.reload(); pg.wait_for_selector("[data-w=input]", timeout=5000)
+    ok("two modes: improve is showing, reply is hidden", pg.locator("[data-w=improvePanel]").is_visible() and not pg.locator("[data-w=replyPanel]").is_visible() and pg.get_attribute("[data-w=modeImprove]", "aria-selected") == "true")
+    pg.click("[data-w=modeReply]")
+    ok("switching shows the reply form and marks the button", pg.locator("[data-w=replyPanel]").is_visible() and not pg.locator("[data-w=improvePanel]").is_visible() and pg.get_attribute("[data-w=modeReply]", "aria-selected") == "true")
+    pg.click("[data-w=rGo]")
+    ok("no email: asked for it, nothing sent", "email first" in pg.inner_text("[data-w=rError]"))
+    pg.evaluate(PASTE_TO, ["[data-w=rEmail]", "<p>Hi,</p><p>Do you have the <b>5 element</b> aerial in stock and how much are they? Order ref 88231.</p><p>Thanks, Pete</p>"])
+    pg.fill("[data-w=rPoints]", "Yes in stock. £39.95 plus VAT each. Ships tomorrow if ordered before 3pm.")
+    pg.fill("[data-w=rName]", "Dan"); pg.dispatch_event("[data-w=rName]", "change"); pg.select_option("[data-w=rAudience]", "existing_customer")
+    sent = {}
+    def fake_reply(route):
+        sent.update(json.loads(route.request.post_data))
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({
+            "reply": "Hi Pete,\n\nYes, the 5 element aerial is in stock. They are £39.95 plus VAT each, and the delivery date is [delivery date].\n\nKind regards,\nDan",
+            "notes": [{"point": "Answered stock and price", "why": "Both were in your points."}, {"point": "Left the delivery date open", "why": "Your points gave no date."}],
+            "check": ["Fill in the delivery date."], "placeholders": ["[delivery date]"],
+            "warnings": ["Your points mention a figure, date or price (\"3\") but the reply does not."]}))
+    pg.route("**/api/writer.php", fake_reply)
+    pg.click("[data-w=rGo]"); pg.wait_for_selector("[data-w=rResult]:visible", timeout=5000)
+    ok("what is sent: mode, the email as text, the points, the name, who it is from, the token", sent.get("mode") == "reply" and "5 element" in sent.get("email", "") and "88231" in sent["email"] and sent.get("points", "").startswith("Yes in stock") and sent.get("name") == "Dan" and sent.get("audience") == "existing_customer" and len(sent.get("csrf", "")) > 10 and "text" not in sent, sent)
+    ok("the draft is shown, with the placeholder highlighted", "<mark>[delivery date]</mark>" in pg.inner_html("[data-w=rOut]") and "Hi Pete" in pg.inner_text("[data-w=rOut]"))
+    ok("a 'fill in' notice, the warning, the notes and the check list are shown", "[delivery date]" in pg.inner_text("[data-w=rFill]") and "Your points mention" in pg.inner_text("[data-w=rWarnings]") and pg.locator("[data-w=rNotes] li").count() == 2 and "Fill in the delivery date" in pg.inner_text("[data-w=rChecks]"))
+    ok("the sign-off name is remembered in this browser", pg.evaluate("localStorage.getItem('wr_name')") == "Dan")
+    pg.screenshot(path="/tmp/writer_reply.png", full_page=True)
+    pg.click("[data-w=rCopy]"); pg.wait_for_selector("[data-w=rCopied]:visible", timeout=3000)
+    clip = pg.evaluate("""async () => { const items = await navigator.clipboard.read(); const o = {types: items[0].types};
+        o.html = await (await items[0].getType('text/html')).text(); o.plain = await (await items[0].getType('text/plain')).text(); return o; }""")
+    ok("the copied reply has no highlighting, only the real text, in both formats", "<mark" not in clip["html"] and "[delivery date]" in clip["html"] and "[delivery date]" in clip["plain"] and "<" not in clip["plain"], clip)
+    pg.click("[data-w=rEdit]")
+    ok("'Edit and check this' moves the draft to the improve tab, with the same recipient", pg.locator("[data-w=improvePanel]").is_visible() and "Hi Pete" in pg.inner_text("[data-w=input]") and pg.input_value("[data-w=audience]") == "existing_customer")
+    pg.click("[data-w=modeReply]"); pg.click("[data-w=rClear]")
+    ok("clear empties the email, the points and the result", pg.inner_text("[data-w=rEmail]").strip() == "" and pg.input_value("[data-w=rPoints]") == "" and not pg.locator("[data-w=rResult]").is_visible())
+    pg.unroute("**/api/writer.php")
+    pg.route("**/api/writer.php", lambda r: r.fulfill(status=422, content_type="application/json", body=json.dumps({"error": "This looks like it contains a payment card number. Please remove it before continuing."})))
+    pg.evaluate(PASTE_TO, ["[data-w=rEmail]", "<p>hello</p>"]); pg.click("[data-w=rGo]"); pg.wait_for_selector("[data-w=rError]:visible", timeout=3000)
+    ok("a refusal from the server is shown in the reply tab", "card number" in pg.inner_text("[data-w=rError]") and not pg.locator("[data-w=rResult]").is_visible())
+    pg.unroute("**/api/writer.php")
+
+    tp.goto(B + "/admin/"); tp.wait_for_selector("nav button", timeout=8000)
+    nav = tp.evaluate("""() => { const n = document.querySelector('nav'); const bs = [...n.querySelectorAll('button')].filter(b => b.offsetParent !== null);
+        const tops = new Set(bs.map(b => Math.round(b.getBoundingClientRect().top)));
+        return { noSideScroll: n.scrollWidth <= n.clientWidth + 1, allInView: bs.every(b => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth; }),
+                 count: bs.length, rows: tops.size, active: getComputedStyle(n.querySelector('button.active')).backgroundImage, radius: getComputedStyle(bs[0]).borderTopLeftRadius,
+                 writerVisible: bs.some(b => b.textContent.trim() === 'Writing assistant') }; }""")
+    ok("the admin tabs are rounded buttons that wrap: nothing scrolls sideways and every tab is on screen", nav["noSideScroll"] and nav["allInView"] and nav["rows"] >= 2 and nav["radius"] not in ("0px", "") and "gradient" in nav["active"] and nav["writerVisible"], nav)
+    tp.screenshot(path="/tmp/writer_nav.png", clip={"x": 0, "y": 0, "width": 1280, "height": 260})
+
     print("== C. the real endpoint")
     ctx2 = b.new_context(); r = ctx2.request
     ok("signed out: refused (401)", r.post(B + "/api/writer.php", data=json.dumps({"text": "hello"}), headers={"Content-Type": "application/json"}).status == 401)
@@ -143,6 +194,15 @@ with sync_playwright() as p:
     for what, body, want in [("empty", {"text": "   "}, "Paste or type"), ("a card number", {"text": "my card 4111 1111 1111 1111"}, "card number"), ("too long", {"text": "a" * 6001}, "too long"), ("unknown recipient", {"text": "hi", "audience": "the_king"}, "who the message is for")]:
         x = post(body); ok(f"{what}: refused before any paid call (422) with a clear message", x.status == 422 and want in x.json().get("error", ""), (x.status, x.text()[:150]))
     ok("a good message passes the checks and reaches the model step (503 here: no Gemini key on this test site)", post({"text": "hi sam, can you send the invoice"}).status == 503)
+    import time; time.sleep(62)   # the endpoint allows 12 requests a minute; start a fresh minute for the reply checks
+    rp = lambda body: post(dict(body, mode="reply"))
+    for what, body, want in [("reply: no email", {"email": "  ", "points": "x"}, "customer's email"), ("reply: card number in the points", {"email": "hi", "points": "card 4111 1111 1111 1111"}, "card number"),
+                             ("reply: card number in the email", {"email": "my card 5500005555555559"}, "card number"), ("reply: points too long", {"email": "hi", "points": "a" * 2001}, "points under"),
+                             ("reply: email too long", {"email": "a" * 6001}, "too long"), ("reply: odd sign-off name", {"email": "hi", "name": "Dan <script>"}, "sign-off"),
+                             ("reply: unknown sender type", {"email": "hi", "audience": "the_king"}, "who the email is from")]:
+        x = rp(body); ok(f"{what}: refused before any paid call (422) with a clear message", x.status == 422 and want in x.json().get("error", ""), (x.status, x.text()[:150]))
+    ok("a good reply request passes the checks and reaches the model step (503 here: no Gemini key on this test site)", rp({"email": "Do you have the 5 element aerial?", "points": "Yes, £39.95", "name": "Dan"}).status == 503)
+    ok("an empty points box is allowed", rp({"email": "Do you have the 5 element aerial?"}).status == 503)
     codes = [post({"text": "  "}).status for _ in range(20)]
     ok("rapid requests are rate limited (429)", 429 in codes, codes)
     mobile = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True); mp = mobile.new_page()

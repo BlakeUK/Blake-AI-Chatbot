@@ -10,12 +10,14 @@
 body{font-family:system-ui,sans-serif;font-size:14px;background:#2f343b;color:#e8e8ea}
 header{background:#2f343b;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #454c54}
 header h1{font-size:17px;font-weight:700}
-#logout-btn{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:13px}
-nav{background:#2f343b;border-bottom:2px solid #8fb0ec;display:flex;overflow-x:auto;scrollbar-width:none}
-nav::-webkit-scrollbar{display:none}
-nav button{padding:10px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px;color:#adb4ba}
-nav button.active{border-bottom-color:#8fb0ec;color:#8fb0ec}
-nav button:hover{background:rgba(255,255,255,.06)}
+#logout-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;padding:6px 16px;border-radius:999px;cursor:pointer;font-size:13px;font-weight:600;transition:background .15s,border-color .15s}
+#logout-btn:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.6)}
+/* the tabs are buttons that wrap onto as many rows as they need, so none of them is ever hidden off the side */
+nav{background:#2f343b;border-bottom:1px solid #454c54;display:flex;flex-wrap:wrap;gap:8px;padding:12px 20px}
+nav button{padding:8px 16px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;color:#c3cadb;border-radius:999px;transition:background .15s,border-color .15s,color .15s,transform .15s,box-shadow .15s}
+nav button:hover{background:rgba(143,176,236,.16);border-color:rgba(143,176,236,.55);color:#fff;transform:translateY(-1px)}
+nav button.active{background:linear-gradient(135deg,#6a7fe8,#485cc7);border-color:transparent;color:#fff;box-shadow:0 3px 12px rgba(72,92,199,.5)}
+nav button:focus-visible,#logout-btn:focus-visible{outline:2px solid #8fb0ec;outline-offset:2px}
 .subtab-btn{padding:7px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:#adb4ba}
 .subtab-btn.active{border-bottom-color:#8fb0ec;color:#8fb0ec}
 .subtab-btn:hover{color:#e8e8ea}
