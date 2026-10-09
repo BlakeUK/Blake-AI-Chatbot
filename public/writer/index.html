@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Writing assistant | Blake UK</title>
+<link rel="icon" href="/favicon.png">
+<style>
+  :root { --blue:#485cc7; --ink:#1b2230; --navy:#1c2766; --line:#d9deef; --bg:#f3f5fb; --muted:#5b6479; --ok:#e6f6ec; --warn:#fff6dc; --bad:#fdeceb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:12px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header img { height:32px; display:block; }
+  header h1 { font-size:1.15rem; margin:0; color:var(--navy); }
+  header .right { margin-left:auto; display:flex; gap:14px; align-items:center; font-size:.92rem; }
+  a { color:var(--blue); }
+  main { max-width:1180px; margin:0 auto; padding:20px 16px 56px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  h2 { font-size:1.05rem; margin:0 0 .5rem; color:var(--navy); }
+  p.hint { color:var(--muted); font-size:.92rem; margin:.2rem 0 .8rem; }
+  label { display:block; font-weight:600; margin:.4rem 0 .25rem; }
+  select, input[type=text], input[type=password] { font:inherit; padding:.5rem .6rem; border:1px solid #aab3d6; border-radius:8px; background:#fff; max-width:100%; }
+  .editor { min-height:230px; max-height:60vh; overflow:auto; border:1px solid #aab3d6; border-radius:10px; padding:.75rem .9rem; background:#fff; font-size:1rem; outline:none; }
+  .editor:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(72,92,199,.18); }
+  .editor:empty::before { content:attr(data-placeholder); color:#8a93ad; pointer-events:none; }
+  .editor p, .out p { margin:0 0 1em 0; } .editor ul, .editor ol, .out ul, .out ol { margin:0 0 1em 0; padding-left:1.4rem; }
+  button { font:inherit; font-weight:600; border:0; border-radius:9px; padding:.6rem 1.2rem; cursor:pointer; background:var(--blue); color:#fff; }
+  button:hover { background:#3a4cae; } button:disabled { opacity:.6; cursor:progress; }
+  button.alt { background:#fff; color:var(--blue); border:1px solid var(--blue); } button.alt:hover { background:#eef0fb; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:.8rem; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+  @media (max-width:860px) { .grid { grid-template-columns:1fr; } }
+  .pill { display:inline-block; border-radius:99px; padding:.1rem .8rem; font-size:.85rem; font-weight:700; background:var(--blue); color:#fff; }
+  .pill.none { background:#2f8f4e; }
+  .out { border:1px solid var(--line); border-radius:10px; padding:.75rem .9rem; background:#fbfcff; overflow-wrap:anywhere; }
+  .out ins { background:#d6f1de; text-decoration:none; border-radius:3px; } .out del { background:#fbd9d6; color:#7a1d1d; }
+  .note { border-radius:10px; padding:.55rem .9rem; margin:.6rem 0; font-size:.95rem; }
+  .note.warn { background:var(--warn); border:1px solid #ecd58a; } .note.err { background:var(--bad); border:1px solid #f0a9a4; } .note.ok { background:var(--ok); border:1px solid #9bd3ae; }
+  .note ul { margin:.3rem 0 0; padding-left:1.2rem; }
+  ol.changes { padding-left:1.3rem; margin:.3rem 0 0; } ol.changes li { margin:0 0 .7rem; } ol.changes .why { color:var(--muted); display:block; }
+  .small { font-size:.88rem; color:var(--muted); }
+  #signin { max-width:420px; margin:40px auto; } #signin input { width:100%; margin-bottom:.6rem; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <img src="/assets/blake-uk-logo.png" alt="Blake UK">
+  <h1>Writing assistant</h1>
+  <div class="right"><span id="who" class="small"></span><a href="/admin/" target="_blank" rel="noopener">Admin</a><a href="#" id="signout" hidden>Sign out</a></div>
+</header>
+
+<main>
+  <section id="signin" class="card" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Use the same details as the admin. Staff only.</p>
+    <div id="signin-error" class="note err" role="alert" hidden></div>
+    <form id="signin-form">
+      <div id="step1"><label for="u">User name</label><input id="u" type="text" autocomplete="username" required>
+        <label for="p">Password</label><input id="p" type="password" autocomplete="current-password" required></div>
+      <div id="step2" hidden><label for="c">Code from your authenticator app</label><input id="c" type="text" inputmode="numeric" autocomplete="one-time-code"></div>
+      <div class="row"><button type="submit">Sign in</button></div>
+    </form>
+  </section>
+
+  <section id="tool" hidden>
+    <div class="card">
+      <h2>Check and improve a message</h2>
+      <p class="hint">Paste an email or message below. You will get an improved version in British English that still sounds like you, and a list of what was changed and why. Formatting such as bold, bullets and links is kept.</p>
+      <div class="row" style="margin-top:0">
+        <div><label for="audience">Who is it for?</label>
+          <select id="audience">
+            <option value="">Not sure</option>
+            <option value="existing_customer">An existing customer</option>
+            <option value="new_customer">A new customer</option>
+            <option value="supplier">A supplier</option>
+            <option value="colleague">A colleague</option>
+            <option value="senior_management">Senior management</option>
+            <option value="technical">Technical correspondence</option>
+            <option value="complaint">A complaint</option>
+            <option value="personal">A personal message</option>
+          </select></div>
+      </div>
+      <label for="input" style="margin-top:.8rem">Your message</label>
+      <div id="input" class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Your message" data-placeholder="Paste or type your message here"></div>
+      <div class="row">
+        <button id="go" type="button">Check and improve</button>
+        <button id="clear" type="button" class="alt">Clear</button>
+        <span id="count" class="small"></span>
+      </div>
+      <p class="small" style="margin-bottom:0">Your message is sent to Google Gemini to be edited, and this tool does not keep it. Please do not paste passwords or payment card numbers. Always read the result before you send it.</p>
+    </div>
+
+    <div id="error" class="note err" role="alert" hidden></div>
+
+    <div id="result" hidden aria-live="polite">
+      <div class="card" style="margin-top:18px">
+        <div class="row" style="margin-top:0"><h2 style="margin:0">Improved message</h2><span id="level" class="pill"></span></div>
+        <div id="warnings" class="note warn" hidden></div>
+        <div class="grid">
+          <div>
+            <div id="improved" class="out"></div>
+            <div class="row">
+              <button id="copy" type="button">Copy improved message</button>
+              <button id="copyplain" type="button" class="alt">Copy as plain text</button>
+              <button id="again" type="button" class="alt">Edit this version</button>
+            </div>
+            <div id="copied" class="note ok" hidden role="status"></div>
+            <p class="small">Copying keeps the formatting, so you can paste it straight into Outlook, Word or a web mail message.</p>
+          </div>
+          <div>
+            <div class="row" style="margin-top:0"><h2 style="margin:0">What changed and why</h2></div>
+            <div id="nochange" class="note ok" hidden>Nothing needed changing. Your message already reads well.</div>
+            <ol id="changes" class="changes"></ol>
+            <div class="row"><label style="margin:0;font-weight:400"><input id="showdiff" type="checkbox"> Mark the changes in the message</label></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/writer/writer-lib.js"></script>
+<script>
+(function () {
+  'use strict';
+  var L = window.WriterLib, $ = function (id) { return document.getElementById(id); };
+  var csrf = '', last = null, originalText = '';
+
+  function api(method, url, body) {
+    return fetch(url, { method: method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, data: j }; }); });
+  }
+  function show(el, on) { el.hidden = !on; }
+  function showError(id, msg) { var e = $(id); e.textContent = msg || ''; show(e, !!msg); }
+
+  function ready(s) {
+    csrf = s.csrf || '';
+    $('who').textContent = s.username ? 'Signed in as ' + s.username : '';
+    show($('signin'), false); show($('tool'), true); show($('signout'), true);
+    $('input').focus();
+  }
+  function needSignIn() { show($('tool'), false); show($('signin'), true); show($('signout'), false); $('who').textContent = ''; }
+
+  api('GET', '/api/admin/login.php').then(function (r) {
+    if (r.status === 200 && r.data.ok) ready({ csrf: r.data.csrf, username: r.data.username }); else needSignIn();
+  }).catch(needSignIn);
+
+  $('signin-form').addEventListener('submit', function (e) {
+    e.preventDefault(); showError('signin-error', '');
+    var twofa = !$('step2').hidden;
+    var body = twofa ? { code: $('c').value.trim() } : { username: $('u').value.trim(), password: $('p').value };
+    api('POST', '/api/admin/login.php', body).then(function (r) {
+      if (r.data.requires_2fa) { show($('step1'), false); show($('step2'), true); $('c').focus(); return; }
+      if (r.data.ok) { $('p').value = ''; ready({ csrf: r.data.csrf, username: $('u').value.trim() }); return; }
+      showError('signin-error', r.data.error || 'That did not work. Please try again.');
+    }).catch(function () { showError('signin-error', 'Could not reach the server. Please try again.'); });
+  });
+  $('signout').addEventListener('click', function (e) { e.preventDefault(); api('DELETE', '/api/admin/login.php').then(function () { location.reload(); }); });
+
+  // Pasting keeps bold, lists and links, but only as markup this page builds itself.
+  $('input').addEventListener('paste', function (e) {
+    var cd = e.clipboardData; if (!cd) return;
+    var html = cd.getData('text/html'), txt = cd.getData('text/plain');
+    e.preventDefault();
+    var safe = html ? L.mdToHtml(L.htmlToText(new DOMParser().parseFromString(html, 'text/html').body)) : L.plainToHtml(txt);
+    document.execCommand('insertHTML', false, safe);
+    updateCount();
+  });
+  $('input').addEventListener('input', updateCount);
+  $('input').addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); go(); } });
+
+  function currentText() { return L.htmlToText($('input')); }
+  function updateCount() {
+    var n = currentText().length;
+    $('count').textContent = n ? n.toLocaleString('en-GB') + ' of 6,000 characters' : '';
+    $('count').style.color = n > 6000 ? '#a11' : '';
+  }
+
+  $('clear').addEventListener('click', function () { $('input').innerHTML = ''; show($('result'), false); showError('error', ''); updateCount(); $('input').focus(); });
+
+  var LEVELS = { none: 'No changes needed', light: 'Light edit', moderate: 'Moderate edit', full: 'Restructured' };
+
+  function render(d) {
+    last = d;
+    var pill = $('level'); pill.textContent = LEVELS[d.level] || 'Edited'; pill.className = 'pill ' + (d.level === 'none' ? 'none' : '');
+    var w = $('warnings');
+    if (d.warnings && d.warnings.length) {
+      w.innerHTML = '<strong>Please check before you send:</strong><ul>' + d.warnings.map(function (t) { return '<li>' + L.esc(t) + '</li>'; }).join('') + '</ul>';
+      show(w, true);
+    } else show(w, false);
+    $('showdiff').checked = false; drawImproved();
+    var list = $('changes'); list.innerHTML = '';
+    d.changes.forEach(function (c) { var li = document.createElement('li'); li.innerHTML = '<strong>' + L.esc(c.change) + '</strong><span class="why">' + L.esc(c.why) + '</span>'; list.appendChild(li); });
+    show($('nochange'), d.changes.length === 0); show($('result'), true);
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function drawImproved() {
+    var box = $('improved');
+    if ($('showdiff').checked) {
+      var h = L.diffHtml(L.mdToPlain(originalText), L.mdToPlain(last.improved));
+      box.innerHTML = h === null ? '<p>This message is too long to mark up. Untick the box to see the improved version.</p>' : '<p style="margin:0">' + h + '</p>';
+    } else box.innerHTML = L.mdToHtml(last.improved);
+  }
+  $('showdiff').addEventListener('change', drawImproved);
+
+  function go() {
+    showError('error', ''); show($('copied'), false);
+    originalText = currentText();
+    if (!originalText.trim()) { showError('error', 'Paste or type a message first.'); return; }
+    var btn = $('go'); btn.disabled = true; btn.textContent = 'Checking...'; btn.setAttribute('aria-busy', 'true');
+    api('POST', '/api/writer.php', { csrf: csrf, text: originalText, audience: $('audience').value }).then(function (r) {
+      if (r.status === 401) { needSignIn(); return; }
+      if (r.status !== 200 || !r.data.improved) { showError('error', r.data.error || 'Something went wrong. Please try again.'); return; }
+      render(r.data);
+    }).catch(function () { showError('error', 'Could not reach the server. Please try again.'); })
+      .then(function () { btn.disabled = false; btn.textContent = 'Check and improve'; btn.removeAttribute('aria-busy'); });
+  }
+  $('go').addEventListener('click', go);
+
+  function copied(msg) { var c = $('copied'); c.textContent = msg; show(c, true); setTimeout(function () { show(c, false); }, 4000); }
+
+  // Rich copy puts real formatting on the clipboard along with the plain text, so pasting keeps bold, lists and links.
+  $('copy').addEventListener('click', function () {
+    if (!last) return;
+    var html = '<div>' + L.mdToHtml(last.improved) + '</div>', plain = L.mdToPlain(last.improved);
+    function fallback() {
+      var tmp = document.createElement('div'); tmp.contentEditable = 'true'; tmp.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:pre-wrap';
+      tmp.innerHTML = html; document.body.appendChild(tmp);
+      var range = document.createRange(); range.selectNodeContents(tmp);
+      var sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      var ok = false; try { ok = document.execCommand('copy'); } catch (x) {}
+      sel.removeAllRanges(); document.body.removeChild(tmp);
+      copied(ok ? 'Copied, with its formatting.' : 'Your browser would not copy. Select the message and press Ctrl+C.');
+    }
+    if (navigator.clipboard && window.ClipboardItem) {
+      navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })])
+        .then(function () { copied('Copied, with its formatting.'); }, fallback);
+    } else fallback();
+  });
+  $('copyplain').addEventListener('click', function () {
+    if (!last) return;
+    var plain = L.mdToPlain(last.improved);
+    (navigator.clipboard ? navigator.clipboard.writeText(plain) : Promise.reject()).then(function () { copied('Copied as plain text.'); }, function () { copied('Your browser would not copy. Select the message and press Ctrl+C.'); });
+  });
+  $('again').addEventListener('click', function () { $('input').innerHTML = L.mdToHtml(last.improved); updateCount(); show($('result'), false); window.scrollTo({ top: 0, behavior: 'smooth' }); $('input').focus(); });
+})();
+</script>
+</body>
+</html>

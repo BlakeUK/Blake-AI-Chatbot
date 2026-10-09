@@ -87,20 +87,20 @@ class Client
     // without that override if Google rejects it anyway (a stale
     // heuristic here should degrade to "a bit slower/pricier", never to
     // "broken").
-    private function generateWithThinkingFallback(string $model, array $contents, array $extraGenConfig, int $timeoutSeconds): string
+    private function generateWithThinkingFallback(string $model, array $contents, array $extraGenConfig, int $timeoutSeconds, array $extraBody = []): string
     {
         $thinkingConfig = self::thinkingConfigFor($model);
         $genConfig      = $extraGenConfig;
         if ($thinkingConfig !== null) {
             $genConfig['thinkingConfig'] = $thinkingConfig;
         }
-        $body = self::encode(['contents' => $contents, 'generationConfig' => $genConfig]);
+        $body = self::encode(['contents' => $contents, 'generationConfig' => $genConfig] + $extraBody);
 
         try {
             return $this->post("models/{$model}:generateContent", $body, $model, $timeoutSeconds);
         } catch (\RuntimeException $e) {
             if ($thinkingConfig !== null && stripos($e->getMessage(), 'thinking') !== false) {
-                $bodyRetry = self::encode(['contents' => $contents, 'generationConfig' => $extraGenConfig]);
+                $bodyRetry = self::encode(['contents' => $contents, 'generationConfig' => $extraGenConfig] + $extraBody);
                 return $this->post("models/{$model}:generateContent", $bodyRetry, $model, $timeoutSeconds);
             }
             throw $e;
@@ -124,6 +124,34 @@ class Client
             'temperature'     => 0.2,
             'maxOutputTokens' => 1024,
         ], 30);
+    }
+
+    // ── Message editing (staff writing assistant) ─────────────────────────────
+
+    // One edit of a pasted message. The editing rules go in as the system instruction, and the answer is
+    // constrained to a JSON object (the edited message, how heavy the edit was, and what changed and why).
+    public function editJson(string $model, string $system, string $user): string
+    {
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'improved' => ['type' => 'STRING'],
+                'level'    => ['type' => 'STRING', 'enum' => ['none', 'light', 'moderate', 'full']],
+                'changes'  => ['type' => 'ARRAY', 'items' => [
+                    'type' => 'OBJECT',
+                    'properties' => ['change' => ['type' => 'STRING'], 'why' => ['type' => 'STRING']],
+                    'required' => ['change', 'why'],
+                ]],
+            ],
+            'required' => ['improved', 'level', 'changes'],
+        ];
+        return $this->generateWithThinkingFallback(
+            $model,
+            [['role' => 'user', 'parts' => [['text' => $user]]]],
+            ['temperature' => 0.3, 'maxOutputTokens' => 4096, 'responseMimeType' => 'application/json', 'responseSchema' => $schema],
+            60,
+            ['systemInstruction' => ['parts' => [['text' => $system]]]]
+        );
     }
 
     // ── File extraction (multimodal - PDF/DOCX/image) ──────────────────────────

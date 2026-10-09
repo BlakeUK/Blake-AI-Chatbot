@@ -667,3 +667,13 @@ See [LICENCE](./LICENCE) Section 6 for the complete compliance statement.
 See [LICENCE](./LICENCE) for full terms and GDPR (UK) compliance documentation.
 
 **Contact:** [blake-uk.com/contact-us.html](https://www.blake-uk.com/contact-us.html)
+
+## Writing assistant (staff)
+
+`https://blakegroup.uk/writer/` (also linked from the admin header). Any signed-in staff member can paste an email or message, choose who it is for, and get back an improved version in British English plus a list of what changed and why. Copying keeps the formatting (bold, italic, bullets, links) so it can be pasted straight into Outlook.
+
+* **The prompt** is `src/Writer/editor_prompt.md`, used word for word. The prompt says "return only the message", which would hide the reasons, so `Writer\Editor` adds a short TOOL MODE addendum asking for JSON (the message, the level of edit, and the changes with reasons). The message itself must still follow every rule.
+* **Safeguards, in code not just in the prompt:** figures, dates, prices, telephone numbers, email addresses and web addresses that differ from the original are flagged for the writer to check; a banned phrase or em dash that the edit introduced triggers one corrective retry, then a warning; pasted payment card numbers are refused before any paid call; the pasted message is fenced and treated as text to edit, so instructions hidden in it are not followed.
+* **Formatting** is carried as a light text format (`**bold**`, `*italic*`, `- ` bullets, `1. ` numbers, `[text](address)`) converted to and from real formatting in `public/writer/writer-lib.js`. Everything shown on the page is rebuilt from escaped text, never from pasted HTML.
+* **Privacy and cost:** the message is not stored or logged (only the usual API usage record, with no text in it). Endpoint `public/api/writer.php` needs a signed-in session and the CSRF token, and is rate limited. The model is the chat model from Admin > Model Settings.
+* **Testing:** `tests/cases/writer_test.php` (logic, with a fake model), `tests/e2e/writer_ui.py` (a real browser against `tests/e2e/writer_server.php`: formatting, page flow, and the real endpoint's protections), and the *Diagnose the writing assistant (real model)* workflow, which runs sample messages through the live model and prints the results.
