@@ -102,8 +102,11 @@ func TestSplitIsSteadyFairAndIndependent(t *testing.T) {
 	}
 	for i := 0; i < 200; i++ { // the same person always lands on the same side
 		tok := fmt.Sprintf("v%d", i)
-		if SplitHit(40, tok, 3, 1) != SplitHit(40, tok, 3, 1) {
-			t.Fatal("not steady")
+		first := SplitHit(40, tok, 3, 1)
+		for again := 0; again < 3; again++ {
+			if SplitHit(40, tok, 3, 1) != first {
+				t.Fatal("not steady")
+			}
 		}
 	}
 	if SplitHit(99, "", 1, 0) {

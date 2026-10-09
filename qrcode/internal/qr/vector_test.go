@@ -160,26 +160,10 @@ func TestPDFAndEPSScanAndMatchThePNG(t *testing.T) {
 	}
 }
 
-func scaleNearest(dst *image.RGBA, src image.Image) {
-	sb := src.Bounds()
-	for y := 0; y < dst.Bounds().Dy(); y++ {
-		for x := 0; x < dst.Bounds().Dx(); x++ {
-			dst.Set(x, y, src.At(sb.Min.X+x*sb.Dx()/dst.Bounds().Dx(), sb.Min.Y+y*sb.Dy()/dst.Bounds().Dy()))
-		}
-	}
-}
-
 func alphaAt(img image.Image, fx, fy float64) uint32 {
 	b := img.Bounds()
 	_, _, _, a := img.At(b.Min.X+int(fx*float64(b.Dx())), b.Min.Y+int(fy*float64(b.Dy()))).RGBA()
 	return a >> 8
-}
-
-func onto(img image.Image, bg color.Color) string {
-	dst := image.NewRGBA(img.Bounds())
-	draw.Draw(dst, dst.Bounds(), &image.Uniform{bg}, image.Point{}, draw.Src)
-	draw.Draw(dst, dst.Bounds(), img, img.Bounds().Min, draw.Over)
-	return ""
 }
 
 func composited(t *testing.T, img image.Image, bg color.Color, path string) string {
