@@ -1,7 +1,8 @@
 <?php
 // src/Support/Hours.php
 // Blake UK support opening hours (UK time):
-//   Monday - Thursday 08:00 - 16:30, Friday 08:00 - 16:00, weekends closed.
+//   Monday - Thursday 08:00 - 16:30, Friday 08:00 - 16:00, closed weekends and all bank holidays
+// (England and Wales, see BankHolidays; plus any company closure dates saved in the settings).
 // Used to decide whether a chat handed to staff waits for someone or goes
 // straight to an AI-raised ticket, and for the wording customers see.
 
@@ -24,7 +25,7 @@ class Hours
         7 => null,
     ];
 
-    public const SUMMARY = 'Monday to Thursday 8:00am to 4:30pm, Friday 8:00am to 4:00pm, closed Saturday and Sunday';
+    public const SUMMARY = 'Monday to Thursday 8:00am to 4:30pm, Friday 8:00am to 4:00pm, closed Saturday, Sunday and bank holidays';
 
     private static function at(?int $ts): \DateTimeImmutable
     {
@@ -39,7 +40,7 @@ class Hours
         if (self::$override !== null) return self::$override;
         $d   = self::at($ts);
         $day = self::WEEK[(int)$d->format('N')];
-        if ($day === null) return false;
+        if ($day === null || BankHolidays::isClosedDay($d->format('Y-m-d'))) return false;
         $hm = $d->format('H:i');
         return $hm >= $day[0] && $hm < $day[1];
     }
@@ -49,10 +50,10 @@ class Hours
     public static function nextOpening(?int $ts = null): string
     {
         $now = self::at($ts);
-        for ($i = 0; $i <= 7; $i++) {
+        for ($i = 0; $i <= 21; $i++) {      // far enough to get past Christmas and Easter
             $day = $now->modify("+{$i} day");
             $h   = self::WEEK[(int)$day->format('N')];
-            if ($h === null) continue;
+            if ($h === null || BankHolidays::isClosedDay($day->format('Y-m-d'))) continue;
             [$oh, $om] = array_map('intval', explode(':', $h[0]));
             $open = $day->setTime($oh, $om);
             if ($open <= $now) continue;

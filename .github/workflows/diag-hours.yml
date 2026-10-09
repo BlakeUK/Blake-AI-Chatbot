@@ -1,0 +1,29 @@
+name: Diagnose opening hours and bank holidays
+
+# Read-only. Shows whether the government's bank holiday list has been fetched, and what the opening hours code says for a
+# few dates (Easter Monday, a normal Tuesday, a weekend, Christmas).
+on:
+  workflow_dispatch:
+
+jobs:
+  hours:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /var/www/chat
+            php -r 'require "src/bootstrap.php";
+              foreach (["bank_holidays_fetched","bank_holidays_tried"] as $k) { $q = db()->prepare("SELECT value FROM settings WHERE key = ?"); $q->execute([$k]); $v = $q->fetchColumn(); echo $k, ": ", $v ? date("Y-m-d H:i", (int)$v) . " UTC" : "never", "\n"; }
+              $q = db()->prepare("SELECT value FROM settings WHERE key = ?"); $q->execute(["bank_holidays_feed"]); $f = json_decode((string)$q->fetchColumn(), true);
+              echo "government list saved: ", $f ? count($f["dates"]) . " dates, " . $f["dates"][0] . " to " . end($f["dates"]) : "no", "\n";
+              echo "\nSUMMARY: ", \Support\Hours::SUMMARY, "\n";
+              foreach (["2026-04-06 10:00" => "Easter Monday", "2026-04-07 10:00" => "Tuesday after Easter", "2026-10-10 10:00" => "a Saturday", "2026-12-25 10:00" => "Christmas Day", "2026-12-28 10:00" => "substitute Boxing Day", "2026-10-09 15:59" => "Friday 3:59pm", "2026-10-09 16:00" => "Friday 4:00pm", "2026-10-08 16:29" => "Thursday 4:29pm", "2026-10-08 16:30" => "Thursday 4:30pm"] as $when => $what) {
+                $t = (new DateTimeImmutable($when, new DateTimeZone("Europe/London")))->getTimestamp();
+                printf("%-24s %s  open=%s  next: %s\n", $what, $when, \Support\Hours::isOpen($t) ? "yes" : "no ", \Support\Hours::nextOpening($t));
+              }
+              echo "\nright now: ", \Support\Hours::isOpen() ? "open" : "closed", ", next opening ", \Support\Hours::nextOpening(), "\n";'

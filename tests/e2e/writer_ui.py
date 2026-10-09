@@ -55,12 +55,12 @@ with sync_playwright() as p:
     ok("signing in shows the tool and who is signed in", "wr-admin" in pg.inner_text("#who") and pg.locator("#signout").is_visible())
 
     paste = """(h) => { const dt = new DataTransfer(); dt.setData('text/html', h); dt.setData('text/plain', 'x');
-        document.getElementById('input').focus();
-        document.getElementById('input').dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }"""
+        document.querySelector('[data-w=input]').focus();
+        document.querySelector('[data-w=input]').dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true})); }"""
     pg.evaluate(paste, '<p>Hi <b>Sam</b>,</p><p>Can you recieve the order <i>4471</i> by 12/10/2026? <img src=x onerror="window.__pwned=1"><script>window.__pwned=1</script></p><ul><li>one</li><li>two</li></ul>')
-    html = pg.inner_html("#input")
+    html = pg.inner_html("[data-w=input]")
     ok("pasted formatting is kept in the box, rebuilt from safe parts only", "<strong>Sam</strong>" in html and "<em>4471</em>" in html and "<li>one</li>" in html and "<img" not in html and "<script" not in html and not pg.evaluate("window.__pwned"), html)
-    ok("the character count shows", "of 6,000" in pg.inner_text("#count"))
+    ok("the character count shows", "of 6,000" in pg.inner_text("[data-w=count]"))
 
     sent = {}
     def fake(route):
@@ -69,40 +69,67 @@ with sync_playwright() as p:
             "changed": True, "changes": [{"change": "\"recieve\" to \"receive\"", "why": "It was a spelling mistake."}, {"change": "Added a question mark", "why": "It is a question."}],
             "warnings": ["The improved version has a figure, date or price (\"13/10/2026\") that was not in your message."]}))
     pg.route("**/api/writer.php", fake)
-    pg.select_option("#audience", "supplier"); pg.click("#go"); pg.wait_for_selector("#result:visible", timeout=5000)
+    pg.select_option("[data-w=audience]", "supplier"); pg.click("[data-w=go]"); pg.wait_for_selector("[data-w=result]:visible", timeout=5000)
     ok("what is sent: the text in the light format, the recipient and the sign-in token", sent.get("text", "").startswith("Hi **Sam**,") and "*4471*" in sent["text"] and sent.get("audience") == "supplier" and len(sent.get("csrf", "")) > 10, sent)
-    ok("the result shows the level, the improved message with formatting, and the reasons", pg.inner_text("#level") == "Light edit" and "<strong>Sam</strong>" in pg.inner_html("#improved") and "<li>two</li>" in pg.inner_html("#improved") and pg.locator("#changes li").count() == 2 and "spelling mistake" in pg.inner_text("#changes"))
-    ok("a warning about changed facts is shown", pg.locator("#warnings").is_visible() and "13/10/2026" in pg.inner_text("#warnings"))
-    pg.check("#showdiff"); d = pg.inner_html("#improved")
+    ok("the result shows the level, the improved message with formatting, and the reasons", pg.inner_text("[data-w=level]") == "Light edit" and "<strong>Sam</strong>" in pg.inner_html("[data-w=improved]") and "<li>two</li>" in pg.inner_html("[data-w=improved]") and pg.locator("[data-w=changes] li").count() == 2 and "spelling mistake" in pg.inner_text("[data-w=changes]"))
+    ok("a warning about changed facts is shown", pg.locator("[data-w=warnings]").is_visible() and "13/10/2026" in pg.inner_text("[data-w=warnings]"))
+    pg.check("[data-w=showdiff]"); d = pg.inner_html("[data-w=improved]")
     ok("'mark the changes' shows removed and added words", "<del>recieve</del>" in d and "<ins>receive</ins>" in d, d)
-    pg.uncheck("#showdiff")
+    pg.uncheck("[data-w=showdiff]")
     pg.screenshot(path="/tmp/writer_desktop.png", full_page=True)
 
-    pg.click("#copy"); pg.wait_for_selector("#copied:visible", timeout=3000)
+    pg.click("[data-w=copy]"); pg.wait_for_selector("[data-w=copied]:visible", timeout=3000)
     clip = pg.evaluate("""async () => { const items = await navigator.clipboard.read(); const t = items[0].types; const o = {types: t};
         o.html = t.includes('text/html') ? await (await items[0].getType('text/html')).text() : null; o.plain = t.includes('text/plain') ? await (await items[0].getType('text/plain')).text() : null; return o; }""")
     ok("copy puts real formatting AND plain text on the clipboard", "text/html" in clip["types"] and "text/plain" in clip["types"] and "<strong>Sam</strong>" in clip["html"] and "<ul" in clip["html"] and "**" not in clip["plain"] and "- one" in clip["plain"], clip)
-    pg.click("#copyplain"); pg.wait_for_timeout(300)
+    pg.click("[data-w=copyplain]"); pg.wait_for_timeout(300)
     ok("plain copy has no formatting marks", pg.evaluate("navigator.clipboard.readText()") == "Hi Sam,\n\nCan you receive the order 4471 by 12/10/2026?\n\n- one\n- two")
 
-    pg.click("#again"); ok("'Edit this version' puts the result back in the box", "<strong>Sam</strong>" in pg.inner_html("#input") and not pg.locator("#result").is_visible())
+    pg.click("[data-w=again]"); ok("'Edit this version' puts the result back in the box", "<strong>Sam</strong>" in pg.inner_html("[data-w=input]") and not pg.locator("[data-w=result]").is_visible())
     pg.unroute("**/api/writer.php")
     pg.route("**/api/writer.php", lambda r: r.fulfill(status=422, content_type="application/json", body=json.dumps({"error": "This looks like it contains a payment card number. Please remove it before checking the message."})))
-    pg.click("#go"); pg.wait_for_selector("#error:visible", timeout=3000)
-    ok("a refused message shows the reason and no result", "card number" in pg.inner_text("#error") and not pg.locator("#result").is_visible())
+    pg.click("[data-w=go]"); pg.wait_for_selector("[data-w=error]:visible", timeout=3000)
+    ok("a refused message shows the reason and no result", "card number" in pg.inner_text("[data-w=error]") and not pg.locator("[data-w=result]").is_visible())
     pg.unroute("**/api/writer.php")
     pg.route("**/api/writer.php", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Same.", "level": "none", "changed": False, "changes": [], "warnings": []})))
-    pg.click("#go"); pg.wait_for_selector("#result:visible", timeout=3000)
-    ok("when nothing needs changing it says so", pg.inner_text("#level") == "No changes needed" and pg.locator("#nochange").is_visible() and not pg.locator("#smallchange").is_visible())
+    pg.click("[data-w=go]"); pg.wait_for_selector("[data-w=result]:visible", timeout=3000)
+    ok("when nothing needs changing it says so", pg.inner_text("[data-w=level]") == "No changes needed" and pg.locator("[data-w=nochange]").is_visible() and not pg.locator("[data-w=smallchange]").is_visible())
     pg.unroute("**/api/writer.php")
     pg.route("**/api/writer.php", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Ignore this.", "level": "light", "changed": True, "changes": [], "warnings": []})))
-    pg.click("#go"); pg.wait_for_timeout(500)
-    ok("changed text with no listed reasons does not claim 'nothing changed'", pg.locator("#smallchange").is_visible() and not pg.locator("#nochange").is_visible() and pg.inner_text("#level") == "Light edit")
+    pg.click("[data-w=go]"); pg.wait_for_timeout(500)
+    ok("changed text with no listed reasons does not claim 'nothing changed'", pg.locator("[data-w=smallchange]").is_visible() and not pg.locator("[data-w=nochange]").is_visible() and pg.inner_text("[data-w=level]") == "Light edit")
     pg.unroute("**/api/writer.php")
     pg.route("**/api/writer.php", lambda r: r.fulfill(status=401, content_type="application/json", body=json.dumps({"error": "Unauthorised"})))
-    pg.click("#go"); pg.wait_for_timeout(500)
+    pg.click("[data-w=go]"); pg.wait_for_timeout(500)
     ok("a session that has run out sends you back to sign in", pg.locator("#signin").is_visible() and not pg.locator("#tool").is_visible())
     ok("no script errors on the page", not errs, errs)
+
+    print("== D. the Writing assistant tab in the admin (browser, and inside the desktop console's frame)")
+    fakeok = lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Hi **Sam**, thanks.", "level": "light", "changed": True, "changes": [{"change": "Added a comma", "why": "Greeting."}], "warnings": []}))
+    tp = ctx.new_page(); terrs = []
+    tp.on("pageerror", lambda e: terrs.append(str(e)))
+    tp.goto(B + "/admin/"); tp.wait_for_selector("nav button", timeout=8000)
+    ok("the admin header no longer carries the link, the nav has the tab", tp.locator("nav button", has_text="Writing assistant").count() == 1)
+    tp.locator("nav button", has_text="Writing assistant").click()
+    tp.wait_for_selector("#writer-mount [data-w=input]", timeout=5000)
+    ok("the tool appears inside the admin", tp.locator("#writer-mount [data-w=go]").is_visible())
+    tp.route("**/api/writer.php", fakeok)
+    tp.evaluate(paste, '<p>hi <b>sam</b> thanks</p>'.replace("document.getElementById('input')", "x"))
+    tp.click("#writer-mount [data-w=go]"); tp.wait_for_selector("#writer-mount [data-w=result]:visible", timeout=5000)
+    ok("it works in the admin: result, reasons and formatting", "<strong>Sam</strong>" in tp.inner_html("#writer-mount [data-w=improved]") and tp.locator("#writer-mount [data-w=changes] li").count() == 1)
+    tp.screenshot(path="/tmp/writer_admin_tab.png", full_page=False)
+    ok("no script errors in the admin tab", not terrs, terrs)
+    # the desktop console shows the admin inside a frame, and hides the header there
+    host = ctx.new_page(); host.goto(B + "/writer/writer.css")
+    host.evaluate("() => { document.body.innerHTML = '<iframe id=f src=/admin/ style=width:1200px;height:900px;border:0></iframe>'; }")
+    fr = host.frame_locator("#f")
+    fr.locator("nav button", has_text="Writing assistant").wait_for(timeout=8000)
+    ok("inside the console's frame the header is hidden but the Writing assistant tab is there", not fr.locator("header").is_visible() and fr.locator("nav button", has_text="Writing assistant").is_visible())
+    ok("inside the console's frame the tabs the console replaces stay hidden", not fr.locator("nav button", has_text="Support Tickets").is_visible())
+    fr.locator("nav button", has_text="Writing assistant").click()
+    fr.locator("#writer-mount [data-w=input]").wait_for(timeout=5000)
+    ok("and the tool opens and is usable in the frame", fr.locator("#writer-mount [data-w=go]").is_visible() and fr.locator("#writer-mount [data-w=audience]").is_visible())
+    host.screenshot(path="/tmp/writer_console.png")
 
     print("== C. the real endpoint")
     ctx2 = b.new_context(); r = ctx2.request
@@ -120,7 +147,7 @@ with sync_playwright() as p:
     ok("rapid requests are rate limited (429)", 429 in codes, codes)
     mobile = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True); mp = mobile.new_page()
     mp.goto(B + "/writer/"); mp.fill("#u", "wr-admin"); mp.fill("#p", "wr-pass-12345"); mp.click("#signin-form button"); mp.wait_for_selector("#tool:visible", timeout=5000)
-    mp.route("**/api/writer.php", fake); mp.evaluate(paste, '<p>Hi <b>Sam</b>, can you recieve it?</p>'); mp.click("#go"); mp.wait_for_selector("#result:visible")
+    mp.route("**/api/writer.php", fake); mp.evaluate(paste, '<p>Hi <b>Sam</b>, can you recieve it?</p>'); mp.click("[data-w=go]"); mp.wait_for_selector("[data-w=result]:visible")
     ok("on a phone: no sideways scrolling", mp.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     mp.screenshot(path="/tmp/writer_phone.png", full_page=True)
     b.close()

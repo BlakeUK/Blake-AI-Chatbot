@@ -130,6 +130,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 #pb-popover input,#pb-popover select{margin-bottom:6px}
 .pb-popover-pill{display:block;margin-bottom:6px}
 </style>
+<link rel="stylesheet" href="/writer/writer.css">
 </head>
 <body>
 <style>
@@ -169,7 +170,6 @@ html.embedded [data-embed-hide]{display:none!important}
         <option value="offline">Offline</option>
       </select>
     </div>
-    <a href="/writer/" target="_blank" rel="noopener" data-embed-hide title="Check and improve a message in British English" style="color:#9fb0ff;font-size:13px;margin-right:12px;text-decoration:none">Writing assistant</a>
     <button id="logout-btn" onclick="doLogout()">Log out</button>
   </div>
 </header>
@@ -190,6 +190,7 @@ html.embedded [data-embed-hide]{display:none!important}
   <button data-role="admin" onclick="switchTab('clients',this)">Widget Clients</button>
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
+  <button onclick="switchTab('writer',this)">Writing assistant</button>
   <button data-embed-hide onclick="switchTab('tickets',this)">Support Tickets</button>
   <button data-embed-hide onclick="switchTab('projects',this)">Project Planner</button>
   <button onclick="switchTab('account',this)">My Account</button>
@@ -558,6 +559,12 @@ html.embedded [data-embed-hide]{display:none!important}
     </div>
   </div>
 
+  <!-- ── WRITING ASSISTANT ── -->
+  <div id="tab-writer" class="tab">
+    <div id="writer-mount"></div>
+    <p style="margin-top:10px;font-size:12px"><a href="/writer/" target="_blank" rel="noopener" style="color:#9fb0ff">Open the writing assistant in its own page</a></p>
+  </div>
+
   <!-- ── EMAIL ── -->
   <div id="tab-email" class="tab">
     <div class="card">
@@ -898,6 +905,8 @@ window.BlakeUKWidget = {
 </main>
 
 <script src="vendor/qrcode.js"></script>
+<script src="/writer/writer-lib.js"></script>
+<script src="/writer/writer-ui.js"></script>
 <script>
 const API='/api/admin'; let csrf=''; let role='user'; let myAdminId=null;
 
@@ -979,6 +988,12 @@ function switchTab(name,el){
   if(name==='terms')loadTerms();
   if(name==='email')loadEmailSettings();
   if(name==='files')loadStandards();
+  if(name==='writer')openWriter();
+}
+let writerMounted=false;
+function openWriter(){
+  if(writerMounted)return; writerMounted=true;
+  WriterUI.mount(document.getElementById('writer-mount'),{getCsrf:()=>csrf,onAuthLost:()=>setTimeout(()=>location.reload(),1500)});
 }
 
 // ── Technical standards ──────────────────────────────────────────────────────

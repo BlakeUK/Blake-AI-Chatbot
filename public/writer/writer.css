@@ -1,0 +1,33 @@
+/* The writing assistant's look. Everything is under .wr and prefixed wr-, so it sits safely inside the dark admin
+   as well as on its own page. It always draws itself light, on its own panel. */
+.wr { --blue:#485cc7; --ink:#1b2230; --navy:#1c2766; --line:#d9deef; --muted:#5b6479; background:#f3f5fb; color:var(--ink); border-radius:12px; padding:16px;
+      font:16px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; text-align:left; }
+.wr *, .wr *::before, .wr *::after { box-sizing:border-box; }
+.wr [hidden] { display:none !important; }
+.wr a { color:var(--blue); }
+.wr .wr-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:0 0 18px; }
+.wr h2 { font-size:1.05rem; margin:0 0 .5rem; color:var(--navy); font-weight:700; }
+.wr .wr-hint { color:var(--muted); font-size:.92rem; margin:.2rem 0 .8rem; }
+.wr .wr-small { font-size:.88rem; color:var(--muted); }
+.wr label { display:block; font-weight:600; margin:.4rem 0 .25rem; color:var(--ink); }
+.wr select { font:inherit; padding:.5rem .6rem; border:1px solid #aab3d6; border-radius:8px; background:#fff; color:var(--ink); max-width:100%; width:auto; }
+.wr .wr-editor { min-height:230px; max-height:60vh; overflow:auto; border:1px solid #aab3d6; border-radius:10px; padding:.75rem .9rem; background:#fff; color:var(--ink); font-size:1rem; outline:none; }
+.wr .wr-editor:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(72,92,199,.18); }
+.wr .wr-editor:empty::before { content:attr(data-placeholder); color:#8a93ad; pointer-events:none; }
+.wr .wr-editor p, .wr .wr-out p { margin:0 0 1em 0; }
+.wr .wr-editor ul, .wr .wr-editor ol, .wr .wr-out ul, .wr .wr-out ol { margin:0 0 1em 0; padding-left:1.4rem; }
+.wr button { font:inherit; font-weight:600; border:0; border-radius:9px; padding:.6rem 1.2rem; cursor:pointer; background:var(--blue); color:#fff; width:auto; margin:0; }
+.wr button:hover { background:#3a4cae; } .wr button:disabled { opacity:.6; cursor:progress; }
+.wr button.wr-alt { background:#fff; color:var(--blue); border:1px solid var(--blue); } .wr button.wr-alt:hover { background:#eef0fb; }
+.wr .wr-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:.8rem; }
+.wr .wr-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+@media (max-width:860px) { .wr .wr-grid { grid-template-columns:1fr; } }
+.wr .wr-pill { display:inline-block; border-radius:99px; padding:.1rem .8rem; font-size:.85rem; font-weight:700; background:var(--blue); color:#fff; }
+.wr .wr-pill.wr-none { background:#2f8f4e; }
+.wr .wr-out { border:1px solid var(--line); border-radius:10px; padding:.75rem .9rem; background:#fbfcff; color:var(--ink); overflow-wrap:anywhere; }
+.wr .wr-out ins { background:#d6f1de; text-decoration:none; border-radius:3px; } .wr .wr-out del { background:#fbd9d6; color:#7a1d1d; }
+.wr .wr-note { border-radius:10px; padding:.55rem .9rem; margin:.6rem 0; font-size:.95rem; color:var(--ink); }
+.wr .wr-warn { background:#fff6dc; border:1px solid #ecd58a; } .wr .wr-err { background:#fdeceb; border:1px solid #f0a9a4; } .wr .wr-ok { background:#e6f6ec; border:1px solid #9bd3ae; }
+.wr .wr-note ul { margin:.3rem 0 0; padding-left:1.2rem; }
+.wr ol.wr-changes { padding-left:1.3rem; margin:.3rem 0 0; } .wr ol.wr-changes li { margin:0 0 .7rem; } .wr ol.wr-changes .wr-why { color:var(--muted); display:block; }
+.wr input[type=checkbox] { width:auto; margin:0 .3rem 0 0; }
