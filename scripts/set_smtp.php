@@ -5,7 +5,7 @@
 //
 // Everything comes from the environment (so nothing sensitive appears on the command line or in a log):
 //   SMTP_HOST, SMTP_PORT, SMTP_SECURITY (tls|ssl|none), SMTP_USERNAME, SMTP_FROM_EMAIL,
-//   SMTP_FROM_NAME, SMTP_REPLY_TO, SMTP_NOTIFY (one or more addresses, comma separated), SMTP_PHONE, SMTP_PASSWORD
+//   SMTP_FROM_NAME, SMTP_REPLY_TO, SMTP_NOTIFY (one or more addresses, comma separated), SMTP_PHONE (shown on the ticket page only; "-" clears it), SMTP_PASSWORD
 // Only the values that are present (non-empty) are changed. The password is encrypted exactly as the
 // admin form does it and is never printed.
 // Usage: php scripts/set_smtp.php [--test=someone@example.com] [--retry-failed]
@@ -33,11 +33,14 @@ foreach (preg_split('/[\s,;]+/', $env('SMTP_NOTIFY'), -1, PREG_SPLIT_NO_EMPTY) ?
 }
 $notify = implode(', ', preg_split('/[\s,;]+/', $env('SMTP_NOTIFY'), -1, PREG_SPLIT_NO_EMPTY) ?: []);
 $phone = $env('SMTP_PHONE');
+$clearPhone = ($phone === '-');            // a single dash removes the saved telephone number
+if ($clearPhone) $phone = '';
 if ($phone !== '' && !preg_match('/^[0-9+()\s.-]{5,30}$/', $phone)) $die('SMTP_PHONE can only contain digits, spaces, + ( ) - and .');
 $map = ['smtp_host' => $host, 'smtp_port' => $port, 'smtp_security' => $sec, 'smtp_username' => $env('SMTP_USERNAME'),
         'smtp_from_email' => $env('SMTP_FROM_EMAIL'), 'smtp_from_name' => $env('SMTP_FROM_NAME'),
         'smtp_reply_to' => $env('SMTP_REPLY_TO'), 'support_notify_email' => $notify, 'support_phone' => $phone];
 $changed = [];
+if ($clearPhone) { \Mail\Smtp::saveSetting('support_phone', ''); $changed[] = 'support_phone (cleared)'; }
 foreach ($map as $key => $value) {
     if ($value === '') continue;
     \Mail\Smtp::saveSetting($key, $value);

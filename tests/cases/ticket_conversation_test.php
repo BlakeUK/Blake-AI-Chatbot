@@ -174,21 +174,22 @@ test('the confirmation goes to the customer with the staff blind copied, and has
     assert_equal(['daren.loxley@blake-uk.com', 'sales@blake-uk.com'], $out[2]['bcc'], 'staff are blind copied on the customer email');
     $c = $out[2]['body_text'];
     foreach ([\Tickets\Mailer::code($id), 'Thank you for contacting Blake UK', 'TC amplifier has no output', 'What happens next', 'Our ' . \Chat\Handoff::deptLabel('technical') . ' team', \Tickets\Link::url($id),
-              'You do not need to log in', 'Telephone: 0114 000 1234', 'Opening hours: ' . \Support\Hours::SUMMARY, 'Please do not reply to this email', 'Kind regards'] as $needle) {
+              'You do not need to log in', 'Opening hours: ' . \Support\Hours::SUMMARY, 'Please do not reply to this email', 'Kind regards'] as $needle) {
         assert_str_contains($needle, $c, "the customer email should contain: $needle");
     }
     assert_true(!str_contains($c, 'sales@blake-uk.com') && !str_contains($c, 'daren.loxley'), 'staff addresses are not visible in the customer email');
+    assert_true(!str_contains($c, 'Telephone') && !str_contains($c, '0114'), 'emails never carry a telephone number, even when one is set');
     assert_true(!str_contains($c, 'INTERNAL'), 'internal notes are never in the customer email');
     assert_str_contains('Chat transcript' === 'Chat transcript' ? 'New support ticket' : '', $out[0]['subject']);
 });
 
-test('without a telephone number set, the email simply leaves the line out; out of hours it says when we reopen', function () {
+test('out of hours the email says when we reopen, and has no telephone line', function () {
     tc_reset();
     \Support\Hours::$override = false;
     $id = tc_ticket();
     \Tickets\Mailer::sendConfirmations($id);
     $c = tc_outbox()[2]['body_text'];
-    assert_true(!str_contains($c, 'Telephone:'), 'no phone line when none is set');
+    assert_true(!str_contains($c, 'Telephone:'), 'no phone line');
     assert_str_contains('Opening hours:', $c);
     assert_str_contains(', from ', $c, 'says when the team is next in');
     \Support\Hours::$override = true;

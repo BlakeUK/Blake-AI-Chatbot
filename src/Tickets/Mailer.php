@@ -92,12 +92,11 @@ class Mailer
         return ['staff' => $staffOk, 'customer' => $customerOk];
     }
 
-    // "Contact us": telephone (when one has been set in Admin > Email) and the opening hours.
+    // "Contact us" for the emails: the opening hours and the ticket number to quote.
+    // Emails deliberately never carry a telephone number (the ticket page can; see Admin > Email).
     public static function contactBlock(array $cfg, string $code): string
     {
-        $phone = trim((string)($cfg['phone'] ?? ''));
         return "Contact us\n----------\n"
-            . ($phone !== '' ? "Telephone: {$phone}\n" : '')
             . 'Opening hours: ' . \Support\Hours::SUMMARY . "\n"
             . "Please quote {$code} if you contact us about this enquiry.\n\n";
     }
