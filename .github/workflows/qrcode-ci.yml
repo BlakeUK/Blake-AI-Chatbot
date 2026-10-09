@@ -28,6 +28,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.26"
+          check-latest: true
           cache-dependency-path: qrcode/go.sum
 
       - name: Install QR readers (the tests decode every style with real software)

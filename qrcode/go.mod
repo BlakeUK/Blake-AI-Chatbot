@@ -2,6 +2,8 @@ module github.com/BlakeUK/Blake-AI-Chatbot/qrcode
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
