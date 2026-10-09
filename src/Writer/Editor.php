@@ -226,6 +226,17 @@ TXT;
         return array_slice($warn, 0, 8);
     }
 
+    // The prompt asks for roughly the same length. A result much shorter than the original may have lost something;
+    // one much longer may have been padded. Either is flagged for the writer to look at, never silently accepted.
+    public static function lengthCheck(string $original, string $improved): ?string
+    {
+        $o = mb_strlen(trim($original)); $i = mb_strlen(trim($improved));
+        if ($o < 80) return null; // too short for the ratio to mean anything
+        if ($i < $o * 0.7) return 'The improved version is much shorter than your message (' . round(100 - $i * 100 / $o) . '% shorter). Check that nothing important has been removed.';
+        if ($i > $o * 1.4) return 'The improved version is much longer than your message (' . round($i * 100 / $o - 100) . '% longer). Check that nothing has been added that you did not mean.';
+        return null;
+    }
+
     // ---- the whole job -------------------------------------------------------------------------------------------
 
     // $generate(string $system, string $user): string is the model call. Throws \InvalidArgumentException with a message
@@ -260,6 +271,7 @@ TXT;
         if ($last === null) throw new \RuntimeException('The writing assistant returned something unexpected.');
 
         $warnings = self::factsCheck($original, $last['improved']);
+        if (($len = self::lengthCheck($original, $last['improved'])) !== null) $warnings[] = $len;
         if ($habits = self::introducedHabits($original, $last['improved'])) {
             $warnings[] = 'The improved version uses wording you may want to avoid (' . implode(', ', $habits) . '). Consider changing it.';
         }
