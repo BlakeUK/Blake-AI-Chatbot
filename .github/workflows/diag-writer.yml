@@ -31,4 +31,8 @@ jobs:
           command_timeout: 8m
           envs: WRITER_MODEL
           script: |
-            cd /var/www/chat && php scripts/diag/writer_check.php
+            cd /var/www/chat
+            echo "== which models this server is set up to use"
+            php -r 'require "src/bootstrap.php"; foreach (["gemini_chat_model","gemini_extract_model","gemini_writer_model"] as $k) { $q = db()->prepare("SELECT value FROM settings WHERE key = ?"); $q->execute([$k]); echo $k, " (setting): ", var_export($q->fetchColumn(), true), "\n"; } echo "config gemini_flash: ", CFG["gemini_flash"], "\nconfig gemini_pro: ", CFG["gemini_pro"], "\n";'
+            echo "== the check"
+            php scripts/diag/writer_check.php
