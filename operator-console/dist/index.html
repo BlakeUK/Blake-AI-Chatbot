@@ -1063,6 +1063,12 @@ function openQrTool() {
   } catch (e) {}
   openExternal(QR_URL);
 }
+// The admin page shown inside this app can ask for a guide or manual to open in the computer's own viewer (a link that opens a
+// new tab does not work reliably inside the app). Only the company's own addresses, and only from that frame, are accepted.
+window.addEventListener('message', e => {
+  const u = e && e.data && e.data.openExternal, f = document.getElementById('admin-frame');
+  if (typeof u === 'string' && f && e.source === f.contentWindow && /^https:\/\/(blakegroup\.uk|qr\.blakegroup\.uk)\/[^\s<>"']*$/.test(u)) openExternal(u);
+});
 document.querySelectorAll('.nav-item[data-action]').forEach(el => {
   el.onclick = () => { if (el.dataset.action === 'writer') openAdminTab('writer'); else if (el.dataset.action === 'qr') openQrTool(); };
 });

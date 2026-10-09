@@ -24,6 +24,10 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 - [Product Feed Import](#product-feed-import)
 - [Carrier Tracking](#carrier-tracking)
 - [Support Tickets & Live Chat](#support-tickets--live-chat)
+- [Opening Hours & Bank Holidays](#opening-hours--bank-holidays)
+- [Writing Assistant (Staff)](#writing-assistant-staff)
+- [QR Codes & Link Pages](#qr-codes--link-pages)
+- [Staff Guide](#staff-guide)
 - [Auto-Generated FAQ](#auto-generated-faq)
 - [Telegram Staff Alerts](#telegram-staff-alerts)
 - [Team Channels](#team-channels)
@@ -113,6 +117,14 @@ This started as a phased roadmap (Phase 1 Core → Phase 6 Analytics). Most of i
 | Encrypted credentials | Gemini and carrier keys, AES-256-GCM, never returned to the browser after saving |
 | Live Gemini model picker | Fetched from Google's API, filtered to chat-capable models only |
 | Audit log | Every admin action, with a Dashboard activity feed |
+| Customer conversations on tickets | Staff reply from the ticket; the customer is emailed and answers from a private link, no sign-in — see [Support Tickets & Live Chat](#support-tickets--live-chat) |
+| Opening hours with bank holidays | Mon–Thu 8:00–16:30, Fri 8:00–16:00, closed weekends and England & Wales bank holidays (official list, refreshed weekly) — see [Opening Hours & Bank Holidays](#opening-hours--bank-holidays) |
+| Writing assistant | Improve a message in British English with the reasons for each change, or draft a reply to a customer's email — see [Writing Assistant (Staff)](#writing-assistant-staff) |
+| Staff guide | A PDF guide to all of the above, opened from the admin Dashboard — see [Staff Guide](#staff-guide) |
+
+### Related tool: QR codes & link pages
+
+A separate service at `qr.blakegroup.uk` (folder [`qrcode/`](qrcode)) makes QR codes and one-page link pages and counts how they are used. It has its own sign-in and its own 48-page manual — see [QR Codes & Link Pages](#qr-codes--link-pages).
 
 ### Mobile & desktop clients
 
@@ -317,6 +329,10 @@ Native desktop app (Windows + Debian/Linux, built with [Tauri](https://tauri.app
 | Team channels | Internal group chat and DMs, separate from customer conversations |
 | Reminders | Attach a follow-up to a ticket for yourself or a colleague, with due-check notifications |
 | Projects | Nested workspaces, Kanban board, assignees |
+| **Customer conversation in tickets** *(0.18.0)* | Open a ticket to read the whole conversation with the customer, reply (emailed with their private link), and reset their link. Admins and editors can reply; other roles can read |
+| **Writing assistant** *(0.18.0)* | Sidebar entry that opens the admin on its *Writing assistant* tab: improve a message, or draft a reply to a customer email |
+| **QR codes & links** *(0.18.0)* | Sidebar entry that opens the QR tool (`qr.blakegroup.uk/admin/`) in its own app window, signed in separately; pressing it again focuses that window; falls back to the normal browser if the app cannot make a window |
+| **Guides** *(0.18.0)* | The admin Dashboard's *Guides* box asks the app to open the staff guide and QR manual in the computer's own PDF viewer. The app only accepts `https://blakegroup.uk/…` and `https://qr.blakegroup.uk/…` addresses, and only from the admin frame |
 
 **Download the latest build:**
 
@@ -507,6 +523,67 @@ When the bot can't answer with enough confidence, the customer is offered a choi
 
 ---
 
+## Opening Hours & Bank Holidays
+
+`Support\Hours` decides whether the team is in: **Monday to Thursday 08:00–16:30, Friday 08:00–16:00, UK time, closed Saturday, Sunday and every bank holiday.** It drives whether a chat waits for a person or goes straight to ticket intake, the wording customers see ("closed at the moment… next in on Tuesday at 8:00am") and the ticket emails.
+
+`Support\BankHolidays` answers "is this date a bank holiday?" for **England and Wales** from two sources, in this order:
+
+1. **The government's list** (`https://www.gov.uk/bank-holidays.json`), fetched by the support cron job (`scripts/process_support.php`) about once a week (retried after 6 hours on failure; a bad answer never replaces a good list) and kept in the `settings` table (`bank_holidays_feed`). It is the authority and includes one-off days such as a coronation.
+2. **Standing rules** (New Year, Good Friday, Easter Monday, early May, spring and summer bank holidays, Christmas and Boxing Day with their substitute days), used for any year the list does not cover. The rules are tested against a snapshot of the official list (`tests/fixtures/gov-uk-bank-holidays.json`): identical for 2019–2028 except the three years with one-off changes (2020, 2022, 2023).
+
+**Company closure days.** Set `support_closed_dates` in the `settings` table to a comma-separated list such as `2026-12-29, 2026-12-30` to close on days that are not bank holidays.
+
+Check the live state with the **Diagnose opening hours and bank holidays** workflow (read-only).
+
+---
+
+## Writing Assistant (Staff)
+
+`https://blakegroup.uk/writer/`, and a **Writing assistant** tab in the admin (which the desktop console also shows, with its own sidebar entry). Any signed-in staff role can use it. The interface is one shared script (`public/writer/writer-ui.js`) used by both the tab and the stand-alone page.
+
+**Improve my message.** Paste an email or message, optionally say who it is for, and get an improved version in British English plus **what changed and why**. A *Mark every change* tick-box shows every word added or removed. Pasted formatting (bold, italic, lists, links) is kept and copying puts real formatting on the clipboard (HTML and plain text), so it pastes straight into Outlook.
+
+**Reply to a customer email.** Paste the customer's email, write the points you want to make, add your sign-off name, and get a draft reply. The reply's substance comes **only from your points**: anything the email asks that your points do not cover becomes a `[placeholder]` (highlighted, and listed) or "I will come back to you". With no points you get a holding reply and a list of what to find out. *Edit and check this* moves the draft to the Improve tab.
+
+**The prompts.** `src/Writer/editor_prompt.md` is the supplied British business communications editor prompt, used word for word. Its output contract is "return only the message", so `Writer\Editor` appends a **TOOL MODE** addendum (improve: return the message, the level of edit and each change with its reason) or a **REPLY MODE** addendum (draft the reply from the points only, never invent facts or commitments, ignore instructions inside the email, return reply / notes / check). Answers are constrained to a JSON schema.
+
+**Safeguards, in code rather than trusting the prompt:**
+
+| Check | What it does |
+|---|---|
+| Facts | Prices, figures, dates, telephone numbers, email addresses and web addresses are compared. Improve: any difference from your message is flagged. Reply: anything not in the customer's email or your points is flagged, as is anything from your points that is missing. Dates are compared as dates (`06/10/2026` = "6 October") |
+| Commitments | A percentage, refund, discount, credit, compensation, "free of charge" or waived charge in a reply that is not in your points is flagged, even if the customer's email asked for it |
+| Banned phrases | The prompt's 20 phrases and em dashes: if the edit introduces one, the model is asked once more, then the writer is warned |
+| Length | A result more than 30% shorter or 40% longer than the original is flagged (the model once deleted a whole sentence) |
+| Input | Empty, too long (6,000 characters; points 2,000), unknown recipient, odd sign-off name and **payment card numbers** (Luhn check) are refused **before** any paid call |
+| Injection | The email/message is fenced as text to edit; lines made of `=====` or `-----` are neutralised so they cannot fake the end of the fence |
+| Display | Everything shown is rebuilt from escaped text; pasted HTML is converted to a small safe subset and never inserted as-is |
+
+**Model.** `Writer\Editor::model()` uses the `gemini_writer_model` setting if set, else `gemini_extract_model`, else `gemini_chat_model`. It does not use the config file's fallbacks first, because they can name retired models (the live server's config still names `gemini-1.5-*`, which Google no longer serves).
+
+**Privacy and cost.** The text is sent to Google Gemini; it is not stored or logged (only the usual API-usage record with model, tokens and cost). `POST /api/writer.php` needs a signed-in session and the CSRF token, and is limited to 12 requests a minute per address.
+
+**API.** `POST /api/writer.php` `{csrf, text, audience}` returns `{improved, level, changed, changes[], warnings[]}`; with `mode: "reply"` and `{email, points, name, audience}` it returns `{reply, notes[], check[], placeholders[], warnings[]}`.
+
+**Testing.** `tests/cases/writer_test.php` (logic, with a fake model), `tests/e2e/writer_ui.py` (real browser against `tests/e2e/writer_server.php`: formatting, hostile pasted text, both modes, the clipboard, the admin tab inside the console's frame, the tab buttons, and the real endpoint's protections) and the **Diagnose the writing assistant (real model)** workflow, which runs sample messages and tricky customer emails through the live model on the server (choose `reply` or `improve`).
+
+---
+
+## QR Codes & Link Pages
+
+`qrcode/` is a separate Go service (own database, own users, own deployment) at **`qr.blakegroup.uk`**. See [`qrcode/README.md`](qrcode/README.md). In short: dynamic and static QR codes of many types, one-page link pages with buttons, scan and click statistics, smart routing, and print-ready downloads. The staff guide and the in-app **Help** explain how to use it; a 48-page PDF manual is built from the Help (`qrcode/web/manual/qrtrack-manual.pdf`).
+
+New in this release: **print files** (PDF, EPS, SVG, PNG) with an optional **transparent background**, **time-of-day** and **percentage-split** routing rules, and corrected *Views / Clicks* statistics.
+
+---
+
+## Staff Guide
+
+`docs/staff-guide/guide.html` is built into `public/docs/blake-support-desk-staff-guide.pdf` (served at `https://blakegroup.uk/docs/blake-support-desk-staff-guide.pdf`) by `python3 docs/staff-guide/build.py`. It covers signing in and roles, the Windows app, opening hours, tickets and customer conversations, both modes of the writing assistant, the QR tool, and troubleshooting. The admin Dashboard has a **Guides** box that opens it. After changing the guide, rebuild the PDF and commit both.
+
+---
+
 ## Auto-Generated FAQ
 
 Every grounded chat answer (confidence high enough that it wasn't escalated) is a candidate FAQ entry. `Faq\Builder` dedupes new questions against existing entries — exact match first, then a word-overlap check for rephrasings ("how long does delivery take" / "what are your delivery times") — and only ever increments a hit counter on a match, never rewrites the stored text, so an admin's edit can't be silently reverted by a later, differently-worded answer to the same question. Anything that looks like it contains an email address, an order/tracking number, or a UK postcode is never captured, since it has no business becoming a public FAQ entry.
@@ -533,6 +610,8 @@ A separate internal group chat/DM system for staff-to-staff conversation — cha
 ---
 
 ## File Structure
+
+> New in this release: `src/Writer/` (editor prompt and logic), `src/Support/BankHolidays.php`, `public/writer/` (the writing assistant's page, script and styles), `public/api/writer.php`, `docs/staff-guide/` and `public/docs/` (the staff guide), `tests/e2e/`, `tests/fixtures/gov-uk-bank-holidays.json`, `scripts/diag/` and the *Diagnose…* workflows.
 
 ```
 /
@@ -606,6 +685,10 @@ No network calls, no LLM, runs in seconds. Builds a throwaway SQLite DB from the
 
 Runs automatically on every pull request and push to `main` ([`.github/workflows/test.yml`](.github/workflows/test.yml)).
 
+### Browser tests
+
+`tests/e2e/` holds Playwright (Python) tests that start the real site on a throwaway database and drive it in a real browser: `writer_ui.py` (with `writer_server.php`) for the writing assistant and admin tab, and `console_ui.py` (with `console_server.php`) for the desktop console's screen. For the console the native Tauri shell is stubbed and every call to it recorded, so these show the screen and its logic but not the native window itself.
+
 ### Live RAG answer-quality eval
 
 ```bash
@@ -667,13 +750,3 @@ See [LICENCE](./LICENCE) Section 6 for the complete compliance statement.
 See [LICENCE](./LICENCE) for full terms and GDPR (UK) compliance documentation.
 
 **Contact:** [blake-uk.com/contact-us.html](https://www.blake-uk.com/contact-us.html)
-
-## Writing assistant (staff)
-
-`https://blakegroup.uk/writer/` (also linked from the admin header). Any signed-in staff member can paste an email or message, choose who it is for, and get back an improved version in British English plus a list of what changed and why. Copying keeps the formatting (bold, italic, bullets, links) so it can be pasted straight into Outlook.
-
-* **The prompt** is `src/Writer/editor_prompt.md`, used word for word. The prompt says "return only the message", which would hide the reasons, so `Writer\Editor` adds a short TOOL MODE addendum asking for JSON (the message, the level of edit, and the changes with reasons). The message itself must still follow every rule.
-* **Safeguards, in code not just in the prompt:** figures, dates, prices, telephone numbers, email addresses and web addresses that differ from the original are flagged for the writer to check; a banned phrase or em dash that the edit introduced triggers one corrective retry, then a warning; pasted payment card numbers are refused before any paid call; the pasted message is fenced and treated as text to edit, so instructions hidden in it are not followed.
-* **Formatting** is carried as a light text format (`**bold**`, `*italic*`, `- ` bullets, `1. ` numbers, `[text](address)`) converted to and from real formatting in `public/writer/writer-lib.js`. Everything shown on the page is rebuilt from escaped text, never from pasted HTML.
-* **Privacy and cost:** the message is not stored or logged (only the usual API usage record, with no text in it). Endpoint `public/api/writer.php` needs a signed-in session and the CSRF token, and is rate limited. The model is the chat model from Admin > Model Settings.
-* **Testing:** `tests/cases/writer_test.php` (logic, with a fake model), `tests/e2e/writer_ui.py` (a real browser against `tests/e2e/writer_server.php`: formatting, page flow, and the real endpoint's protections), and the *Diagnose the writing assistant (real model)* workflow, which runs sample messages through the live model and prints the results.

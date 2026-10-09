@@ -10,6 +10,16 @@ uses on the website.
 
 ## What's here
 
+**Version 0.18.0** adds, in the sidebar and the ticket panel:
+
+- **Customer conversation in tickets.** Open a ticket to read the whole conversation with the customer, reply (the customer is emailed with their private link) and reset their link. Admins and editors can reply; other roles can read.
+- **Writing assistant.** A sidebar entry that opens the admin on its *Writing assistant* tab: improve a message, or draft a reply to a customer email.
+- **QR codes & links.** A sidebar entry that opens `https://qr.blakegroup.uk/admin/` in its own app window (label `qrtool`); pressing it again focuses that window. If the app cannot make a window it opens the normal browser. The QR tool has its own sign-in, so it is deliberately not embedded: it would need to be allowed to be framed by the app and to send cookies across origins.
+- **Guides.** The admin Dashboard's *Guides* box posts `{openExternal: url}` to the app, which opens it in the computer's PDF viewer. Only `https://blakegroup.uk/...` and `https://qr.blakegroup.uk/...` addresses are accepted, and only from the admin frame.
+
+`tests/e2e/console_ui.py` (with `console_server.php`) runs this screen in a browser against a real server with the Tauri shell stubbed and recorded: the sidebar, both new entries, the conversation (read, reply, reset, read-only roles), the guide opener and its refusals. **It cannot show the native window itself**, and the desktop build has not been run on a real Windows machine by the person who wrote this: install the build and press *QR codes & links* to confirm the window opens.
+
+
 - `dist/index.html` - the entire UI. Login, ticket list with polling +
   notifications, ticket detail with department routing and notes. Plain
   HTML/CSS/JS, no build step - open it directly in a browser to work on the

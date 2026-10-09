@@ -84,12 +84,12 @@ Checked against the feature list on qrcode-tiger.com. "Done" means built and cov
 | Wi-Fi, plain text, email, SMS, phone | **Done** (static only: they must work offline) |
 | WhatsApp, location, calendar event | **Done** (static or dynamic) |
 | App stores (right store for iPhone / Android) | **Done** |
-| Smart URL / multi-URL by device, system, language, country | **Done** (first matching rule wins; up to 5 rules). By time of day or scan number: not built. |
+| Smart URL / multi-URL by device, system, language, country | **Done** (first matching rule wins; up to 5 rules). By operating system, device, language, country, **time of day** (UK time, handles clock changes) and a **percentage split** (a visitor stays on the same side all day). By scan number: not built. |
 | Link page (link-in-bio, like Linktree) | **Done**: see Link pages below. Three themes, three company brands, live preview, view and click statistics, one-press QR code. |
 | File QR (PDF, images), MP3, video, menu, landing page builder, GS1 Digital Link | **Not built.** These need hosted files and a general page builder. Use the Website link type to point at a PDF or video that already lives on blake-uk.com or YouTube. |
 | Colours, dot style, corner style, centre logo, frame with text | **Done**, with a live preview. Designs that would not scan (low contrast, inverted, logo too large) are refused. Every style is decoded by a real QR reader in the tests. |
 | Saved design templates | **Done** (Designs page; reuse in the form and in bulk) |
-| Download PNG (256 / 512 / 1024) and SVG | **Done**. PDF export: not built. |
+| Download PNG (256 / 512 / 1024), SVG, **PDF** and **EPS**, each with an optional **transparent background** | **Done** (see Print files below) |
 | Edit the destination and the design after printing | **Done** (dynamic codes; a static code's content can never change) |
 | Scan analytics: count, unique, time, place, device, OS, browser, language, referrer | **Done**, with CSV export |
 | Folders | **Campaigns** (one flat level) with their own totals page. Nested folders: not built. |
@@ -101,7 +101,7 @@ Checked against the feature list on qrcode-tiger.com. "Done" means built and cov
 | Two-factor sign-in | **Not built** |
 | White-labelled links | The whole service runs on your own domain. Different domains per code: not built. |
 | Google Tag Manager / Facebook pixel / GA4 retargeting | **Deliberately not built.** It needs an intermediate page that runs third-party scripts before redirecting: slower scans, conflicts with the strict Content-Security-Policy, and in the UK needs a cookie-consent banner. |
-| API, Zapier, HubSpot, Canva, MCP server | **Not built yet** |
+| API, Zapier, HubSpot, Canva, MCP server | **Not built yet.** A transparent SVG or PDF can be dragged straight into a Canva design |
 | AI insights, mobile apps, 27 interface languages | Not built |
 | GDPR / anonymised data | **Done**: no IP stored by default (see below) |
 
@@ -116,6 +116,25 @@ A hosted "all our links" page per company, at `https://<domain>/l/<address>`, ma
 * **QR code for a page:** one press makes a normal tracked dynamic code pointing at `/l/<address>?s=qr`, so views via QR are counted separately.
 * **Statistics:** views, unique visitors, views via QR, clicks per button, views per day, and breakdowns. Same privacy rules as scans (daily-salted hash, no address stored, bots excluded, retention purge).
 * Pages are `noindex`. Tables: `link_pages`, `link_page_items`, `page_events` (migration 0004).
+
+## Print files and transparent versions
+
+Every code's page has a **Print files and transparent versions** panel (route `GET /admin/links/{id}/download?format=pdf|svg|eps|png&size=256|512|1024&bg=transparent`, for dynamic and static codes alike).
+
+- **PDF** is a one-page vector file, 100 mm square, that a printer can scale to any size. The text of a framed code is drawn as outlines (taken from the bundled font), so no font is needed. **EPS** is the same drawing for older print software. **SVG** and **PNG** are as before.
+- All four formats are drawn from one description of the code (`internal/qr/vector.go`), so they cannot drift apart.
+- **Transparent background** leaves the background out, and the gaps inside the three corner squares become see-through too, so the code can sit on a plain light surface. A framed code keeps its own light panel. It is for plain light surfaces only; the Help says never to put it on a photo or a dark colour.
+- Tested by decoding every style: PDF and EPS are rasterised with Ghostscript and decoded with ZBar at screen and print resolution; transparent renders are checked for real see-through corners and eye gaps, and decoded after being placed on white and on grey (216 renders). **The tests need `ghostscript`, `poppler-utils`, `zbar-tools` and `librsvg2-bin`** (the CI workflow installs them). The transparent test takes about 100 seconds.
+
+## Routing rules (Smart URL)
+
+A Smart URL code has a default address and up to five rules, checked top to bottom, **the first match wins**. A rule looks at operating system, device, language, country, **time of day** or a **share of visitors**.
+
+- **Time of day:** days and hours in UK time, such as `Mon-Fri 08:00-16:30`, up to four parts separated by semicolons (`Mon-Thu 08:00-16:30; Fri 08:00-16:00`). Hours end exactly at the time given; clock changes are handled; bank holidays are not special.
+- **Split:** `30%` sends about 30% of visitors to that rule's address. A visitor is placed by a SHA-256 hash of their daily visitor token, the code and the rule position, so the same person sees the same side all day.
+- Each scan records where *that* visitor was actually sent, and the code's page shows **Where visitors were sent**.
+- Once a code has ended, *keep redirecting, no longer counted* mode still asks for the password and applies the rules (an earlier version skipped both).
+- Migration `0005_routing_rules.sql` widens the stored rule kinds.
 
 ## Help, the PDF manual and "what is tracked"
 
@@ -247,7 +266,7 @@ and (unless `STORE_FULL_IP` is on) the IP address.
 
 ```
 go vet ./... && staticcheck ./...
-go test -race ./...
+go test -race ./...          # needs ghostscript, poppler-utils, zbar-tools, librsvg2-bin; the qr package takes a few minutes
 QRTRACK_BENCH=1 go test -run TestRedirectLatency -v ./internal/web    # p99 < 5 ms at 500 req/s
 bash deploy/test_install.sh <path-to-linux-amd64-binary> <path-to-support-Caddyfile>
 # optional extras that need a real DB-IP / GeoLite2 City file:

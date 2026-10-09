@@ -204,6 +204,11 @@ html.embedded [data-embed-hide]{display:none!important}
 
   <!-- ── DASHBOARD ── -->
   <div id="tab-dashboard" class="tab active">
+    <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+      <strong style="margin-right:6px">Guides</strong>
+      <button onclick="openGuide('/docs/blake-support-desk-staff-guide.pdf')" title="How to use the support desk, the Windows app, the writing assistant and the QR tool">Staff guide (PDF)</button>
+      <button onclick="openGuide('https://qr.blakegroup.uk/admin/manual.pdf')" title="The full manual for QR codes and link pages. You sign in to the QR tool with its own details.">QR codes and link pages manual (PDF)</button>
+    </div>
     <div class="stat-grid">
       <div class="stat"><div class="n" id="s-knowledge">—</div><div class="l">Knowledge Entries</div></div>
       <div class="stat"><div class="n" id="s-files">—</div><div class="l">Indexed Files</div></div>
@@ -993,6 +998,11 @@ function switchTab(name,el){
   if(name==='writer')openWriter();
 }
 let writerMounted=false;
+function openGuide(url){
+  const full=new URL(url,location.origin).href;
+  if(window.top!==window)parent.postMessage({openExternal:full},'*');   // inside the Windows app: open in the computer's viewer
+  else window.open(full,'_blank','noopener');
+}
 function openWriter(){
   if(writerMounted)return; writerMounted=true;
   WriterUI.mount(document.getElementById('writer-mount'),{getCsrf:()=>csrf,onAuthLost:()=>setTimeout(()=>location.reload(),1500)});

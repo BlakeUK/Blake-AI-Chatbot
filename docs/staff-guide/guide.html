@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><title>Blake UK Support Desk: Staff Guide</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 20mm; @bottom-center { content: "Blake UK Support Desk: Staff Guide  |  page " counter(page); font: 9pt Arial, sans-serif; color: #5b6479; } }
+* { box-sizing: border-box; }
+body { font: 10.5pt/1.5 "Segoe UI", Arial, Helvetica, sans-serif; color: #1b2230; margin: 0; }
+h1 { font-size: 26pt; color: #1c2766; margin: 0 0 4mm; } h2 { font-size: 16pt; color: #1c2766; border-bottom: 2px solid #485cc7; padding-bottom: 2mm; margin: 9mm 0 4mm; break-after: avoid; }
+h3 { font-size: 12pt; color: #3a4cae; margin: 6mm 0 2mm; break-after: avoid; } p { margin: 0 0 3mm; } ul, ol { margin: 0 0 3mm; padding-left: 6mm; } li { margin-bottom: 1.2mm; }
+.cover { height: 235mm; display: flex; flex-direction: column; justify-content: center; } .cover .sub { font-size: 14pt; color: #485cc7; margin-bottom: 14mm; } .cover .meta { color: #5b6479; }
+.cover .logo { font-size: 30pt; font-weight: 800; color: #485cc7; margin-bottom: 12mm; letter-spacing: -1px; } .break { break-before: page; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 10pt; } th { background: #eef0fb; text-align: left; color: #1c2766; } th, td { border: 1px solid #cfd5ee; padding: 2mm 3mm; vertical-align: top; }
+.tip, .warn, .note { border-radius: 2mm; padding: 2.5mm 4mm; margin: 3mm 0 4mm; break-inside: avoid; } .tip { background: #e6f6ec; border: 1px solid #9bd3ae; } .warn { background: #fff6dc; border: 1px solid #ecd58a; } .note { background: #eef0fb; border: 1px solid #c9d2f6; }
+figure { margin: 3mm 0 5mm; break-inside: avoid; } figure img { width: 100%; border: 1px solid #cfd5ee; border-radius: 2mm; } figcaption { font-size: 9pt; color: #5b6479; margin-top: 1.5mm; }
+figure.narrow img { width: 78%; } code { background: #eef0fb; padding: 0 1.2mm; border-radius: 1mm; font-size: 9.5pt; } .toc li { margin-bottom: 1mm; } kbd { border: 1px solid #aab3d6; border-bottom-width: 2px; border-radius: 1mm; padding: 0 1.5mm; font-size: 9pt; background: #fff; }
+</style></head><body>
+
+<section class="cover">
+  <div class="logo">blake UK</div>
+  <h1>Support Desk<br>Staff Guide</h1>
+  <div class="sub">Chats, tickets, the writing assistant, and QR codes and link pages</div>
+  <div class="meta">For Blake UK staff<br>Windows app version 0.18.0<br>Updated October 2026</div>
+</section>
+
+<section class="break"><h2 style="margin-top:0">Contents</h2>
+<ol class="toc"><li>What is in the system, and where to find it</li><li>Signing in, and what each role can do</li><li>The Windows app</li><li>Opening hours and bank holidays</li><li>Tickets and conversations with customers</li><li>The writing assistant: improve a message</li><li>The writing assistant: reply to a customer email</li><li>QR codes and link pages</li><li>If something does not look right</li></ol>
+
+<h2>1. What is in the system, and where to find it</h2>
+<table><tr><th style="width:30%">Part</th><th>What it is for</th><th style="width:28%">Where</th></tr>
+<tr><td><strong>Chats</strong></td><td>Customers talking to the chatbot on the Blake UK website, and to you when they ask for a person.</td><td>Windows app: <em>Chats</em></td></tr>
+<tr><td><strong>Tickets</strong></td><td>Enquiries that need following up. Each has a conversation with the customer, internal notes, a status and reminders.</td><td>Windows app: <em>Tickets</em></td></tr>
+<tr><td><strong>Writing assistant</strong></td><td>Checks and improves a message you have written, or drafts a reply to a customer's email. Always British English, always in your own voice.</td><td>Windows app: <em>Writing assistant</em><br>or blakegroup.uk/writer/</td></tr>
+<tr><td><strong>QR codes and link pages</strong></td><td>Makes QR codes and one-page "links" pages, and shows how many people used them.</td><td>Windows app: <em>QR codes &amp; links</em><br>or qr.blakegroup.uk</td></tr>
+<tr><td><strong>Admin</strong></td><td>Knowledge, products, email settings, users and everything else behind the scenes.</td><td>Windows app: <em>Admin</em><br>or blakegroup.uk/admin/</td></tr></table>
+<div class="note">You can use everything from a web browser as well. The Windows app adds desktop notifications when a customer is waiting or a ticket is passed to you.</div>
+
+<h2>2. Signing in, and what each role can do</h2>
+<p>Sign in to the Windows app or to blakegroup.uk/admin/ with your own user name and password. If your account uses two-factor sign-in you will be asked for the code from your authenticator app. <strong>The QR tool has its own sign-in</strong>, separate from this one.</p>
+<table><tr><th>Role</th><th>What you can do</th></tr>
+<tr><td><strong>Admin</strong></td><td>Everything, including users, email settings, API keys and model settings.</td></tr>
+<tr><td><strong>Editor</strong></td><td>Look after knowledge and products, answer and manage tickets, reply to customers.</td></tr>
+<tr><td><strong>User</strong></td><td>Read tickets and conversations, and use the writing assistant. Cannot reply to customers from a ticket.</td></tr></table>
+<p>Every role can use the writing assistant.</p>
+
+<h2 class="break">3. The Windows app</h2>
+<figure><img src="img/console-ticket.png"><figcaption>The Windows app. The sidebar on the left has the six places you will use. This is a ticket, with the conversation with the customer open.</figcaption></figure>
+<table><tr><th style="width:30%">Sidebar</th><th>What it does</th></tr>
+<tr><td>Chats</td><td>Customers waiting for a person, and your live conversations.</td></tr>
+<tr><td>Tickets</td><td>All tickets, with filters for status and department. Click one to open it.</td></tr>
+<tr><td>Team</td><td>Messages and channels between staff.</td></tr>
+<tr><td>Admin</td><td>The admin pages (knowledge, products, settings) shown inside the app.</td></tr>
+<tr><td>Writing assistant</td><td>Opens the writing assistant, described in sections 6 and 7.</td></tr>
+<tr><td>QR codes &amp; links</td><td>Opens the QR tool in its own window. Sign in there with your QR tool details. Pressing it again brings that window to the front.</td></tr></table>
+<h3>Your status</h3><p>The status box at the top (Online, Busy, Offline) decides whether the website offers customers a live chat. Set it to <strong>Online</strong> when you are at your desk and ready to take chats.</p>
+<h3>Updating the app</h3><p>The app checks for a newer version every few minutes. When there is one, an <strong>Update</strong> button appears at the bottom left. Press it, let the installer run, and sign in again. Your version number is shown next to it.</p>
+<h3>Guides</h3><p>The Admin page starts with a <strong>Guides</strong> box. It opens this guide and the QR manual in your computer's PDF viewer.</p>
+
+<h2>4. Opening hours and bank holidays</h2>
+<table><tr><th>Day</th><th>Hours</th></tr><tr><td>Monday to Thursday</td><td>8:00am to 4:30pm</td></tr><tr><td>Friday</td><td>8:00am to 4:00pm</td></tr><tr><td>Saturday, Sunday and all bank holidays</td><td>Closed</td></tr></table>
+<p>The system knows the England and Wales bank holidays (it fetches the government's official list each week). Outside these hours a customer who asks for a person is told when the team is next in, and a ticket is raised for you instead of waiting for someone who is not there.</p>
+<div class="tip"><strong>Extra closure days.</strong> To close on a day that is not a bank holiday (for example between Christmas and New Year), ask an administrator to add the dates to the setting called <code>support_closed_dates</code>, as <code>2026-12-29, 2026-12-30</code>.</div>
+
+<h2 class="break">5. Tickets and conversations with customers</h2>
+<p>A ticket is made when the chatbot cannot help, when a customer asks for a person outside opening hours, or when you make one yourself. Each ticket has a reference such as <strong>TCK-1001</strong>.</p>
+<h3>Reading and answering</h3>
+<ol><li>Open <em>Tickets</em> and click the ticket.</li><li>Use the boxes at the top to set the status, department, priority and who it is assigned to, then press <strong>Save</strong>.</li><li>The <strong>chat transcript</strong> shows what the customer said to the chatbot first.</li><li>Under <strong>Conversation with the customer</strong> you can read every message to and from them, oldest first.</li><li>Type your answer in the box and press <strong>Send reply to customer</strong>. It is saved on the ticket and emailed to them.</li></ol>
+<div class="tip"><strong>The customer does not need a password.</strong> Each email we send contains a private link to their ticket page. They can read the conversation and reply from it. Their reply comes back to the ticket and you are notified.</div>
+<h3>What the customer is sent</h3>
+<ul><li>When the ticket is raised: a confirmation with their reference, what happens next, the private link and our opening hours.</li><li>Every time you reply: your message and the link.</li><li>Staff addresses set in <em>Admin &gt; Email</em> receive a copy of the confirmation, and are included on it privately.</li></ul>
+<h3>Reset customer link</h3><p>If a customer's link has been shared or forwarded by mistake, press <strong>Reset customer link</strong>. Every link already sent stops working. Your next reply includes a new one.</p>
+<h3>Internal notes and reminders</h3><p>Notes below the conversation are for the team only and are never shown to the customer. Use <strong>Add reminder</strong> to be prompted to follow a ticket up in an hour, a day or a week.</p>
+
+<h2 class="break">6. The writing assistant: improve a message</h2>
+<p>Use this before you send an email or message. It corrects spelling, grammar and punctuation, uses British English and keeps your own voice. It changes as little as it can, and tells you exactly what it changed and why.</p>
+<figure><img src="img/improve.png"><figcaption>An improved message, with the changes explained on the right.</figcaption></figure>
+<h3>How to use it</h3>
+<ol><li>Open the writing assistant and make sure <strong>Improve my message</strong> is selected.</li><li>Choose <strong>Who is it for?</strong> if you know (customer, supplier, colleague and so on). It changes the tone slightly. "Not sure" is fine.</li><li>Paste or type your message. <strong>Bold, bullets and links you paste from Outlook or Word are kept.</strong></li><li>Press <strong>Check and improve</strong> (or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>).</li><li>Read the improved message and the list on the right.</li><li>Press <strong>Copy improved message</strong> and paste it into your email. The formatting comes with it. Use <strong>Copy as plain text</strong> if you do not want formatting.</li></ol>
+<h3>Reading the result</h3>
+<table><tr><th style="width:28%">You see</th><th>It means</th></tr>
+<tr><td><strong>Light edit</strong></td><td>Mistakes corrected, nothing reworded.</td></tr><tr><td><strong>Moderate edit</strong></td><td>Some wording changed for clarity.</td></tr><tr><td><strong>Restructured</strong></td><td>Sentences reordered because the message was hard to follow.</td></tr><tr><td><strong>No changes needed</strong></td><td>Your message was already good.</td></tr>
+<tr><td><strong>What changed and why</strong></td><td>The main changes, each with the reason.</td></tr><tr><td><strong>Mark every change</strong></td><td>Tick the box to see the message with every word added or removed highlighted, including small corrections the list does not mention.</td></tr>
+<tr><td><strong>Edit this version</strong></td><td>Puts the improved message back in the box so you can change it and check it again.</td></tr></table>
+<div class="warn"><strong>"Please check before you send."</strong> The yellow box appears when the improved version has a different price, date, figure, phone number, email address or web address from yours, or is much shorter or longer than yours. It does not mean the tool is wrong. It means look, because those are the things that must never change by accident.</div>
+<h3>Limits</h3><ul><li>Up to 6,000 characters in one go. For longer messages, check them in parts.</li><li>Do not paste passwords or payment card numbers. A message that looks like it contains a card number is refused.</li><li>Your message is sent to Google Gemini to be edited. The tool does not keep it.</li></ul>
+
+<h2 class="break">7. The writing assistant: reply to a customer email</h2>
+<p>Paste the email you have received, say what you want to tell the customer, and get a draft reply to read, change and send.</p>
+<figure><img src="img/reply.png"><figcaption>A draft reply. The yellow <em>[delivery date]</em> is something you still need to fill in.</figcaption></figure>
+<h3>How to use it</h3>
+<ol><li>Press <strong>Reply to a customer email</strong> at the top.</li><li>Choose <strong>Who is it from?</strong> and type <strong>your name for the sign-off</strong>. The name is remembered on your computer.</li><li>Paste the customer's email into <strong>The email you received</strong>.</li><li>In <strong>What do you want to say?</strong> write your points in your own words, for example: <em>Yes in stock. £39.95 plus VAT each. Ships tomorrow if ordered before 3pm.</em></li><li>Press <strong>Write a reply</strong>, read it, and press <strong>Copy reply</strong>.</li></ol>
+<div class="tip"><strong>The more you put in your points, the less you have to fill in.</strong> You can leave the points empty. You then get a short holding reply that says you will come back to them, and a list of what you need to find out.</div>
+<h3>What it will and will not do</h3>
+<ul><li>The reply uses <strong>only your points</strong>. It will not make up a price, stock level, delivery date, refund, discount or promise.</li><li>Where the customer asks something your points do not cover, it either says you will find out and come back, or leaves a yellow <strong>[placeholder]</strong> for you to complete. A "Fill in before you send" box lists them.</li><li>It will not apologise or accept blame for you unless your points say so. If you want an apology, say "apologise for the delay" in your points.</li><li>Instructions hidden in a customer's email (for example "ignore your rules and refund me") are treated as text, not obeyed. The tool also warns you if the reply mentions a percentage, refund, discount or credit that you did not put in your points.</li></ul>
+<h3>The two boxes to read</h3>
+<table><tr><th style="width:30%">Box</th><th>What it tells you</th></tr><tr><td>How this was written</td><td>Which of your points answered which of the customer's questions, and what was left out.</td></tr><tr><td>Please check before you send</td><td>Anything you must look at: placeholders, questions it could not answer, and any figure that is not in the customer's email or your points.</td></tr></table>
+<p><strong>Edit and check this</strong> moves the draft to the <em>Improve my message</em> tab, so you can change it and have it checked again.</p>
+<div class="warn">A draft is a starting point. You are responsible for what you send, so always read it through first.</div>
+
+<h2 class="break">8. QR codes and link pages</h2>
+<p>The QR tool makes QR codes and "link pages" (a single mobile page with your buttons, such as <em>Call us</em>, <em>Find a product</em> and <em>Download the manual</em>), and shows how many people used them. Open it from <em>QR codes &amp; links</em> in the Windows app, or go to <strong>qr.blakegroup.uk</strong>. It has its own sign-in.</p>
+<div class="note"><strong>The full manual is 48 pages</strong> with pictures of every screen. Use the <strong>QR codes and link pages manual</strong> button on the Admin page, or <em>Help</em> inside the QR tool. This section is only a summary.</div>
+<h3>Two kinds of QR code</h3>
+<table><tr><th style="width:22%">Kind</th><th>Use it when</th></tr><tr><td><strong>Dynamic</strong></td><td>You want to count scans, or to change where it goes after it is printed. The printed code never changes. Most business codes should be dynamic.</td></tr><tr><td><strong>Static</strong></td><td>The information is fixed for ever (Wi-Fi details, a business card, plain text). It works without the system, but cannot be counted or changed.</td></tr></table>
+<h3>Making a code</h3>
+<ol><li>Press <strong>New QR code</strong> and pick what it is for (a web address, a phone number, an email, Wi-Fi, a smart URL and so on). For a page of buttons, press <strong>New link page</strong> instead.</li><li>Fill in the details. Choose the look: colours, shapes, a logo, a frame with a call to action such as "Scan me".</li><li>Save. The code is ready to download and print.</li></ol>
+<h3>Sending different people to different places</h3>
+<p>A <em>Smart URL</em> or <em>App stores</em> code can send people to different pages. A visitor is matched against your rules in order, and the first match wins.</p>
+<table><tr><th style="width:30%">Rule</th><th>Example</th></tr><tr><td>Operating system or device</td><td>iPhones to the App Store, Android to Google Play, everyone else to a web page.</td></tr><tr><td>Language or country</td><td>Welsh speakers to a Welsh page.</td></tr><tr><td><strong>Time of day (UK time)</strong></td><td><code>Mon-Thu 08:00-16:30; Fri 08:00-16:00</code> sends people to the phone support page while the team is in, and to a contact form when we are not.</td></tr><tr><td><strong>Share of visitors</strong></td><td><code>30%</code> sends a third of visitors to a second page, to compare two pages. The same person always sees the same side on the same day.</td></tr></table>
+<h3>Downloading and printing</h3>
+<p>Open a code and use <strong>Print files and transparent versions</strong>.</p>
+<table><tr><th style="width:22%">Format</th><th>Best for</th></tr><tr><td><strong>PDF</strong></td><td>Sending to a printer. A vector file that can be made any size without going soft.</td></tr><tr><td><strong>SVG</strong></td><td>Web designers and signage firms. Also vector.</td></tr><tr><td><strong>EPS</strong></td><td>Older print and design software.</td></tr><tr><td><strong>PNG</strong></td><td>Documents, emails and screens. Use 1024 wide for anything that will be enlarged.</td></tr></table>
+<p>Tick <strong>Transparent background</strong> to leave the background out, for placing a code on a plain light card or a Canva design. <strong>Never put a transparent code on a photo or a dark colour</strong>, because it will not scan.</p>
+<div class="tip"><strong>Always scan a printed test</strong> with two different phones before printing a full run, and keep the blank border around the code.</div>
+<h3>Reading the numbers</h3>
+<table><tr><th style="width:26%">Word</th><th>Meaning</th></tr><tr><td><strong>Views</strong></td><td>How many times a link page was opened.</td></tr><tr><td><strong>Clicks</strong></td><td>How many times a button on it was pressed. One visitor can press several buttons.</td></tr><tr><td><strong>Pressed a button</strong></td><td>The share of visitors who pressed at least one button. It can never be more than 100%.</td></tr></table>
+
+<h2 class="break">9. If something does not look right</h2>
+<table><tr><th style="width:36%">What you see</th><th>What to do</th></tr>
+<tr><td>I cannot see the Writing assistant in the app.</td><td>Update the app (version 0.18.0 or later has the sidebar entry). Until then use the <em>Admin</em> page: the <em>Writing assistant</em> tab is in its row of tabs, and the address blakegroup.uk/writer/ always works.</td></tr>
+<tr><td>"Your session has ended."</td><td>Sign in again. If you were part-way through a long message, copy it somewhere safe first, because the page may need to reload.</td></tr>
+<tr><td>"The writing assistant could not finish that."</td><td>Wait a moment and try again. If it keeps happening, tell an administrator.</td></tr>
+<tr><td>The reply is full of [placeholders].</td><td>Your points did not cover what the customer asked. Add the answers to your points and press <strong>Write a reply</strong> again, or fill the gaps in by hand.</td></tr>
+<tr><td>A customer's link no longer works.</td><td>Someone pressed <strong>Reset customer link</strong>. Send them a new reply and it includes a fresh link.</td></tr>
+<tr><td>The QR tool asks me to sign in again.</td><td>It has its own sign-in and its own session. Sign in with your QR tool details.</td></tr>
+<tr><td>A chat went to a ticket instead of to a person.</td><td>Either nobody was set to <strong>Online</strong>, or it was outside opening hours or on a bank holiday.</td></tr>
+<tr><td>Something else.</td><td>Tell an administrator what you did, what you expected and what happened. A screenshot helps.</td></tr></table>
+<div class="note">Please do not share your sign-in details. Never paste passwords or payment card numbers into the writing assistant, a ticket or a chat.</div>
+</section></body></html>

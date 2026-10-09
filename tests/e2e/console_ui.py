@@ -54,6 +54,24 @@ with sync_playwright() as p:
     c = pg.evaluate("window.__calls")
     ok("pressing it again brings that window forward instead of opening a second", len(c["windows"]) == 1 and c["focused"] == 1 and c["opened"] == [], c)
 
+    print("== guides open in the computer's own viewer")
+    pg.evaluate("window.__msgs = []; window.addEventListener('message', e => { if (e.data && e.data.openExternal) window.__msgs.push(e.data.openExternal); })")
+    pg.click("#nav .nav-item[data-page=admin]"); fr.locator("nav button", has_text="Dashboard").click()
+    ok("the admin dashboard has a Guides card with both guides", fr.locator("#tab-dashboard button", has_text="Staff guide (PDF)").count() == 1 and fr.locator("#tab-dashboard button", has_text="QR codes and link pages manual").count() == 1)
+    fr.locator("#tab-dashboard button", has_text="Staff guide (PDF)").click(); pg.wait_for_timeout(300)
+    ok("pressing Staff guide inside the app sends the request for the guide's address to the app", len(pg.evaluate("window.__msgs")) == 1 and pg.evaluate("window.__msgs")[0].endswith("/docs/blake-support-desk-staff-guide.pdf"), pg.evaluate("window.__msgs"))
+    ok("(this test site is not a company address, so the app rightly did not open it)", pg.evaluate("window.__calls.opened") == [])
+    fr.locator("body").evaluate("() => parent.postMessage({openExternal: 'https://blakegroup.uk/docs/blake-support-desk-staff-guide.pdf'}, '*')"); pg.wait_for_timeout(300)
+    fr.locator("body").evaluate("() => parent.postMessage({openExternal: 'https://qr.blakegroup.uk/admin/manual.pdf'}, '*')"); pg.wait_for_timeout(300)
+    ok("a genuine company address from the admin frame is opened in the system viewer", pg.evaluate("window.__calls.opened") == ["https://blakegroup.uk/docs/blake-support-desk-staff-guide.pdf", "https://qr.blakegroup.uk/admin/manual.pdf"], pg.evaluate("window.__calls.opened"))
+    pg.evaluate("window.__calls.opened.length = 0")
+    for what, url, where in [("another website", "https://evil.example/x.pdf", "frame"), ("an unencrypted address", "http://blakegroup.uk/a.pdf", "frame"), ("a script address", "javascript:alert(1)", "frame"),
+                             ("a look-alike address", "https://blakegroup.uk.evil.example/a.pdf", "frame"), ("an address with a quote in it", "https://blakegroup.uk/a\".pdf", "frame"), ("the company address, but not from the admin frame", "https://blakegroup.uk/a.pdf", "top")]:
+        if where == "frame": fr.locator("body").evaluate("(b, u) => parent.postMessage({openExternal: u}, '*')", url)
+        else: pg.evaluate("(u) => window.postMessage({openExternal: u}, '*')", url)
+    pg.wait_for_timeout(400)
+    ok("anything else is ignored: other sites, plain http, scripts, look-alikes, quotes, and messages from anywhere but the admin frame", pg.evaluate("window.__calls.opened") == [], pg.evaluate("window.__calls.opened"))
+
     print("== the conversation with the customer, in a ticket")
     pg.click("#nav .nav-item[data-page=tickets]"); pg.wait_for_selector("#page-tickets tbody tr", timeout=8000)
     pg.click("#page-tickets tbody tr >> nth=0"); pg.wait_for_selector("#conv-panel", timeout=6000)
