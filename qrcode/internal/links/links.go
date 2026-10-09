@@ -79,7 +79,8 @@ const (
 // IsStatic reports whether the code carries its content directly (untracked).
 func (l *Link) IsStatic() bool { return l.Kind == KindStatic }
 
-// Rule sends a visitor to URL when they match (Match is os, device, language or country).
+// Rule sends a visitor to URL when they match. Match is os, device, language or country (what the visitor's
+// phone or browser says), time (a day and hours, UK time) or split (a share of visitors, for A/B tests).
 type Rule struct {
 	Match string
 	Value string

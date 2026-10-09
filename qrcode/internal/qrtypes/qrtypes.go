@@ -88,7 +88,7 @@ type Built struct {
 var (
 	osOptions     = []Option{{"iOS", "iPhone / iPad (iOS)"}, {"Android", "Android"}, {"Windows", "Windows"}, {"macOS", "Mac (macOS)"}, {"Linux", "Linux"}, {"ChromeOS", "ChromeOS"}}
 	deviceOptions = []Option{{"mobile", "Mobile phone"}, {"tablet", "Tablet"}, {"desktop", "Desktop computer"}}
-	matchOptions  = []Option{{"os", "Operating system"}, {"device", "Device type"}, {"language", "Language"}, {"country", "Country"}}
+	matchOptions  = []Option{{"os", "Visitor's operating system"}, {"device", "Visitor's device type"}, {"language", "Visitor's language"}, {"country", "Visitor's country"}, {"time", "Time of day (UK time)"}, {"split", "Share of visitors (A/B test)"}}
 	langRe        = regexp.MustCompile(`^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$`)
 	countryRe     = regexp.MustCompile(`^[A-Za-z]{2}$`)
 	phoneRe       = regexp.MustCompile(`^\+?[0-9][0-9 ()./-]{4,24}$`)
@@ -232,8 +232,8 @@ func smartURL() Spec {
 	for i := 1; i <= 5; i++ {
 		n := strconv.Itoa(i)
 		f = append(f,
-			Field{Name: "r" + n + "_match", Label: "Rule " + n + ": if the visitor's", Kind: Select, Options: append([]Option{{"", "(not used)"}}, matchOptions...)},
-			Field{Name: "r" + n + "_value", Label: "Rule " + n + ": is", Help: "Pick the system or device, or type a language (en, fr-FR) or a country code (GB, FR).", Kind: Text, Max: 12},
+			Field{Name: "r" + n + "_match", Label: "Rule " + n + ": if", Kind: Select, Options: append([]Option{{"", "(not used)"}}, matchOptions...)},
+			Field{Name: "r" + n + "_value", Label: "Rule " + n + ": is", Help: "Type the system or device, a language (en, fr-FR), a country code (GB, FR), a time such as Mon-Fri 08:00-16:30, or a percentage such as 30%.", Kind: Text, Max: 70},
 			Field{Name: "r" + n + "_url", Label: "Rule " + n + ": send them to", Kind: URL, Max: links.MaxURLLen})
 	}
 	return Spec{Type: "smart_url", Label: "Smart URL", Group: "Links", Dynamic: true,
@@ -562,6 +562,20 @@ func smartRules(spec Spec, v map[string]string, errs map[string]string) []Rule {
 				continue
 			}
 			val = strings.ToUpper(val)
+		case "time":
+			_, norm, terr := links.ParseTimeRule(val)
+			if terr != nil {
+				errs["r"+n+"_value"] = "Rule " + n + ": " + terr.Error() + "."
+				continue
+			}
+			val = norm
+		case "split":
+			_, norm, serr := links.ParseSplit(val)
+			if serr != nil {
+				errs["r"+n+"_value"] = "Rule " + n + ": " + serr.Error() + "."
+				continue
+			}
+			val = norm
 		default:
 			errs["r"+n+"_match"] = "Unknown rule type."
 			continue

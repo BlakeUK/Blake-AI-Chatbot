@@ -86,8 +86,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	if status == links.Active && l.MaxScans > 0 && l.ScanCount >= l.MaxScans {
 		status = links.Ended
 	}
-	if status == links.Ended {
-		s.ended(w, r, l)
+	if status == links.Ended && s.ended(w, r, l) {
 		return
 	}
 
@@ -98,20 +97,19 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	s.deliver(w, r, l, v, status == links.Active, now)
 }
 
-// ended applies the link's chosen behaviour once its window or scan limit is over.
-func (s *Server) ended(w http.ResponseWriter, r *http.Request, l *links.Link) {
+// ended applies the link's chosen behaviour once its window or scan limit is over. It reports whether it
+// answered the visitor. In the "keep redirecting, no longer counted" mode it does not: that code is still
+// a working code, so the visitor goes through the normal path (password, routing rules) and is just not counted.
+func (s *Server) ended(w http.ResponseWriter, r *http.Request, l *links.Link) bool {
 	switch l.ExpiryMode {
 	case links.ShowExpiredPage:
 		s.errorPage(w, http.StatusGone, "This link has expired", "This QR code is no longer active.")
+		return true
 	case links.RedirectFallbackURL:
 		http.Redirect(w, r, l.FallbackURL, http.StatusFound)
-	default: // keep redirecting, no longer counted
-		if l.DestinationURL == "" && l.Content != "" {
-			s.serveDocument(w, r, l)
-			return
-		}
-		http.Redirect(w, r, l.DestinationURL, http.StatusFound)
+		return true
 	}
+	return false
 }
 
 // deliver sends the visitor where this code points and, while the code is
@@ -129,7 +127,7 @@ func (s *Server) deliver(w http.ResponseWriter, r *http.Request, l *links.Link, 
 	target := l.DestinationURL
 	if l.HasRules {
 		if rules, err := s.links.Rules(r.Context(), l.ID); err == nil {
-			if t, ok := matchRule(rules, v); ok {
+			if t, ok := matchRule(rules, v, now, l.ID); ok {
 				target = t
 			}
 		}
@@ -145,10 +143,18 @@ func (s *Server) deliver(w http.ResponseWriter, r *http.Request, l *links.Link, 
 }
 
 // matchRule returns the address of the first rule the visitor satisfies.
-func matchRule(rules []links.Rule, v visitor) (string, bool) {
-	for _, ru := range rules {
+func matchRule(rules []links.Rule, v visitor, now time.Time, linkID int64) (string, bool) {
+	for i, ru := range rules {
 		var hit bool
 		switch ru.Match {
+		case "time":
+			if tr, _, err := links.ParseTimeRule(ru.Value); err == nil {
+				hit = tr.Match(now)
+			}
+		case "split":
+			if pct, _, err := links.ParseSplit(ru.Value); err == nil {
+				hit = links.SplitHit(pct, v.hash, linkID, i)
+			}
 		case "os":
 			hit = strings.EqualFold(v.info.OS, ru.Value)
 		case "device":

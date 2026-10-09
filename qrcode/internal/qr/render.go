@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"html"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"math"
 	"strconv"
@@ -28,6 +28,10 @@ type Options struct {
 	ECC     string // L, M, Q or H
 	Design  Design
 	Logo    []byte // a PNG produced by ProcessLogo, or nil
+
+	// Transparent leaves the background out, so the code can sit on any plain light surface. A box frame keeps
+	// its own light plate, as the code is dark on it.
+	Transparent bool
 }
 
 const (
@@ -160,16 +164,30 @@ func (g *geom) dotDark(u, v float64) bool {
 	return true
 }
 
+// clear is the see-through pixel used for a transparent background.
+var clear = color.RGBA{}
+
+func (g *geom) empty(see bool) color.RGBA {
+	if see {
+		return clear
+	}
+	return g.bg
+}
+
 // code returns the colour of the code area at canvas point (x,y).
-func (g *geom) code(x, y float64) color.RGBA {
+func (g *geom) code(x, y float64) color.RGBA { return g.codeC(x, y, false) }
+
+// codeC is code, but with see set the background (the quiet zone, the gaps in the corner squares and behind
+// the logo) comes back see-through instead of the background colour.
+func (g *geom) codeC(x, y float64, see bool) color.RGBA {
 	mx, my := x-g.qx-quiet, y-g.qy-quiet
 	if mx < 0 || my < 0 || mx >= float64(g.n) || my >= float64(g.n) {
-		return g.bg
+		return g.empty(see)
 	}
 	if g.logoSide > 0 {
 		half := g.logoSide/2 + 0.6
 		if insideRR(mx, my, float64(g.n)/2, float64(g.n)/2, half, half, 0.9) {
-			return g.bg
+			return g.empty(see)
 		}
 	}
 	cx, cy := int(mx), int(my)
@@ -177,20 +195,24 @@ func (g *geom) code(x, y float64) color.RGBA {
 		if g.eyeDark(mx-ox, my-oy) {
 			return g.ey
 		}
-		return g.bg
+		return g.empty(see)
 	}
 	if g.bm[cy][cx] && g.dotDark(mx-float64(cx), my-float64(cy)) {
 		return g.fg
 	}
-	return g.bg
+	return g.empty(see)
 }
 
 // sample returns the colour of the whole image (frame included) at (x,y).
-func (g *geom) sample(x, y float64) color.RGBA {
+func (g *geom) sample(x, y float64) color.RGBA { return g.sampleC(x, y, false) }
+
+// sampleC is sample with an optional see-through background. A box frame keeps its own light plate (the code
+// is dark on it) and is see-through only outside its rounded corners.
+func (g *geom) sampleC(x, y float64, see bool) color.RGBA {
 	switch g.d.Frame {
 	case "box":
 		if !insideRR(x, y, g.w/2, g.h/2, g.w/2, g.h/2, g.boxR) {
-			return g.bg
+			return g.empty(see)
 		}
 		if insideRR(x, y, g.qx+g.q/2, g.qy+g.q/2, g.q/2, g.q/2, 1.2) {
 			return g.code(x, y)
@@ -198,14 +220,14 @@ func (g *geom) sample(x, y float64) color.RGBA {
 		return g.fg
 	case "banner":
 		if y < g.q {
-			return g.code(x, y)
+			return g.codeC(x, y, see)
 		}
 		if insideRR(x, y, g.w/2, g.bandY+g.bandH/2, g.w/2, g.bandH/2, 1.4) {
 			return g.fg
 		}
-		return g.bg
+		return g.empty(see)
 	}
-	return g.code(x, y)
+	return g.codeC(x, y, see)
 }
 
 // labelSize returns the CTA font size in module units, shrunk to fit.
@@ -245,6 +267,9 @@ func RenderPNG(o Options, px int) ([]byte, error) {
 	}
 	scale := float64(px) / g.w
 	hpx := int(math.Round(g.h * scale))
+	if o.Transparent {
+		return g.renderPNGAlpha(px, hpx, scale)
+	}
 	img := image.NewRGBA(image.Rect(0, 0, px, hpx))
 	for y := 0; y < hpx; y++ {
 		for x := 0; x < px; x++ {
@@ -277,7 +302,7 @@ func RenderPNG(o Options, px int) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (g *geom) overlayLogo(dst *image.RGBA, scale float64) error {
+func (g *geom) overlayLogo(dst draw.Image, scale float64) error {
 	logo, err := decodeLogo(g.logo)
 	if err != nil {
 		return userErr("The stored logo could not be read.")
@@ -297,7 +322,7 @@ func (g *geom) overlayLogo(dst *image.RGBA, scale float64) error {
 	return nil
 }
 
-func (g *geom) drawLabel(dst *image.RGBA, scale float64) error {
+func (g *geom) drawLabel(dst draw.Image, scale float64) error {
 	size := g.labelSize() * scale
 	var f font.Face
 	var err error
@@ -337,116 +362,50 @@ func RenderSVG(o Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 %s %s" width="%s" height="%s" shape-rendering="geometricPrecision">`,
-		ff(g.w), ff(g.h), ff(g.w*8), ff(g.h*8))
-	fmt.Fprintf(&b, `<rect width="%s" height="%s" fill="%s"/>`, ff(g.w), ff(g.h), g.d.BG)
-
-	ox, oy := g.qx+quiet, g.qy+quiet
-	switch g.d.Frame {
-	case "box":
-		fmt.Fprintf(&b, `<rect width="%s" height="%s" rx="%s" fill="%s"/>`, ff(g.w), ff(g.h), ff(g.boxR), g.d.FG)
-		fmt.Fprintf(&b, `<rect x="%s" y="%s" width="%s" height="%s" rx="1.2" fill="%s"/>`, ff(g.qx), ff(g.qy), ff(g.q), ff(g.q), g.d.BG)
-	case "banner":
-		fmt.Fprintf(&b, `<rect y="%s" width="%s" height="%s" rx="1.4" fill="%s"/>`, ff(g.bandY), ff(g.w), ff(g.bandH), g.d.FG)
-	}
-
-	// data modules (everything outside the three finder patterns and the logo)
-	skip := func(cx, cy int) bool {
-		if _, _, ok := g.inEye(cx, cy); ok {
-			return true
-		}
-		if g.logoSide > 0 {
-			half := g.logoSide/2 + 0.6
-			mx, my := float64(cx)+0.5-float64(g.n)/2, float64(cy)+0.5-float64(g.n)/2
-			return insideRR(mx, my, 0, 0, half, half, 0.9)
-		}
-		return false
-	}
-	fmt.Fprintf(&b, `<g fill="%s">`, g.d.FG)
-	switch g.d.Pattern {
-	case "square":
-		b.WriteString(`<path d="`)
-		for y := 0; y < g.n; y++ {
-			for x := 0; x < g.n; {
-				if !g.bm[y][x] || skip(x, y) {
-					x++
-					continue
-				}
-				start := x
-				for x < g.n && g.bm[y][x] && !skip(x, y) {
-					x++
-				}
-				fmt.Fprintf(&b, "M%s %sh%dv1h-%dz", ff(ox+float64(start)), ff(oy+float64(y)), x-start, x-start)
-			}
-		}
-		b.WriteString(`"/>`)
-	case "rounded":
-		for y := 0; y < g.n; y++ {
-			for x := 0; x < g.n; x++ {
-				if g.bm[y][x] && !skip(x, y) {
-					fmt.Fprintf(&b, `<rect x="%s" y="%s" width="0.92" height="0.92" rx="%s"/>`, ff(ox+float64(x)+0.04), ff(oy+float64(y)+0.04), ff(roundedR))
-				}
-			}
-		}
-	case "dots":
-		for y := 0; y < g.n; y++ {
-			for x := 0; x < g.n; x++ {
-				if g.bm[y][x] && !skip(x, y) {
-					fmt.Fprintf(&b, `<circle cx="%s" cy="%s" r="%s"/>`, ff(ox+float64(x)+0.5), ff(oy+float64(y)+0.5), ff(dotR))
-				}
-			}
-		}
-	}
-	b.WriteString(`</g>`)
-
-	// the three finder patterns
-	for _, p := range [][2]int{{0, 0}, {g.n - 7, 0}, {0, g.n - 7}} {
-		ex, ey := ox+float64(p[0]), oy+float64(p[1])
-		eyeShape(&b, g, ex, ey)
-	}
-
-	if g.logoSide > 0 {
-		half := g.logoSide/2 + 0.6
-		cx, cy := ox+float64(g.n)/2, oy+float64(g.n)/2
-		fmt.Fprintf(&b, `<rect x="%s" y="%s" width="%s" height="%s" rx="0.9" fill="%s"/>`, ff(cx-half), ff(cy-half), ff(2*half), ff(2*half), g.d.BG)
-		uri := "data:image/png;base64," + base64.StdEncoding.EncodeToString(g.logo)
-		fmt.Fprintf(&b, `<image x="%s" y="%s" width="%s" height="%s" preserveAspectRatio="xMidYMid meet" href="%s" xlink:href="%s"/>`,
-			ff(cx-g.logoSide/2), ff(cy-g.logoSide/2), ff(g.logoSide), ff(g.logoSide), uri, uri)
-	}
-	if g.label != "" {
-		cx, cy := g.labelCentre()
-		size := g.labelSize()
-		fmt.Fprintf(&b, `<text x="%s" y="%s" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="%s" fill="%s">%s</text>`,
-			ff(cx), ff(cy+size*0.04), ff(size), g.d.BG, html.EscapeString(g.label))
-	}
-	b.WriteString(`</svg>`)
-	return []byte(b.String()), nil
+	s := &svgSink{}
+	drawVector(g, s, o.Transparent)
+	return s.End()
 }
 
-// eyeShape writes one finder pattern at (x,y), the top-left of its 7x7 area.
-func eyeShape(b *strings.Builder, g *geom, x, y float64) {
-	c := func(inset float64) (float64, float64, float64) { return x + inset, y + inset, 7 - 2*inset }
-	switch g.d.Eye {
-	case "circle":
-		cx, cy := x+3.5, y+3.5
-		fmt.Fprintf(b, `<circle cx="%s" cy="%s" r="3.5" fill="%s"/><circle cx="%s" cy="%s" r="2.5" fill="%s"/><circle cx="%s" cy="%s" r="1.5" fill="%s"/>`,
-			ff(cx), ff(cy), g.d.EyeCol(), ff(cx), ff(cy), g.d.BG, ff(cx), ff(cy), g.d.EyeCol())
-	case "rounded":
-		for _, s := range []struct {
-			inset, rx float64
-			col       string
-		}{{0, 1.8, g.d.EyeCol()}, {1, 1.1, g.d.BG}, {2, 0.7, g.d.EyeCol()}} {
-			px, py, w := c(s.inset)
-			fmt.Fprintf(b, `<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="%s"/>`, ff(px), ff(py), ff(w), ff(w), ff(s.rx), s.col)
-		}
-	default:
-		for _, s := range []struct {
-			inset float64
-			col   string
-		}{{0, g.d.EyeCol()}, {1, g.d.BG}, {2, g.d.EyeCol()}} {
-			px, py, w := c(s.inset)
-			fmt.Fprintf(b, `<rect x="%s" y="%s" width="%s" height="%s" fill="%s"/>`, ff(px), ff(py), ff(w), ff(w), s.col)
+func b64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+
+// renderPNGAlpha draws the code with a see-through background. Each pixel is the average of its sub-samples,
+// weighted by how much of it is solid, so edges blend cleanly onto whatever the code is placed on.
+func (g *geom) renderPNGAlpha(px, hpx int, scale float64) ([]byte, error) {
+	img := image.NewNRGBA(image.Rect(0, 0, px, hpx))
+	for y := 0; y < hpx; y++ {
+		for x := 0; x < px; x++ {
+			var r, gr, b, solid int
+			for sy := 0; sy < ss; sy++ {
+				for sx := 0; sx < ss; sx++ {
+					c := g.sampleC((float64(x)+(float64(sx)+0.5)/ss)/scale, (float64(y)+(float64(sy)+0.5)/ss)/scale, true)
+					if c.A == 0 {
+						continue
+					}
+					r += int(c.R)
+					gr += int(c.G)
+					b += int(c.B)
+					solid++
+				}
+			}
+			if solid > 0 {
+				img.SetNRGBA(x, y, color.NRGBA{uint8(r / solid), uint8(gr / solid), uint8(b / solid), uint8(solid * 255 / (ss * ss))})
+			}
 		}
 	}
+	if g.logoSide > 0 {
+		if err := g.overlayLogo(img, scale); err != nil {
+			return nil, err
+		}
+	}
+	if g.label != "" {
+		if err := g.drawLabel(img, scale); err != nil {
+			return nil, err
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

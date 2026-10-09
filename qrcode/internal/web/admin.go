@@ -339,10 +339,14 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 		Rows  []scans.Count
 	}
 	var sections []section
-	for _, c := range []struct{ title, col string }{
+	dims := []struct{ title, col string }{
 		{"Device", "device_class"}, {"Operating system", "os"}, {"Browser", "browser"}, {"Language", "language"},
 		{"Country", "country"}, {"Region", "region"}, {"Town", "city"}, {"Referrer", "referer_host"},
-	} {
+	}
+	if l.HasRules { // with routing rules, where people were actually sent is the number that shows an A/B test or a time rule working
+		dims = append([]struct{ title, col string }{{"Where visitors were sent", "destination"}}, dims...)
+	}
+	for _, c := range dims {
 		rows, err := scans.Breakdown(ctx, s.db, l.ID, c.col, 10, includeBots)
 		if err != nil {
 			s.serverError(w, "breakdown", err)
@@ -532,6 +536,60 @@ func (s *Server) qrSVG(w http.ResponseWriter, r *http.Request, sess *auth.Sessio
 	if r.URL.Query().Get("download") == "1" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="qr-%s.svg"`, l.Code))
 	}
+	w.Write(b)
+}
+
+// qrDownload serves the code as a file in the format asked for: png (with a size), svg, pdf or eps, optionally with a
+// transparent background. PDF and EPS are vector files for printers; transparent is for plain light surfaces.
+func (s *Server) qrDownload(w http.ResponseWriter, r *http.Request, sess *auth.Session) {
+	l := s.loadLink(w, r)
+	if l == nil {
+		return
+	}
+	q := r.URL.Query()
+	o := s.qrOptions(r.Context(), r, l)
+	o.Transparent = q.Get("bg") == "transparent"
+	name := "qr-" + l.Code
+	if o.Transparent {
+		name += "-transparent"
+	}
+	var (
+		b    []byte
+		err  error
+		ctyp string
+	)
+	switch q.Get("format") {
+	case "png":
+		size := 1024
+		if v := q.Get("size"); v != "" {
+			n, perr := strconv.Atoi(v)
+			if perr != nil || !qr.ValidSize(n) {
+				s.errorPage(w, http.StatusBadRequest, "Bad request", "Size must be 256, 512 or 1024.")
+				return
+			}
+			size = n
+		}
+		b, err = qr.RenderPNG(o, size)
+		ctyp, name = "image/png", fmt.Sprintf("%s-%d.png", name, size)
+	case "svg":
+		b, err = qr.RenderSVG(o)
+		ctyp, name = "image/svg+xml", name+".svg"
+	case "pdf":
+		b, err = qr.RenderPDF(o)
+		ctyp, name = "application/pdf", name+".pdf"
+	case "eps":
+		b, err = qr.RenderEPS(o)
+		ctyp, name = "application/postscript", name+".eps"
+	default:
+		s.errorPage(w, http.StatusBadRequest, "Bad request", "Choose PNG, SVG, PDF or EPS.")
+		return
+	}
+	if err != nil {
+		s.serverError(w, "render qr download", err)
+		return
+	}
+	w.Header().Set("Content-Type", ctyp)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
 	w.Write(b)
 }
 

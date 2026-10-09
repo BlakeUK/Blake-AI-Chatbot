@@ -265,3 +265,32 @@ func TestEveryTypeExplainsItself(t *testing.T) {
 		}
 	}
 }
+
+func TestTimeAndSplitRules(t *testing.T) {
+	in := map[string]string{"url": "https://www.blake-uk.com/closed",
+		"r1_match": "time", "r1_value": "mon-fri 8:00 - 16:30", "r1_url": "https://www.blake-uk.com/phone",
+		"r2_match": "split", "r2_value": " 30 ", "r2_url": "https://www.blake-uk.com/b"}
+	b := mustBuild(t, "smart_url", KindDynamic, in)
+	want := []Rule{{"time", "Mon-Fri 08:00-16:30", "https://www.blake-uk.com/phone"}, {"split", "30%", "https://www.blake-uk.com/b"}}
+	if len(b.Rules) != 2 || b.Rules[0] != want[0] || b.Rules[1] != want[1] {
+		t.Errorf("rules were stored as %+v, want the tidy forms %+v", b.Rules, want)
+	}
+	bad := map[string][2]string{ // what is typed -> a hint the person can act on
+		"time: not a day": {"time", "Funday 9:00-10:00"},
+		"time: backwards": {"time", "Mon 16:00-08:00"},
+		"time: nothing":   {"time", ";"},
+		"time: too long":  {"time", strings.Repeat("Mon;", 40)},
+		"split: zero":     {"split", "0"},
+		"split: everyone": {"split", "100"},
+		"split: words":    {"split", "half"},
+		"split: decimals": {"split", "12.5"},
+	}
+	for name, mv := range bad {
+		_, errs := build(t, "smart_url", KindDynamic, map[string]string{"url": "https://www.blake-uk.com/", "r1_match": mv[0], "r1_value": mv[1], "r1_url": "https://a.example"})
+		if errs["r1_value"] == "" {
+			t.Errorf("%s was accepted", name)
+		} else if !strings.HasPrefix(errs["r1_value"], "Rule 1:") {
+			t.Errorf("%s: the message should say which rule: %q", name, errs["r1_value"])
+		}
+	}
+}

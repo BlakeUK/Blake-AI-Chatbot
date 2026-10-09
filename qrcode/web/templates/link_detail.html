@@ -36,7 +36,7 @@
     {{if .Link.DestinationURL}}<p>Destination: <strong>{{.Site}}</strong><br><a href="{{.Link.DestinationURL}}" rel="noopener noreferrer nofollow">{{trunc 70 .Link.DestinationURL}}</a></p>
     {{else}}<p>Delivers a {{.TypeLabel}} to the phone.</p>{{end}}
     {{if .Rules}}<p class="small"><strong>Smart routing</strong> (first match wins):</p>
-      <ol class="small">{{range .Rules}}<li>if {{.Match}} is <strong>{{.Value}}</strong> go to <a href="{{.URL}}" rel="noopener noreferrer nofollow">{{trunc 50 .URL}}</a></li>{{end}}<li>otherwise the destination above</li></ol>{{end}}
+      <ol class="small">{{range .Rules}}<li>{{if eq .Match "split"}}for <strong>{{.Value}}</strong> of visitors{{else if eq .Match "time"}}if the time (UK) is <strong>{{.Value}}</strong>{{else}}if {{.Match}} is <strong>{{.Value}}</strong>{{end}} go to <a href="{{.URL}}" rel="noopener noreferrer nofollow">{{trunc 50 .URL}}</a></li>{{end}}<li>otherwise the destination above</li></ol>{{end}}
     <p class="muted">Window: {{dt .Link.TrackStart}} to {{dt .Link.TrackEnd}} (UK time)<br><strong>{{.Countdown}}</strong></p>
     <p class="muted small">
       {{if gt .Link.MaxScans 0}}Scan limit: {{.Link.ScanCount}} of {{.Link.MaxScans}} used. {{end}}
@@ -55,6 +55,17 @@
       {{range $px := .Sizes}}<a class="button" href="/admin/links/{{$.Data.Link.ID}}/qr.png?size={{$px}}&amp;download=1">PNG {{$px}}</a>{{end}}
       <a class="button" href="/admin/links/{{.Link.ID}}/qr.svg?download=1">SVG</a>
     </p>
+    <form class="downloadform" method="get" action="/admin/links/{{.Link.ID}}/download">
+      <h3>Print files and transparent versions</h3>
+      <p class="hint"><strong>What it is.</strong> The same picture as a print-ready <em>PDF</em> or <em>EPS</em> vector file, or any format with the background left out. <strong>How to use it.</strong> Choose a format, tick <em>transparent background</em> if you will place the code on a plain light surface, then press Download. <a href="/admin/help#downloads-printing">Read more in Help</a></p>
+      <div class="formgrid">
+        <label>Format <select name="format"><option value="pdf">PDF (vector, for printers)</option><option value="svg">SVG (vector)</option><option value="eps">EPS (vector, older print software)</option><option value="png">PNG (picture)</option></select></label>
+        <label>PNG size <select name="size">{{range $px := .Sizes}}<option value="{{$px}}"{{if eq $px 1024}} selected{{end}}>{{$px}} pixels wide</option>{{end}}</select></label>
+      </div>
+      <label class="check"><input type="checkbox" name="bg" value="transparent"> Transparent background</label>
+      <p class="muted small">A transparent code only scans on a plain light surface. Never put it on a photo or a dark colour.</p>
+      <p><button class="primary" type="submit">Download</button></p>
+    </form>
   </section>
 </div>
 

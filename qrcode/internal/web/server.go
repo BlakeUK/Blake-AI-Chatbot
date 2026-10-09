@@ -217,6 +217,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/links/{id}/delete", s.authed(s.remove))
 	mux.HandleFunc("GET /admin/links/{id}/qr.png", s.authed(s.qrPNG))
 	mux.HandleFunc("GET /admin/links/{id}/qr.svg", s.authed(s.qrSVG))
+	mux.HandleFunc("GET /admin/links/{id}/download", s.authed(s.qrDownload))
 	mux.HandleFunc("GET /admin/links/{id}/scans.csv", s.authed(s.csvExport))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
