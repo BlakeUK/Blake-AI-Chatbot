@@ -198,8 +198,8 @@ func (w *Writer) insert(ctx context.Context, batch []Event) error {
 
 // Totals are the headline numbers for a page. Bots are left out of all but Bots.
 type Totals struct {
-	Views, Unique, ViaQR, Direct, Clicks, Bots int64
-	LastView                                   time.Time
+	Views, Unique, ViaQR, Direct, Clicks, Clickers, Bots int64 // Clickers: visitors (a scrambled token per day) who pressed at least one button
+	LastView                                             time.Time
 }
 
 func Totalled(ctx context.Context, d *sql.DB, pageID int64) (Totals, error) {
@@ -211,9 +211,10 @@ func Totalled(ctx context.Context, d *sql.DB, pageID int64) (Totals, error) {
 		COALESCE(SUM(kind='view' AND is_bot=0 AND source='qr'),0),
 		COALESCE(SUM(kind='view' AND is_bot=0 AND source<>'qr'),0),
 		COALESCE(SUM(kind='click' AND is_bot=0),0),
+		COUNT(DISTINCT CASE WHEN kind='click' AND is_bot=0 THEN ip_hash END),
 		COALESCE(SUM(is_bot=1),0),
 		COALESCE(MAX(CASE WHEN kind='view' AND is_bot=0 THEN at END),'')
-		FROM page_events WHERE page_id = ?`, pageID).Scan(&t.Views, &t.Unique, &t.ViaQR, &t.Direct, &t.Clicks, &t.Bots, &last)
+		FROM page_events WHERE page_id = ?`, pageID).Scan(&t.Views, &t.Unique, &t.ViaQR, &t.Direct, &t.Clicks, &t.Clickers, &t.Bots, &last)
 	if last != "" {
 		t.LastView, _ = db.ParseTS(last)
 	}

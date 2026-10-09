@@ -264,6 +264,7 @@ TASKS = [("Make my first QR code", "quick-start"), ("Choose between a tracked an
          ("Send iPhone and Android users to different places", "smart-routing"), ("Print a code properly and test it", "downloads-printing"),
          ("Find out which poster or leaflet works best", "campaigns"), ("Download scans into a spreadsheet", "exports"),
          ("Make 200 product codes from a spreadsheet", "bulk"), ("Build a Linktree-style page for Blake UK, VisionPlus or Solwise", "link-pages"),
+         ("Understand the difference between views and clicks", "link-pages"),
          ("Add a colleague, or reset their password", "users"), ("I am locked out or forgot my password", "account"),
          ("Check a limit (sizes, lengths, how many)", "limits"), ("Something is not working", "troubleshooting")]
 TERMS = [  # (index entry, [search needles])
@@ -278,7 +279,7 @@ TERMS = [  # (index entry, [search needles])
     ("Icons", ["icon"]), ("Language setting", ["language"]), ("Limits", ["limits at a glance", "limit"]),
     ("Link page", ["link page"]), ("Live preview", ["live preview"]), ("Location (map) code", ["latitude"]), ("Lockout", ["locked out", "lockout"]),
     ("Logo in the centre", ["logo"]), ("Midnight theme", ["midnight"]), ("Name and campaign", ["campaign"]), ("Passwords (a code)", ["password"]),
-    ("Passwords (your account)", ["your own new one", "at least 12"]), ("Phone button", ["tel:"]), ("Printing", ["printing checklist"]),
+    ("Passwords (your account)", ["your own new one", "at least 12"]), ("Phone button", ["tel:"]), ("Pressed a button (percentage)", ["pressed a button"]), ("Scans, views and clicks", ["scans, views and clicks"]), ("Views and clicks: the difference", ["views or clicks"]), ("Printing", ["printing checklist"]),
     ("Privacy", ["privacy"]), ("QR code for a link page", ["make a qr code for this page"]), ("Quick start", ["quick start"]),
     ("Referrer", ["referrer"]), ("Reset a password", ["reset password"]), ("Retention", ["retention", "deleted automatically"]),
     ("Saved design", ["saved design"]), ("Scan limit", ["scan limit"]), ("Scrambled visitor token", ["scrambled visitor token", "visitor token"]),

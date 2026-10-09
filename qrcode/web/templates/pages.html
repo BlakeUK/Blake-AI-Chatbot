@@ -7,7 +7,7 @@
 
 {{if .Data.Rows}}
 <div class="scroll"><table>
-  <thead><tr><th>Page</th><th>Company</th><th>Theme</th><th>Address</th><th class="num">Views</th><th class="num">Clicks</th><th>Status</th></tr></thead>
+  <thead><tr><th>Page</th><th>Company</th><th>Theme</th><th>Address</th><th class="num" title="Times the page was opened">Views</th><th class="num" title="Times a button on the page was pressed. One visit can make several clicks.">Clicks</th><th>Status</th></tr></thead>
   <tbody>
   {{range .Data.Rows}}
   <tr>

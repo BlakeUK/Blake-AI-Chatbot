@@ -67,7 +67,7 @@ var pageHelp = map[string]helpInfo{
 	},
 	"pages": {
 		What:    "Link pages are hosted pages that gather all of a company's links in one place, like Linktree. Each one has the company's logo, a theme, and a list of buttons. You can put the page address in a social profile, or make a QR code that opens it.",
-		How:     "Press New link page, or start from an example for Blake UK, VisionPlus or Solwise. Open a page to see how many people viewed it and which buttons they pressed.",
+		How:     "Press New link page, or start from an example for Blake UK, VisionPlus or Solwise. Open a page to see how many people viewed it and which buttons they pressed. Views is how many times the page was opened; Clicks is how many times a button on it was pressed (one visit can make several).",
 		Tracked: "Each page counts views and button presses. Visitors' internet addresses are never stored, only a scrambled token that changes daily.",
 		Anchor:  "link-pages",
 	},
@@ -79,7 +79,7 @@ var pageHelp = map[string]helpInfo{
 	},
 	"page_detail": {
 		What:    "One link page: its public address, the QR codes that open it, and how many people viewed it and pressed each button.",
-		How:     "Copy the address to share it, or make a QR code for it. Use Edit to change buttons or theme, and Switch off to take the page down without deleting it.",
+		How:     "Views count each time the page is opened. Clicks count each press of a button, so one visit can make several, or none. Copy the address to share it, or make a QR code for it. Use Edit to change buttons or theme, and Switch off to take the page down without deleting it.",
 		Tracked: "For each view: time, QR code or direct, approximate country, device, system, browser, language, referring site name and a scrambled token. For each click, also which button. Email and phone buttons cannot be tracked.",
 		Anchor:  "link-pages",
 	},

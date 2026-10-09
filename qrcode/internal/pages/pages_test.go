@@ -333,6 +333,9 @@ func TestEventsAndStatistics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if tot.Clickers != 2 || tot.Clicks != 3 {
+		t.Errorf("clickers=%d (want 2: A and B, the bot excluded) clicks=%d (want 3)", tot.Clickers, tot.Clicks)
+	}
 	if tot.Views != 4 || tot.Unique != 3 || tot.ViaQR != 2 || tot.Direct != 2 || tot.Clicks != 3 || tot.Bots != 2 {
 		t.Errorf("totals = %+v, want views 4 unique 3 qr 2 direct 2 clicks 3 bots 2", tot)
 	}

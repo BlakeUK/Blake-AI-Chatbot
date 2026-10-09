@@ -662,3 +662,51 @@ func TestChangingAPageAddressKeepsItsQRCodesWorking(t *testing.T) {
 		t.Error("the QR code's edit form should show the new address")
 	}
 }
+
+// "Pressed a button" is the share of visitors who pressed at least one button, not clicks divided by views:
+// someone pressing three buttons must not push it above 100%.
+func TestPressedAButtonCountsVisitorsNotPresses(t *testing.T) {
+	h := newHarness(t)
+	c := h.adminClient()
+	id := h.makePage(c, pageSpec{slug: "funnel", rows: [][4]string{{"One", "https://one.example", "auto", ""}, {"Two", "https://two.example", "auto", ""}}})
+	var a, b int64
+	h.db.QueryRow(`SELECT id FROM link_page_items WHERE page_id=? ORDER BY position LIMIT 1`, id).Scan(&a)
+	h.db.QueryRow(`SELECT id FROM link_page_items WHERE page_id=? ORDER BY position LIMIT 1 OFFSET 1`, id).Scan(&b)
+	for _, ip := range []string{"203.0.113.21", "203.0.113.22", "203.0.113.23"} {
+		visit(h, "/l/funnel?s=qr", iphoneUA, ip) // three people open the page
+	}
+	for _, press := range []struct {
+		item int64
+		ip   string
+	}{{a, "203.0.113.21"}, {a, "203.0.113.21"}, {b, "203.0.113.21"}, {a, "203.0.113.22"}} { // one presses three times, one once, one never
+		visit(h, fmt.Sprintf("/l/funnel/go/%d", press.item), iphoneUA, press.ip)
+	}
+	visit(h, fmt.Sprintf("/l/funnel/go/%d", a), "Slackbot-LinkExpanding 1.0", "203.0.113.24") // a bot changes nothing
+	if v, cl, _ := h.pageCounts(id); v != 3 || cl != 4 {
+		t.Fatalf("views=%d clicks=%d, want 3 and 4", v, cl)
+	}
+	_, det := h.do(c, "GET", fmt.Sprintf("/admin/pages/%d", id), nil, nil)
+	if !strings.Contains(det, `<span class="big">67%</span><span class="muted">of visitors pressed a button`) {
+		t.Errorf("expected 67%% (2 of 3 visitors pressed a button), page said:\n%s", regexp.MustCompile(`(?s)<div class="stats">.*?</div>\s*</div>`).FindString(det))
+	}
+	if strings.Contains(det, "133%") || strings.Contains(det, "clicked something") {
+		t.Error("the old clicks-divided-by-views figure is back")
+	}
+	for _, want := range []string{"Each time the page is opened", "Each press of a web button", "One visit can make several clicks, or none", "The share of unique visitors who pressed at least one button"} {
+		if !strings.Contains(det, want) {
+			t.Errorf("the statistics screen should explain: %q", want)
+		}
+	}
+	// the list says what its columns mean
+	_, list := h.do(c, "GET", "/admin/pages", nil, nil)
+	if !strings.Contains(list, `title="Times the page was opened"`) || !strings.Contains(list, "One visit can make several clicks") {
+		t.Error("the Link pages list should say what Views and Clicks are")
+	}
+	// Help explains the difference
+	_, help := h.do(c, "GET", "/admin/help", nil, nil)
+	for _, want := range []string{"Views or clicks: what is the difference?", "100 scans", "85 button clicks", "60% pressed a button", "cannot go above 100%"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("Help should say %q", want)
+		}
+	}
+}

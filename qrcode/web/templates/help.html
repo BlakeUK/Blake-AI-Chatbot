@@ -420,9 +420,24 @@
     <li>Visits that arrive through a QR code are counted separately as <em>via a QR code</em>.</li>
   </ul>
 
+  <h3>Views or clicks: what is the difference?</h3>
+  <p>A <strong>view</strong> is someone opening the page. A <strong>click</strong> is someone pressing a button on it. They count different things, so the two numbers are not the same and you should not expect them to match.</p>
+  <div class="scroll"><table class="compact">
+    <thead><tr><th></th><th>Views</th><th>Button clicks</th></tr></thead>
+    <tbody>
+      <tr><th>What it counts</th><td>Each time the page is opened</td><td>Each press of a web button on the page</td></tr>
+      <tr><th>One person can make</th><td>Many: a reload or a return visit counts again. <em>Unique visitors</em> counts them once a day.</td><td>Many (several buttons, or one button twice), or none at all</td></tr>
+      <tr><th>Email and phone buttons</th><td>Not applicable</td><td>Cannot be counted: they open the visitor's own app directly</td></tr>
+      <tr><th>Bots and link previews</th><td>Left out</td><td>Left out</td></tr>
+      <tr><th>Where you see it</th><td>Views, Unique visitors, Via a QR code, Views over time</td><td>Button clicks, Pressed a button, Clicks on each button</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>An example.</strong> Your poster has a QR code that opens the page, and 100 people scan it. The code shows <em>100 scans</em>. The page shows <em>100 views</em>, all marked via a QR code. Sixty of them press at least one button and some press two, so the page shows <em>85 button clicks</em> and <em>60% pressed a button</em>. Views tell you how many people arrived; clicks tell you what they did next.</p>
+  <p><strong>Scans, views and clicks.</strong> A <em>scan</em> belongs to a QR code (the Codes screen). A <em>view</em> and a <em>click</em> belong to a link page. When a QR code opens a link page, one scan normally leads to one view, and then perhaps some clicks. The percentage is of visitors, not of clicks, so it cannot go above 100% however many buttons people press.</p>
+
   <h3>Reading the statistics</h3>
   <ul>
-    <li><strong>Views</strong>: how many times the page was opened. <strong>Unique visitors</strong>: each person once a day. <strong>Via a QR code</strong>: views that came from one of this page's QR codes. <strong>Button clicks</strong>, and <strong>clicked something</strong>: the share of views where a button was pressed.</li>
+    <li><strong>Views</strong>: how many times the page was opened. <strong>Unique visitors</strong>: each person once a day. <strong>Via a QR code</strong>: views that came from one of this page's QR codes. <strong>Button clicks</strong>: how many times a web button was pressed. <strong>Pressed a button</strong>: the share of unique visitors who pressed at least one button (never more than 100%). The next part explains the difference between views and clicks.</li>
     <li><strong>Views over time</strong>: a chart by day (UK time) for the last 30 days.</li>
     <li><strong>Clicks on each button</strong>: which links people use, with the time of the last click. Email and phone buttons open the visitor's own app directly, so their taps cannot be counted.</li>
     <li>Boxes below show where views came from (QR code or a direct link), device, operating system, language, country and referring site. Bots, such as link previews in chat apps, are left out.</li>
@@ -540,17 +555,20 @@
   <h2>25. Glossary</h2>
   <dl>
     <dt>Bot</dt><dd>A program, not a person, that visits addresses automatically.</dd>
+    <dt>Button click</dt><dd>One press of a web button on a link page. One visit can make several, or none.</dd>
     <dt>Campaign</dt><dd>A label for where a code is used.</dd>
-    <dt>Dynamic code</dt><dd>A tracked code whose destination can be changed.</dd>
-    <dt>Static code</dt><dd>An untracked code that holds its content itself.</dd>
-    <dt>Error correction</dt><dd>Extra information in the code that lets it scan even when damaged.</dd>
-    <dt>Quiet zone</dt><dd>The blank border round a code. Scanners need it.</dd>
-    <dt>SVG</dt><dd>A picture format that can be made any size without going blurry.</dd>
-    <dt>PNG</dt><dd>A common picture format with a fixed number of pixels.</dd>
     <dt>CSV</dt><dd>A plain spreadsheet file that Excel and Google Sheets can open and save.</dd>
+    <dt>Dynamic code</dt><dd>A tracked code whose destination can be changed.</dd>
+    <dt>Error correction</dt><dd>Extra information in the code that lets it scan even when damaged.</dd>
+    <dt>PNG</dt><dd>A common picture format with a fixed number of pixels.</dd>
+    <dt>Quiet zone</dt><dd>The blank border round a code. Scanners need it.</dd>
     <dt>Referrer</dt><dd>The site or app a visitor came from.</dd>
+    <dt>Scan</dt><dd>One person scanning a dynamic QR code. Counted on the code, not on a link page.</dd>
+    <dt>Static code</dt><dd>An untracked code that holds its content itself.</dd>
+    <dt>SVG</dt><dd>A picture format that can be made any size without going blurry.</dd>
     <dt>Tracking address</dt><dd>The short web address inside a dynamic code.</dd>
     <dt>Unique visitor</dt><dd>A person counted once in a 24-hour period.</dd>
+    <dt>View</dt><dd>One opening of a link page. A reload or return visit counts again; Unique visitors counts a person once a day.</dd>
   </dl>
   <p class="muted small">Missing something? Ask Max: the Max button at the top right of every page brings you back here.</p>
 </section>

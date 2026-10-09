@@ -105,3 +105,6 @@ kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; 
 .trackrow { border-top:1px solid var(--line); padding:.4rem 0 .2rem; margin-top:.6rem; } .trackrow h4 { margin:.2rem 0 .3rem; font-size:1.02rem; } .trackrow dl { margin:0; display:grid; grid-template-columns:9.5rem 1fr; gap:.15rem .8rem; } .trackrow dt { font-weight:700; margin:0; color:var(--muted); } .trackrow dd { margin:0 0 .35rem; }
 @media (max-width:640px) { .trackrow dl { grid-template-columns:1fr; } .trackrow dt { margin-top:.35rem; } }
 .fieldtable td:first-child { white-space:nowrap; vertical-align:top; } .fieldtable td { vertical-align:top; }
+
+.legend { display:grid; grid-template-columns:minmax(0,11rem) 1fr; gap:.2rem .9rem; margin:.4rem 0 1rem; font-size:.92rem; } .legend dt { font-weight:700; } .legend dd { margin:0; color:var(--muted); }
+@media (max-width:640px) { .legend { grid-template-columns:1fr; } .legend dd { margin-bottom:.4rem; } }

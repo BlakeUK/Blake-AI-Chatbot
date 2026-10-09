@@ -357,9 +357,14 @@ func (s *Server) pageDetail(w http.ResponseWriter, r *http.Request, sess *auth.S
 	qrs, _ := s.links.ByDestination(ctx, s.pageURL(p.Slug), s.pageURL(p.Slug)+"?s=qr")
 	brand, _ := pages.BrandByID(p.Brand)
 	theme, _ := pages.ThemeByID(p.Theme)
+	// the share of unique visitors who pressed at least one button: never above 100%, however many buttons each pressed
 	ctr := "0"
-	if tot.Views > 0 {
-		ctr = fmt.Sprintf("%.0f", float64(tot.Clicks)*100/float64(tot.Views))
+	if tot.Unique > 0 {
+		pct := float64(tot.Clickers) * 100 / float64(tot.Unique)
+		if pct > 100 {
+			pct = 100
+		}
+		ctr = fmt.Sprintf("%.0f", pct)
 	}
 	s.render(w, http.StatusOK, "page_detail", s.page(sess, "Link page: "+p.Name, map[string]any{
 		"Page": p, "Brand": brand, "Theme": theme, "URL": s.pageURL(p.Slug), "Totals": tot, "Items": rows, "Chart": chart,

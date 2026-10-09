@@ -30,14 +30,21 @@
 
 <section class="card">
   <h2>Views and clicks</h2>
-  <p class="hint"><strong>What it is.</strong> How many people opened the page and tapped a button. <strong>How to use it.</strong> <em>Views</em> counts each visit; <em>unique</em> counts a person once a day. Bots such as link previews are left out. <a href="/admin/help#link-pages">Help</a></p>
+  <p class="hint"><strong>What it is.</strong> How many people opened the page and tapped a button. <strong>How to use it.</strong> <em>Views</em> counts each time the page is opened; <em>clicks</em> counts each press of a button, so one visit can make several. Bots such as link previews are left out. <a href="/admin/help#link-pages">Help</a></p>
   <div class="stats">
     <div><span class="big">{{.Totals.Views}}</span><span class="muted">views</span></div>
     <div><span class="big">{{.Totals.Unique}}</span><span class="muted">unique visitors</span></div>
     <div><span class="big">{{.Totals.ViaQR}}</span><span class="muted">via a QR code</span></div>
     <div><span class="big">{{.Totals.Clicks}}</span><span class="muted">button clicks</span></div>
-    <div><span class="big">{{.CTR}}%</span><span class="muted">clicked something</span></div>
+    <div><span class="big">{{.CTR}}%</span><span class="muted">of visitors pressed a button</span></div>
   </div>
+  <dl class="legend">
+    <dt>Views</dt><dd>Each time the page is opened. A reload or a return visit counts again.</dd>
+    <dt>Unique visitors</dt><dd>Each person once a day, however many times they open it.</dd>
+    <dt>Via a QR code</dt><dd>Views that began by scanning one of this page's QR codes.</dd>
+    <dt>Button clicks</dt><dd>Each press of a web button. One visit can make several clicks, or none. Email and phone buttons cannot be counted.</dd>
+    <dt>Pressed a button</dt><dd>The share of unique visitors who pressed at least one button. It can never be more than 100%.</dd>
+  </dl>
   <h3>Views over time <span class="muted small">(daily, UK time, last 30 days)</span></h3>
   {{.Chart}}
 </section>
