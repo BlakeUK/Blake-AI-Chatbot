@@ -5,17 +5,30 @@ name: Diagnose the writing assistant (real model)
 # checked against what the model actually does. Nothing is stored; the usual API usage record is the only trace.
 on:
   workflow_dispatch:
+    inputs:
+      model:
+        description: Model to try (leave empty for the one the tool uses)
+        required: false
+        default: ""
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - name: Check the model name
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          [[ -z "$MODEL" || "$MODEL" =~ ^gemini-[a-z0-9.-]+$ ]] || { echo "not a valid model name"; exit 1; }
       - name: Run on the VPS
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          WRITER_MODEL: ${{ inputs.model }}
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
           command_timeout: 8m
+          envs: WRITER_MODEL
           script: |
             cd /var/www/chat && php scripts/diag/writer_check.php

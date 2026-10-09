@@ -48,8 +48,10 @@ class Editor
 This message is being edited inside a staff writing tool that shows the writer what changed and why. Everything above still applies in full to the message itself. Return a JSON object, and nothing else, with these fields:
 
 - "improved": the finished message. It must follow every rule above (voice, British English, minimal changes, no banned phrases, no invented facts, no added formatting). It contains only the message, with nothing before or after it.
-- "level": "none" if nothing needed changing, otherwise "light", "moderate" or "full", meaning the level of editing you chose in section 6.
-- "changes": the worthwhile changes you made, most important first, at most 10. Each has "change" (what you changed, quoting the key words briefly) and "why" (the reason, in one plain sentence). Group small corrections such as spelling and punctuation into a single item. If nothing needed changing, return an empty list and return the original message unchanged in "improved".
+- "level": "none" if you changed nothing at all, otherwise "light" (you only corrected mistakes such as spelling, capital letters, punctuation and grammar), "moderate" (you also reworded for flow or clarity) or "full" (you reorganised it), meaning the level of editing you chose in section 6.
+- "changes": every change you made, most important first, at most 10. The writer will read this to see exactly what you did, so nothing may be changed in "improved" without being covered here, including a changed tense, a changed word or a moved sentence. Each item has "change" (what you changed, quoting the key words briefly) and "why" (the reason, in one plain sentence). Mechanical corrections such as spelling, capital letters and punctuation may be grouped into one item each, but they must still be listed. If you changed nothing, return an empty list and return the original message unchanged in "improved".
+
+Correct capital letters (the start of sentences, names, days, months and places) and punctuation as well as spelling, as section 6 describes, because a message with none of them is not yet clear and professional. Do not do more than that if the message is already clear.
 
 Write "change" and "why" in plain British English, and do not use em dashes.
 
@@ -247,10 +249,14 @@ TXT;
         if ($habits = self::introducedHabits($original, $last['improved'])) {
             $warnings[] = 'The improved version uses wording you may want to avoid (' . implode(', ', $habits) . '). Consider changing it.';
         }
-        if ($last['level'] === 'none' || trim($last['improved']) === trim($original)) {
+        // Whether anything changed is decided by comparing the texts, not by what the model says about itself.
+        $same = preg_replace('/\s+/', ' ', trim($last['improved'])) === preg_replace('/\s+/', ' ', trim($original));
+        if ($same) {
             $last['level'] = 'none';
             $last['changes'] = [];
+        } elseif ($last['level'] === 'none') {
+            $last['level'] = 'light'; // the model said "none" but the words differ
         }
-        return $last + ['warnings' => $warnings];
+        return $last + ['changed' => !$same, 'warnings' => $warnings];
     }
 }

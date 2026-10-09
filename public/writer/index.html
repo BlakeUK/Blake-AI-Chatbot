@@ -112,8 +112,10 @@
           <div>
             <div class="row" style="margin-top:0"><h2 style="margin:0">What changed and why</h2></div>
             <div id="nochange" class="note ok" hidden>Nothing needed changing. Your message already reads well.</div>
+            <div id="smallchange" class="note warn" hidden>Small changes were made, such as capital letters or punctuation. Tick the box below to see each one.</div>
             <ol id="changes" class="changes"></ol>
-            <div class="row"><label style="margin:0;font-weight:400"><input id="showdiff" type="checkbox"> Mark the changes in the message</label></div>
+            <div class="row"><label style="margin:0;font-weight:400"><input id="showdiff" type="checkbox"> Mark every change in the message</label></div>
+            <p class="small" style="margin-top:.4rem">The list above covers the main changes. Tick the box to see all of them, including small ones.</p>
           </div>
         </div>
       </div>
@@ -193,7 +195,8 @@
     $('showdiff').checked = false; drawImproved();
     var list = $('changes'); list.innerHTML = '';
     d.changes.forEach(function (c) { var li = document.createElement('li'); li.innerHTML = '<strong>' + L.esc(c.change) + '</strong><span class="why">' + L.esc(c.why) + '</span>'; list.appendChild(li); });
-    show($('nochange'), d.changes.length === 0); show($('result'), true);
+    var changed = d.changed !== false;
+    show($('nochange'), !changed); show($('smallchange'), changed && d.changes.length === 0); show($('result'), true);
     $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function drawImproved() {

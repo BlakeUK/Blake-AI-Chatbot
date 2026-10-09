@@ -7,7 +7,7 @@ require dirname(__DIR__, 2) . '/src/bootstrap.php';
 $key = \Gemini\Client::getStoredApiKey();
 if (!$key) { fwrite(STDERR, "No Gemini key stored.\n"); exit(1); }
 $client = new \Gemini\Client($key);
-$model  = \Gemini\Client::getModel('gemini_chat_model', 'gemini_flash');
+$model  = getenv('WRITER_MODEL') ?: \Gemini\Client::getModel('gemini_writer_model', 'gemini_pro');
 echo "model: {$model}\n";
 
 $samples = [

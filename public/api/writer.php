@@ -20,7 +20,7 @@ if (($problem = \Writer\Editor::validate($text, $audience)) !== null) json_err($
 $key = \Gemini\Client::getStoredApiKey();
 if (!$key) json_err('The writing assistant is not set up yet (no Gemini key).', 503);
 $client = new \Gemini\Client($key);
-$model  = \Gemini\Client::getModel('gemini_chat_model', 'gemini_flash');
+$model  = \Gemini\Client::getModel('gemini_writer_model', 'gemini_pro');   // writing quality matters more than the small extra cost
 
 try {
     json_out(\Writer\Editor::improve($text, $audience, fn(string $sys, string $usr) => $client->editJson($model, $sys, $usr)));

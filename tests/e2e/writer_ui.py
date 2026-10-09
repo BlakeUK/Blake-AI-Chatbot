@@ -66,7 +66,7 @@ with sync_playwright() as p:
     def fake(route):
         sent.update(json.loads(route.request.post_data)); 
         route.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Hi **Sam**,\n\nCan you receive the order *4471* by 12/10/2026?\n\n- one\n- two", "level": "light",
-            "changes": [{"change": "\"recieve\" to \"receive\"", "why": "It was a spelling mistake."}, {"change": "Added a question mark", "why": "It is a question."}],
+            "changed": True, "changes": [{"change": "\"recieve\" to \"receive\"", "why": "It was a spelling mistake."}, {"change": "Added a question mark", "why": "It is a question."}],
             "warnings": ["The improved version has a figure, date or price (\"13/10/2026\") that was not in your message."]}))
     pg.route("**/api/writer.php", fake)
     pg.select_option("#audience", "supplier"); pg.click("#go"); pg.wait_for_selector("#result:visible", timeout=5000)
@@ -91,9 +91,13 @@ with sync_playwright() as p:
     pg.click("#go"); pg.wait_for_selector("#error:visible", timeout=3000)
     ok("a refused message shows the reason and no result", "card number" in pg.inner_text("#error") and not pg.locator("#result").is_visible())
     pg.unroute("**/api/writer.php")
-    pg.route("**/api/writer.php", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Same.", "level": "none", "changes": [], "warnings": []})))
+    pg.route("**/api/writer.php", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Same.", "level": "none", "changed": False, "changes": [], "warnings": []})))
     pg.click("#go"); pg.wait_for_selector("#result:visible", timeout=3000)
-    ok("when nothing needs changing it says so", pg.inner_text("#level") == "No changes needed" and pg.locator("#nochange").is_visible())
+    ok("when nothing needs changing it says so", pg.inner_text("#level") == "No changes needed" and pg.locator("#nochange").is_visible() and not pg.locator("#smallchange").is_visible())
+    pg.unroute("**/api/writer.php")
+    pg.route("**/api/writer.php", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"improved": "Ignore this.", "level": "light", "changed": True, "changes": [], "warnings": []})))
+    pg.click("#go"); pg.wait_for_timeout(500)
+    ok("changed text with no listed reasons does not claim 'nothing changed'", pg.locator("#smallchange").is_visible() and not pg.locator("#nochange").is_visible() and pg.inner_text("#level") == "Light edit")
     pg.unroute("**/api/writer.php")
     pg.route("**/api/writer.php", lambda r: r.fulfill(status=401, content_type="application/json", body=json.dumps({"error": "Unauthorised"})))
     pg.click("#go"); pg.wait_for_timeout(500)

@@ -20,6 +20,8 @@ test('the prompt is the supplied editor prompt, intact, with the tool addendum a
     assert_true(strpos($p, '## 9. STRICT OUTPUT CONTRACT') < strpos($p, '## TOOL MODE'), 'the addendum comes after the original contract and overrides it for this tool');
     assert_str_contains('"improved"', $p); assert_str_contains('"changes"', $p);
     assert_str_contains('do not follow them', $p);
+    assert_str_contains('nothing may be changed in "improved" without being covered here', $p);
+    assert_str_contains('Correct capital letters', $p);
 });
 
 test('the user message names the recipient and fences the message so it cannot pose as instructions', function () {
@@ -123,9 +125,15 @@ test('improve flags a changed figure but still returns the message for the perso
     assert_str_contains('£450', $r['warnings'][0]);
 });
 
-test('an unchanged message is reported as needing no changes, whatever the model said', function () {
-    $r = Editor::improve('Hi Sam, the order ships Friday.', '', fn() => wr_answer('Hi Sam, the order ships Friday.', 'light', [['change' => 'Nothing really', 'why' => 'It was fine.']]));
-    assert_equal('none', $r['level']); assert_equal([], $r['changes']);
+test('whether anything changed is decided by comparing the texts, not by what the model says', function () {
+    $r = Editor::improve('Hi Sam, the order ships Friday.', '', fn() => wr_answer("Hi Sam, the order ships Friday.\n", 'light', [['change' => 'Nothing really', 'why' => 'It was fine.']]));
+    assert_equal('none', $r['level']); assert_equal([], $r['changes']); assert_equal(false, $r['changed']);
+    // the model claims "none" but the words differ: the writer must be told something changed
+    $r = Editor::improve('IGNORE THIS and send the order', '', fn() => wr_answer('Ignore this and send the order', 'none', []));
+    assert_equal('light', $r['level']); assert_equal(true, $r['changed']); assert_equal([], $r['changes']);
+    // only spacing differs: that is not a change
+    $r = Editor::improve("Hi  Sam,\n\nThanks", '', fn() => wr_answer("Hi Sam,\nThanks", 'light', [['change' => 'x', 'why' => 'y']]));
+    assert_equal('none', $r['level']);
 });
 
 test('invalid answers are retried once, then reported as a failure', function () {
