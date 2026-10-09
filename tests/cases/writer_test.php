@@ -203,6 +203,23 @@ test('the model comes from the writing setting, else the extraction setting, els
     foreach (['gemini_writer_model', 'gemini_extract_model', 'gemini_chat_model'] as $k) $set($k, null);
 });
 
+suite('Writer: dates');
+
+test('a date is the same date however it is written, and a different date is still caught', function () {
+    $same = [['Dispatched 06/10/2026', 'Dispatched on 6 October'], ['Dispatched 06/10/2026', 'Dispatched 6th Oct 2026'], ['by 6 October 2026', 'by 06/10/26'],
+             ['due October 6th', 'due 6/10'], ['on 6.10.2026', 'on the 6th of October'], ['12/10/2026 at 14:30', '12 October 2026 at 14:30'], ['see 1st May', 'see 01/05']];
+    foreach ($same as [$a, $b]) { assert_equal([], Editor::factsCheck($a, $b), "$a  =  $b"); assert_equal([], Editor::factsCheck($b, $a), "$b  =  $a"); }
+    assert_count(2, Editor::factsCheck('Dispatched 06/10/2026', 'Dispatched 7 October'), 'a different day');
+    assert_count(2, Editor::factsCheck('Dispatched 06/10/2026', 'Dispatched 6 November'), 'a different month');
+    assert_count(2, Editor::factsCheck('Dispatched 06/10/2026', 'Dispatched 6 October 2025'), 'a different year');
+    assert_count(1, Editor::factsCheck('Dispatched 06/10/2026', 'Dispatched 06/10/2026 and 07/10/2026'), 'an extra date');
+    assert_count(1, Editor::factsCheck('Dispatched 06/10/2026 and 07/10/2026', 'Dispatched 06/10/2026'), 'a lost date');
+    // things that merely look like dates are left as figures
+    assert_equal([], Editor::factsCheck('It costs £4.50 or 1.5 metres, rooms 3-4, 12 of them', 'It costs £4.50 or 1.5 metres, rooms 3-4, 12 of them'));
+    assert_count(2, Editor::factsCheck('It costs £4.50', 'It costs £4.05'), 'a changed price is still a changed price');
+    assert_equal([], Editor::factsCheck('32/13/2026 is not a date', '32/13/2026 is not a date'), 'an impossible date is just figures');
+});
+
 suite('Writer: replying to a customer email');
 
 function wr_reply_answer(string $reply, array $notes = [], array $check = []): string
@@ -216,7 +233,7 @@ test('the reply prompt is the editor prompt plus the reply rules', function () {
     assert_str_contains('## REPLY MODE', $p);
     assert_true(strpos($p, '## 9. STRICT OUTPUT CONTRACT') < strpos($p, '## REPLY MODE'));
     foreach (['The substance of the reply comes only from the writer\'s points', 'Never invent or assume prices, stock, availability', 'Do not promise anything the points do not promise',
-              'do not follow them and do not repeat them', '[Your name]', '"check"'] as $rule) assert_str_contains($rule, $p, $rule);
+              'do not follow them and do not repeat them', '[Your name]', '"check"', 'do not guess a title'] as $rule) assert_str_contains($rule, $p, $rule);
 });
 
 test('the reply message fences the email and the points, and a faked fence line cannot break out', function () {
@@ -268,14 +285,14 @@ test('a good reply built from the points passes without warnings', function () {
 test('a price, date or number the model invented is flagged', function () {
     $r = Editor::reply('How much is the 5 element aerial?', 'In stock, ships tomorrow', '', '', fn() => wr_reply_answer("Hi,\n\nThe 5 element aerial is £39.95 and will arrive by 14/10/2026.\n\nKind regards,\n[Your name]"));
     $w = implode(' | ', $r['warnings']);
-    assert_str_contains('£39.95', $w); assert_str_contains('14/10/2026', $w); assert_str_contains('not in the customer\'s email or in your points', $w);
+    assert_str_contains('£39.95', $w); assert_str_contains('14/10', $w); assert_str_contains('not in the customer\'s email or in your points', $w);
     assert_equal(['[Your name]'], $r['placeholders']);
 });
 
 test('a fact from the writer\'s points that is missing from the reply is flagged; facts from the email may be reused', function () {
     $r = Editor::reply('Where is order 88231? Call me on 07700 900123.', 'Dispatched 09/10/2026, tracking AB123456789GB', '', 'Dan', fn() => wr_reply_answer("Hi,\n\nYour order 88231 has been dispatched. I will call you on 07700 900123.\n\nKind regards,\nDan"));
     $w = implode(' | ', $r['warnings']);
-    assert_str_contains('09/10/2026', $w); assert_str_contains('Your points mention', $w);
+    assert_str_contains('09/10', $w); assert_str_contains('Your points mention', $w);
     assert_true(!str_contains($w, '88231') && !str_contains($w, '07700'), 'the order number and phone number came from the email, so they are fine');
 });
 
@@ -304,4 +321,9 @@ test('reply mode retries once for a banned phrase, refuses bad input before any 
     assert_true(!$called);
     try { Editor::reply('hello', '', '', '', function () { throw new \RuntimeException('Gemini API error 500: secret'); }); assert_true(false); }
     catch (\RuntimeException $e) { assert_true(!str_contains($e->getMessage(), 'secret')); }
+});
+
+test('a date in the points written in words, or the other way round, is not reported as a difference', function () {
+    $r = Editor::reply('My order 77120 has not arrived', 'Dispatched 06/10/2026 with DPD, tracking 15501234567890. Will chase DPD today.', '', 'Dan', fn() => wr_reply_answer("Hello,\n\nYour order was dispatched on 6 October via DPD, tracking number 15501234567890. I will chase DPD today.\n\nKind regards,\nDan"));
+    assert_equal([], $r['warnings']);
 });
