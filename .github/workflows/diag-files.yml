@@ -1,0 +1,31 @@
+name: Diagnose file sharing on the server
+
+# Checks the server (PHP zlib, disk space, permissions, tables), then runs a full upload, zip, unzip, password-share and download
+# cycle as the web user with made-up data, and removes it again. Also asks the live website what a stranger would be shown.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 6m
+          script: |
+            cd /var/www/chat
+            ls -ld data/files data/files/tmp 2>&1 | sed 's/^/  /'
+            runuser -u www-data -- php scripts/diag/files_check.php
+      - name: What a stranger sees on the live site
+        run: |
+          set -u
+          code() { curl -s -o /tmp/body -w '%{http_code}' "$@"; }
+          echo "bad link:               $(code https://blakegroup.uk/s.php/1/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA) $(grep -o 'not valid' /tmp/body | head -1)"
+          curl -sI https://blakegroup.uk/s.php/1/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | grep -iE '^(cache-control|x-robots-tag|x-frame-options|content-security-policy|x-content-type-options)' | sed 's/^/  /'
+          echo "files API signed out:   $(code 'https://blakegroup.uk/api/admin/files.php?action=list')  (401 expected)"
+          echo "admin page has the tab: $(curl -s https://blakegroup.uk/admin/ | grep -c "switchTab('filesharing'")"
+          echo "interface script:       $(code https://blakegroup.uk/files/files-ui.js)   stylesheet: $(code https://blakegroup.uk/files/files.css)"
