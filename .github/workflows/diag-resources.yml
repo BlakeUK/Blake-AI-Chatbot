@@ -1,0 +1,23 @@
+name: Diagnose server resources
+
+# Read-only: memory, swap, CPU, disk, the biggest processes, and whether any antivirus is already installed.
+on:
+  workflow_dispatch:
+
+jobs:
+  resources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Look at the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "== memory (MB)"; free -m
+            echo "== swap"; swapon --show 2>&1 | head -3; echo "cpus: $(nproc)"
+            echo "== disk"; df -h /var/www | tail -1
+            echo "== biggest processes (MB)"; ps -eo rss,comm --sort=-rss | head -8 | awk '{printf "%7.0f  %s\n", $1/1024, $2}'
+            echo "== antivirus installed?"; command -v clamscan clamdscan clamd freshclam maldet 2>&1 | head -5; dpkg -l 2>/dev/null | grep -ciE 'clamav' | sed 's/^/clamav packages: /'
+            echo "== OS"; . /etc/os-release; echo "$PRETTY_NAME"
