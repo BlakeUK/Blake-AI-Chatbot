@@ -40,7 +40,7 @@ try {
         $say("the server's own unzip tool accepts our zip", str_contains((string)shell_exec('unzip -tq ' . escapeshellarg($tmp) . ' 2>&1'), 'No errors'));
         @unlink($tmp);
     }
-    $s = Shares::create($O, 'link', [$dir], ['title' => 'diag', 'password' => 'diag-password-1', 'to' => date('Y-m-d\TH:i', time() + 3600)]);
+    $s = Shares::create($O, 'link', [$dir], ['title' => 'diag', 'password' => 'diag-password-1', 'to' => (new DateTimeImmutable('+1 hour', new DateTimeZone('Europe/London')))->format('Y-m-d\TH:i')]);
     $path = '/' . $s['id'] . '/' . basename(Shares::url($s));
     $gate = SharePage::handle($path, 'GET', [], [], [], '127.0.0.1');
     $say('a customer meets the password gate, which shows nothing of the contents', $gate['status'] === 200 && !str_contains($gate['body'], 'diag-folder') && str_contains($gate['body'], 'type="password"'));

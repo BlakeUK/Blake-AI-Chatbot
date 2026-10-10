@@ -214,6 +214,15 @@ with sync_playwright() as p:
     still = api_json(pg, "/api/admin/files.php?action=list")["items"]; sh = db("SELECT revoked_at, title, salt FROM fs_shares WHERE id = ?", (wid,))[0]
     ok("nobody can delete, rename, move, zip, share, change or withdraw someone else's files and shares (and a colleague's attempts change nothing)", any(i["id"] == sec and i["name"] == "secret.txt" for i in still) and api_json(pg, f"/api/admin/files.php?action=list&parent={cid}")["items"] and sh["revoked_at"] is None and sh["title"] == "Customers" and all(st in (200, 422, 404) for st, _ in res) and all(st != 200 or '"deleted":0' in t for st, t in res), res)
     ok("signed out, the API and downloads refuse", cr.get(B + "/api/admin/files.php?action=list").status == 401 and cr.get(B + f"/api/admin/files.php?action=download&id={nid}").status == 401)
+    print("== G2. times are UK time, whatever the computer's clock says")
+    from zoneinfo import ZoneInfo; from datetime import datetime, timedelta
+    for tz in ("Pacific/Auckland", "America/Los_Angeles"):
+        tzc = b.new_context(timezone_id=tz); tzp = sign_in(tzc, "fs-admin")
+        tzp.wait_for_selector("#files-mount tr.fs-row td.fs-name:has-text('secret.txt')")
+        row(tzp, "secret.txt").locator("td.fs-name").click(button="right"); pick(tzp, "Share"); tzp.wait_for_selector(".fs-modal [data-q='1']"); tzp.click(".fs-modal [data-q='1']")
+        got = datetime.strptime(tzp.input_value(".fs-modal [data-m=to]"), "%Y-%m-%dT%H:%M").replace(tzinfo=ZoneInfo("Europe/London")); want = datetime.now(ZoneInfo("Europe/London")) + timedelta(days=1)
+        ok(f"on a computer set to {tz}, '+1 day' still gives tomorrow in UK time", abs((got - want).total_seconds()) < 180, (got, want))
+        tzc.close()
     print("== H. moving, renaming, deleting")
     pg.click(F("tabMine")); pg.wait_for_selector("#files-mount tr.fs-row")
     pg.click(F("bNew")); pg.fill(".fs-modal [data-m=v]", "Archive"); pg.click(".fs-modal [data-m=ok]"); wait_row(pg, "Archive")

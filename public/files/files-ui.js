@@ -291,7 +291,11 @@
     /* ---------- sharing ---------- */
     function loadStaff() { return staffCache ? Promise.resolve(staffCache) : get('staff').then(function (d) { staffCache = d.staff; return staffCache; }); }
     function genPassword() { var c = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', a = new Uint32Array(10); (global.crypto || global.msCrypto).getRandomValues(a); return Array.prototype.map.call(a, function (x) { return c[x % c.length]; }).join(''); }
-    function localIn(d) { var p = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+    // Times in this tool are UK time whatever the computer's own clock is set to, so the quick buttons are worked out in UK time too.
+    function ukIn(d) {
+      var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
+      return p.year + '-' + p.month + '-' + p.day + 'T' + p.hour + ':' + p.minute;
+    }
 
     function shareDialog(nodes, existing) {
       if (!nodes.length && !existing) return;
@@ -322,7 +326,7 @@
           var up = m('usePw'); if (up) up.onchange = function () { m('pwRow').hidden = !up.checked; };
           Array.prototype.forEach.call(d.el.querySelectorAll('input[name=pwmode]'), function (r) { r.onchange = function () { m('pwRow').hidden = d.el.querySelector('input[name=pwmode]:checked').value !== 'change'; }; });
           m('gen').onclick = function () { m('pw').value = genPassword(); };
-          Array.prototype.forEach.call(d.el.querySelectorAll('[data-q]'), function (a) { a.onclick = function (e) { e.preventDefault(); var t = new Date(); t.setDate(t.getDate() + (+a.dataset.q)); m('to').value = localIn(t); }; });
+          Array.prototype.forEach.call(d.el.querySelectorAll('[data-q]'), function (a) { a.onclick = function (e) { e.preventDefault(); m('to').value = ukIn(new Date(Date.now() + (+a.dataset.q) * 86400000)); }; });
           m('no').onclick = d.close;
           m('ok').onclick = function () {
             err(''); var body = { title: m('title').value, message: m('message').value };
