@@ -133,6 +133,7 @@ code{font-family:monospace;font-size:12px;color:#e8e8ea}
 .pb-popover-pill{display:block;margin-bottom:6px}
 </style>
 <link rel="stylesheet" href="/writer/writer.css">
+<link rel="stylesheet" href="/files/files.css">
 </head>
 <body>
 <style>
@@ -193,6 +194,7 @@ html.embedded [data-embed-hide]{display:none!important}
   <button data-role="admin" onclick="switchTab('users',this)">Users</button>
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
   <button onclick="switchTab('writer',this)">Writing assistant</button>
+  <button onclick="switchTab('filesharing',this)">File sharing</button>
   <button data-embed-hide onclick="switchTab('tickets',this)">Support Tickets</button>
   <button data-embed-hide onclick="switchTab('projects',this)">Project Planner</button>
   <button onclick="switchTab('account',this)">My Account</button>
@@ -566,6 +568,11 @@ html.embedded [data-embed-hide]{display:none!important}
     </div>
   </div>
 
+  <!-- ── FILE SHARING ── -->
+  <div id="tab-filesharing" class="tab">
+    <div id="files-mount"></div>
+  </div>
+
   <!-- ── WRITING ASSISTANT ── -->
   <div id="tab-writer" class="tab">
     <div id="writer-mount"></div>
@@ -914,6 +921,7 @@ window.BlakeUKWidget = {
 <script src="vendor/qrcode.js"></script>
 <script src="/writer/writer-lib.js"></script>
 <script src="/writer/writer-ui.js"></script>
+<script src="/files/files-ui.js"></script>
 <script>
 const API='/api/admin'; let csrf=''; let role='user'; let myAdminId=null;
 
@@ -996,12 +1004,18 @@ function switchTab(name,el){
   if(name==='email')loadEmailSettings();
   if(name==='files')loadStandards();
   if(name==='writer')openWriter();
+  if(name==='filesharing')openFiles();
 }
 let writerMounted=false;
 function openGuide(url){
   const full=new URL(url,location.origin).href;
   if(window.top!==window)parent.postMessage({openExternal:full},'*');   // inside the Windows app: open in the computer's viewer
   else window.open(full,'_blank','noopener');
+}
+let filesUI=null;
+function openFiles(){
+  if(filesUI){filesUI.refresh();return;}
+  filesUI=FilesUI.mount(document.getElementById('files-mount'),{getCsrf:()=>csrf,isAdmin:(role==='admin'),onAuthLost:()=>setTimeout(()=>location.reload(),1500)});
 }
 function openWriter(){
   if(writerMounted)return; writerMounted=true;

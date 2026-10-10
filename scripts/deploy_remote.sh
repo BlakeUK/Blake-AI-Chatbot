@@ -387,6 +387,18 @@ else
     warn "Ticket conversation schema already applied — skipping."
 fi
 
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='fs_nodes';" | grep -q fs_nodes; then
+    info "Applying file sharing schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_files.sql"
+else
+    warn "File sharing schema already applied — skipping."
+fi
+# Where shared files are kept: outside the website folder, owned by the web user, not readable by anyone else.
+mkdir -p "$WEBROOT/data/files/tmp"
+chown -R www-data:www-data "$WEBROOT/data/files"
+chmod 750 "$WEBROOT/data/files"
+chown www-data:www-data "$WEBROOT"/data/chatbot.db* 2>/dev/null || true
+
 # ── Pending-file processing cron (bulk URL imports extract in the background) ─
 CRON_LINE="* * * * * php $WEBROOT/scripts/process_pending_files.php >> $WEBROOT/logs/import_queue.log 2>&1"
 if ! (crontab -u www-data -l 2>/dev/null | grep -qF "process_pending_files.php"); then

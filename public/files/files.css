@@ -1,0 +1,61 @@
+/* File sharing. Everything is under .fs and prefixed fs-, so it sits safely inside the dark admin. It draws itself light, on its own panel. */
+.fs { --blue:#485cc7; --ink:#1b2230; --navy:#1c2766; --line:#d9deef; --muted:#5b6479; background:#f3f5fb; color:var(--ink); border-radius:12px; padding:16px; position:relative;
+      font:15px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; text-align:left; }
+.fs *, .fs *::before, .fs *::after { box-sizing:border-box; }
+.fs [hidden] { display:none !important; }
+.fs button { font:inherit; font-weight:600; border:0; border-radius:9px; padding:.5rem 1rem; cursor:pointer; background:var(--blue); color:#fff; width:auto; margin:0; }
+.fs button:hover { background:#3a4cae; } .fs button:disabled { opacity:.5; cursor:not-allowed; }
+.fs button.fs-alt { background:#fff; color:var(--blue); border:1px solid var(--blue); } .fs button.fs-alt:hover { background:#eef0fb; }
+.fs button.fs-danger { background:#fff; color:#b3261e; border:1px solid #d99; } .fs button.fs-danger:hover { background:#fdeceb; }
+.fs input[type=text], .fs input[type=email], .fs input[type=password], .fs input[type=datetime-local], .fs textarea, .fs select { font:inherit; padding:.45rem .6rem; border:1px solid #aab3d6; border-radius:8px; background:#fff; color:var(--ink); max-width:100%; width:100%; }
+.fs textarea { resize:vertical; min-height:70px; }
+.fs input:focus, .fs textarea:focus, .fs select:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(72,92,199,.18); }
+.fs input[type=checkbox], .fs input[type=radio] { width:auto; margin:0 .4rem 0 0; }
+.fs label { display:block; font-weight:600; margin:.55rem 0 .2rem; } .fs label.fs-inline { display:flex; align-items:center; font-weight:400; margin:.25rem 0; }
+.fs .fs-modes { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+.fs .fs-mode { background:#fff; color:var(--blue); border:1px solid #c9d2f6; border-radius:999px; padding:.45rem 1.1rem; box-shadow:0 1px 2px rgba(28,39,102,.08); }
+.fs .fs-mode:hover { background:#eef0fb; } .fs .fs-mode.fs-on { background:linear-gradient(135deg,#6a7fe8,#485cc7); color:#fff; border-color:transparent; box-shadow:0 4px 14px rgba(72,92,199,.4); }
+.fs .fs-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 10px; }
+.fs .fs-sp { flex:1; } .fs .fs-small { font-size:.85rem; color:var(--muted); }
+.fs .fs-crumbs { display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin:0 0 8px; font-size:.95rem; }
+.fs .fs-crumbs a { color:var(--blue); cursor:pointer; text-decoration:none; font-weight:600; } .fs .fs-crumbs a:hover { text-decoration:underline; } .fs .fs-crumbs span { color:var(--muted); }
+.fs .fs-list { background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; min-height:140px; }
+.fs table { width:100%; border-collapse:collapse; } .fs th { text-align:left; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:.5rem .6rem; background:#f7f8fd; border-bottom:1px solid var(--line); }
+.fs td { padding:.5rem .6rem; border-top:1px solid #eef0f8; vertical-align:middle; } .fs tr.fs-row { cursor:default; user-select:none; } .fs tr.fs-row:hover td { background:#f7f8fd; }
+.fs tr.fs-sel td { background:#e4e8fb !important; } .fs tr.fs-drop td { background:#d6f1de !important; }
+.fs td.fs-name { overflow-wrap:anywhere; } .fs td.fs-n { text-align:right; white-space:nowrap; color:var(--muted); font-size:.9rem; } .fs td.fs-chk { width:34px; }
+.fs .fs-ico { display:inline-block; width:1.4em; text-align:center; } .fs .fs-badge { display:inline-block; font-size:.72rem; font-weight:700; border-radius:99px; padding:.05rem .5rem; margin-left:.4rem; background:#e4e8fb; color:var(--navy); }
+.fs .fs-badge.fs-open { background:#d6f1de; color:#14532d; } .fs .fs-badge.fs-warn { background:#fff1c9; color:#6b4b00; } .fs .fs-badge.fs-off { background:#fbd9d6; color:#7a1d1d; }
+.fs .fs-empty { padding:2.2rem 1rem; text-align:center; color:var(--muted); }
+.fs .fs-drop-zone { border:2px dashed var(--blue); background:rgba(72,92,199,.08); }
+.fs .fs-menu { position:fixed; z-index:9000; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 30px rgba(28,39,102,.25); padding:6px; min-width:220px; }
+.fs .fs-menu button { display:block; width:100%; text-align:left; background:transparent; color:var(--ink); font-weight:500; padding:.45rem .7rem; border-radius:6px; }
+.fs .fs-menu button:hover { background:#eef0fb; } .fs .fs-menu hr { border:0; border-top:1px solid #eef0f8; margin:4px 0; } .fs .fs-menu .fs-danger-i { color:#b3261e; }
+.fs .fs-shade { position:fixed; inset:0; background:rgba(15,20,50,.5); z-index:9500; display:flex; align-items:flex-start; justify-content:center; padding:5vh 12px; overflow:auto; }
+.fs .fs-modal { background:#fff; border-radius:14px; padding:20px 22px; width:100%; max-width:560px; box-shadow:0 20px 60px rgba(0,0,0,.4); color:var(--ink); }
+.fs .fs-modal h3 { margin:0 0 .6rem; color:var(--navy); font-size:1.15rem; } .fs .fs-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:1rem; flex-wrap:wrap; }
+.fs .fs-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; } @media (max-width:560px) { .fs .fs-grid2 { grid-template-columns:1fr; } }
+.fs .fs-note { border-radius:10px; padding:.5rem .8rem; margin:.6rem 0; font-size:.92rem; } .fs .fs-err { background:#fdeceb; border:1px solid #f0a9a4; } .fs .fs-ok { background:#e6f6ec; border:1px solid #9bd3ae; } .fs .fs-warnbox { background:#fff6dc; border:1px solid #ecd58a; }
+.fs .fs-link-box { display:flex; gap:8px; } .fs .fs-link-box input { flex:1; }
+.fs .fs-staff { max-height:170px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+.fs .fs-uploads { margin:10px 0 0; } .fs .fs-up { background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; margin:0 0 6px; font-size:.9rem; }
+.fs .fs-bar-o { height:6px; background:#e4e8fb; border-radius:4px; overflow:hidden; margin-top:4px; } .fs .fs-bar-i { height:100%; background:var(--blue); width:0; transition:width .15s; }
+.fs .fs-toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#1c2766; color:#fff; padding:.6rem 1.1rem; border-radius:10px; z-index:9800; box-shadow:0 8px 24px rgba(0,0,0,.35); max-width:90vw; }
+.fs .fs-actions-cell button { padding:.3rem .6rem; font-size:.85rem; margin:0 3px 3px 0; }
+
+/* The admin's dark theme styles tables and cells too; this panel is light, so it sets its own colours and borders for everything it uses. */
+.fs, .fs table, .fs thead, .fs tbody, .fs tr, .fs th, .fs td { color:var(--ink); }
+.fs table { background:transparent; border:0; margin:0; width:100%; }
+.fs tr, .fs tbody tr:nth-child(even), .fs tbody tr:nth-child(odd) { background:transparent; }
+.fs th { background:#f7f8fd; color:var(--muted); border:0; border-bottom:1px solid var(--line); font-weight:700; }
+.fs td { border:0; border-top:1px solid #eef0f8; background:transparent; }
+.fs tbody tr:first-child td { border-top:0; }
+.fs tr.fs-row:hover td { background:#f7f8fd; } .fs tr.fs-sel td { background:#e4e8fb !important; } .fs tr.fs-drop td { background:#d6f1de !important; }
+.fs td.fs-n, .fs .fs-small { color:var(--muted); }
+.fs strong { color:inherit; } .fs a { color:var(--blue); } .fs h3, .fs h2 { color:var(--navy); background:transparent; border:0; }
+.fs p, .fs div, .fs span, .fs label { color:inherit; }
+.fs .fs-bar { min-height:0; margin-bottom:8px; }
+.fs .fs-badge { color:var(--navy); } .fs .fs-badge.fs-open { color:#14532d; } .fs .fs-badge.fs-warn { color:#6b4b00; } .fs .fs-badge.fs-off { color:#7a1d1d; }
+.fs button { color:#fff; } .fs button.fs-alt { color:var(--blue); } .fs button.fs-danger { color:#b3261e; } .fs .fs-menu button { color:var(--ink); } .fs .fs-menu .fs-danger-i { color:#b3261e; }
+.fs .fs-toast { color:#fff; } .fs .fs-note { color:var(--ink); } .fs .fs-mode { color:var(--blue); } .fs .fs-mode.fs-on { color:#fff; }
+.fs .fs-empty { color:var(--muted); }

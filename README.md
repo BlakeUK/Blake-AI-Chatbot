@@ -26,6 +26,7 @@ Built on **Caddy + PHP 8.2 + SQLite**. Powered by **Google Gemini**. No Node.js,
 - [Support Tickets & Live Chat](#support-tickets--live-chat)
 - [Opening Hours & Bank Holidays](#opening-hours--bank-holidays)
 - [Writing Assistant (Staff)](#writing-assistant-staff)
+- [File Sharing](#file-sharing)
 - [QR Codes & Link Pages](#qr-codes--link-pages)
 - [Staff Guide](#staff-guide)
 - [Auto-Generated FAQ](#auto-generated-faq)
@@ -120,6 +121,7 @@ This started as a phased roadmap (Phase 1 Core → Phase 6 Analytics). Most of i
 | Customer conversations on tickets | Staff reply from the ticket; the customer is emailed and answers from a private link, no sign-in — see [Support Tickets & Live Chat](#support-tickets--live-chat) |
 | Opening hours with bank holidays | Mon–Thu 8:00–16:30, Fri 8:00–16:00, closed weekends and England & Wales bank holidays (official list, refreshed weekly) — see [Opening Hours & Bank Holidays](#opening-hours--bank-holidays) |
 | Writing assistant | Improve a message in British English with the reasons for each change, or draft a reply to a customer's email — see [Writing Assistant (Staff)](#writing-assistant-staff) |
+| File sharing | Staff folders and files, shared by link (password, available-from and until) or with colleagues; right-click zip, unzip, copy link, email link — see [File Sharing](#file-sharing) |
 | Staff guide | A PDF guide to all of the above, opened from the admin Dashboard — see [Staff Guide](#staff-guide) |
 
 ### Related tool: QR codes & link pages
@@ -572,6 +574,35 @@ Check the live state with the **Diagnose opening hours and bank holidays** workf
 
 ---
 
+## File Sharing
+
+The **File sharing** tab in the admin (the desktop console shows it under *Admin*). Every staff member has private folders and files. Any file, several files or a whole folder can be shared two ways:
+
+* **Link** (for customers): `https://blakegroup.uk/s.php/<id>/<token>`. No account. Optional password, optional *available from* and *available until* (entered and shown in UK time), a message, copy-link, email-link, edit, *new link* (kills the old address) and withdraw.
+* **Colleagues**: chosen staff or all staff, who see it under *Shared with me* once signed in (read and download only).
+
+**Right-click menu:** Download, Share, Copy link, Send link by email, Zip, Unzip here, Rename, Move to, Delete. Multi-select with Ctrl/Shift, drag to move, drag and drop (including folders) to upload.
+
+**How it works**
+
+| Part | Notes |
+|---|---|
+| `src/Files/Store.php` | Folders and files, unique names, moves, delete (also removes the stored bytes and share entries), uploads in pieces, zip and unzip. The bytes live in `data/files/` (outside the website, owned by the web user) under random names, in `ab/cd/` folders. Config key `files_path` overrides the location |
+| `src/Files/Zip.php` | Zip creation and reading in plain PHP (no zip extension), streaming, data-descriptor form that Windows, macOS and Linux open. Reading treats a zip as hostile: paths that climb out (`..`, absolute, drive letters, backslashes), more than 5,000 entries, expansion beyond the declared size, bad checksums, encrypted entries and zip64 are refused |
+| `src/Files/Shares.php` | Shares and who may see them. A link's address is **not stored**: it is `HMAC(secret, id + salt)`, so the same link can be copied again but cannot be guessed; changing the salt (*new link*) kills every old copy. Passwords are bcrypt hashes and are **never** emailed or shown again |
+| `src/Files/SharePage.php`, `public/s.php` | The customer's page: no scripts, no caching, no indexing, no framing, `Content-Security-Policy: default-src 'none'`. A wrong address and a missing share look identical. Files are only sent as attachments (`application/octet-stream`, `nosniff`). Nothing above a shared folder is revealed. Ten wrong passwords in ten minutes lock the share for ten minutes; a correct password is remembered for two hours by a signed cookie bound to the share |
+| `src/Files/ShareMail.php` | Emails a link to up to five valid addresses through the normal outbox; never includes the password; refuses withdrawn shares |
+| `public/api/admin/files.php` | The file manager's API (session, CSRF, rate limited). Uploads send one megabyte at a time and can resume. A person can only touch their own files and shares; an administrator can list and withdraw anyone's shares |
+| `public/files/` | The interface, one script and one stylesheet, used by the admin tab |
+
+**Limits and settings:** one file up to 250 MB; a zip holds or expands to at most 1 GB; all stored files together are capped at 2,000 MB unless `fs_quota_mb` is set in the `settings` table; passwords at least 6 characters. Files are **not scanned for viruses**.
+
+**Database:** `scripts/schema_files.sql` (`fs_nodes`, `fs_shares`, `fs_share_items`, `fs_share_users`, `fs_uploads`, `fs_access`); `deploy_remote.sh` applies it once and gives `data/files` to the web user.
+
+**Testing:** `tests/cases/files_test.php` (the zip engine against hostile zips; the store; shares, passwords and dates; the customer's page and the email) and `tests/e2e/files_ui.py` with `files_server.php` (a real browser and server: uploads, right-click menu, zip and unzip, links, password, dates, reset and withdraw, colleagues, and the customer's side). The browser test is run by hand, not in CI.
+
+---
+
 ## QR Codes & Link Pages
 
 `qrcode/` is a separate Go service (own database, own users, own deployment) at **`qr.blakegroup.uk`**. See [`qrcode/README.md`](qrcode/README.md). In short: dynamic and static QR codes of many types, one-page link pages with buttons, scan and click statistics, smart routing, and print-ready downloads. The staff guide and the in-app **Help** explain how to use it; a 48-page PDF manual is built from the Help (`qrcode/web/manual/qrtrack-manual.pdf`).
@@ -613,7 +644,7 @@ A separate internal group chat/DM system for staff-to-staff conversation — cha
 
 ## File Structure
 
-> New in this release: `src/Writer/` (editor prompt and logic), `src/Support/BankHolidays.php`, `public/writer/` (the writing assistant's page, script and styles), `public/api/writer.php`, `docs/staff-guide/` and `public/docs/` (the staff guide), `tests/e2e/`, `tests/fixtures/gov-uk-bank-holidays.json`, `scripts/diag/` and the *Diagnose…* workflows.
+> New in this release: `src/Files/` (file sharing), `public/s.php`, `public/files/`, `scripts/schema_files.sql`, `src/Writer/` (editor prompt and logic), `src/Support/BankHolidays.php`, `public/writer/` (the writing assistant's page, script and styles), `public/api/writer.php`, `docs/staff-guide/` and `public/docs/` (the staff guide), `tests/e2e/`, `tests/fixtures/gov-uk-bank-holidays.json`, `scripts/diag/` and the *Diagnose…* workflows.
 
 ```
 /
