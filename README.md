@@ -302,6 +302,8 @@ Two native Android apps (Flutter, not a WebView wrapper) talk to the same backen
 | **Blake UK Admin** | The full admin panel on your phone — login with 2FA, dashboard, knowledge base, files, products, API keys, model settings, widget clients, users, chat logs, support tickets, my account. |
 | **Blake UK Support** | The customer-facing chat widget as a standalone app — chat, product cards, order tracking, support ticket escalation. |
 
+**Linux (Debian 13):** install with `sudo apt install ./blake-uk-operator-console.deb`. Since 0.19.0 the app is built with Tauri 2 (webkit2gtk 4.1), because Tauri 1's `libwebkit2gtk-4.0` is not available on Debian 13 or Ubuntu 24.04. Each build installs the `.deb` in a clean Debian 13 container, starts it under a virtual screen and checks it opens its window before anything is published. On Linux, closing the window minimises it (a stock GNOME has no tray); on Windows it hides to the tray.
+
 **Download from GitHub.** Every build is attached to GitHub releases in this repository: [**console-latest**](https://github.com/BlakeUK/Blake-AI-Chatbot/releases/tag/console-latest) always holds the newest `.exe`, `.msi` and `.deb` (with `SHA256SUMS.txt`), and each version also keeps its own permanent release, `console-v<version>`, such as `console-v0.18.0`. The repository is private, so you must be signed in to GitHub with access to it. A fixed link to the newest installer is `https://github.com/BlakeUK/Blake-AI-Chatbot/releases/latest/download/blake-uk-operator-console-setup.exe`. Staff without GitHub access use the company-website links below.
 
 **Download the latest build from the company website:**

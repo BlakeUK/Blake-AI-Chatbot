@@ -10,6 +10,14 @@ uses on the website.
 
 ## What's here
 
+**Version 0.19.0 moves the app from Tauri 1 to Tauri 2.** The reason is Debian 13: Tauri 1 needs the `libwebkit2gtk-4.0` library, which Debian 13 and Ubuntu 24.04 no longer provide (only 4.1), so the 0.18.0 `.deb` could not be installed there. Tauri 2 uses 4.1. Nothing the staff see changes.
+
+* **Windows** keeps the same `https://tauri.localhost` address (`useHttpsScheme`), so stored settings and the server's list of trusted app origins are unchanged. An installed 0.18.0 offers the update as usual.
+* **Linux (Debian 13):** `sudo apt install ./blake-uk-operator-console.deb`. It depends on `libwebkit2gtk-4.1-0`, `libgtk-3-0` and `libayatana-appindicator3-1`. A stock GNOME has no tray, so **closing the window minimises it** on Linux (on Windows it hides to the tray) and a missing tray never stops it starting.
+* **Checked on every build:** the workflow installs the new `.deb` in a clean Debian 13 container, checks every library it needs is present, starts it under a virtual screen and checks it opened its window (screenshot kept as the `debian13-screenshot` artifact). Publishing waits for this.
+* The screen talks to the native shell through one adapter (`NATIVE` in `dist/index.html`) that supports both Tauri 1 and 2, and `tests/e2e/console_ui.py` runs against both (`TAURI_SHAPE=v1|v2`).
+* What is **not** tested: the Windows build has not been run on a real Windows machine, and nothing here has run the app's buttons through the real native shell (only the window opening and staying up on Debian 13, and the screen's logic against a simulated shell).
+
 **Version 0.18.0** adds, in the sidebar and the ticket panel:
 
 - **Customer conversation in tickets.** Open a ticket to read the whole conversation with the customer, reply (the customer is emailed with their private link) and reset their link. Admins and editors can reply; other roles can read.

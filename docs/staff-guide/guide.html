@@ -18,7 +18,7 @@ figure.narrow img { width: 78%; } code { background: #eef0fb; padding: 0 1.2mm; 
   <div class="logo">blake UK</div>
   <h1>Support Desk<br>Staff Guide</h1>
   <div class="sub">Chats, tickets, the writing assistant, and QR codes and link pages</div>
-  <div class="meta">For Blake UK staff<br>Windows app version 0.18.0<br>Updated October 2026</div>
+  <div class="meta">For Blake UK staff<br>Windows and Linux app version 0.19.0<br>Updated October 2026</div>
 </section>
 
 <section class="break"><h2 style="margin-top:0">Contents</h2>
@@ -53,6 +53,9 @@ figure.narrow img { width: 78%; } code { background: #eef0fb; padding: 0 1.2mm; 
 <tr><td>QR codes &amp; links</td><td>Opens the QR tool in its own window. Sign in there with your QR tool details. Pressing it again brings that window to the front.</td></tr></table>
 <h3>Your status</h3><p>The status box at the top (Online, Busy, Offline) decides whether the website offers customers a live chat. Set it to <strong>Online</strong> when you are at your desk and ready to take chats.</p>
 <h3>Updating the app</h3><p>The app checks for a newer version every few minutes. When there is one, an <strong>Update</strong> button appears at the bottom left. Press it, let the installer run, and sign in again. Your version number is shown next to it.</p>
+<h3>Installing on Linux (Debian 13)</h3>
+<p>Download <code>blake-uk-operator-console.deb</code> from the company website downloads page, then install it from a terminal in the folder it was saved to: <code>sudo apt install ./blake-uk-operator-console.deb</code>. This also installs anything else it needs. Start it from the applications menu as <em>Blake UK Operator Console</em>. To update later, press the <strong>Update</strong> button in the app, or install the newer file the same way.</p>
+<div class="note"><strong>Closing the window on Linux.</strong> On Debian's standard desktop (GNOME) there is no system tray, so closing the window minimises the app instead of hiding it. It keeps running and still sends notifications. Bring it back from the dock or the Activities screen. To get a tray icon, install the <em>AppIndicator</em> GNOME extension. To quit completely, use <em>Quit</em> from the tray icon, or close it from the dock.</div>
 <h3>Guides</h3><p>The Admin page starts with a <strong>Guides</strong> box. It opens this guide and the QR manual in your computer's PDF viewer.</p>
 
 <h2>4. Opening hours and bank holidays</h2>
