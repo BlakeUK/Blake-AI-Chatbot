@@ -1,60 +1,15 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Blake UK Operator Console",
+  "version": "0.19.0",
+  "identifier": "uk.blake.operatorconsole",
   "build": {
-    "distDir": "../dist",
-    "devPath": "../dist",
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
-    "withGlobalTauri": true
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "Blake UK Operator Console",
-    "version": "0.18.0"
-  },
-  "tauri": {
-    "bundle": {
-      "active": true,
-      "identifier": "uk.blake.operatorconsole",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.ico"
-      ],
-      "targets": [
-        "deb",
-        "nsis",
-        "msi"
-      ],
-      "windows": {
-        "nsis": {
-          "installMode": "currentUser"
-        }
-      },
-      "resources": [],
-      "shortDescription": "Live chat and support ticket desk for Blake UK staff",
-      "longDescription": "Desktop support desk for Blake UK staff: chats routed to your department pop up with a sound, accept and reply, transfer to another department or colleague, add staff notes and raise support tickets."
-    },
+  "app": {
+    "withGlobalTauri": true,
     "security": {
       "csp": null
-    },
-    "allowlist": {
-      "all": false,
-      "notification": {
-        "all": true
-      },
-      "shell": {
-        "open": true
-      },
-      "app": {
-        "all": true
-      },
-      "window": {
-        "all": true
-      }
-    },
-    "systemTray": {
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": false
     },
     "windows": [
       {
@@ -66,8 +21,27 @@
         "minHeight": 600,
         "resizable": true,
         "center": true,
+        "useHttpsScheme": true,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --autoplay-policy=no-user-gesture-required"
       }
     ]
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "targets": ["deb", "nsis", "msi"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "resources": [],
+    "shortDescription": "Live chat and support ticket desk for Blake UK staff",
+    "longDescription": "Desktop support desk for Blake UK staff: chats routed to your department pop up with a sound, accept and reply, transfer to another department or colleague, add staff notes and raise support tickets."
   }
 }

@@ -21,12 +21,12 @@ jobs:
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev \
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev \
             libayatana-appindicator3-dev librsvg2-dev build-essential \
             curl wget file libssl-dev pkg-config patchelf
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^1" --locked
+        run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build .deb
         working-directory: operator-console
@@ -52,6 +52,35 @@ jobs:
           path: operator-console/src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
 
+  # The Linux package must install and start on Debian 13 (trixie), which is what the staff run. This installs the real .deb in a clean
+  # Debian 13, checks every library it needs is there, starts it under a virtual screen, and checks it drew its window. A failure
+  # here stops the release being published.
+  test-debian13:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download the .deb
+        uses: actions/download-artifact@v4
+        with:
+          name: operator-console-linux
+          path: deb
+
+      - name: Install it on Debian 13 and start it
+        run: |
+          mkdir -p out
+          docker run --rm -v "$PWD/deb:/deb:ro" -v "$PWD/out:/out" -v "$PWD/operator-console/ci:/ci:ro" debian:trixie bash /ci/debian13-smoke.sh
+
+      - name: Keep the screenshot and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian13-screenshot
+          path: out
+          if-no-files-found: ignore
+
   build-windows:
     runs-on: windows-latest
     steps:
@@ -67,7 +96,7 @@ jobs:
           workspaces: operator-console/src-tauri
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^1" --locked
+        run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build NSIS installer
         working-directory: operator-console
@@ -96,7 +125,7 @@ jobs:
           if-no-files-found: error
 
   publish-to-vps:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, test-debian13]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -127,7 +156,7 @@ jobs:
           MSI_SRC=$(find dl/windows -name '*.msi' | head -1)
           [ -n "$MSI_SRC" ] && cp "$MSI_SRC" "publish/blake-uk-operator-console.msi" || echo "no msi built"
           cp "$(find dl/linux -name '*.deb' | head -1)" "publish/blake-uk-operator-console.deb"
-          VERSION=$(jq -r '.package.version' operator-console/src-tauri/tauri.conf.json)
+          VERSION=$(jq -r '.version' operator-console/src-tauri/tauri.conf.json)
           # Checksums so anyone can prove the download matches what this
           # workflow built (useful when an antivirus flags an unsigned installer).
           ( cd publish && sha256sum blake-uk-operator-console-setup.exe blake-uk-operator-console.deb \

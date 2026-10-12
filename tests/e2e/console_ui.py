@@ -2,7 +2,7 @@
 """Browser test of the Windows console's screen (operator-console/dist/index.html) against a real server.
 The native shell (Tauri) is stubbed and every call to it is recorded; what this cannot show is the native window itself.
 Needs: php tests/e2e/console_server.php running, playwright."""
-import json, sys
+import json, os, sys
 from playwright.sync_api import sync_playwright
 
 B = "http://127.0.0.1:18503"; fails = []; n = 0
@@ -11,14 +11,26 @@ def ok(what, cond, extra=""):
     print(("  ok: " if cond else "  FAIL: ") + what + ("" if cond else "  -> " + str(extra)[:300]))
     if not cond: fails.append(what)
 
-STUB = """
+def make_stub(shape):
+    """The native shell as the screen sees it. 'v2' is Tauri 2 (the shape now shipped); 'v1' is Tauri 1, which the screen still supports."""
+    return """
+window.__SHAPE = '""" + shape + """';
 window.__calls = {opened: [], windows: [], focused: 0};
 class WV { constructor(label, o) { this.label = label; this.o = o; window.__calls.windows.push({label, url: o.url, title: o.title}); WV.all[label] = this; }
-           once() {} show() {} setFocus() { window.__calls.focused++; } static getByLabel(l) { return WV.all[l] || null; } }
+           once() {} show() {} setFocus() { window.__calls.focused++; }
+           static getByLabel(l) { const w = WV.all[l] || null; return window.__SHAPE === 'v2' ? Promise.resolve(w) : w; } }
 WV.all = {};
-window.__TAURI__ = { shell: { open: u => { window.__calls.opened.push(u); return Promise.resolve(); } }, window: { WebviewWindow: window.__NO_WV ? undefined : WV, appWindow: { setTitle() {}, show() {}, setFocus() {}, hide() {}, onCloseRequested() { return Promise.resolve(() => {}); } } },
-  app: { getVersion: () => Promise.resolve('0.18.0') }, invoke: () => Promise.resolve(null), notification: { isPermissionGranted: () => Promise.resolve(true), sendNotification() {}, requestPermission: () => Promise.resolve('granted') }, event: { listen: () => Promise.resolve(() => {}) } };
+const win = { setAlwaysOnTop() { return Promise.resolve(); }, show() { return Promise.resolve(); }, hide() { return Promise.resolve(); }, unminimize() { return Promise.resolve(); }, setFocus() { return Promise.resolve(); },
+              requestUserAttention() { return Promise.resolve(); }, setTitle() {}, onCloseRequested() { return Promise.resolve(() => {}); } };
+const common = { shell: { open: u => { window.__calls.opened.push(u); return Promise.resolve(); } }, app: { getVersion: () => Promise.resolve('0.19.0') },
+  notification: { isPermissionGranted: () => Promise.resolve(true), sendNotification() {}, requestPermission: () => Promise.resolve('granted') }, event: { listen: () => Promise.resolve(() => {}) } };
+const WVC = window.__NO_WV ? undefined : WV;
+if (window.__SHAPE === 'v2') window.__TAURI__ = Object.assign({}, common, { core: { invoke: () => Promise.resolve(null) }, window: { getCurrentWindow: () => win }, webviewWindow: { WebviewWindow: WVC } });
+else window.__TAURI__ = Object.assign({}, common, { invoke: () => Promise.resolve(null), window: { appWindow: win, WebviewWindow: WVC } });
 """
+
+SHAPE = os.environ.get("TAURI_SHAPE", "v2")
+STUB = make_stub(SHAPE)
 
 def sign_in(pg, user):
     pg.goto(B + "/_console/index.html"); pg.evaluate(f"localStorage.setItem('opconsole_server', '{B}')"); pg.reload()

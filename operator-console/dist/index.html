@@ -899,10 +899,23 @@ function beep(urgent) {
 }
 document.addEventListener('pointerdown', unlockAudio, { once: false });
 
+// Native shell access, written to work with both Tauri 1 (window.__TAURI__.invoke, .window.appWindow) and Tauri 2
+// (window.__TAURI__.core.invoke, .window.getCurrentWindow(), .webviewWindow.WebviewWindow), so the screen does not care which it runs in.
+const NATIVE = {
+  api() { return window.__TAURI__ || null; },
+  invoke(cmd, args) {
+    const t = this.api(), f = t && ((t.core && t.core.invoke) || t.invoke);
+    return f ? f.call(t.core || t, cmd, args) : Promise.reject(new Error('This only works in the desktop app.'));
+  },
+  win() { const t = this.api(); if (!t || !t.window) return null; return typeof t.window.getCurrentWindow === 'function' ? t.window.getCurrentWindow() : (t.window.appWindow || null); },
+  WebviewWindow() { const t = this.api(); return (t && ((t.webviewWindow && t.webviewWindow.WebviewWindow) || (t.window && t.window.WebviewWindow))) || null; },
+  open(url) { const t = this.api(); if (t && t.shell && t.shell.open) return t.shell.open(url); window.open(url, '_blank'); return Promise.resolve(); },
+};
+
 let beepTimer = null;
 async function clearAttention() {
   try {
-    const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow;
+    const w = NATIVE.win();
     if (!w) return;
     await w.setAlwaysOnTop(false);
     try { await w.requestUserAttention(null); } catch (e) {}
@@ -911,7 +924,7 @@ async function clearAttention() {
 
 async function bringToFront(onTop) {
   try {
-    const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.appWindow;
+    const w = NATIVE.win();
     if (!w) return;
     if (onTop) {
       await w.show(); await w.unminimize(); await w.setAlwaysOnTop(true); await w.setFocus();
@@ -1049,19 +1062,16 @@ function wireTicketConversation(id) {
 // The QR code and link page tool lives at its own address. It opens in its own window inside the app, signed in separately
 // (it has its own users), and falls back to the normal browser if the app cannot make a window.
 const QR_URL = 'https://qr.blakegroup.uk/admin/';
-function openExternal(url) { try { window.__TAURI__.shell.open(url); } catch (e) { window.open(url, '_blank'); } }
+function openExternal(url) { try { Promise.resolve(NATIVE.open(url)).catch(() => window.open(url, '_blank')); } catch (e) { window.open(url, '_blank'); } }
 function openQrTool() {
-  try {
-    const W = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.WebviewWindow;
-    if (W) {
-      const existing = W.getByLabel && W.getByLabel('qrtool');
-      if (existing) { existing.show(); existing.setFocus(); return; }
-      const w = new W('qrtool', { url: QR_URL, title: 'Blake UK QR codes and link pages', width: 1280, height: 860, center: true });
-      w.once('tauri://error', () => openExternal(QR_URL));
-      return;
-    }
-  } catch (e) {}
-  openExternal(QR_URL);
+  const W = NATIVE.WebviewWindow();
+  if (!W) { openExternal(QR_URL); return; }
+  // getByLabel is immediate in Tauri 1 and a promise in Tauri 2; Promise.resolve handles both
+  Promise.resolve(W.getByLabel ? W.getByLabel('qrtool') : null).then(existing => {
+    if (existing) { existing.show(); existing.setFocus(); return; }
+    const w = new W('qrtool', { url: QR_URL, title: 'Blake UK QR codes and link pages', width: 1280, height: 860, center: true });
+    w.once('tauri://error', () => openExternal(QR_URL));
+  }).catch(() => openExternal(QR_URL));
 }
 // The admin page shown inside this app can ask for a guide or manual to open in the computer's own viewer (a link that opens a
 // new tab does not work reliably inside the app). Only the company's own addresses, and only from that frame, are accepted.
@@ -1122,7 +1132,7 @@ document.getElementById('update-btn').onclick = async function () {
   const btn = this; const resetText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Downloading… app will close to install';
   try {
-    await window.__TAURI__.invoke('download_and_install', { url: DOWNLOAD_BASE + platformInstallerFilename() });
+    await NATIVE.invoke('download_and_install', { url: DOWNLOAD_BASE + platformInstallerFilename() });
     // Unreachable on success in practice - the app quits itself from the
     // Rust side once the installer is launched, so the installer isn't
     // blocked by this app's own files still being open. Kept only in case

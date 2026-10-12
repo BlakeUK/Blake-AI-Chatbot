@@ -30,7 +30,8 @@ test('the admin Guides box and the console agree with where the PDF is', functio
 
 test('the console version and the manifest version agree', function () {
     $root = dirname(__DIR__, 2);
-    $conf = json_decode((string)file_get_contents($root . '/operator-console/src-tauri/tauri.conf.json'), true)['package']['version'];
+    $cj = json_decode((string)file_get_contents($root . '/operator-console/src-tauri/tauri.conf.json'), true);
+    $conf = $cj['version'] ?? $cj['package']['version'];   // Tauri 2 keeps it at the top, Tauri 1 under "package"
     preg_match('/^version = "([^"]+)"/m', (string)file_get_contents($root . '/operator-console/src-tauri/Cargo.toml'), $m);
     assert_equal($conf, $m[1], 'tauri.conf.json and Cargo.toml must carry the same version');
 });

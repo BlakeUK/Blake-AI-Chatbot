@@ -29,6 +29,9 @@ function fs_put(int $owner, ?int $parent, string $name, string $content, int $pi
     return Store::finishUpload($up, $owner);
 }
 
+/** the same text with its last character changed to a different one, so it is certainly not the original */
+function fs_tamper(string $s): string { return substr($s, 0, -1) . (substr($s, -1) === 'B' ? 'C' : 'B'); }
+
 function fs_read(array $node): string { return (string)file_get_contents(Store::blobPath($node['blob'])); }
 
 function fs_throws(callable $fn, string $contains = '', string $class = \InvalidArgumentException::class): void
@@ -212,7 +215,7 @@ test('a link share has an address that works, cannot be guessed, and can be rese
     assert_true((bool)preg_match('~^https://blakegroup\.uk/s\.php/' . $s['id'] . '/[A-Za-z0-9_-]{43}$~', Shares::url($s)), Shares::url($s));
     $tok = basename(Shares::url($s));
     assert_equal((int)$s['id'], (int)Shares::verify((int)$s['id'], $tok)['id']);
-    foreach ([substr($tok, 0, -1) . 'A', '', 'x', strrev($tok)] as $wrong) assert_null(Shares::verify((int)$s['id'], $wrong), 'wrong token refused');
+    foreach ([fs_tamper($tok), '', 'x', strrev($tok)] as $wrong) assert_null(Shares::verify((int)$s['id'], $wrong), 'wrong token refused');
     assert_null(Shares::verify(99999, $tok)); assert_equal(Shares::url($s), Shares::url(Shares::get((int)$s['id'])), 'the same address every time, so it can be copied again');
     $s2 = Shares::create($ann, 'link', [(int)$f['id']], []); assert_true(basename(Shares::url($s2)) !== $tok, 'each share has its own address');
     $new = Shares::reset($ann, (int)$s['id']); assert_null(Shares::verify((int)$s['id'], $tok), 'the old address stops working'); assert_true(Shares::verify((int)$s['id'], basename(Shares::url($new))) !== null);
@@ -253,7 +256,7 @@ test('passwords: stored hashed, checked, remembered for a while, forgotten on re
     $exp = time() + 3600; $ck = Shares::unlockValue($s, $exp);
     assert_true(Shares::isUnlocked($s, $ck));
     assert_false(Shares::isUnlocked($s, Shares::unlockValue($s, time() - 5)), 'an old unlock is no good');
-    assert_false(Shares::isUnlocked($s, substr($ck, 0, -1) . 'A')); assert_false(Shares::isUnlocked($s, ($exp + 99999) . '.' . explode('.', $ck)[1]), 'the expiry cannot be extended');
+    assert_false(Shares::isUnlocked($s, fs_tamper($ck))); assert_false(Shares::isUnlocked($s, ($exp + 99999) . '.' . explode('.', $ck)[1]), 'the expiry cannot be extended');
     $other = Shares::create($ann, 'link', [(int)$f['id']], ['password' => 'correct horse']); assert_false(Shares::isUnlocked($other, $ck), 'unlocking one share does not unlock another');
     $reset = Shares::reset($ann, (int)$s['id']); assert_false(Shares::isUnlocked($reset, $ck), 'resetting the link ends every unlock');
     $none = Shares::create($ann, 'link', [(int)$f['id']], []); assert_true(Shares::isUnlocked($none, null), 'no password, nothing to unlock');
@@ -359,7 +362,7 @@ test('a password gate: wrong guesses fail and are counted, the right one unlocks
     foreach (['Secure', 'HttpOnly', 'SameSite=Lax', 'Path=/s.php', 'fsu_' . $s['id'] . '='] as $want) assert_str_contains($want, $cookie);
     preg_match('/fsu_\d+=([^;]+)/', $cookie, $m); $jar = ['fsu_' . $s['id'] => $m[1]];
     $in = fs_page($path, 'GET', [], [], $jar); assert_equal(200, $in['status']); assert_str_contains('locked.txt', $in['body']);
-    assert_true(!str_contains(fs_page($path, 'GET', [], [], ['fsu_' . $s['id'] => substr($m[1], 0, -2) . 'AA'])['body'], 'locked.txt'));
+    assert_true(!str_contains(fs_page($path, 'GET', [], [], ['fsu_' . $s['id'] => fs_tamper($m[1])])['body'], 'locked.txt'));
     assert_true(!str_contains(fs_page($path, 'GET', [], ['d' => (int)$f['id']], [])['body'] ?? '', 'locked') && !isset(fs_page($path, 'GET', [], ['d' => (int)$f['id']], [])['stream']), 'a download cannot skip the gate, and the gate does not say what is behind it');
     foreach (range(1, 10) as $i) fs_page($path, 'POST', ['password' => "bad{$i}"]);
     assert_equal(429, fs_page($path, 'POST', ['password' => 'open sesame'])['status'], 'after ten wrong guesses even the right password waits');

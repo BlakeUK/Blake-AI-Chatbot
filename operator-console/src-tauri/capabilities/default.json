@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the console's own screen may ask the app to do. The remote pages it shows (the admin, the QR tool) get none of this.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:app:allow-version",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-request-user-attention",
+    "core:window:allow-is-visible",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-set-title",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-get-all-webviews",
+    "core:window:allow-create",
+    "shell:allow-open",
+    "notification:default"
+  ]
+}
