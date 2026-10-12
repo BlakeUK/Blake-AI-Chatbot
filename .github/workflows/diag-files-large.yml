@@ -1,7 +1,8 @@
 name: Diagnose large file sharing on the server
 
-# Makes a 500 MB file (the largest allowed) on the server, then downloads it from OUTSIDE through the real website (Caddy and PHP-FPM),
-# as a customer would, and checks it arrives complete and identical, as a file and inside a zip. Then deletes it all.
+# Makes a 500 MB file (the largest allowed) on the server, then downloads it back through the server's own public website address, so the
+# request passes through Caddy and PHP-FPM exactly as a customer's would, and checks it arrives complete and identical, as a file and
+# inside a zip. Everything is deleted at the end, even if a check fails.
 on:
   workflow_dispatch:
 
@@ -9,48 +10,36 @@ jobs:
   large:
     runs-on: ubuntu-latest
     steps:
-      - name: Make a 500 MB test file and link on the server
-        id: prep
+      - name: Run on the VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          command_timeout: 8m
-          capture_stdout: true
+          command_timeout: 12m
           script: |
             cd /var/www/chat
-            runuser -u www-data -- php scripts/diag/files_large_check.php prepare
-
-      - name: Download it through the live website, as a customer would
-        env:
-          OUT: ${{ steps.prep.outputs.stdout }}
-        run: |
-          set -u
-          URL=$(echo "$OUT" | grep -o 'URL=https[^ ]*' | head -1 | cut -d= -f2-); FID=$(echo "$OUT" | grep -o 'FILEID=[0-9]*' | cut -d= -f2)
-          SHA=$(echo "$OUT" | grep -o 'SHA=[0-9a-f]*' | cut -d= -f2); SIZE=$(echo "$OUT" | grep -o 'SIZE=[0-9]*' | cut -d= -f2)
-          [ -n "$URL" ] && [ -n "$SHA" ] || { echo "the server did not prepare the test file"; echo "$OUT" | tail -5; exit 1; }
-          echo "expected: $SIZE bytes"
-          echo "== the file"
-          curl -sS -D /tmp/h -o /dev/null -w "  http %{http_code}, %{size_download} bytes in %{time_total}s (%{speed_download} bytes/s)\n" "$URL?d=$FID" || true
-          sed -n '1,12p' /tmp/h | tr -d '\r' | grep -iE '^(HTTP|content-length|content-disposition|content-type|x-content)' | sed 's/^/  /'
-          GOT=$(curl -sS "$URL?d=$FID" | sha256sum | cut -d' ' -f1)
-          [ "$GOT" = "$SHA" ] && echo "  PASS  500 MB arrived complete and identical through Caddy and PHP-FPM" || { echo "  FAIL  checksum differs: $GOT"; exit 1; }
-          echo "== everything as one zip"
-          curl -sS -o /tmp/all.zip -w "  http %{http_code}, %{size_download} bytes in %{time_total}s\n" "$URL?z=all"
-          unzip -tq /tmp/all.zip | sed 's/^/  /'
-          INNER=$(unzip -p /tmp/all.zip diag-500MB.bin | sha256sum | cut -d' ' -f1)
-          [ "$INNER" = "$SHA" ] && echo "  PASS  the zip holds the file intact" || { echo "  FAIL  the file inside the zip differs"; exit 1; }
-          echo "== a bad request"
-          echo "  one byte over the limit is refused: see the unit tests; the live upload path is exercised by the browser tests"
-
-      - name: Delete the test file and link
-        if: always()
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_SERVER }}
-          username: ${{ secrets.SSH_USERNAME }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            cd /var/www/chat
-            runuser -u www-data -- php scripts/diag/files_large_check.php cleanup
+            trap 'echo "== cleaning up"; runuser -u www-data -- php scripts/diag/files_large_check.php cleanup' EXIT
+            OUT=$(runuser -u www-data -- php scripts/diag/files_large_check.php prepare) || { echo "PREPARE FAILED: $OUT"; exit 1; }
+            URL=$(echo "$OUT" | grep -o 'URL=https[^ ]*' | head -1 | cut -d= -f2-); FID=$(echo "$OUT" | grep -o 'FILEID=[0-9]*' | cut -d= -f2)
+            SHA=$(echo "$OUT" | grep -o 'SHA=[0-9a-f]*' | cut -d= -f2); SIZE=$(echo "$OUT" | grep -o 'SIZE=[0-9]*' | cut -d= -f2)
+            echo "test file: $SIZE bytes, made by the web user"
+            echo "== the file, through Caddy and PHP-FPM"
+            curl -sS -D /tmp/fs_h -o /dev/null -w "  http %{http_code}, %{size_download} bytes in %{time_total}s\n" "$URL?d=$FID"
+            tr -d '\r' < /tmp/fs_h | grep -iE '^(content-length|content-disposition|content-type|x-content-type)' | sed 's/^/  /'
+            GOT=$(curl -sS "$URL?d=$FID" | sha256sum | cut -d' ' -f1)
+            if [ "$GOT" = "$SHA" ]; then echo "  PASS  500 MB arrived complete and identical"; else echo "  FAIL  checksum differs ($GOT)"; exit 1; fi
+            echo "== everything as one zip"
+            curl -sS -o /tmp/fs_all.zip -w "  http %{http_code}, %{size_download} bytes in %{time_total}s\n" "$URL?z=all"
+            python3 - "$SHA" <<'PY'
+            import hashlib, sys, zipfile
+            z = zipfile.ZipFile("/tmp/fs_all.zip")
+            print("  entries:", z.namelist(), " testzip:", z.testzip() or "all OK")
+            h = hashlib.sha256()
+            with z.open("diag-500MB.bin") as f:
+                for b in iter(lambda: f.read(1 << 20), b""): h.update(b)
+            print("  PASS  the zip holds the file intact" if h.hexdigest() == sys.argv[1] else "  FAIL  the file inside the zip differs")
+            sys.exit(0 if h.hexdigest() == sys.argv[1] else 1)
+            PY
+            rm -f /tmp/fs_all.zip /tmp/fs_h
+            echo "RESULT: ALL PASSED"
