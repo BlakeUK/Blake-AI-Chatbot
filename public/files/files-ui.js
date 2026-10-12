@@ -3,7 +3,7 @@
  * Builds its own markup; every name that comes from a user or from a file is escaped before it is shown. */
 (function (global) {
   'use strict';
-  var API = '/api/admin/files.php', CHUNK = 1024 * 1024;
+  var API = '/api/admin/files.php', CHUNK = 2 * 1024 * 1024;   // the most the server accepts in one piece
 
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
   function fmtSize(n) { if (n < 1024) return n + ' B'; var u = ['KB', 'MB', 'GB'], i = -1; do { n /= 1024; i++; } while (n >= 1024 && i < 2); return (n >= 100 ? Math.round(n) : n.toFixed(1)) + ' ' + u[i]; }

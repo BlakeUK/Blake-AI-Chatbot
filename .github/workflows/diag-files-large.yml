@@ -1,0 +1,56 @@
+name: Diagnose large file sharing on the server
+
+# Makes a 500 MB file (the largest allowed) on the server, then downloads it from OUTSIDE through the real website (Caddy and PHP-FPM),
+# as a customer would, and checks it arrives complete and identical, as a file and inside a zip. Then deletes it all.
+on:
+  workflow_dispatch:
+
+jobs:
+  large:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Make a 500 MB test file and link on the server
+        id: prep
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 8m
+          capture_stdout: true
+          script: |
+            cd /var/www/chat
+            runuser -u www-data -- php scripts/diag/files_large_check.php prepare
+
+      - name: Download it through the live website, as a customer would
+        env:
+          OUT: ${{ steps.prep.outputs.stdout }}
+        run: |
+          set -u
+          URL=$(echo "$OUT" | grep -o 'URL=https[^ ]*' | head -1 | cut -d= -f2-); FID=$(echo "$OUT" | grep -o 'FILEID=[0-9]*' | cut -d= -f2)
+          SHA=$(echo "$OUT" | grep -o 'SHA=[0-9a-f]*' | cut -d= -f2); SIZE=$(echo "$OUT" | grep -o 'SIZE=[0-9]*' | cut -d= -f2)
+          [ -n "$URL" ] && [ -n "$SHA" ] || { echo "the server did not prepare the test file"; echo "$OUT" | tail -5; exit 1; }
+          echo "expected: $SIZE bytes"
+          echo "== the file"
+          curl -sS -D /tmp/h -o /dev/null -w "  http %{http_code}, %{size_download} bytes in %{time_total}s (%{speed_download} bytes/s)\n" "$URL?d=$FID" || true
+          sed -n '1,12p' /tmp/h | tr -d '\r' | grep -iE '^(HTTP|content-length|content-disposition|content-type|x-content)' | sed 's/^/  /'
+          GOT=$(curl -sS "$URL?d=$FID" | sha256sum | cut -d' ' -f1)
+          [ "$GOT" = "$SHA" ] && echo "  PASS  500 MB arrived complete and identical through Caddy and PHP-FPM" || { echo "  FAIL  checksum differs: $GOT"; exit 1; }
+          echo "== everything as one zip"
+          curl -sS -o /tmp/all.zip -w "  http %{http_code}, %{size_download} bytes in %{time_total}s\n" "$URL?z=all"
+          unzip -tq /tmp/all.zip | sed 's/^/  /'
+          INNER=$(unzip -p /tmp/all.zip diag-500MB.bin | sha256sum | cut -d' ' -f1)
+          [ "$INNER" = "$SHA" ] && echo "  PASS  the zip holds the file intact" || { echo "  FAIL  the file inside the zip differs"; exit 1; }
+          echo "== a bad request"
+          echo "  one byte over the limit is refused: see the unit tests; the live upload path is exercised by the browser tests"
+
+      - name: Delete the test file and link
+        if: always()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /var/www/chat
+            runuser -u www-data -- php scripts/diag/files_large_check.php cleanup

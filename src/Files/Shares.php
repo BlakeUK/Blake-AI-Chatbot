@@ -97,6 +97,9 @@ class Shares
         if (count($nodeIds) > 200) throw new \InvalidArgumentException('Please share fewer items at once, or put them in a folder and share that.');
         $nodes = [];
         foreach ($nodeIds as $id) $nodes[] = Store::mine($id, $owner) ?? throw new \InvalidArgumentException('An item was not found.');
+        if ($kind === 'link' && ($total = Store::sizeOf($nodes)) > Store::MAX_SHARE) {
+            throw new \InvalidArgumentException('That comes to ' . SharePage::size($total) . '. One link can share at most ' . Store::limitText(Store::MAX_SHARE) . '. Share it in parts, or choose fewer files.');
+        }
         $v = self::options($o, true);
         if ($v['title'] === '') $v['title'] = count($nodes) === 1 ? (string)$nodes[0]['name'] : count($nodes) . ' items';
         self::checkWindow($v['available_from'], $v['available_to']);

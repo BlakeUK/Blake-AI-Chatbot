@@ -8,10 +8,31 @@ namespace Files;
 
 class Store
 {
-    public const MAX_FILE   = 250 * 1024 * 1024;     // one file
-    public const MAX_ZIP    = 1024 * 1024 * 1024;    // what one zip may hold or expand to
+    public const MAX_FILE   = 500 * 1024 * 1024;     // one file
+    // What one zip may hold or expand to, and so the most one link share may hold. It is 4,000,000,000 bytes rather than 4 GiB because the
+    // zip files written here use the classic format, which cannot describe 4 GiB or more once the zip's own headers are counted.
+    public const MAX_ZIP    = 4_000_000_000;
+    public const MAX_SHARE  = self::MAX_ZIP;
     public const CHUNK_MAX  = 2 * 1024 * 1024;       // one piece of an upload
-    public const DEFAULT_QUOTA_MB = 2000;            // all stored files together (setting fs_quota_mb)
+    public const DEFAULT_QUOTA_MB = 10000;           // all stored files together (setting fs_quota_mb)
+
+    /** A limit in plain words: "500 MB", "4 GB". */
+    public static function limitText(int $bytes): string
+    {
+        return $bytes >= 1_000_000_000 ? rtrim(rtrim(number_format($bytes / 1_000_000_000, 1), '0'), '.') . ' GB' : (int)($bytes / 1048576) . ' MB';
+    }
+
+    /** The total size of these items, counting everything inside any folders. @param list<array<string,mixed>> $nodes */
+    public static function sizeOf(array $nodes): int
+    {
+        $ids = array_values(array_map(fn($n) => (int)$n['id'], $nodes));
+        if (!$ids) return 0;
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $q = db()->prepare("WITH RECURSIVE t(id) AS (SELECT id FROM fs_nodes WHERE id IN ({$in}) UNION ALL SELECT n.id FROM fs_nodes n JOIN t ON n.parent_id = t.id)
+                            SELECT COALESCE(SUM(size), 0) FROM fs_nodes WHERE kind = 'file' AND id IN (SELECT id FROM t)");
+        $q->execute($ids);
+        return (int)$q->fetchColumn();
+    }
 
     // ---- where things live -------------------------------------------------------------------------------------------
 
@@ -208,7 +229,7 @@ class Store
     public static function beginUpload(int $owner, ?int $parent, string $name, int $size): string
     {
         self::checkFolder($owner, $parent);
-        if ($size < 0 || $size > self::MAX_FILE) throw new \InvalidArgumentException('That file is too big. The limit is ' . (int)(self::MAX_FILE / 1048576) . ' MB for one file.');
+        if ($size < 0 || $size > self::MAX_FILE) throw new \InvalidArgumentException('That file is too big. The limit is ' . self::limitText(self::MAX_FILE) . ' for one file.');
         if (self::totalUsed() + $size > self::quotaBytes()) throw new \InvalidArgumentException('There is not enough storage space left for that file.');
         self::purgeStaleUploads();
         $id = bin2hex(random_bytes(12));
@@ -287,7 +308,7 @@ class Store
                 $out[] = ['name' => $prefix . $n['name'], 'path' => self::blobPath((string)$n['blob']), 'mtime' => (int)$n['updated_at'], 'size' => (int)$n['size']];
             }
             if (count($out) > Zip::MAX_ENTRIES) throw new \InvalidArgumentException('That is too many files for one zip.');
-            if ($total > self::MAX_ZIP) throw new \InvalidArgumentException('That is too much data for one zip.');
+            if ($total > self::MAX_ZIP) throw new \InvalidArgumentException('That is too much data for one zip. The most one zip or share can hold is ' . self::limitText(self::MAX_ZIP) . '.');
         };
         foreach ($nodes as $n) {
             $n['name'] = self::dedupe($n['name'], $names);          // two chosen items with the same name must not overwrite each other in the zip
@@ -348,7 +369,7 @@ class Store
             $plan[] = [$segs, $e];
         }
         if (!$plan) throw new \InvalidArgumentException('That zip is empty.');
-        if ($declared > self::MAX_ZIP || self::totalUsed() + $declared > self::quotaBytes()) throw new \InvalidArgumentException('That zip is too big to unpack here.');
+        if ($declared > self::MAX_ZIP || self::totalUsed() + $declared > self::quotaBytes()) throw new \InvalidArgumentException('That zip is too big to unpack here. It may hold at most ' . self::limitText(self::MAX_ZIP) . ', and there must be room to store it.');
 
         $parent = $n['parent_id'] !== null ? (int)$n['parent_id'] : null;
         $top = self::mkdir($owner, $parent, preg_replace('/\.zip$/i', '', $n['name']) ?: 'Unzipped');

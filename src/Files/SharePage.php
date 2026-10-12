@@ -85,6 +85,8 @@ class SharePage
                 $nodes = [$n]; $name = (string)$n['name'];
             }
             if (!$nodes) return self::notice(404, 'Nothing to download', 'This share is empty.');
+            try { Store::collect($nodes); }                       // too much for one zip (files may have been added since it was shared)
+            catch (\InvalidArgumentException $e) { return self::notice(413, 'Too big to download as one ZIP', 'There is too much here for a single ZIP. Please download the files one at a time instead.'); }
             Shares::log((int)$share['id'], 'zip', $name, $ip);
             return ['stream' => ['kind' => 'zip', 'nodes' => $nodes, 'name' => Store::cleanName($name) . '.zip']];
         }

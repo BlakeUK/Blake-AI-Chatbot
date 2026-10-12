@@ -112,7 +112,7 @@ try {
     \Auth\Admin::verifyCsrf((string)($b['csrf'] ?? ''));
     $ids = array_values(array_filter(array_map('intval', (array)($b['ids'] ?? [])), fn($i) => $i > 0));
     $parent = isset($b['parent']) && (int)$b['parent'] > 0 ? (int)$b['parent'] : null;
-    @set_time_limit(180);
+    @set_time_limit(900);   // zipping or unzipping several GB can take minutes
 
     switch ($b['action'] ?? '') {
         case 'mkdir':

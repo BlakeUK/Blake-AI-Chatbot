@@ -597,11 +597,11 @@ The **File sharing** tab in the admin (the desktop console shows it under *Admin
 | `public/api/admin/files.php` | The file manager's API (session, CSRF, rate limited). Uploads send one megabyte at a time and can resume. A person can only touch their own files and shares; an administrator can list and withdraw anyone's shares |
 | `public/files/` | The interface, one script and one stylesheet, used by the admin tab |
 
-**Limits and settings:** one file up to 250 MB; a zip holds or expands to at most 1 GB; all stored files together are capped at 2,000 MB unless `fs_quota_mb` is set in the `settings` table; passwords at least 6 characters. Files are **not scanned for viruses**.
+**Limits and settings:** one file up to **500 MB**; one link share (and so one "download everything" zip) up to **4 GB** in total, checked when the link is made and again at download; all stored files together are capped at **10,000 MB** unless `fs_quota_mb` is set in the `settings` table (the server has about 34 GB free); passwords at least 6 characters. The 4 GB is 4,000,000,000 bytes, not 4 GiB, because the zip files use the classic format, which cannot describe 4 GiB or more once its own headers are counted (going beyond 4 GB would need zip64). Uploads go up in 2 MB pieces. Colleague shares have no 4 GB cap, as they download one file at a time. Files are **not scanned for viruses**.
 
 **Database:** `scripts/schema_files.sql` (`fs_nodes`, `fs_shares`, `fs_share_items`, `fs_share_users`, `fs_uploads`, `fs_access`); `deploy_remote.sh` applies it once and gives `data/files` to the web user.
 
-**Testing:** `tests/cases/files_test.php` (the zip engine against hostile zips; the store; shares, passwords and dates; the customer's page and the email) and `tests/e2e/files_ui.py` with `files_server.php` (a real browser and server: uploads, right-click menu, zip and unzip, links, password, dates, reset and withdraw, colleagues, and the customer's side). The browser test is run by hand, not in CI.
+**Testing:** `tests/cases/files_test.php` (the zip engine against hostile zips; the store; shares, passwords and dates; the customer's page and the email) and `tests/e2e/files_large.py` (moves a real 500 MB file through upload, a customer's download and a zip over HTTP; run with `FS_FILES_DIR=/dev/shm/x php tests/e2e/files_server.php`), the *Diagnose large file sharing on the server* workflow (the same through your real website, Caddy and PHP-FPM), and `tests/e2e/files_ui.py` with `files_server.php` (a real browser and server: uploads, right-click menu, zip and unzip, links, password, dates, reset and withdraw, colleagues, and the customer's side). The browser test is run by hand, not in CI.
 
 ---
 

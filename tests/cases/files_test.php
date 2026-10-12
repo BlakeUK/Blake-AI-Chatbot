@@ -400,3 +400,59 @@ test('the email: valid distinct addresses only, the link and message in it, neve
     $staff = Shares::create($ann, 'staff', [(int)$f['id']], ['all_staff' => true]); fs_throws(fn() => \Files\ShareMail::send($staff, ['a@b.com'], 'Dan'), 'Only link shares');
     Shares::revoke($ann, (int)$s['id']); fs_throws(fn() => \Files\ShareMail::send(Shares::get((int)$s['id']), ['a@b.com'], 'Dan'), 'withdrawn');
 });
+
+
+suite('Files: size limits');
+
+function fs_fake(int $owner, ?int $parent, string $kind, string $name, int $size = 0): int
+{
+    $now = time();
+    db()->prepare('INSERT INTO fs_nodes (owner_id, parent_id, kind, name, size, mime, blob, sha256, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        ->execute([$owner, $parent, $kind, $name, $size, null, $kind === 'file' ? bin2hex(random_bytes(16)) : null, null, $now, $now]);
+    return (int)db()->lastInsertId();
+}
+
+test('the limits are 500 MB for a file and 4 GB for a share, stated in plain words, and the edge itself is allowed', function () {
+    [$ann] = fs_reset();
+    assert_equal(500 * 1024 * 1024, Store::MAX_FILE); assert_equal(4_000_000_000, Store::MAX_ZIP); assert_equal(Store::MAX_ZIP, Store::MAX_SHARE);
+    assert_equal('500 MB', Store::limitText(Store::MAX_FILE)); assert_equal('4 GB', Store::limitText(Store::MAX_SHARE)); assert_equal('1.5 GB', Store::limitText(1_500_000_000)); assert_equal('250 MB', Store::limitText(250 * 1048576));
+    $up = Store::beginUpload($ann, null, 'exactly-the-limit.bin', Store::MAX_FILE);                  // a file of exactly 500 MB may begin
+    assert_true($up !== ''); db()->prepare('DELETE FROM fs_uploads WHERE id = ?')->execute([$up]); @unlink(Store::root() . "/tmp/{$up}.part");
+    fs_throws(fn() => Store::beginUpload($ann, null, 'one-byte-over.bin', Store::MAX_FILE + 1), 'The limit is 500 MB for one file');
+    assert_true(Store::DEFAULT_QUOTA_MB * 1048576 >= Store::MAX_SHARE + Store::MAX_FILE, 'the default storage cap leaves room for a full share and a big file');
+});
+
+test('a link share may hold at most 4 GB, counting everything inside folders; colleague shares are not limited', function () {
+    [$ann] = fs_reset();
+    $top = fs_fake($ann, null, 'folder', 'Big'); $sub = fs_fake($ann, $top, 'folder', 'Inner');
+    $a = fs_fake($ann, $top, 'file', 'a.bin', 1_300_000_000); $b = fs_fake($ann, $sub, 'file', 'b.bin', 1_300_000_000); $c = fs_fake($ann, $sub, 'file', 'c.bin', 1_300_000_000);
+    assert_equal(3_900_000_000, Store::sizeOf([Store::get($top)]), 'files inside nested folders are counted');
+    assert_equal(1_300_000_000, Store::sizeOf([Store::get($a)])); assert_equal(0, Store::sizeOf([]));
+    $ok = Shares::create($ann, 'link', [$top], []); assert_equal('Big', $ok['title']);
+    $d = fs_fake($ann, $top, 'file', 'd.bin', 100_000_000);                                            // now exactly 4,000,000,000
+    assert_equal(4_000_000_000, Store::sizeOf([Store::get($top)])); assert_equal('Big', Shares::create($ann, 'link', [$top], [])['title'], 'exactly 4 GB is allowed');
+    $e = fs_fake($ann, $sub, 'file', 'e.bin', 1);
+    fs_throws(fn() => Shares::create($ann, 'link', [$top], []), 'at most 4 GB');
+    fs_throws(fn() => Shares::create($ann, 'link', [$a, $b, $c, $d, $e], []), 'Share it in parts');
+    assert_equal('Big', Shares::create($ann, 'staff', [$top], ['all_staff' => true])['title'], 'colleagues download one file at a time, so no cap applies');
+    assert_equal('a.bin', Shares::create($ann, 'link', [$a, $e], ['title' => 'a.bin'])['title'], 'two files within the limit are fine');
+});
+
+test('downloading more than 4 GB as one zip is refused politely, whether it is asked for directly or the share has grown since', function () {
+    [$ann] = fs_reset();
+    $top = fs_fake($ann, null, 'folder', 'Grows'); $f = fs_fake($ann, $top, 'file', 'one.bin', 3_000_000_000);
+    $s = Shares::create($ann, 'link', [$top], []); $path = fs_path($s);
+    $ok = fs_page($path, 'GET', [], ['z' => 'all']); assert_equal('zip', $ok['stream']['kind'], 'within the limit it streams');
+    fs_fake($ann, $top, 'file', 'two.bin', 1_500_000_000);                                             // someone adds more to the shared folder later
+    $big = fs_page($path, 'GET', [], ['z' => 'all']);
+    assert_equal(413, $big['status']); assert_str_contains('one at a time', $big['body']); assert_true(!isset($big['stream']));
+    assert_equal(413, fs_page($path, 'GET', [], ['z' => $top])['status']);
+    assert_equal('file', fs_page($path, 'GET', [], ['d' => $f])['stream']['kind'], 'single files still download');
+    fs_throws(fn() => Store::collect([Store::get($top)]), 'can hold is 4 GB'); fs_throws(fn() => Store::zip($ann, [$top], null), '4 GB');
+});
+
+test('the largest allowed share still fits the classic zip format, even in the worst case for headers and incompressible data', function () {
+    $entries = Zip::MAX_ENTRIES; $longestName = 20 * 180 + 20;                                           // the deepest, longest paths unzip allows
+    $worst = (int)(Store::MAX_ZIP * 1.001) + $entries * (30 + 16 + 46 + 2 * $longestName) + 22;
+    assert_true($worst < 0xFFFFFFFE, "worst case {$worst} bytes must stay under 4 GiB");
+});
