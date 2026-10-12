@@ -218,3 +218,15 @@ test('the QR address comes from a setting, only ever https, and falls back to th
     db()->exec("DELETE FROM settings WHERE key = 'qr_base_url'");
     assert_equal('https://qr.blakegroup.uk/sso?t=a-b_c', Sso::url('a-b_c')); assert_equal('https://qr.blakegroup.uk/sso?t=a%2Bb', Sso::url('a+b'));
 });
+
+test('story pictures skip emoji, smileys, avatars, tracking pixels and tiny icons, and take the first real photo', function () {
+    $body = '<p>Hi <img src="https://s.w.org/images/core/emoji/17.0.2/72x72/25b6.png" alt="x" class="emoji"> <img src="https://x.example/wp-includes/images/smilies/icon_smile.gif">'
+          . '<img src="https://secure.gravatar.com/avatar/abc"><img src="https://t.example/pixel.gif" width="1" height="1"><img src="https://img.example/small.png" width="32" height="32">'
+          . '<img src="https://img.example/real-photo.jpg" width="800" height="450"></p>';
+    $rss = '<rss version="2.0"><channel><item><title>x</title><link>https://n.example/x</link><description><![CDATA[' . $body . ']]></description></item></channel></rss>';
+    assert_equal('https://img.example/real-photo.jpg', Feed::parse($rss)['items'][0]['thumbnail']);
+    $only = '<rss version="2.0"><channel><item><title>x</title><link>https://n.example/x</link><description><![CDATA[<img src="https://s.w.org/images/core/emoji/17.0.2/72x72/2b07.png">]]></description></item></channel></rss>';
+    assert_equal('', Feed::parse($only)['items'][0]['thumbnail'], 'only emoji: no thumbnail at all');
+    $media = '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><item><title>x</title><link>https://n.example/x</link><media:thumbnail url="https://s.w.org/images/core/emoji/x.png"/><description><![CDATA[<img src="https://img.example/body.jpg">]]></description></item></channel></rss>';
+    assert_equal('https://img.example/body.jpg', Feed::parse($media)['items'][0]['thumbnail'], 'an emoji given as the thumbnail is passed over for a real picture');
+});

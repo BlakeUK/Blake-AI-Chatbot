@@ -74,9 +74,23 @@ final class Feed
         }
     }
 
+    /** A picture worth showing as a story's thumbnail: not a WordPress emoji, a smiley, an avatar, a tracking pixel or a tiny icon. */
+    private static function usableImage(string $url, string $tag = ''): bool
+    {
+        if ($url === '' || preg_match('~(^https?://s\.w\.org/|/emoji/|/smilies/|/smiley|gravatar\.com|/avatar|/pixel|/spacer|/blank\.|/1x1|/tracking|/beacon)~i', $url)) return false;
+        foreach (['width', 'height'] as $dim) if (preg_match('~' . $dim . '=["\']?(\d+)~i', $tag, $m) && (int)$m[1] < 60) return false;
+        return true;
+    }
+
     private static function firstImage(string $html): string
     {
-        return preg_match('~<img[^>]+src=["\']([^"\']+)["\']~i', $html, $m) ? self::url(html_entity_decode($m[1])) : '';
+        if (!preg_match_all('~<img\b[^>]*>~i', $html, $tags)) return '';
+        foreach ($tags[0] as $tag) {
+            if (!preg_match('~\bsrc=["\']([^"\']+)["\']~i', $tag, $m)) continue;
+            $u = self::url(html_entity_decode($m[1]));
+            if (self::usableImage($u, $tag)) return $u;
+        }
+        return '';
     }
 
     /** Reads RSS (0.9x, 1.0, 2.0) or Atom into the list the Newsroom page expects. Returns null if it is not a feed. @return ?array{status:string,feed:array{title:string},items:list<array<string,mixed>>} */
@@ -95,10 +109,10 @@ final class Feed
                 $c = $it->children(self::NS_CONTENT); $dc = $it->children(self::NS_DC); $m = $it->children(self::NS_MEDIA);
                 $desc = (string)$it->description; $body = (string)($c->encoded ?? '');
                 $thumb = ''; $enc = null;
-                if (isset($m->thumbnail)) $thumb = self::url((string)$m->thumbnail->attributes()['url']);
-                if (!$thumb && isset($m->content)) foreach ($m->content as $mc) { $u = self::url((string)$mc->attributes()['url']); $t = (string)$mc->attributes()['type']; if ($u && (str_starts_with($t, 'image') || (string)$mc->attributes()['medium'] === 'image' || !$t)) { $thumb = $u; break; } }
+                if (isset($m->thumbnail)) { $t = self::url((string)$m->thumbnail->attributes()['url']); $thumb = self::usableImage($t) ? $t : ''; }
+                if (!$thumb && isset($m->content)) foreach ($m->content as $mc) { $u = self::url((string)$mc->attributes()['url']); $t = (string)$mc->attributes()['type']; if ($u && self::usableImage($u) && (str_starts_with($t, 'image') || (string)$mc->attributes()['medium'] === 'image' || !$t)) { $thumb = $u; break; } }
                 if (isset($it->enclosure)) { $u = self::url((string)$it->enclosure->attributes()['url']); if ($u) $enc = ['link' => $u, 'type' => self::text((string)$it->enclosure->attributes()['type'], 60)]; }
-                if (!$thumb && $enc && str_starts_with($enc['type'], 'image')) $thumb = $enc['link'];
+                if (!$thumb && $enc && str_starts_with($enc['type'], 'image') && self::usableImage($enc['link'])) $thumb = $enc['link'];
                 if (!$thumb) $thumb = self::firstImage($body) ?: self::firstImage($desc);
                 $link = self::url((string)$it->link) ?: self::url((string)$it->guid);
                 $cats = []; foreach ($it->category as $cat) $cats[] = self::text((string)$cat, 60);
