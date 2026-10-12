@@ -220,6 +220,11 @@ func (s *Service) Login(ctx context.Context, username, password, ip string) (str
 	s.DB.ExecContext(ctx, `DELETE FROM login_attempts WHERE ip = ? AND success = 0`, s.ipKey(ip))
 	s.record(ctx, ip, true)
 
+	return s.newSession(ctx, u.ID)
+}
+
+// newSession starts a session for a user and returns its cookie token (only its hash is stored).
+func (s *Service) newSession(ctx context.Context, userID int64) (string, error) {
 	tok, err := randToken()
 	if err != nil {
 		return "", err
@@ -230,7 +235,7 @@ func (s *Service) Login(ctx context.Context, username, password, ip string) (str
 	}
 	now := s.Now()
 	if _, err := s.DB.ExecContext(ctx, `INSERT INTO sessions(user_id, token_hash, csrf_token, created_at, last_seen_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, u.ID, hashToken(tok), csrf, db.TS(now), db.TS(now), db.TS(now.Add(s.AbsTTL))); err != nil {
+		VALUES (?, ?, ?, ?, ?, ?)`, userID, hashToken(tok), csrf, db.TS(now), db.TS(now), db.TS(now.Add(s.AbsTTL))); err != nil {
 		return "", err
 	}
 	return tok, nil

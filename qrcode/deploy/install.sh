@@ -116,6 +116,8 @@ else
         sed -i "s|^BASE_URL=.*|BASE_URL=$BASE_URL|" "$ENV_FILE"
     fi
 fi
+if [[ -n "${SSO_VERIFY_URL:-}" ]]; then set_env SSO_VERIFY_URL "$SSO_VERIFY_URL"; info "SSO_VERIFY_URL=$SSO_VERIFY_URL"; fi
+if [[ -n "${FRAME_ANCESTORS:-}" ]]; then set_env FRAME_ANCESTORS "\"$FRAME_ANCESTORS\""; info "FRAME_ANCESTORS=$FRAME_ANCESTORS"; fi
 if [[ -s "$GEO_FILE" ]]; then set_env GEOIP_DB "$GEO_FILE"; fi
 if [[ -n "$STORE_FULL_IP" ]]; then
     set_env STORE_FULL_IP "$STORE_FULL_IP"

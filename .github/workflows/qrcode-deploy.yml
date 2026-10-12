@@ -97,12 +97,15 @@ jobs:
         env:
           DOMAIN: ${{ github.event.inputs.domain }}
           ADMIN_PASSWORD_B64: ${{ steps.pw.outputs.b64 }}
+          # Sign in through the support desk, and let the support desk's programs show this tool in their own window
+          SSO_VERIFY_URL: https://blakegroup.uk/api/qr_sso_verify.php
+          FRAME_ANCESTORS: https://blakegroup.uk https://tauri.localhost http://tauri.localhost tauri://localhost
           STORE_FULL_IP: ${{ steps.opts.outputs.store_full_ip }}
         with:
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          envs: DOMAIN,ADMIN_PASSWORD_B64,STORE_FULL_IP
+          envs: DOMAIN,ADMIN_PASSWORD_B64,STORE_FULL_IP,SSO_VERIFY_URL,FRAME_ANCESTORS
           # The first run downloads a ~60 MB geolocation database.
           command_timeout: 20m
           script: |

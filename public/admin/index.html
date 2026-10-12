@@ -195,6 +195,7 @@ html.embedded [data-embed-hide]{display:none!important}
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
   <button onclick="switchTab('writer',this)">Writing assistant</button>
   <button onclick="switchTab('filesharing',this)">File sharing</button>
+  <button onclick="switchTab('qr',this)">QR codes &amp; links</button>
   <button onclick="switchTab('newsroom',this)">Newsroom</button>
   <button data-embed-hide onclick="switchTab('tickets',this)">Support Tickets</button>
   <button data-embed-hide onclick="switchTab('projects',this)">Project Planner</button>
@@ -567,6 +568,20 @@ html.embedded [data-embed-hide]{display:none!important}
         <div id="tts-test-status"></div>
       </div>
     </div>
+  </div>
+
+  <!-- ── QR CODES & LINKS (the QR tool, signed in automatically) ── -->
+  <div id="tab-qr" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:#adb4ba">Create QR codes and tracked links. You are signed in automatically.</span>
+      <span style="display:flex;gap:8px">
+        <button onclick="openQr(true)" title="Sign in to the QR tool again, for example after a long time away" style="border-radius:999px;padding:6px 16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.3);color:#e6e9ef;cursor:pointer;font-weight:600;font-size:13px">Reload</button>
+        <button onclick="qrOwnWindow()" title="Open the QR tool in a separate browser window" style="border-radius:999px;padding:6px 16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.3);color:#e6e9ef;cursor:pointer;font-weight:600;font-size:13px">Open in its own window</button>
+      </span>
+    </div>
+    <div id="qr-msg" style="display:none;padding:12px 14px;border-radius:10px;background:#3a2a1a;border:1px solid #7a5a2a;color:#f3d9a8;margin-bottom:8px"></div>
+    <iframe id="qr-frame" title="QR codes and links" referrerpolicy="no-referrer"
+      style="width:100%;height:calc(100vh - 170px);min-height:600px;border:0;border-radius:10px;background:#fff"></iframe>
   </div>
 
   <!-- ── NEWSROOM ── -->
@@ -1018,12 +1033,32 @@ function switchTab(name,el){
   if(name==='writer')openWriter();
   if(name==='filesharing')openFiles();
   if(name==='newsroom')openNewsroom();
+  if(name==='qr')openQr();
 }
 let writerMounted=false;
 function openGuide(url){
   const full=new URL(url,location.origin).href;
   if(window.top!==window)parent.postMessage({openExternal:full},'*');   // inside the Windows app: open in the computer's viewer
   else window.open(full,'_blank','noopener');
+}
+let qrLoaded=false;
+async function qrSignInUrl(){
+  const r=await fetch('/api/admin/qr_sso.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.url)throw new Error(j.error||'The QR tool could not be opened. Try again in a moment.');
+  return j.url;
+}
+function qrMessage(t){const m=document.getElementById('qr-msg');m.textContent=t||'';m.style.display=t?'block':'none';}
+async function openQr(force){
+  if(qrLoaded&&!force)return; qrLoaded=true; qrMessage('');
+  try{document.getElementById('qr-frame').src=await qrSignInUrl();}catch(e){qrLoaded=false;qrMessage(e.message);}
+}
+async function qrOwnWindow(){
+  try{
+    const u=await qrSignInUrl();
+    if(window.parent!==window)parent.postMessage({openExternal:u},'*');   // inside the program: it opens the computer's own browser
+    else window.open(u,'_blank','noopener');
+  }catch(e){qrMessage(e.message);}
 }
 let newsroomLoaded=false;
 function openNewsroom(){ if(newsroomLoaded)return; newsroomLoaded=true; document.getElementById('newsroom-frame').src='/admin/newsroom.php'; }

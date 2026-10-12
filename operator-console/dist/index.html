@@ -384,13 +384,21 @@
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
         Admin
       </div>
-      <div class="nav-item" data-action="writer" title="Check and improve a message, or draft a reply to a customer email">
+      <div class="nav-item" data-tab="writer" title="Check and improve a message, or draft a reply to a customer email">
         <svg class="icon" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z"/><path d="M14 7l3 3"/></svg>
         Writing assistant
       </div>
-      <div class="nav-item" data-action="qr" title="Create QR codes and link pages, and see how they perform">
+      <div class="nav-item" data-tab="filesharing" title="Share files and folders with customers by link, or with colleagues">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+        File sharing
+      </div>
+      <div class="nav-item" data-tab="qr" title="Create QR codes and link pages, and see how they perform (you are signed in automatically)">
         <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h3M20 17v4"/></svg>
         QR codes &amp; links
+      </div>
+      <div class="nav-item" data-tab="newsroom" title="UK TV, Freeview, satellite and broadband news">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 5h13v14H6a2 2 0 0 1-2-2V5z"/><path d="M17 8h3v9a2 2 0 0 1-2 2"/><path d="M7 9h7M7 12h7M7 15h4"/></svg>
+        Newsroom
       </div>
     </div>
     <div id="version-row">
@@ -1059,33 +1067,26 @@ function wireTicketConversation(id) {
   };
 }
 
-// The QR code and link page tool lives at its own address. It opens in its own window inside the app, signed in separately
-// (it has its own users), and falls back to the normal browser if the app cannot make a window.
-const QR_URL = 'https://qr.blakegroup.uk/admin/';
+// The QR tool, the Newsroom, File sharing and the Writing assistant are tabs of the admin page, shown in the centre like the rest. The admin signs the QR tool in
+// automatically. openExternal opens a company address in the computer's own browser (used by the guides, and by the QR tab's "Open in its own window").
 function openExternal(url) { try { Promise.resolve(NATIVE.open(url)).catch(() => window.open(url, '_blank')); } catch (e) { window.open(url, '_blank'); } }
-function openQrTool() {
-  const W = NATIVE.WebviewWindow();
-  if (!W) { openExternal(QR_URL); return; }
-  // getByLabel is immediate in Tauri 1 and a promise in Tauri 2; Promise.resolve handles both
-  Promise.resolve(W.getByLabel ? W.getByLabel('qrtool') : null).then(existing => {
-    if (existing) { existing.show(); existing.setFocus(); return; }
-    const w = new W('qrtool', { url: QR_URL, title: 'Blake UK QR codes and link pages', width: 1280, height: 860, center: true });
-    w.once('tauri://error', () => openExternal(QR_URL));
-  }).catch(() => openExternal(QR_URL));
-}
 // The admin page shown inside this app can ask for a guide or manual to open in the computer's own viewer (a link that opens a
 // new tab does not work reliably inside the app). Only the company's own addresses, and only from that frame, are accepted.
 window.addEventListener('message', e => {
   const u = e && e.data && e.data.openExternal, f = document.getElementById('admin-frame');
   if (typeof u === 'string' && f && e.source === f.contentWindow && /^https:\/\/(blakegroup\.uk|qr\.blakegroup\.uk)\/[^\s<>"']*$/.test(u)) openExternal(u);
 });
-document.querySelectorAll('.nav-item[data-action]').forEach(el => {
-  el.onclick = () => { if (el.dataset.action === 'writer') openAdminTab('writer'); else if (el.dataset.action === 'qr') openQrTool(); };
+document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
+  el.onclick = () => {
+    openAdminTab(el.dataset.tab);
+    document.querySelectorAll('#nav .nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');          // show which one you are on, not just "Admin"
+  };
 });
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('#nav .nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
   document.getElementById('content').classList.toggle('full', name === 'chats' || name === 'admin');

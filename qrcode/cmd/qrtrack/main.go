@@ -39,6 +39,8 @@ type config struct {
 	StoreFullIP    bool
 	RetentionDays  int
 	LogLevel       slog.Level
+	SSOVerifyURL   string   // SSO_VERIFY_URL: where the support desk checks a one-time sign-in code (empty: off)
+	FrameAncestors []string // FRAME_ANCESTORS: origins allowed to show the signed-in pages in a frame, space or comma separated (empty: none)
 }
 
 func loadConfig() (config, error) {
@@ -55,7 +57,9 @@ func loadConfig() (config, error) {
 		AdminUser:     get("ADMIN_USER", ""),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		GeoIPDB:       get("GEOIP_DB", ""),
+		SSOVerifyURL:  get("SSO_VERIFY_URL", ""),
 	}
+	c.FrameAncestors = strings.Fields(strings.ReplaceAll(get("FRAME_ANCESTORS", ""), ",", " "))
 	if c.BaseURL == "" {
 		return c, errors.New("BASE_URL is required (the public origin the QR codes will point at, e.g. https://qr.example.com)")
 	}
@@ -168,7 +172,7 @@ func run() error {
 	pageWriter := pages.NewWriter(d, 2048, log)
 	pageWriter.Start()
 
-	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london, StoreFullIP: cfg.StoreFullIP, RetentionDays: cfg.RetentionDays}, web.Deps{
+	srv, err := web.New(web.Config{BaseURL: cfg.BaseURL, TrustedProxies: cfg.TrustedProxies, Location: london, SSOVerifyURL: cfg.SSOVerifyURL, FrameAncestors: cfg.FrameAncestors, StoreFullIP: cfg.StoreFullIP, RetentionDays: cfg.RetentionDays}, web.Deps{
 		DB: d, Links: links.NewStore(d), Auth: authSvc, Hasher: scans.NewHasher(d, time.Now),
 		Writer: writer, Geo: resolver, Now: time.Now, Log: log, Assets: qrtrack.Web,
 		Pages: pages.NewStore(d), PageEvents: pageWriter,

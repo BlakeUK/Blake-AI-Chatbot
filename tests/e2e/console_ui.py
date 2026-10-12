@@ -22,7 +22,7 @@ class WV { constructor(label, o) { this.label = label; this.o = o; window.__call
 WV.all = {};
 const win = { setAlwaysOnTop() { return Promise.resolve(); }, show() { return Promise.resolve(); }, hide() { return Promise.resolve(); }, unminimize() { return Promise.resolve(); }, setFocus() { return Promise.resolve(); },
               requestUserAttention() { return Promise.resolve(); }, setTitle() {}, onCloseRequested() { return Promise.resolve(() => {}); } };
-const common = { shell: { open: u => { window.__calls.opened.push(u); return Promise.resolve(); } }, app: { getVersion: () => Promise.resolve('0.19.0') },
+const common = { shell: { open: u => { window.__calls.opened.push(u); return Promise.resolve(); } }, app: { getVersion: () => Promise.resolve("0.20.0") },
   notification: { isPermissionGranted: () => Promise.resolve(true), sendNotification() {}, requestPermission: () => Promise.resolve('granted') }, event: { listen: () => Promise.resolve(() => {}) } };
 const WVC = window.__NO_WV ? undefined : WV;
 if (window.__SHAPE === 'v2') window.__TAURI__ = Object.assign({}, common, { core: { invoke: () => Promise.resolve(null) }, window: { getCurrentWindow: () => win }, webviewWindow: { WebviewWindow: WVC } });
@@ -47,24 +47,38 @@ with sync_playwright() as p:
 
     print("== the sidebar")
     labels = [x.strip() for x in pg.locator("#nav .nav-item").all_inner_texts()]
-    ok("the sidebar offers Chats, Tickets, Team, Admin and the two new entries", [l.split("\n")[0].strip() for l in labels][:6] == ["Chats", "Tickets", "Team", "Admin", "Writing assistant", "QR codes & links"], labels)
+    ok("the left column offers Chats, Tickets, Team, Admin, then Writing assistant, File sharing, QR codes & links and Newsroom", [l.split("\n")[0].strip() for l in labels][:8] == ["Chats", "Tickets", "Team", "Admin", "Writing assistant", "File sharing", "QR codes & links", "Newsroom"], labels)
     ok("the existing entries still switch pages", (pg.click("#nav .nav-item[data-page=tickets]") or True) and pg.locator("#page-tickets").is_visible())
 
     print("== the writing assistant entry opens the admin on its tab")
-    pg.click("#nav .nav-item[data-action=writer]")
-    ok("it shows the Admin page and marks it as the current place", pg.locator("#page-admin").is_visible() and pg.locator("#nav .nav-item[data-page=admin]").get_attribute("class").count("active") == 1)
+    pg.click("#nav .nav-item[data-tab=writer]")
+    ok("it shows the Admin page in the centre and marks Writing assistant, not Admin, as the current place", pg.locator("#page-admin").is_visible() and "active" in pg.locator("#nav .nav-item[data-tab=writer]").get_attribute("class") and "active" not in pg.locator("#nav .nav-item[data-page=admin]").get_attribute("class") and pg.locator("#nav .nav-item.active").count() == 1)
     fr = pg.frame_locator("#admin-frame")
     fr.locator("#writer-mount [data-w=go]").wait_for(timeout=10000)
     ok("the writing assistant is open inside it, with both modes", fr.locator("#writer-mount [data-w=modeImprove]").is_visible() and fr.locator("#writer-mount [data-w=modeReply]").is_visible())
     pg.screenshot(path="/tmp/console_writer.png")
 
-    print("== the QR codes entry")
-    pg.click("#nav .nav-item[data-action=qr]")
-    c = pg.evaluate("window.__calls")
-    ok("it opens the QR tool in its own app window, titled and addressed correctly", len(c["windows"]) == 1 and c["windows"][0]["label"] == "qrtool" and c["windows"][0]["url"] == "https://qr.blakegroup.uk/admin/" and "QR" in c["windows"][0]["title"], c)
-    pg.click("#nav .nav-item[data-action=qr]")
-    c = pg.evaluate("window.__calls")
-    ok("pressing it again brings that window forward instead of opening a second", len(c["windows"]) == 1 and c["focused"] == 1 and c["opened"] == [], c)
+    print("== File sharing, QR codes & links and Newsroom open in the centre like the rest")
+    pg.route("https://qr.blakegroup.uk/**", lambda r: r.fulfill(status=200, content_type="text/html", body="<html><body>QR tool stub</body></html>"))
+    pg.route("**/api/newsroom.php*", lambda r: r.fulfill(status=200, content_type="application/json", headers={"access-control-allow-origin": "*"}, body='{"status":"error"}'))
+    for tab, label in [("filesharing", "File sharing"), ("newsroom", "Newsroom"), ("qr", "QR codes & links")]:
+        pg.click(f"#nav .nav-item[data-tab={tab}]"); fr.locator(f"#tab-{tab}.active").wait_for(timeout=10000)
+        ok(f"{label} opens in the centre of the program, and is the highlighted entry", pg.locator("#page-admin").is_visible() and "active" in pg.locator(f"#nav .nav-item[data-tab={tab}]").get_attribute("class") and pg.locator("#nav .nav-item.active").count() == 1)
+    fr.frame_locator("#newsroom-frame").locator("body").wait_for(state="attached", timeout=8000)
+    ok("the Newsroom page is loaded inside its sandboxed frame", fr.locator("#newsroom-frame").get_attribute("sandbox") is not None and "allow-same-origin" not in fr.locator("#newsroom-frame").get_attribute("sandbox"))
+    fr.locator("#qr-frame[src^='https://qr.blakegroup.uk/sso?t=']").wait_for(timeout=10000)
+    src1 = fr.locator("#qr-frame").get_attribute("src")
+    ok("the QR tool is signed in automatically with a one-time code, with no login asked for and no separate window", len(src1.split("t=")[1]) == 43 and pg.evaluate("window.__calls.windows.length") == 0, src1)
+    ok("the QR tool shows inside the centre window", fr.frame_locator("#qr-frame").locator("body").inner_text() == "QR tool stub")
+    fr.locator("#tab-qr button", has_text="Reload").click(); pg.wait_for_timeout(1200)
+    src2 = fr.locator("#qr-frame").get_attribute("src")
+    ok("Reload signs in again with a fresh one-time code", src2 != src1 and src2.startswith("https://qr.blakegroup.uk/sso?t="))
+    fr.locator("#tab-qr button", has_text="Open in its own window").click(); pg.wait_for_function("window.__calls.opened.length > 0", timeout=8000)
+    o = pg.evaluate("window.__calls.opened")
+    ok("Open in its own window hands a fresh signed-in address to the computer's own browser", len(o) == 1 and o[0].startswith("https://qr.blakegroup.uk/sso?t=") and o[0] != src1 and o[0] != src2, o)
+    pg.evaluate("window.__calls.opened.length = 0")      # what follows starts from a clean list
+    pg.click("#nav .nav-item[data-page=tickets]")
+    ok("going back to another page clears the highlight from the tab entries", pg.locator("#nav .nav-item.active").count() == 1 and "active" in pg.locator("#nav .nav-item[data-page=tickets]").get_attribute("class"))
 
     print("== guides open in the computer's own viewer")
     pg.evaluate("window.__msgs = []; window.addEventListener('message', e => { if (e.data && e.data.openExternal) window.__msgs.push(e.data.openExternal); })")
@@ -103,9 +117,8 @@ with sync_playwright() as p:
     sign_in(vp, "wr-viewer"); vp.click("#nav .nav-item[data-page=tickets]"); vp.wait_for_selector("#page-tickets tbody tr", timeout=8000)
     vp.click("#page-tickets tbody tr >> nth=0"); vp.wait_for_selector("#conv-panel", timeout=6000); vp.wait_for_selector("#conv-list .cmsg", timeout=6000)
     ok("a read-only role can read the thread but has no reply box", vp.locator("#conv-list .cmsg").count() >= 2 and vp.locator("#conv-input").count() == 0 and "but not reply" in vp.inner_text("#conv-panel"))
-    nw = b.new_context(viewport={"width": 1400, "height": 900}); nw.add_init_script("window.__NO_WV = true;" + STUB); np_ = nw.new_page()
-    sign_in(np_, "wr-admin"); np_.click("#nav .nav-item[data-action=qr]")
-    c = np_.evaluate("window.__calls")
-    ok("if the app cannot make a window, the QR tool opens in the normal browser instead", c["opened"] == ["https://qr.blakegroup.uk/admin/"] and c["windows"] == [], c)
+    vp.keyboard.press("Escape"); vp.mouse.click(8, 450); vp.wait_for_timeout(500)      # close the ticket panel
+    vp.click("#nav .nav-item[data-tab=qr]"); vf = vp.frame_locator("#admin-frame"); vf.locator("#qr-msg").wait_for(state="visible", timeout=8000)
+    ok("a read-only role is told it cannot use the QR tool, and no code is issued for it", "cannot use the QR tool" in vf.locator("#qr-msg").inner_text() and not (vf.locator("#qr-frame").get_attribute("src") or "").startswith("https://"))
     b.close()
 print(f"\n{n} checks, {len(fails)} failed"); sys.exit(1 if fails else 0)

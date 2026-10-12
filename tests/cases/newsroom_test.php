@@ -173,3 +173,48 @@ test('only text, from a short list of fields, reaches the AI; pictures only from
               ['kind' => 'text', 'body' => ['contents' => [['parts' => [['text' => 'x']]]], 'generationConfig' => ['responseModalities' => ['IMAGE']]]]] as $bad) nr_throws(fn() => Ai::clean($bad), '');
     nr_throws(fn() => Ai::clean(['body' => ['contents' => [['parts' => [['text' => str_repeat('a', 90000)]]], ['parts' => [['text' => str_repeat('b', 90000)]]]]]]), 'too large');
 });
+
+suite('QR tool: signing in through the support desk');
+
+use Qr\Sso;
+
+function qr_staff(string $name, string $role): int
+{
+    db()->prepare('DELETE FROM admin_users WHERE username = ?')->execute([$name]);
+    db()->prepare('INSERT INTO admin_users (username, password, role) VALUES (?, ?, ?)')->execute([$name, 'x', $role]); return (int)db()->lastInsertId();
+}
+
+test('a one-time code is for one person, works once, for sixty seconds, and only its hash is kept', function () {
+    $ann = qr_staff('qr-ann', 'admin'); $now = 1_800_000_000;
+    $code = Sso::mint($ann, $now);
+    assert_true((bool)preg_match('/\A[A-Za-z0-9_-]{43}\z/', $code), 'a long random code');
+    assert_equal(0, (int)db()->query("SELECT COUNT(*) FROM qr_sso_tokens WHERE token_hash = " . db()->quote($code))->fetchColumn(), 'the code itself is not stored');
+    assert_equal(1, (int)db()->query("SELECT COUNT(*) FROM qr_sso_tokens WHERE token_hash = " . db()->quote(hash('sha256', $code)))->fetchColumn());
+    assert_equal(['username' => 'qr-ann', 'role' => 'admin'], Sso::redeem($code, $now + 5));
+    assert_null(Sso::redeem($code, $now + 6), 'a second use is refused');
+    $late = Sso::mint($ann, $now); assert_null(Sso::redeem($late, $now + Sso::TTL + 1), 'after sixty seconds it is refused'); assert_equal('qr-ann', Sso::redeem(Sso::mint($ann, $now), $now + Sso::TTL)['username'], 'at sixty seconds it still works');
+    foreach (['', 'short', str_repeat('a', 121), $code . "\n", 'has space ' . str_repeat('a', 20), "x';DROP TABLE admin_users;--" . str_repeat('a', 10), str_repeat('A', 43)] as $bad) assert_null(Sso::redeem($bad, $now), json_encode(substr($bad, 0, 20)));
+    assert_true(Sso::mint($ann, $now) !== Sso::mint($ann, $now), 'every code is different');
+});
+
+test('staff roles map to the QR tool: admin to admin, editor to member, and the read-only role has no access', function () {
+    $now = 1_800_000_000; foreach ([['admin', 'admin'], ['editor', 'member']] as [$sr, $qr]) { $id = qr_staff("qr-{$sr}", $sr); assert_equal(['username' => "qr-{$sr}", 'role' => $qr], Sso::redeem(Sso::mint($id, $now), $now)); }
+    $ro = qr_staff('qr-user', 'user'); assert_null(Sso::redeem(Sso::mint($ro, $now), $now), 'the read-only role is refused'); assert_null(Sso::qrRole('user')); assert_null(Sso::qrRole('')); assert_null(Sso::qrRole('owner')); assert_null(Sso::qrRole('ADMIN'));
+    $gone = qr_staff('qr-gone', 'admin'); $c = Sso::mint($gone, $now); db()->prepare('DELETE FROM admin_users WHERE id = ?')->execute([$gone]); assert_null(Sso::redeem($c, $now), 'a person who has been removed gets nothing');
+});
+
+test('a code can only be spent once even when two requests arrive together', function () {
+    $id = qr_staff('qr-race', 'admin'); $now = 1_800_000_000; $c = Sso::mint($id, $now); $h = hash('sha256', $c);
+    $first = db()->prepare('UPDATE qr_sso_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?'); $first->execute([$now, $h, $now]);
+    $second = db()->prepare('UPDATE qr_sso_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?'); $second->execute([$now, $h, $now]);
+    assert_equal([1, 0], [$first->rowCount(), $second->rowCount()], 'the database lets exactly one request win');
+});
+
+test('the QR address comes from a setting, only ever https, and falls back to the real one', function () {
+    $set = fn($v) => db()->prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('qr_base_url', ?)")->execute([$v]);
+    db()->exec("DELETE FROM settings WHERE key = 'qr_base_url'"); assert_equal('https://qr.blakegroup.uk', Sso::base());
+    $set('https://qr.example.org/'); assert_equal('https://qr.example.org', Sso::base()); $set('https://qr.example.org:8443'); assert_equal('https://qr.example.org:8443', Sso::base());
+    foreach (['http://qr.example.org', 'javascript:alert(1)', 'https://evil.example/path', 'https://a b.example', 'https://x.example\nfoo', '//qr.example.org', 'ftp://qr.example.org', ''] as $bad) { $set($bad); assert_equal('https://qr.blakegroup.uk', Sso::base(), json_encode($bad)); }
+    db()->exec("DELETE FROM settings WHERE key = 'qr_base_url'");
+    assert_equal('https://qr.blakegroup.uk/sso?t=a-b_c', Sso::url('a-b_c')); assert_equal('https://qr.blakegroup.uk/sso?t=a%2Bb', Sso::url('a+b'));
+});

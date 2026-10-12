@@ -41,6 +41,8 @@ type Config struct {
 	StoreFullIP     bool // keep the visitor address with each scan (off by default)
 	RetentionDays   int  // how long scans, page events and the activity log are kept; shown in Help (main runs the purge)
 	Location        *time.Location
+	SSOVerifyURL    string   // the support desk's address for checking a one-time sign-in code; empty turns signing in through it off
+	FrameAncestors  []string // origins that may show the signed-in pages inside a frame (the support desk and its programs); empty means none
 }
 
 type Server struct {
@@ -82,6 +84,9 @@ func New(cfg Config, d Deps) (*Server, error) {
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, fmt.Errorf("BASE_URL %q must be an absolute http(s) URL", cfg.BaseURL)
+	}
+	if err := validateSSOConfig(cfg); err != nil {
+		return nil, err
 	}
 	if cfg.Location == nil {
 		cfg.Location = time.UTC
@@ -174,6 +179,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /l/{slug}/go/{id}", s.pageGo)
 	mux.HandleFunc("POST /r/{code}", s.redirect) // password form for protected codes
 
+	mux.HandleFunc("GET /sso", s.sso)
 	mux.HandleFunc("GET /admin/login", s.loginForm)
 	mux.HandleFunc("POST /admin/login", s.loginSubmit)
 	mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/admin/", http.StatusFound) })
@@ -231,10 +237,14 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", s.csp())
+		if s.framable(r.URL.Path) {
+			h.Set("Content-Security-Policy", strings.Replace(s.csp(), "frame-ancestors 'none'", "frame-ancestors 'self' "+strings.Join(s.cfg.FrameAncestors, " "), 1))
+		} else {
+			h.Set("Content-Security-Policy", s.csp())
+			h.Set("X-Frame-Options", "DENY")
+		}
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		h.Set("X-Frame-Options", "DENY")
 		h.Set("X-Robots-Tag", "noindex, nofollow")
 		if s.secure {
 			h.Set("Strict-Transport-Security", "max-age=15552000")
@@ -383,7 +393,20 @@ func eq(a, b string) bool {
 }
 
 func (s *Server) setCookie(w http.ResponseWriter, name, val, path string, expires time.Time) {
+	s.setCookieMode(w, name, val, path, expires, false)
+}
+
+// setCookieMode is setCookie, optionally with SameSite=None (which browsers only accept together with Secure) for a cookie that must work when
+// this tool is shown inside the support desk's program. Without HTTPS it falls back to Lax.
+func (s *Server) setCookieMode(w http.ResponseWriter, name, val, path string, expires time.Time, crossSite bool) {
 	c := &http.Cookie{Name: name, Value: val, Path: path, HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode}
+	if crossSite {
+		if s.secure {
+			c.SameSite = http.SameSiteNoneMode
+		} else {
+			c.SameSite = http.SameSiteLaxMode
+		}
+	}
 	if !expires.IsZero() {
 		c.Expires = expires
 	} else if val == "" {
@@ -486,6 +509,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, sess *auth.Sessi
 		s.auth.Logout(r.Context(), c.Value)
 	}
 	s.setCookie(w, sessionCookie, "", "/", time.Time{})
+	s.setCookieMode(w, sessionCookie, "", "/", time.Time{}, true) // a session made through the support desk was set with SameSite=None, and only a matching clear removes it inside a frame
 	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 }
 

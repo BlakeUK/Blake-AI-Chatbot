@@ -1,6 +1,6 @@
 [package]
 name = "operator-console"
-version = "0.19.0"
+version = "0.20.0"
 description = "Blake UK operator console - live chat and support ticket desk"
 edition = "2021"
 rust-version = "1.77"

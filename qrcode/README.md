@@ -13,6 +13,12 @@ One static Go binary, SQLite, no JavaScript dependencies.
 It lives in `/var/www/qrcode` on the VPS as its own user, its own systemd unit and its own port. It does not
 share code, data, services or deploys with the support chatbot in `/var/www/chat`.
 
+## Signing in through another system (optional)
+
+Two optional settings in the env file let a company system sign its own staff in, and show this tool inside its own window. `SSO_VERIFY_URL` is the address where the other system checks a one-time sign-in code (https only, or http to a loopback address; empty means the feature does not exist and `/sso` answers 404). `FRAME_ANCESTORS` lists the origins allowed to show the signed-in pages in a frame, separated by spaces or commas (for example `https://blakegroup.uk tauri://localhost`; empty means nothing may frame them; public pages are never framable). Both are validated at start-up, so a typo stops the service rather than weakening it.
+
+`GET /sso?t=<code>` POSTs the code to the verify address (5 s timeout, no redirects followed, 4 KB answer limit) and expects `{"ok":true,"username":"..","role":"admin|member"}`. The account is `sso.<username>`, made on first use with a random password nobody is told (so the password form can never sign into it), its role follows the other system on every sign-in, and sign-ins and role changes are written to the activity log. The session cookie from this route is `SameSite=None; Secure` (Lax over plain http) so it works in a frame; every form still needs the per-session security token, which is checked on every POST. Logout clears both cookie forms. Tests: `internal/web/sso_test.go`.
+
 ## Assumptions and decisions (read first)
 
 These are the places where this differs from, or fills a gap in, the written spec.

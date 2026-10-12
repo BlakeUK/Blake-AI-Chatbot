@@ -10,6 +10,8 @@ uses on the website.
 
 ## What's here
 
+**Version 0.20.0:** the left column has four entries under Admin, each opening a tab of the admin page in the centre and highlighted while you are on it: **Writing assistant**, **File sharing**, **QR codes & links** and **Newsroom**. The QR tool is now shown in the centre, signed in automatically (the admin's QR tab asks the server for a one-time code), and the separate QR window code was removed from the app. "Open in its own window" hands a fresh signed-in address to `openExternal`, which opens the computer's browser. No new Rust code and no new permissions were needed, so the app change is only the screen (`dist/index.html`).
+
 **Version 0.19.0 moves the app from Tauri 1 to Tauri 2.** The reason is Debian 13: Tauri 1 needs the `libwebkit2gtk-4.0` library, which Debian 13 and Ubuntu 24.04 no longer provide (only 4.1), so the 0.18.0 `.deb` could not be installed there. Tauri 2 uses 4.1. Nothing the staff see changes.
 
 * **Windows** keeps the same `https://tauri.localhost` address (`useHttpsScheme`), so stored settings and the server's list of trusted app origins are unchanged. An installed 0.18.0 offers the update as usual.
