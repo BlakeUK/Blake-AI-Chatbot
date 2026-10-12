@@ -195,6 +195,7 @@ html.embedded [data-embed-hide]{display:none!important}
   <button onclick="switchTab('chatlogs',this)">Chat Logs</button>
   <button onclick="switchTab('writer',this)">Writing assistant</button>
   <button onclick="switchTab('filesharing',this)">File sharing</button>
+  <button onclick="switchTab('newsroom',this)">Newsroom</button>
   <button data-embed-hide onclick="switchTab('tickets',this)">Support Tickets</button>
   <button data-embed-hide onclick="switchTab('projects',this)">Project Planner</button>
   <button onclick="switchTab('account',this)">My Account</button>
@@ -566,6 +567,17 @@ html.embedded [data-embed-hide]{display:none!important}
         <div id="tts-test-status"></div>
       </div>
     </div>
+  </div>
+
+  <!-- ── NEWSROOM ── -->
+  <div id="tab-newsroom" class="tab">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:#adb4ba">UK TV, Freeview, satellite and broadband news from trade and consumer sites. Everything is fetched and checked by the server.</span>
+      <button onclick="reloadNewsroom()" title="Load the Newsroom again, for example after a long time away" style="border-radius:999px;padding:6px 16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.3);color:#e6e9ef;cursor:pointer;font-weight:600;font-size:13px">Reload the Newsroom</button>
+    </div>
+    <!-- sandboxed: the page inside has no access to this admin or its sign-in, only to a limited news pass -->
+    <iframe id="newsroom-frame" title="Newsroom" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads" referrerpolicy="no-referrer"
+      style="width:100%;height:calc(100vh - 170px);min-height:600px;border:0;border-radius:10px;background:#0f172a"></iframe>
   </div>
 
   <!-- ── FILE SHARING ── -->
@@ -1005,6 +1017,7 @@ function switchTab(name,el){
   if(name==='files')loadStandards();
   if(name==='writer')openWriter();
   if(name==='filesharing')openFiles();
+  if(name==='newsroom')openNewsroom();
 }
 let writerMounted=false;
 function openGuide(url){
@@ -1012,6 +1025,9 @@ function openGuide(url){
   if(window.top!==window)parent.postMessage({openExternal:full},'*');   // inside the Windows app: open in the computer's viewer
   else window.open(full,'_blank','noopener');
 }
+let newsroomLoaded=false;
+function openNewsroom(){ if(newsroomLoaded)return; newsroomLoaded=true; document.getElementById('newsroom-frame').src='/admin/newsroom.php'; }
+function reloadNewsroom(){ newsroomLoaded=true; document.getElementById('newsroom-frame').src='/admin/newsroom.php?r='+Date.now(); }
 let filesUI=null;
 function openFiles(){
   if(filesUI){filesUI.refresh();return;}

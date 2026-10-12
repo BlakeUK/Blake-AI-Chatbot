@@ -126,6 +126,14 @@ class Client
         ], 30);
     }
 
+    // ── The Newsroom's AI helper ──────────────────────────────────────────────
+
+    /** A generateContent request sent as given (it has already been cleaned by Newsroom\Ai). Returns Google's answer; throws \RuntimeException, with Google's HTTP code in the message, on failure. */
+    public function generateRaw(string $model, array $body, int $timeoutSeconds = 90): array
+    {
+        return $this->request("models/{$model}:generateContent", (string)json_encode($body, JSON_UNESCAPED_UNICODE), $model, $timeoutSeconds);
+    }
+
     // ── Message editing (staff writing assistant) ─────────────────────────────
 
     // One edit of a pasted message. The editing rules go in as the system instruction, and the answer is

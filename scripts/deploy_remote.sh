@@ -399,6 +399,12 @@ if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(fs_shares);" | grep -
 else
     warn "File sharing retention schema already applied — skipping."
 fi
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE type='table' AND name='news_cache';" | grep -q news_cache; then
+    info "Applying Newsroom and QR sign-in schema migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_newsroom.sql"
+else
+    warn "Newsroom schema already applied — skipping."
+fi
 # Where shared files are kept: outside the website folder, owned by the web user, not readable by anyone else.
 mkdir -p "$WEBROOT/data/files/tmp"
 chown -R www-data:www-data "$WEBROOT/data/files"

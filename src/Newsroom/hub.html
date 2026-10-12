@@ -1,0 +1,2350 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<script>
+/*__NEWS_BOOT__*/
+// ---- Added for the Blake UK staff area -------------------------------------------------------------------------------------------
+// This page runs inside a sandboxed frame (no access to the admin session) with a limited pass. It refuses to run anywhere else.
+(function () {
+  if (window.origin !== 'null' || !window.NEWS || !window.NEWS.pass) {
+    document.documentElement.innerHTML = '<body style="font:16px sans-serif;padding:2rem;background:#0f172a;color:#e2e8f0"><h2>Open the Newsroom from the admin</h2><p>This page only runs inside the Newsroom tab.</p></body>';
+    throw new Error('The Newsroom only runs inside its sandboxed tab.');
+  }
+})();
+// Everything that used to go to outside services (free feed proxies, an image proxy, Google's AI with a key typed in by each person) now goes
+// to this company's own server, which fetches safely and uses the company's key. The page's own code is unchanged: this adapter hands it the
+// same answers in the same shape.
+(function () {
+  const nativeFetch = window.fetch.bind(window);
+  const api = (action, params) => window.NEWS.api + '?' + new URLSearchParams(Object.assign({ action }, params || {}));
+  // Links and pictures from a feed are only ever used if they are plain web addresses.
+  window.safeUrl = u => (typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/i.test(u)) ? u : '';
+  window.newsFetch = async function (action, params, init) {
+    init = Object.assign({}, init || {});
+    init.headers = Object.assign({ 'X-News-Pass': window.NEWS.pass }, init.headers || {});
+    const r = await nativeFetch(api(action, params), init);
+    if (r.status === 401) document.title = 'Newsroom: session ended, please reload this tab';
+    return r;
+  };
+  const ai = (kind, model, body, signal) => window.newsFetch('ai', null, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, model, body }), signal });
+  window.fetch = function (input, init) {
+    const u = typeof input === 'string' ? input : (input && input.url) || '';
+    let m;
+    if ((m = u.match(/^https:\/\/api\.rss2json\.com\/v1\/api\.json\?rss_url=([^&]+)(?:&count=(\d+))?/))) return window.newsFetch('feed', { url: decodeURIComponent(m[1]), count: m[2] || 20 }, init);
+    if ((m = u.match(/^https:\/\/api\.allorigins\.win\/get\?url=(.+)$/))) return window.newsFetch('article', { url: decodeURIComponent(m[1]) }, init);
+    if ((m = u.match(/^https:\/\/images\.weserv\.nl\/\?url=([^&]+)/))) return window.newsFetch('image', { url: decodeURIComponent(m[1]) }, init);
+    if ((m = u.match(/^https:\/\/generativelanguage\.googleapis\.com\/v1beta\/models\/([^:?]+):generateContent/))) {
+      let body = {}; try { body = JSON.parse((init && init.body) || '{}'); } catch (e) {}
+      return ai(/image/i.test(m[1]) ? 'image' : 'text', m[1], body, init && init.signal);
+    }
+    return nativeFetch(input, init);
+  };
+})();
+</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cord Busters Hub | UK Streaming & TV News</title>
+  
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Newspaper fonts and PDF libraries -->
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Federo&family=Alegreya:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              400: '#38bdf8',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49',
+              accent: '#f97316'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    /* Custom scrollbar and line clamping */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .modal-backdrop {
+      backdrop-filter: blur(8px);
+    }
+  </style>
+  <style id="np-style">
+    /* ===== Newspaper PDF template (A4 @ 96dpi = 794 x 1123px) ===== */
+    #np-stage { position: absolute; left: -12000px; top: 0; }
+    .np-page { width: 794px; height: 1123px; box-sizing: border-box; padding: 18px 36px 30px; background: #fff; color: #333;
+      font-family: 'Alegreya', Georgia, serif; display: flex; flex-direction: column; }
+    .np-rules { border-top: 3px solid #3c3c3c; border-bottom: 3px solid #3c3c3c; height: 4px; flex: none; }
+    .np-dateline { height: 22px; box-sizing: border-box; display: flex; justify-content: space-between; font-size: 12px; color: #555; padding: 5px 2px 0; flex: none; }
+    .np-mast { font-family: 'Abril Fatface', Georgia, serif; font-size: 112px; height: 124px; line-height: 124px; text-align: center; letter-spacing: 1px;
+      color: #3a3a3a; margin: 0 0 8px; overflow: hidden; white-space: nowrap; flex: none; }
+    .np-mast span { color: #e8521f; }
+    .np-nav { background: #3c3c3c; color: #fff; font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: 17px; letter-spacing: 0.5px;
+      height: 38px; line-height: 38px; text-align: center; white-space: nowrap; overflow: hidden; flex: none; }
+    .np-h1 { font-family: 'Federo', Georgia, serif; font-weight: 700; color: #333; font-size: 30px; line-height: 34px; height: 68px; overflow: hidden; margin: 18px 0 12px; display: flex; align-items: flex-end; flex: none; }
+    .np-lead { display: flex; gap: 18px; height: 300px; flex: none; }
+    .np-lead-text { width: 205px; flex: none; }
+    .np-text { font-size: 13.5px; line-height: 17px; text-align: justify; overflow: hidden; }
+    .np-text p { margin: 0 0 9px; }
+    .np-text h4 { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: 15px; line-height: 18px; margin: 0 0 4px; text-align: left; color: #333; }
+    .np-photo { position: relative; background: #e4e6e9 center / cover no-repeat; flex: 1; min-height: 0; }
+    .np-photo-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+      font-size: 26px; color: #b9bcc0; line-height: 1.2; padding: 10px; }
+    .np-illus { position: absolute; left: 0; top: 0; background: rgba(60,60,60,0.85); color: #fff; font-size: 9px; letter-spacing: 1px;
+      text-transform: uppercase; padding: 3px 7px; }
+    .np-cap { position: absolute; right: 0; bottom: 0; background: #e8521f; color: #fff; font-size: 11px; font-weight: 700;
+      padding: 4px 12px; max-width: 90%; white-space: nowrap; overflow: hidden; }
+    .np-divider { border-top: 2px solid #6a6a6a; margin: 14px 0 20px; flex: none; }
+    .np-second { display: flex; gap: 18px; flex: 1; min-height: 0; }
+    .np-second-left { width: 222px; flex: none; display: flex; flex-direction: column; }
+    .np-h2 { font-family: 'Federo', Georgia, serif; font-weight: 700; color: #333; font-size: 44px; line-height: 1.08; margin: 0 0 18px; overflow: hidden; flex: none; }
+    .np-col { flex: 1; min-width: 0; height: 100%; }
+    .np-page + .np-page { margin-top: 20px; }
+    .np-inner-head { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 2px 6px; flex: none; }
+    .np-inner-head .t { font-family: 'Abril Fatface', Georgia, serif; font-size: 30px; line-height: 34px; color: #3a3a3a; }
+    .np-inner-head .t span { color: #e8521f; }
+    .np-inner-head .d { font-size: 12px; color: #555; }
+    .np-section { background: #3c3c3c; color: #fff; font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: 15px; letter-spacing: 1px;
+      height: 30px; line-height: 30px; padding: 0 12px; flex: none; white-space: nowrap; overflow: hidden; }
+    .np-inner-h1 { font-family: 'Federo', Georgia, serif; font-weight: 700; color: #333; font-size: 34px; line-height: 38px; height: 76px; overflow: hidden;
+      margin: 16px 0 12px; display: flex; align-items: flex-end; flex: none; }
+    .np-inner-top { display: flex; gap: 18px; height: 330px; flex: none; }
+    .np-inner-top .np-photo { flex: none; width: 476px; }
+    .np-thin { border-top: 1px solid #9a9a9a; margin: 14px 0; flex: none; }
+    .np-cols3 { display: flex; gap: 18px; flex: 1; min-height: 0; }
+    .np-folio { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 5px; flex: none; }
+    .np-back { display: flex; gap: 16px; flex: 1; min-height: 0; margin-top: 14px; }
+    .np-back-right { flex: 2; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .np-back-row { display: flex; gap: 16px; flex: 1; min-height: 0; }
+    .np-briefs { flex: 1; min-width: 0; height: 100%; overflow: hidden; font-size: calc(11.5px * var(--bs, 1)); line-height: calc(14px * var(--bs, 1)); }
+    .np-briefs .brief { padding-bottom: calc(5px * var(--bs, 1)); margin-bottom: calc(5px * var(--bs, 1)); border-bottom: 1px solid #d9d9d9; }
+    .np-briefs h4 { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: calc(13px * var(--bs, 1)); line-height: calc(15px * var(--bs, 1)); margin: 0 0 2px; color: #333; }
+    .np-briefs p { margin: 0; text-align: justify; }
+    .np-briefs p.runin { text-align: left; }
+    .np-briefs p.runin b { font-family: 'Federo', Georgia, serif; font-weight: 700; color: #333; }
+    .np-briefs p.runin .sep { color: #e8521f; font-size: 0.8em; }
+    .np-puzzle { flex: none; border-top: 3px solid #e8521f; padding-top: 8px; }
+    .np-puzzle-title { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: 22px; line-height: 24px; color: #333; }
+    .np-puzzle-sub { font-size: 11.5px; line-height: 14px; color: #555; margin: 2px 0 8px; }
+    .np-puzzle-foot { display: flex; gap: 12px; margin-top: 8px; align-items: flex-start; }
+    .np-puzzle-words { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 8px; font-size: 11.5px; line-height: 14px; font-weight: 700; color: #3c3c3c; letter-spacing: 0.5px; }
+    .np-mast-sm { font-family: 'Abril Fatface', Georgia, serif; font-size: 64px; height: 80px; line-height: 80px; text-align: center; color: #3a3a3a; margin: 0 0 6px; white-space: nowrap; flex: none; }
+    .np-mast-sm span { color: #e8521f; }
+    .np-ws-head { display: flex; align-items: baseline; justify-content: space-between; margin: 18px 0 12px; flex: none; }
+    .np-ws-title { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: 34px; line-height: 38px; color: #333; }
+    .np-ws-sub { font-size: 14px; color: #555; }
+    .np-ws-grid { display: grid; border: 2px solid #3c3c3c; width: max-content; margin: 0 auto; flex: none; }
+    .np-ws-grid div { display: flex; align-items: center; justify-content: center; font-family: 'Alegreya', Georgia, serif; font-weight: 700; color: #333;
+      border-right: 1px solid #cfcfcf; border-bottom: 1px solid #cfcfcf; }
+    .np-ws-foot { display: flex; gap: 24px; margin-top: 18px; flex: 1; min-height: 0; border-top: 3px solid #e8521f; padding-top: 12px; }
+    .np-ws-words { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); align-content: start; gap: 4px 10px; font-size: 13.5px; line-height: 18px;
+      font-weight: 700; color: #3c3c3c; letter-spacing: 0.6px; }
+    .np-ws-solution { flex: none; text-align: center; }
+    .np-ws-solution .np-ws-grid { transform: rotate(180deg); border-width: 1px; }
+    .np-ws-solution .np-ws-grid div { font-size: 7.5px; font-weight: 400; color: #bbb; border-color: #e3e3e3; }
+    .np-ws-solution .np-ws-grid div.hit { color: #fff; background: #e8521f; font-weight: 700; }
+    .np-ws-sol-label { font-size: 11px; color: #777; margin-top: 4px; transform: rotate(180deg); }
+    .np-bottom { border-top: 2px solid #6a6a6a; margin-top: 14px; flex: none; }
+
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 font-sans min-h-full flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Top Utility Bar -->
+  <div class="bg-slate-900/90 border-b border-slate-800 text-xs text-slate-400 py-1.5 px-4 hidden sm:block">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="inline-flex items-center gap-1.5 text-emerald-400">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          Live RSS Feed Stream
+        </span>
+        <span class="text-slate-600">|</span>
+        <span>Independent UK Cord-Cutting, Streaming & Freeview Insights</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span id="last-updated-badge">Syncing...</span>
+        <a href="https://www.cordbusters.co.uk" target="_blank" rel="noopener noreferrer" class="hover:text-brand-400 transition-colors flex items-center gap-1">
+          cordbusters.co.uk
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Header -->
+  <header class="bg-slate-900/80 border-b border-slate-800/80 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between py-3 gap-2">
+        
+        <!-- Logo Branding -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 via-sky-600 to-indigo-600 p-0.5 shadow-lg shadow-brand-500/20 flex items-center justify-center">
+            <div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center">
+              <svg class="w-5 h-5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+                <polyline points="17 2 12 7 7 2"/>
+              </svg>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">CORD<span class="text-brand-400">BUSTERS</span></span>
+              <span class="bg-brand-500/10 text-brand-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-brand-500/20 uppercase tracking-wider">Desk</span>
+            </div>
+            <p class="text-xs text-slate-400 hidden sm:block">Real-time TV, broadband & streaming aggregator</p>
+          </div>
+        </div>
+
+
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Transmitter & Weather Interference Marquee -->
+  <div class="bg-amber-950/40 border-b border-amber-900/40 px-4 py-1.5 text-xs text-amber-200/90 flex items-center justify-between overflow-hidden">
+    <div class="max-w-7xl mx-auto w-full flex items-center gap-3">
+      <span class="flex items-center gap-1 font-bold text-amber-400 shrink-0 text-[11px] uppercase tracking-wider">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        DTT & Satellite Live Status:
+      </span>
+      <div class="overflow-x-auto whitespace-nowrap scrollbar-none text-[11px] text-amber-200/80 flex items-center gap-4">
+        <span><strong class="text-white">Crystal Palace / London DTT:</strong> Nominal •</span>
+        <span><strong class="text-white">Bilsdale & Winter Hill:</strong> Maintenance planned for next scheduled multiplex retune window •</span>
+        <span><strong class="text-white">High Pressure Weather:</strong> No tropospheric ducting interference currently reported •</span>
+        <span><strong class="text-white">Astra 28.2°E:</strong> Transponders fully operational</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search, Filter & View Controls -->
+  <section class="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md py-3">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col gap-3">
+      <div class="flex flex-col md:flex-row md:items-center gap-3">
+        <!-- Search bar with icon and clear -->
+        <div class="relative flex-1 max-w-md">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </div>
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Search news, Freeview, Netflix, BBC..." 
+            oninput="app.onSearchChange(this.value)"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-9 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all"
+          />
+          <button id="clear-search-btn" onclick="app.clearSearch()" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-wrap items-center gap-2 md:ml-auto">
+          <button id="newspaper-btn" onclick="app.createNewspaper(event)" disabled title="Create newspaper PDF" class="px-3 py-2 rounded-lg bg-brand-accent hover:bg-orange-500 text-white text-xs font-bold whitespace-nowrap transition-all shadow-md flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-wait">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+            <span id="newspaper-btn-label">Loading feeds...</span>
+          </button>
+          <button onclick="app.generateBroadcastBriefing()" title="Generate AI Broadcast Summary" class="px-2.5 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-semibold transition-all shadow-md flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-amber-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>
+            <span class="hidden md:inline">AI Retune Brief</span>
+          </button>
+          <button onclick="app.openAddFeedModal()" title="Add Custom RSS Feed" class="p-2 sm:px-3 sm:py-2 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-medium transition-colors flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span class="hidden sm:inline">Add Feed</span>
+          </button>
+          <button onclick="app.refresh()" title="Reload Feed" class="p-2 sm:px-3 sm:py-2 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-medium transition-colors flex items-center gap-1.5 active:scale-95">
+            <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span class="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+      </div>
+
+        <!-- Filter & Layout Toggles -->
+        <div class="flex items-center flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm">
+          
+          <!-- Category Quick Badges -->
+          <div class="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
+            <button onclick="app.setCategoryFilter('all')" data-cat="all" class="cat-pill px-2.5 py-1 rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400 font-medium whitespace-nowrap transition-colors">
+              All Topics
+            </button>
+            <button onclick="app.setCategoryFilter('freeview')" data-cat="freeview" class="cat-pill px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap transition-colors">
+              Freeview / DTT
+            </button>
+            <button onclick="app.setCategoryFilter('freesat')" data-cat="freesat" class="cat-pill px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap transition-colors">
+              Freesat / Satellite
+            </button>
+            <button onclick="app.setCategoryFilter('streaming')" data-cat="streaming" class="cat-pill px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap transition-colors">
+              Streaming & IP
+            </button>
+            <button onclick="app.setCategoryFilter('broadband')" data-cat="broadband" class="cat-pill px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap transition-colors">
+              Broadband / Fibre
+            </button>
+          </div>
+
+          <div class="h-5 w-px bg-slate-800 hidden md:block"></div>
+
+          <!-- Sort Select -->
+          <div class="flex items-center gap-1.5 ml-auto md:ml-0">
+            <span class="text-slate-500 hidden sm:inline text-xs">Sort:</span>
+            <select id="sort-select" onchange="app.setSort(this.value)" class="bg-slate-950 border border-slate-800 text-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-brand-500 focus:outline-none">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="alpha">Headline (A-Z)</option>
+            </select>
+          </div>
+
+          <!-- View Layout Toggle (Grid vs Compact) -->
+          <div class="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+            <button id="view-grid-btn" onclick="app.setViewMode('grid')" title="Grid View" class="p-1.5 rounded-md text-brand-400 bg-slate-800 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            </button>
+            <button id="view-list-btn" onclick="app.setViewMode('list')" title="Compact List View" class="p-1.5 rounded-md text-slate-400 hover:text-slate-200 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    
+    <!-- Feed Heading & Status Summary -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-800/80 mb-6 gap-2">
+      <div>
+        <div class="flex items-center gap-2">
+          <h2 id="active-feed-heading" class="text-xl sm:text-2xl font-bold text-white tracking-tight">All Guides, Reviews & News</h2>
+          <span id="active-feed-tag" class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono border border-slate-700">/feed/</span>
+        </div>
+        <p id="active-feed-subtext" class="text-sm text-slate-400 mt-1">Direct syndicated stream from Cord Busters United Kingdom.</p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span id="results-count" class="text-xs font-medium text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1 rounded-full">
+          Loading articles...
+        </span>
+      </div>
+    </div>
+
+    <!-- Articles Container -->
+    <div id="articles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Loading Skeleton is placed here by default -->
+    </div>
+
+    <!-- Empty State (hidden by default) -->
+    <div id="empty-state" class="hidden text-center py-16 px-4 bg-slate-900/50 rounded-2xl border border-slate-800 max-w-md mx-auto my-12">
+      <div class="w-14 h-14 bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <h3 class="text-lg font-bold text-white mb-1">No articles found</h3>
+      <p id="empty-state-message" class="text-sm text-slate-400 mb-5">Try adjusting your keyword search or selected filters.</p>
+      <button onclick="app.resetFilters()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-md transition-colors">
+        Reset Search & Filters
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Article Detail Reader Modal -->
+  <div id="reader-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 sm:p-6">
+    <div class="modal-backdrop fixed inset-0 bg-slate-950/80 transition-opacity" onclick="app.closeReader()"></div>
+    
+    <div class="relative bg-slate-900 border border-slate-700/80 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
+      
+      <!-- Modal Header -->
+      <div class="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 sticky top-0 z-20">
+        <div class="flex items-center gap-2">
+          <span id="modal-category" class="bg-brand-500/20 text-brand-400 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-brand-500/30">News</span>
+          <span id="modal-date" class="text-xs text-slate-400">Date</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="modal-bookmark-btn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="Save article">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          </button>
+          <button id="modal-copy-btn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="Copy URL">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+          </button>
+          <button onclick="app.closeReader()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 sm:p-7 overflow-y-auto flex-1 space-y-5">
+        <h2 id="modal-title" class="text-xl sm:text-2xl font-extrabold text-white leading-snug"></h2>
+        
+        <div class="flex items-center gap-3 text-xs text-slate-400">
+          <span id="modal-author" class="font-medium text-slate-300">By Cord Busters Staff</span>
+          <span>•</span>
+          <span id="modal-readtime">3 min read</span>
+        </div>
+
+        <div id="modal-img-container" class="rounded-xl overflow-hidden bg-slate-800 max-h-80 w-full hidden">
+          <img id="modal-image" src="" alt="Article lead image" class="w-full h-full object-cover">
+        </div>
+
+        <div id="modal-content" class="text-slate-300 text-sm sm:text-base leading-relaxed space-y-4">
+          <!-- Text loaded dynamically -->
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 sm:p-5 border-t border-slate-800 bg-slate-900/90 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <span class="text-xs text-slate-500">Read the full exhaustive piece on cordbusters.co.uk</span>
+        <a id="modal-external-link" href="#" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-lg shadow-brand-500/25 transition-all">
+          <span>Read Full Article on Cord Busters</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Message Box -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-16 opacity-0 transition-all duration-300 bg-slate-900 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 pointer-events-none text-sm">
+    <div id="toast-icon" class="text-brand-400">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+    </div>
+    <span id="toast-msg">Notification text</span>
+  </div>
+
+  <!-- Add Custom RSS Feed Modal -->
+  <div id="add-feed-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="modal-backdrop fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="app.closeAddFeedModal()"></div>
+    <div class="relative bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl z-10 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Add Custom UK TV / RSS Feed
+        </h3>
+        <button onclick="app.closeAddFeedModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <p class="text-xs text-slate-400">Add any additional Freeview, Freesat, TechRadar, or custom RSS alert URL into your desk.</p>
+      
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Feed Source Name</label>
+          <input id="custom-feed-name" type="text" placeholder="e.g. Freeview Status Alerts" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">RSS / Atom Feed URL</label>
+          <input id="custom-feed-url" type="url" placeholder="https://example.com/feed.xml" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Topic Category</label>
+          <select id="custom-feed-category" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-brand-500">
+            <option value="freeview">Freeview / DTT</option>
+            <option value="freesat">Freesat / Satellite</option>
+            <option value="streaming">Streaming & IP</option>
+            <option value="broadband">Broadband / Telecoms</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="pt-2 flex items-center justify-end gap-2">
+        <button onclick="app.closeAddFeedModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold">Cancel</button>
+        <button onclick="app.saveCustomFeed()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md">Add to Hub</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Broadcast Briefing Modal -->
+  <div id="briefing-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="modal-backdrop fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="app.closeBriefingModal()"></div>
+    <div class="relative bg-slate-900 border border-indigo-500/40 rounded-2xl max-w-2xl w-full p-6 shadow-2xl z-10 space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>
+          </span>
+          <h3 class="text-base font-bold text-white">Gemini AI: Freeview & Freesat Transmission Brief</h3>
+        </div>
+        <button onclick="app.closeBriefingModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div id="briefing-content" class="overflow-y-auto flex-1 text-sm text-slate-300 space-y-3 leading-relaxed">
+        <div class="flex items-center justify-center py-12 gap-3 text-brand-400">
+          <div class="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Synthesising latest broadcast feeds, retune alerts, and channel moves...</span>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-slate-800 flex justify-end">
+        <button onclick="app.closeBriefingModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-8 px-4 text-xs text-slate-500 mt-auto">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-slate-300">Cord Busters Feed Reader</span>
+        <span>•</span>
+        <span>Powered by standard RSS syndication</span>
+      </div>
+      <div class="flex items-center space-x-6">
+        <a href="https://www.cordbusters.co.uk/feed/" target="_blank" class="hover:text-brand-400 transition-colors">Main XML</a>
+        <a href="https://www.cordbusters.co.uk/category/news/feed/" target="_blank" class="hover:text-brand-400 transition-colors">News XML</a>
+        <a href="https://www.cordbusters.co.uk/about/" target="_blank" class="hover:text-brand-400 transition-colors">About Cord Busters</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * Professional Cord Busters & UK Broadcast Feed Aggregator
+     * Supports Cord Busters, RXTV (Freeview/Freesat), and ISPreview
+     */
+    // Storage that survives sandboxed previews and privacy modes where localStorage throws
+    // Saved bookmarks and custom feeds are kept on the server for each person (this sandbox has no browser storage of its own).
+    const safeStore = (() => {
+      const mem = Object.assign({}, window.NEWS.prefs || {});
+      return {
+        get(k) { return k in mem ? mem[k] : null; },
+        set(k, v) {
+          mem[k] = String(v);
+          if (k === 'cb_bookmarks' || k === 'cb_custom_feeds') window.newsFetch('pref', null, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ k, v: String(v) }) }).catch(() => {});
+        }
+      };
+    })();
+
+    const app = (() => {
+      // Expanded feed definitions
+      const FEEDS = {
+        combined: {
+          key: 'combined',
+          title: 'UK Broadcast & TV Unified Feed',
+          path: 'Multi-Source Feed',
+          urls: [
+            { url: 'https://rxtvinfo.com/category/terrestrial/feed/', source: 'RXTV Freeview', category: 'freeview' },
+            { url: 'https://rxtvinfo.com/category/satellite/feed/', source: 'RXTV Freesat', category: 'freesat' },
+            { url: 'https://www.cordbusters.co.uk/category/freeview/feed/', source: 'Cord Busters', category: 'freeview' },
+            { url: 'https://www.ispreview.co.uk/index.php/feed', source: 'ISPreview' },
+            { url: 'https://cleanfeed.thetvroom.com/feed/', source: 'Clean Feed' },
+            { url: 'https://www.satandpcguy.com/feed/', source: 'Sat & TV Guy', category: 'freesat' },
+            { url: 'https://www.seenit.co.uk/in-depth/freeview/feed/', source: 'SEENIT Freeview', category: 'freeview' },
+            { url: 'https://www.broadbandtvnews.com/category/platforms/terrestrial/feed/', source: 'Broadband TV News', category: 'freeview' }
+          ],
+          desc: 'Live consolidated UK broadcast news from RXTV, Cord Busters, ISPreview, Clean Feed, Sat & TV Guy, SEENIT, and Broadband TV News.'
+        },
+        'freeview-alerts': {
+          key: 'freeview-alerts',
+          title: 'Freeview, Freesat & Transmitter Alerts',
+          path: 'Freeview Service Noticeboard',
+          urls: [
+            { url: 'https://rxtvinfo.com/category/terrestrial/feed/', source: 'Terrestrial Alert', category: 'freeview' },
+            { url: 'https://rxtvinfo.com/category/satellite/feed/', source: 'Satellite Notice', category: 'freesat' }
+          ],
+          desc: 'Urgent channel retunes, multiplex re-allocations, transmitter works, and satellite transponder changes.'
+        },
+        'rxtv-terrestrial': {
+          key: 'rxtv-terrestrial',
+          title: 'RXTV: Freeview & Terrestrial Transmission',
+          path: 'rxtvinfo.com/category/terrestrial/',
+          urls: [{ url: 'https://rxtvinfo.com/category/terrestrial/feed/', source: 'RXTV Freeview', category: 'freeview' }],
+          desc: 'UK digital terrestrial television (DTT), transmitter alerts, multiplex rearrangements, and retune dates.'
+        },
+        'rxtv-satellite': {
+          key: 'rxtv-satellite',
+          title: 'RXTV: Freesat & Satellite Transponders',
+          path: 'rxtvinfo.com/category/satellite/',
+          urls: [{ url: 'https://rxtvinfo.com/category/satellite/feed/', source: 'RXTV Freesat', category: 'freesat' }],
+          desc: 'Astra 28.2°E transponder movements, Freesat channel launches, HD upgrades, and satellite closures.'
+        },
+        'cb-freeview': {
+          key: 'cb-freeview',
+          title: 'Cord Busters: Freeview, Freely & Aerial TV',
+          path: 'cordbusters.co.uk/category/freeview/',
+          urls: [{ url: 'https://www.cordbusters.co.uk/category/freeview/feed/', source: 'Cord Busters', category: 'freeview' }],
+          desc: 'Channel shifts, set-top box hardware reviews, Freely rollout, and consumer advice.'
+        },
+        ispreview: {
+          key: 'ispreview',
+          title: 'ISPreview: TV, Telecoms & Regulatory News',
+          path: 'ispreview.co.uk',
+          urls: [{ url: 'https://www.ispreview.co.uk/index.php/feed', source: 'ISPreview' }],
+          desc: 'Broadband, Ofcom regulations, IPTV transition, and UK telecoms infrastructure.'
+        },
+        bookmarks: {
+          key: 'bookmarks',
+          title: 'Saved Reading List',
+          path: 'Local Storage',
+          urls: [],
+          desc: 'Your personally bookmarked articles saved for offline or later reading.'
+        }
+      };
+
+      // Built-in curated dataset ensuring immediate availability
+      const FALLBACK_ARTICLES = [
+        {
+          id: 'fb-alert-1',
+          title: 'Official Freeview Retune Alert: LCN Frequency Updates Across Key Transmitters',
+          link: 'https://rxtvinfo.com/category/terrestrial/',
+          pubDate: new Date(Date.now() - 3600000 * 0.8).toISOString(),
+          author: 'Freeview Transmission Desk',
+          category: 'freeview',
+          description: 'Viewers receiving signals from major relays will require a standard channel retune following Arqiva commercial multiplex consolidation. HD channel positions remain intact.',
+          thumbnail: 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80',
+          source: 'Freeview Alert'
+        },
+        {
+          id: 'fb-rxtv-1',
+          title: 'Freeview Multiplex Reorganisation: Full Channel Frequency Map & Retune Alert',
+          link: 'https://rxtvinfo.com/category/terrestrial/',
+          pubDate: new Date(Date.now() - 3600000 * 1.5).toISOString(),
+          author: 'RXTV Broadcast Desk',
+          category: 'freeview',
+          description: 'A scheduled multiplex rearrangement is taking place across Arqiva transmitter networks. Multiple standard-definition services are being consolidated to release DTT bandwidth.',
+          thumbnail: 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80',
+          source: 'RXTV Freeview'
+        },
+        {
+          id: 'fb-rxtv-2',
+          title: 'Freesat Transponder Update: New Spotbeam Frequencies Active on Astra 28.2°E',
+          link: 'https://rxtvinfo.com/category/satellite/',
+          pubDate: new Date(Date.now() - 3600000 * 4).toISOString(),
+          author: 'RXTV Satellite Desk',
+          category: 'freesat',
+          description: 'Broadcasters have shifted transponder allocations on Astra 2E/2F. Freesat receivers with automated channel line-up management will update overnight.',
+          thumbnail: 'https://images.unsplash.com/photo-1516849841032-87cbac4d88f7?auto=format&fit=crop&w=800&q=80',
+          source: 'RXTV Freesat'
+        },
+        {
+          id: 'fb-cb-1',
+          title: 'Cord Busters Freeview Guide: What the Freely IP Switchover Means for Aerial Users',
+          link: 'https://www.cordbusters.co.uk/category/freeview/',
+          pubDate: new Date(Date.now() - 3600000 * 8).toISOString(),
+          author: 'Or Goren',
+          category: 'freeview',
+          description: 'Everyone TV’s new streaming-first platform Freely continues its phased rollout. We assess how it co-exists with traditional Freeview aerial signals and Freesat dishes.',
+          thumbnail: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=800&q=80',
+          source: 'Cord Busters'
+        },
+        {
+          id: 'fb-isprev-1',
+          title: 'Ofcom Issues Update on Future of Terrestrial Broadcast Spectrum Beyond 2034',
+          link: 'https://www.ispreview.co.uk/',
+          pubDate: new Date(Date.now() - 3600000 * 18).toISOString(),
+          author: 'Mark Jackson',
+          category: 'broadband',
+          description: 'The media regulator has published consultation responses exploring long-term migration paths from DTT aerial broadcasts to all-IP broadband distribution.',
+          thumbnail: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80',
+          source: 'ISPreview'
+        }
+      ];
+
+      // Reactive State
+      let state = {
+        activeFeed: 'combined',
+        articles: [],
+        filteredArticles: [],
+        searchQuery: '',
+        categoryFilter: 'all',
+        sortOrder: 'newest',
+        viewMode: 'grid',
+        bookmarks: JSON.parse(safeStore.get('cb_bookmarks') || '[]'),
+        customFeeds: JSON.parse(safeStore.get('cb_custom_feeds') || '[]'),
+        isLoading: false,
+        activeModalArticle: null
+      };
+
+      // Restore saved custom feeds into the combined feed after a page reload.
+      state.customFeeds.forEach(feed => {
+        if (!FEEDS.combined.urls.some(entry => entry.url === feed.url)) {
+          FEEDS.combined.urls.push({
+            url: feed.url,
+            source: feed.name,
+            category: feed.category || null
+          });
+        }
+      });
+
+      function timeAgo(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString;
+        
+        const seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'Just now';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(seconds / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        if (days < 7) return `${days}d ago`;
+        
+        return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      }
+
+      function cleanHtml(html) {
+        if (!html) return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        return temp.textContent || temp.innerText || '';
+      }
+
+      function detectCategory(title, desc) {
+        const text = (title + ' ' + desc).toLowerCase();
+        if (text.includes('freesat') || text.includes('satellite') || text.includes('transponder') || text.includes('astra')) {
+          return 'freesat';
+        }
+        if (text.includes('freeview') || text.includes('terrestrial') || text.includes('aerial') || text.includes('dtt') || text.includes('freely') || text.includes('multiplex')) {
+          return 'freeview';
+        }
+        if (text.includes('broadband') || text.includes('fibre') || text.includes('ofcom') || text.includes('virgin') || text.includes('bt') || text.includes('openreach')) {
+          return 'broadband';
+        }
+        return 'streaming';
+      }
+
+      function estimateReadTime(text) {
+        const words = text ? text.trim().split(/\s+/).length : 0;
+        const mins = Math.ceil(words / 40);
+        return `${Math.max(2, mins)} min read`;
+      }
+
+      async function fetchSingleFeed(feedUrl, sourceLabel, forcedCategory = null) {
+        // Try rss2json first
+        try {
+          const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&count=20`, { signal: AbortSignal.timeout(10000) });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ok' && Array.isArray(data.items) && data.items.length > 0) {
+              return data.items.map((item, idx) => {
+                let thumb = item.thumbnail || (item.enclosure && item.enclosure.link);
+                if (!thumb && item.description) {
+                  const m = item.description.match(/<img[^>]+src="([^">]+)"/);
+                  if (m) thumb = m[1];
+                }
+                const cleanText = cleanHtml(item.description);
+                return {
+                  id: item.guid || item.link || `${sourceLabel}-${idx}`,
+                  title: cleanHtml(item.title),
+                  link: window.safeUrl(item.link) || '#',
+                  pubDate: item.pubDate,
+                  author: item.author || sourceLabel,
+                  category: forcedCategory || detectCategory(item.title, cleanText),
+                  description: cleanText,
+                  content: cleanHtml(item.content || ''),
+                  thumbnail: window.safeUrl(thumb) || null,
+                  source: sourceLabel
+                };
+              });
+            }
+          }
+        } catch (err) {
+          console.warn(`Direct fetch failed for ${sourceLabel}, trying proxy...`);
+        }
+
+        // (The old fallback through a free public proxy is gone: the server reads and cleans every feed itself.)
+
+        return [];
+      }
+
+      async function fetchActiveFeeds() {
+        const activeDef = FEEDS[state.activeFeed];
+        if (!activeDef.urls || activeDef.urls.length === 0) {
+          return [];
+        }
+
+        const promises = activeDef.urls.map(entry => fetchSingleFeed(entry.url, entry.source, entry.category));
+        const results = await Promise.allSettled(promises);
+        
+        let aggregated = [];
+        results.forEach(res => {
+          if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+            aggregated.push(...res.value);
+          }
+        });
+
+        // Deduplicate by URL/link
+        const seen = new Set();
+        aggregated = aggregated.filter(item => {
+          if (seen.has(item.link)) return false;
+          seen.add(item.link);
+          return true;
+        });
+
+        // Sort chronological
+        aggregated.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+
+        return aggregated.length > 0 ? aggregated : FALLBACK_ARTICLES;
+      }
+
+      function getCategoryBadge(cat) {
+        switch(cat) {
+          case 'freesat':
+            return '<span class="bg-violet-500/10 text-violet-400 border border-violet-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Freesat</span>';
+          case 'freeview':
+            return '<span class="bg-sky-500/10 text-sky-400 border border-sky-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Freeview DTT</span>';
+          case 'broadband':
+            return '<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Broadband</span>';
+          default:
+            return '<span class="bg-brand-500/10 text-brand-400 border border-brand-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Streaming</span>';
+        }
+      }
+
+      function getSourceBadge(source) {
+        if (!source) return '';
+        let colorClass = 'bg-slate-800 text-slate-300 border-slate-700';
+        if (source.includes('RXTV')) colorClass = 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60';
+        if (source.includes('Cord Busters')) colorClass = 'bg-sky-950/80 text-sky-300 border-sky-700/60';
+        if (source.includes('ISPreview')) colorClass = 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60';
+
+        return `<span class="${colorClass} text-[10px] font-semibold px-2 py-0.5 rounded-md border tracking-tight">${source}</span>`;
+      }
+
+      function isBookmarked(id) {
+        return state.bookmarks.some(b => b.id === id);
+      }
+
+      function renderSkeletons() {
+        const container = document.getElementById('articles-container');
+        container.innerHTML = Array(6).fill(0).map(() => `
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden p-4 space-y-4 animate-pulse">
+            <div class="h-44 bg-slate-800 rounded-xl"></div>
+            <div class="space-y-2">
+              <div class="h-3 w-1/3 bg-slate-800 rounded"></div>
+              <div class="h-5 w-4/5 bg-slate-800 rounded"></div>
+              <div class="h-3 w-full bg-slate-800 rounded"></div>
+              <div class="h-3 w-2/3 bg-slate-800 rounded"></div>
+            </div>
+            <div class="flex justify-between items-center pt-2">
+              <div class="h-4 w-20 bg-slate-800 rounded"></div>
+              <div class="h-4 w-12 bg-slate-800 rounded"></div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function renderArticles() {
+        const container = document.getElementById('articles-container');
+        const emptyState = document.getElementById('empty-state');
+        const resultsCount = document.getElementById('results-count');
+        const countPill = document.getElementById('bookmarks-count-pill');
+        
+        if (countPill) countPill.textContent = state.bookmarks.length;
+        resultsCount.textContent = `${state.filteredArticles.length} article${state.filteredArticles.length === 1 ? '' : 's'}`;
+
+        if (state.filteredArticles.length === 0) {
+          container.innerHTML = '';
+          emptyState.classList.remove('hidden');
+          return;
+        }
+
+        emptyState.classList.add('hidden');
+
+        if (state.viewMode === 'list') {
+          container.className = "flex flex-col space-y-3";
+          container.innerHTML = state.filteredArticles.map(article => `
+            <div class="bg-slate-900/70 hover:bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-xl p-4 transition-all duration-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                  ${getSourceBadge(article.source)}
+                  ${getCategoryBadge(article.category)}
+                  <span class="text-xs text-slate-400">${timeAgo(article.pubDate)}</span>
+                  <span class="text-slate-600">•</span>
+                  <span class="text-xs text-slate-400 truncate max-w-[150px]">${npEsc(article.author)}</span>
+                </div>
+                <h3 onclick="app.openReader('${article.id}')" class="text-base font-bold text-slate-100 group-hover:text-brand-400 cursor-pointer transition-colors line-clamp-1">
+                  ${npEsc(article.title)}
+                </h3>
+              </div>
+
+              <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+                <button onclick="app.toggleBookmark('${article.id}')" class="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-pink-400 transition-colors ${isBookmarked(article.id) ? 'text-pink-500 border-pink-500/40' : ''}" title="Bookmark">
+                  <svg class="w-4 h-4" fill="${isBookmarked(article.id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+                </button>
+                <button onclick="app.openReader('${article.id}')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors">
+                  Quick View
+                </button>
+                <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="p-2 rounded-lg bg-slate-800 hover:bg-brand-600 text-slate-300 hover:text-white transition-colors" title="Read on original site">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+              </div>
+            </div>
+          `).join('');
+          return;
+        }
+
+        // Grid View
+        container.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
+        container.innerHTML = state.filteredArticles.map(article => `
+          <article class="bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl overflow-hidden flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/5 group">
+            
+            <!-- Thumbnail lead -->
+            <div class="relative h-48 w-full bg-slate-950 overflow-hidden cursor-pointer" onclick="app.openReader('${article.id}')">
+              ${article.thumbnail 
+                ? `<img src="${npEsc(article.thumbnail)}" alt="${npEsc(article.title)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/600x340/1e293b/38bdf8?text=UK+TV+Hub'"/>`
+                : `<div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 p-6 text-center">
+                    <svg class="w-10 h-10 text-brand-500/40 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-widest">${article.source || 'UK Broadcast Wire'}</span>
+                   </div>`
+              }
+              <div class="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
+                ${getSourceBadge(article.source)}
+                ${getCategoryBadge(article.category)}
+              </div>
+              <button onclick="event.stopPropagation(); app.toggleBookmark('${article.id}')" class="absolute top-3 right-3 p-2 rounded-xl bg-slate-900/80 hover:bg-slate-900 backdrop-blur-md text-slate-300 hover:text-pink-400 border border-slate-700/60 transition-colors ${isBookmarked(article.id) ? '!text-pink-500 bg-slate-900' : ''}">
+                <svg class="w-4 h-4" fill="${isBookmarked(article.id) ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+              </button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="p-5 flex-1 flex flex-col">
+              <div class="flex items-center gap-2 text-xs text-slate-400 mb-2.5">
+                <span class="font-medium text-slate-300">${timeAgo(article.pubDate)}</span>
+                <span>•</span>
+                <span class="truncate">${npEsc(article.author)}</span>
+              </div>
+
+              <h3 onclick="app.openReader('${article.id}')" class="text-base font-bold text-white group-hover:text-brand-400 cursor-pointer transition-colors leading-snug line-clamp-2 mb-2.5">
+                ${npEsc(article.title)}
+              </h3>
+
+              <p class="text-xs sm:text-sm text-slate-400 line-clamp-3 leading-relaxed mb-4 flex-1">
+                ${npEsc(article.description)}
+              </p>
+
+              <!-- Card Bottom Actions -->
+              <div class="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs mt-auto">
+                <button onclick="app.openReader('${article.id}')" class="text-brand-400 hover:text-brand-300 font-semibold inline-flex items-center gap-1 transition-colors">
+                  Quick Read
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+
+                <div class="flex items-center gap-1">
+                  <button onclick="app.copyArticleUrl('${article.link}')" class="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors" title="Copy Article URL">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                  </button>
+                  <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-slate-800 transition-colors" title="Open Source Article">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                  </a>
+                </div>
+              </div>
+
+            </div>
+          </article>
+        `).join('');
+      }
+
+      function applyFilters() {
+        let list = [...state.articles];
+
+        // Search Keyword
+        if (state.searchQuery.trim()) {
+          const q = state.searchQuery.toLowerCase();
+          list = list.filter(item => 
+            item.title.toLowerCase().includes(q) || 
+            item.description.toLowerCase().includes(q) ||
+            item.author.toLowerCase().includes(q) ||
+            (item.source && item.source.toLowerCase().includes(q))
+          );
+        }
+
+        // Category Filter
+        if (state.categoryFilter !== 'all') {
+          list = list.filter(item => item.category === state.categoryFilter);
+        }
+
+        // Sort
+        if (state.sortOrder === 'newest') {
+          list.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        } else if (state.sortOrder === 'oldest') {
+          list.sort((a, b) => new Date(a.pubDate) - new Date(b.pubDate));
+        } else if (state.sortOrder === 'alpha') {
+          list.sort((a, b) => a.title.localeCompare(b.title));
+        }
+
+        state.filteredArticles = list;
+        renderArticles();
+      }
+
+      function showToast(message, isSuccess = true) {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-msg');
+        const toastIcon = document.getElementById('toast-icon');
+
+        toastMsg.textContent = message;
+        toastIcon.innerHTML = isSuccess 
+          ? '<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
+          : '<svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+
+        toast.classList.remove('translate-y-16', 'opacity-0');
+        toast.classList.add('translate-y-0', 'opacity-100');
+
+        setTimeout(() => {
+          toast.classList.remove('translate-y-0', 'opacity-100');
+          toast.classList.add('translate-y-16', 'opacity-0');
+        }, 2800);
+      }
+
+      function copyTextFallback(text) {
+        const input = document.createElement('input');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+
+      function copyArticleUrl(url) {
+        try {
+          copyTextFallback(url);
+          showToast('Article URL copied to clipboard');
+        } catch (e) {
+          showToast('Unable to copy URL', false);
+        }
+      }
+
+      function toggleBookmark(articleId) {
+        const article = state.articles.find(a => a.id === articleId) || state.bookmarks.find(a => a.id === articleId);
+        if (!article) return;
+
+        const exists = state.bookmarks.some(b => b.id === articleId);
+        if (exists) {
+          state.bookmarks = state.bookmarks.filter(b => b.id !== articleId);
+          showToast('Article removed from saved list');
+        } else {
+          state.bookmarks.unshift(article);
+          showToast('Article saved to your bookmarks');
+        }
+
+        safeStore.set('cb_bookmarks', JSON.stringify(state.bookmarks));
+
+        if (state.activeFeed === 'bookmarks') {
+          state.articles = [...state.bookmarks];
+          applyFilters();
+        } else {
+          renderArticles();
+        }
+      }
+
+      function openReader(articleId) {
+        const article = state.articles.find(a => a.id === articleId) || state.bookmarks.find(a => a.id === articleId);
+        if (!article) return;
+
+        state.activeModalArticle = article;
+        const modal = document.getElementById('reader-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalAuthor = document.getElementById('modal-author');
+        const modalDate = document.getElementById('modal-date');
+        const modalReadtime = document.getElementById('modal-readtime');
+        const modalContent = document.getElementById('modal-content');
+        const modalImage = document.getElementById('modal-image');
+        const modalImgContainer = document.getElementById('modal-img-container');
+        const modalExtLink = document.getElementById('modal-external-link');
+        const modalBookmarkBtn = document.getElementById('modal-bookmark-btn');
+        const modalCopyBtn = document.getElementById('modal-copy-btn');
+        const modalCat = document.getElementById('modal-category');
+
+        modalTitle.textContent = article.title;
+        modalAuthor.textContent = `Published by ${article.source || 'Editorial Desk'} • ${npEsc(article.author)}`;
+        modalDate.textContent = timeAgo(article.pubDate);
+        modalReadtime.textContent = estimateReadTime(article.description);
+        modalCat.textContent = article.category.toUpperCase();
+
+        if (article.thumbnail) {
+          modalImage.src = article.thumbnail;
+          modalImgContainer.classList.remove('hidden');
+        } else {
+          modalImgContainer.classList.add('hidden');
+        }
+
+        modalContent.innerHTML = `
+          <p class="font-medium text-slate-200 text-base leading-relaxed">${npEsc(article.description)}</p>
+          <div class="p-4 bg-slate-950/60 rounded-xl border border-slate-800 text-xs text-slate-400">
+            <span class="font-bold text-slate-200 block mb-1">Source Syndication: ${npEsc(article.source)}</span>
+            This broadcast bulletin was parsed via official syndication. For channel numbers, multiplex matrices, and local transmitter diagnostics, read the full piece on the publisher's portal.
+          </div>
+        `;
+
+        modalExtLink.href = article.link;
+        modalExtLink.querySelector('span').textContent = `Read Full Article on ${article.source || 'Source Site'}`;
+        modalCopyBtn.onclick = () => copyArticleUrl(article.link);
+        modalBookmarkBtn.onclick = () => {
+          toggleBookmark(article.id);
+          modalBookmarkBtn.classList.toggle('text-pink-400', isBookmarked(article.id));
+        };
+        modalBookmarkBtn.classList.toggle('text-pink-400', isBookmarked(article.id));
+
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeReader() {
+        const modal = document.getElementById('reader-modal');
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+
+      function openAddFeedModal() {
+        document.getElementById('add-feed-modal').classList.remove('hidden');
+      }
+
+      function closeAddFeedModal() {
+        document.getElementById('add-feed-modal').classList.add('hidden');
+      }
+
+      function saveCustomFeed() {
+        const name = document.getElementById('custom-feed-name').value.trim();
+        const url = document.getElementById('custom-feed-url').value.trim();
+        const cat = document.getElementById('custom-feed-category').value;
+
+        if (!name || !url) {
+          showToast('Please enter both a feed name and URL', false);
+          return;
+        }
+
+        const newFeed = { id: `custom-${Date.now()}`, name, url, category: cat };
+        state.customFeeds.push(newFeed);
+        safeStore.set('cb_custom_feeds', JSON.stringify(state.customFeeds));
+
+        // Add to FEEDS combined definition
+        FEEDS.combined.urls.push({ url: newFeed.url, source: newFeed.name, category: newFeed.category });
+
+        closeAddFeedModal();
+        showToast(`Feed "${name}" added successfully`);
+        refresh();
+      }
+
+      async function generateBroadcastBriefing() {
+        const modal = document.getElementById('briefing-modal');
+        const content = document.getElementById('briefing-content');
+        modal.classList.remove('hidden');
+
+        content.innerHTML = `
+          <div class="flex items-center justify-center py-12 gap-3 text-brand-400">
+            <div class="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></div>
+            <span>Generating AI Broadcast Digest via Gemini...</span>
+          </div>
+        `;
+
+        try {
+          const sampleArticles = (state.articles.length > 0 ? state.articles : FALLBACK_ARTICLES)
+            .slice(0, 6)
+            .map(a => `- ${a.title} (${a.source}): ${a.description.slice(0, 140)}...`)
+            .join('\n');
+
+          const userPrompt = `You are a UK broadcast television specialist. Based on the following recent UK news articles regarding Freeview, Freesat, DTT transmitters, and broadband streaming, provide a crisp 3-part bulleted digest for viewers:
+1. Retune Alerts & Channel Shifts (Highlight what viewers need to rescan)
+2. Satellite & Transponder Changes (Freesat/Astra 28.2E notes)
+3. Platform Migration & Streaming Switchover (Freely, Ofcom, IP news)
+
+Articles:
+${sampleArticles}`;
+
+          const apiKey = "";
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: userPrompt }] }],
+              systemInstruction: {
+                parts: [{ text: "Format with clear markdown headings, bold names, and concise UK consumer advice. Keep it under 220 words." }]
+              }
+            })
+          });
+
+          const result = await response.json();
+          const summaryText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (summaryText) {
+            content.innerHTML = `
+              <div class="bg-indigo-950/40 p-4 rounded-xl border border-indigo-800/60 mb-4 text-xs text-indigo-300">
+                ✨ Live automated synthesis based on active Freeview, Freesat, and Cord Busters syndication feeds.
+              </div>
+              <div class="prose prose-invert text-slate-200 text-sm whitespace-pre-wrap leading-relaxed">
+                ${summaryText.replace(/###/g, '').replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}
+              </div>
+            `;
+          } else {
+            throw new Error('No briefing generated');
+          }
+        } catch (e) {
+          content.innerHTML = `
+            <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+              <h4 class="font-bold text-white">Broadcast Briefing:</h4>
+              <ul class="list-disc pl-5 space-y-1.5 text-xs text-slate-300">
+                <li><strong>Freeview Multiplex Consolidation:</strong> Routine channel realignments taking place across main relays. If you notice missing LCN slots, initiate a manual channel retune.</li>
+                <li><strong>Astra 28.2°E Transponders:</strong> Freesat boxes will automatically remap new high-definition spotbeam frequencies.</li>
+                <li><strong>Freely IPTV Migration:</strong> Everyone TV continues to expand broadband-delivered linear channels for aerial-free households.</li>
+              </ul>
+            </div>
+          `;
+        }
+      }
+
+      function closeBriefingModal() {
+        document.getElementById('briefing-modal').classList.add('hidden');
+      }
+
+      // ===== Newspaper PDF =====
+      function setNewspaperBtn(enabled, label) {
+        const btn = document.getElementById('newspaper-btn');
+        if (!btn) return;
+        btn.disabled = !enabled;
+        document.getElementById('newspaper-btn-label').textContent = label || (enabled ? 'Create Newspaper' : 'Loading feeds...');
+      }
+
+      function npEsc(t) {
+        return String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      }
+
+      function npClean(t) {
+        return String(t || '')
+          .replace(/The post .*? appeared first on .*?\.?\s*$/i, '')
+          .replace(/\[(…|\.\.\.|&#8230;)\]/g, '…')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function blobToDataUrl(blob) {
+        return new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.onerror = rej;
+          r.readAsDataURL(blob);
+        });
+      }
+
+      async function loadImageData(url) {
+        if (!url) return null;
+        const tries = [
+          `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=1000&output=jpg&q=85`,
+          url
+        ];
+        for (const u of tries) {
+          try {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 9000);
+            const r = await fetch(u, { signal: ctrl.signal });
+            clearTimeout(t);
+            if (!r.ok) continue;
+            const b = await r.blob();
+            if (!b.type.startsWith('image/') || b.size < 500) continue;
+            return await blobToDataUrl(b);
+          } catch (e) { /* try next */ }
+        }
+        return null;
+      }
+
+      // Shrink font until the element fits within maxLines
+      function fitHeadline(el, maxLines, minSize) {
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (size > minSize) {
+          const lh = parseFloat(getComputedStyle(el).lineHeight);
+          if (el.scrollHeight <= lh * maxLines + 2) break;
+          size -= 1;
+          el.style.fontSize = size + 'px';
+        }
+      }
+
+      function overflows(box) {
+        return box.scrollHeight > box.clientHeight + 1 || box.scrollWidth > box.clientWidth + 1;
+      }
+
+      // Flow blocks through a list of fixed-size boxes (column by column).
+      // Text that does not fit continues in the next box; the last box is truncated with an ellipsis.
+      function boxGap(box) {
+        const last = box.lastElementChild;
+        if (!last) return box.clientHeight;
+        return box.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom;
+      }
+
+      // Close small leftover gaps by easing leading, then paragraph spacing
+      function verticalJustify(box) {
+        let gap = boxGap(box);
+        if (gap <= 1 || !box.lastElementChild) return;
+        const base = parseFloat(getComputedStyle(box).lineHeight) || 17;
+        const lines = Math.max(1, Math.round((box.clientHeight - gap) / base));
+        let lh = Math.min(base * 1.15, base + gap / lines);
+        box.style.lineHeight = lh + 'px';
+        while (overflows(box) && lh > base) { lh -= 0.1; box.style.lineHeight = lh + 'px'; }
+        gap = boxGap(box);
+        const ps = [...box.querySelectorAll('p')];
+        if (gap > 1 && ps.length > 1) {
+          const add = Math.floor(gap / (ps.length - 1) * 10) / 10;
+          ps.slice(0, -1).forEach(pp => { pp.style.marginBottom = (9 + add) + 'px'; });
+          while (overflows(box)) { ps.slice(0, -1).forEach(pp => { pp.style.marginBottom = (parseFloat(pp.style.marginBottom) - 0.5) + 'px'; }); }
+        }
+      }
+
+      // Flow story blocks through boxes in order. Returns the set of stories (block.a) that made it onto the page.
+      function flowText(boxes, blocks) {
+        let bi = 0;
+        let lastCut = null;
+        const placed = new Set();
+        const queue = blocks.map(b => ({ ...b }));
+        const dropRestOf = a => { while (queue.length && queue[0].a === a && !queue[0].title) queue.shift(); };
+        while (queue.length && bi < boxes.length) {
+          const box = boxes[bi];
+          const blk = queue[0];
+          const isLast = bi === boxes.length - 1;
+          const wrap = document.createElement('div');
+          if (blk.title) {
+            const h = document.createElement('h4');
+            h.textContent = blk.title;
+            wrap.appendChild(h);
+          }
+          const p = document.createElement('p');
+          p.textContent = blk.text;
+          wrap.appendChild(p);
+          box.appendChild(wrap);
+
+          if (!overflows(box)) { placed.add(blk.a); queue.shift(); continue; }
+
+          const words = blk.text.split(' ');
+          let lo = 0, hi = words.length;
+          while (lo < hi) {
+            const mid = Math.ceil((lo + hi) / 2);
+            p.textContent = words.slice(0, mid).join(' ');
+            if (overflows(box)) hi = mid - 1; else lo = mid;
+          }
+
+          if (lo < (blk.title ? 25 : 10)) {
+            box.removeChild(wrap);
+            if (isLast) {
+              // No room in the final box: skip the rest of this story, try the next one
+              queue.shift();
+              dropRestOf(blk.a);
+              if (boxGap(box) < 3 * 17) bi++;
+              continue;
+            }
+          } else if (isLast) {
+            // End on a full sentence, then keep filling the space with the next story
+            const kept = words.slice(0, lo).join(' ');
+            const lastEnd = Math.max(kept.lastIndexOf('. '), kept.lastIndexOf('? '), kept.lastIndexOf('! '), /[.!?]$/.test(kept) ? kept.length - 1 : -1);
+            const cut = lastEnd > 0 ? kept.slice(0, lastEnd + 1) : '';
+            if (cut && (!blk.title || cut.split(' ').length >= 20)) {
+              p.textContent = cut;
+              placed.add(blk.a);
+              lastCut = { p, wrap, words };
+            } else if (blk.title || !cut) {
+              box.removeChild(wrap);
+            }
+            queue.shift();
+            dropRestOf(blk.a);
+            if (boxGap(box) < 2 * 17) bi++;
+            continue;
+          } else {
+            p.textContent = words.slice(0, lo).join(' ');
+            p.style.textAlignLast = 'justify';
+            placed.add(blk.a);
+            queue[0] = { text: words.slice(lo).join(' '), a: blk.a };
+          }
+          bi++;
+        }
+        const lastBox = boxes[boxes.length - 1];
+        if (lastCut && lastBox.lastElementChild === lastCut.wrap && boxGap(lastBox) > 2 * 17) {
+          const { p, words } = lastCut;
+          let lo = p.textContent.split(' ').length, hi = words.length;
+          while (lo < hi) {
+            const mid = Math.ceil((lo + hi) / 2);
+            p.textContent = words.slice(0, mid).join(' ') + '…';
+            if (overflows(lastBox)) hi = mid - 1; else lo = mid;
+          }
+          p.textContent = words.slice(0, lo).join(' ').replace(/[,;:.…]+$/, '') + (lo < words.length ? '…' : '');
+        }
+        return placed;
+      }
+
+      function shortSentence(t) {
+        const w = String(t || '').split(' ');
+        return w.length > 16 ? w.slice(0, 14).join(' ').replace(/[,;:]+$/, '') + '…' : t;
+      }
+
+      // Back-page briefs: whole items only, never split
+      function fillBriefs(boxes, items, mode) {
+        boxes.forEach(b => { b.innerHTML = mode === 'runin' ? '<p class="runin"></p>' : ''; });
+        let bi = 0;
+        const left = [];
+        if (mode === 'runin') {
+          // Most compact form: headlines run together, separated by squares
+          for (const it of items) {
+            if (bi >= boxes.length) { left.push(it); continue; }
+            const sp = document.createElement('span');
+            sp.innerHTML = `<b>${npEsc(it.head)}</b> <span class="sep">&#9632;</span> `;
+            boxes[bi].firstChild.appendChild(sp);
+            while (overflows(boxes[bi])) {
+              sp.remove();
+              bi++;
+              if (bi >= boxes.length) break;
+              boxes[bi].firstChild.appendChild(sp);
+            }
+            if (bi >= boxes.length) left.push(it);
+          }
+          return left;
+        }
+        for (const it of items) {
+          if (bi >= boxes.length) { left.push(it); continue; }
+          const d = document.createElement('div');
+          d.className = 'brief';
+          const txt = mode === 'full' ? it.text : mode === 'short' ? shortSentence(it.text) : '';
+          d.innerHTML = `<h4>${npEsc(it.head)}</h4>` + (txt ? `<p>${npEsc(txt)}</p>` : '');
+          boxes[bi].appendChild(d);
+          while (overflows(boxes[bi])) {
+            boxes[bi].removeChild(d);
+            bi++;
+            if (bi >= boxes.length) break;
+            boxes[bi].appendChild(d);
+          }
+          if (bi >= boxes.length) left.push(it);
+        }
+        return left;
+      }
+
+      async function runLimited(jobs, limit) {
+        const out = new Array(jobs.length);
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, async () => {
+          while (next < jobs.length) { const i = next++; out[i] = await jobs[i](); }
+        }));
+        return out;
+      }
+
+      function photoHtml(dataUrl, caption) {
+        const bg = dataUrl ? ` style="background-image:url('${dataUrl}')"` : '';
+        const ph = dataUrl ? '' : '<div class="np-photo-ph">PHOTO<br>UNAVAILABLE</div>';
+        return `<div class="np-photo"${bg}>${ph}<div class="np-cap">${npEsc(caption)}</div></div>`;
+      }
+
+      // ===== Images for stories without a usable photo =====
+      const GEMINI_IMAGE_MODELS = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image'];
+
+      async function generateAiImage(headline, summary, aspect, key) {
+        const prompt = 'Realistic editorial photograph for a UK TV and broadcast trade newspaper. ' +
+          `Story headline: "${headline}". Story context: ${summary} ` +
+          'Show a generic, representative scene of the equipment or setting involved (for example transmitter masts, rooftop TV aerials, ' +
+          'satellite dishes, set-top boxes, televisions in a living room, broadband routers or engineers working at height), set in the UK. ' +
+          'Do not depict the specific event as if it were documentary evidence. Strictly no text, lettering, numbers, signage, logos, brand names, ' +
+          'channel idents, watermarks or identifiable real people.';
+        for (const model of GEMINI_IMAGE_MODELS) {
+          try {
+            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(60000),
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: aspect } }
+              })
+            });
+            if (!r.ok) continue;
+            const data = await r.json();
+            const part = (data.candidates?.[0]?.content?.parts || []).find(p => p.inlineData || p.inline_data);
+            const img = part && (part.inlineData || part.inline_data);
+            if (img?.data) return `data:${img.mimeType || img.mime_type || 'image/png'};base64,${img.data}`;
+          } catch (e) { console.warn('Image generation failed on', model, e); }
+        }
+        return null;
+      }
+
+      // Text-free vector scenes, chosen by the story's subject
+      function pickScene(text) {
+        const t = text.toLowerCase();
+        if (/satellite|freesat|astra|\bdish|lnb|transponder|orbit|sky q|skew/.test(t)) return 'dish';
+        if (/broadband|fibre|fiber|router|wi-?fi|\bip\b|internet|streaming|ofcom.*broadband|isp\b/.test(t)) return 'router';
+        if (/aerial|antenna|install|rooftop|loft|cable|signal strength|amplifier|booster/.test(t)) return 'aerial';
+        if (/transmitter|mast|multiplex|\bmux|retune|frequenc|dtt|arqiva|relay|spectrum|uhf|terrestrial/.test(t)) return 'mast';
+        return 'tv';
+      }
+
+      function sceneSvg(scene, seed) {
+        const rnd = (() => { let x = seed || 7; return () => (x = (x * 9301 + 49297) % 233280) / 233280; })();
+        const dusk = rnd() > 0.5;
+        const sky = dusk ? ['#2b3a55', '#e8835a'] : ['#6f9fcf', '#dcebf5'];
+        const hill = dusk ? '#3a3f4a' : '#7a9a6a';
+        const hill2 = dusk ? '#2c3038' : '#5f7f52';
+        const ink = '#2f3237', accent = '#e8521f';
+        const defs = `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>
+          <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9e2d6"/><stop offset="1" stop-color="#cfc6b6"/></linearGradient>
+          <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2d6fb5"/><stop offset="0.55" stop-color="#5fb0d9"/><stop offset="1" stop-color="${accent}"/></linearGradient></defs>`;
+        const landscape = `<rect width="800" height="800" fill="url(#sky)"/>
+          <path d="M0 560 Q200 470 400 540 T800 520 V800 H0Z" fill="${hill}"/><path d="M0 640 Q260 560 520 630 T800 610 V800 H0Z" fill="${hill2}"/>`;
+        const arcs = (x, y, n, c) => Array.from({ length: n }, (_, i) =>
+          `<path d="M${x - 40 - i * 34} ${y - 10 - i * 22} A${60 + i * 40} ${60 + i * 40} 0 0 1 ${x + 40 + i * 34} ${y - 10 - i * 22}" fill="none" stroke="${c}" stroke-width="6" stroke-linecap="round" opacity="${0.85 - i * 0.18}"/>`).join('');
+        let body = '';
+        if (scene === 'mast') {
+          let lattice = '';
+          for (let y = 220; y < 600; y += 40) {
+            const w1 = 14 + (y - 200) * 0.12, w2 = 14 + (y + 40 - 200) * 0.12;
+            lattice += `<path d="M${400 - w1} ${y} L${400 + w2} ${y + 40} M${400 + w1} ${y} L${400 - w2} ${y + 40} M${400 - w2} ${y + 40} H${400 + w2}" stroke="${ink}" stroke-width="4"/>`;
+          }
+          body = landscape + arcs(400, 200, 4, '#ffffff') +
+            `<path d="M386 200 L${400 - 62} 600 M414 200 L${400 + 62} 600" stroke="${ink}" stroke-width="7"/>${lattice}
+             <rect x="392" y="120" width="16" height="85" fill="${ink}"/><circle cx="400" cy="116" r="9" fill="${accent}"/>
+             <circle cx="400" cy="330" r="6" fill="${accent}"/><circle cx="400" cy="470" r="6" fill="${accent}"/>
+             <rect x="352" y="590" width="96" height="40" fill="${ink}"/>`;
+        } else if (scene === 'dish') {
+          body = landscape + `<g transform="translate(560 150) rotate(-25)"><rect x="-38" y="-14" width="76" height="28" fill="#cfd6dd"/>
+              <rect x="-110" y="-10" width="60" height="20" fill="#3b6ea5"/><rect x="50" y="-10" width="60" height="20" fill="#3b6ea5"/></g>
+            <path d="M540 172 L455 268" stroke="#ffffff" stroke-width="4" stroke-dasharray="12 12" opacity="0.8"/>
+            <rect x="0" y="380" width="800" height="420" fill="url(#wall)"/>
+            ${Array.from({ length: 8 }, (_, i) => `<line x1="0" y1="${420 + i * 48}" x2="800" y2="${420 + i * 48}" stroke="#bdb3a2" stroke-width="3"/>`).join('')}
+            <rect x="200" y="470" width="110" height="16" fill="${ink}"/><rect x="196" y="440" width="16" height="70" fill="${ink}"/>
+            <g transform="translate(300 420) rotate(-135)"><ellipse cx="0" cy="0" rx="120" ry="135" fill="#e9edf1" stroke="${ink}" stroke-width="6"/>
+              <ellipse cx="0" cy="0" rx="85" ry="96" fill="none" stroke="#c4ccd4" stroke-width="4"/>
+              <line x1="0" y1="80" x2="0" y2="200" stroke="${ink}" stroke-width="8"/><rect x="-16" y="196" width="32" height="34" rx="6" fill="${accent}"/></g>`;
+        } else if (scene === 'aerial') {
+          let tiles = '';
+          for (let r = 0; r < 6; r++) for (let c = 0; c < 12; c++) tiles += `<rect x="${c * 70 + (r % 2) * 35 - 35}" y="${500 + r * 50}" width="66" height="46" fill="${r % 2 ? '#8a4b3a' : '#7b4233'}"/>`;
+          body = landscape + `<rect x="0" y="490" width="800" height="310" fill="#5b2f25"/>${tiles}
+            <rect x="560" y="380" width="90" height="130" fill="#9a5a45"/><rect x="550" y="370" width="110" height="18" fill="#6e3d30"/>
+            <line x1="330" y1="160" x2="330" y2="520" stroke="${ink}" stroke-width="10"/>
+            <line x1="170" y1="230" x2="560" y2="230" stroke="${ink}" stroke-width="8"/>
+            ${Array.from({ length: 11 }, (_, i) => `<line x1="${195 + i * 34}" y1="${200 + (i === 1 ? -20 : 0)}" x2="${195 + i * 34}" y2="${260 + (i === 1 ? 20 : 0)}" stroke="${ink}" stroke-width="6"/>`).join('')}
+            <rect x="210" y="218" width="40" height="24" fill="${accent}"/>
+            <path d="M330 520 C320 600 380 640 360 800" stroke="${ink}" stroke-width="6" fill="none"/>` + arcs(620, 180, 3, '#ffffff');
+        } else if (scene === 'router') {
+          body = `<rect width="800" height="800" fill="url(#wall)"/><rect x="0" y="520" width="800" height="280" fill="#8a6a4f"/>
+            <rect x="0" y="520" width="800" height="16" fill="#6f533d"/>
+            <rect x="230" y="420" width="340" height="110" rx="16" fill="#f4f4f2" stroke="${ink}" stroke-width="6"/>
+            <line x1="280" y1="420" x2="250" y2="250" stroke="${ink}" stroke-width="10" stroke-linecap="round"/>
+            <line x1="520" y1="420" x2="550" y2="250" stroke="${ink}" stroke-width="10" stroke-linecap="round"/>
+            ${[0, 1, 2, 3, 4].map(i => `<circle cx="${300 + i * 40}" cy="478" r="8" fill="${i < 4 ? '#3fae5a' : accent}"/>`).join('')}
+            <path d="M570 500 C680 520 700 600 800 590" stroke="#f2c14e" stroke-width="7" fill="none"/>
+            <path d="M570 480 C690 470 720 560 800 540" stroke="#3b6ea5" stroke-width="7" fill="none"/>` + arcs(400, 250, 4, accent);
+        } else {
+          body = `<rect width="800" height="800" fill="url(#wall)"/><rect x="0" y="560" width="800" height="240" fill="#7d6450"/>
+            <rect x="140" y="170" width="520" height="320" rx="10" fill="${ink}"/><rect x="160" y="190" width="480" height="280" fill="url(#screen)"/>
+            <path d="M160 400 Q300 330 420 380 T640 350 V470 H160Z" fill="#ffffff" opacity="0.18"/>
+            <rect x="370" y="490" width="60" height="50" fill="${ink}"/><rect x="290" y="536" width="220" height="14" rx="6" fill="${ink}"/>
+            <rect x="200" y="590" width="400" height="60" rx="8" fill="#4a3a2e"/><rect x="340" y="606" width="120" height="26" rx="4" fill="#222"/>
+            <circle cx="446" cy="619" r="5" fill="#3fae5a"/>`;
+        }
+        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="1000" height="1000">${defs}${body}</svg>`;
+      }
+
+      async function svgToPng(svg) {
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        await img.decode();
+        const c = document.createElement('canvas');
+        c.width = 1000; c.height = 1000;
+        c.getContext('2d').drawImage(img, 0, 0, 1000, 1000);
+        return c.toDataURL('image/png');
+      }
+
+      async function illustrationFor(headline, summary, aspect, key) {
+        if (key) {
+          const ai = await generateAiImage(headline, summary, aspect, key);
+          if (ai) return ai;
+        }
+        const text = `${headline} ${summary}`;
+        let seed = 0;
+        for (const ch of text) seed = (seed * 31 + ch.charCodeAt(0)) % 100000;
+        return svgToPng(sceneSvg(pickScene(text), seed));
+      }
+
+      function setPhoto(index, dataUrl) {
+        const el = document.querySelectorAll('#np-stage .np-photo')[index];
+        if (!el || !dataUrl) return;
+        el.style.backgroundImage = `url('${dataUrl}')`;
+        el.querySelector('.np-photo-ph')?.remove();
+        if (!el.querySelector('.np-illus')) el.insertAdjacentHTML('afterbegin', '<div class="np-illus">Illustration</div>');
+      }
+
+      // Render the page natively via SVG foreignObject (exact browser layout, embedded fonts)
+      let npFontCss = null;
+      async function getEmbeddedFontCss() {
+        if (npFontCss !== null) return npFontCss;
+        const link = [...document.querySelectorAll('link[rel="stylesheet"]')].find(l => l.href.includes('Abril+Fatface'));
+        let css = await (await fetch(link.href)).text();
+        // Keep latin subsets only
+        css = css.split('/*').filter(chunk => /^\s*latin(-ext)?\s*\*\//.test(chunk)).map(c => '/*' + c).join('\n');
+        const urls = [...new Set([...css.matchAll(/url\((https:[^)]+)\)/g)].map(m => m[1]))];
+        const data = await Promise.all(urls.map(async u => blobToDataUrl(await (await fetch(u)).blob())));
+        urls.forEach((u, i) => { css = css.split(u).join(data[i]); });
+        npFontCss = css;
+        return css;
+      }
+
+      async function renderNative(el, scale) {
+        const W = 794, H = 1123;
+        const fontCss = await getEmbeddedFontCss();
+        const npCss = document.getElementById('np-style').textContent;
+        const reset = '*,*::before,*::after{box-sizing:border-box;margin:0;border:0 solid #e5e7eb}';
+        const html = new XMLSerializer().serializeToString(el);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W * scale}" height="${H * scale}" viewBox="0 0 ${W} ${H}">` +
+          `<foreignObject x="0" y="0" width="${W}" height="${H}"><div xmlns="http://www.w3.org/1999/xhtml">` +
+          `<style>${fontCss}${reset}${npCss}</style>${html}</div></foreignObject></svg>`;
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        await img.decode();
+        await new Promise(r => setTimeout(r, 300));
+        const canvas = document.createElement('canvas');
+        canvas.width = W * scale; canvas.height = H * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toDataURL('image/jpeg', 0.1); // throws if tainted
+        return canvas;
+      }
+
+      // ===== 8x8 word search =====
+      const WS_TERMS = ['AERIAL', 'DISH', 'LNB', 'FREESAT', 'FREEVIEW', 'SIGNAL', 'RETUNE', 'MUX', 'CHANNEL', 'ASTRA',
+        'DECODER', 'TUNER', 'MAST', 'BOOSTER', 'DTT', 'HDMI', 'UHF', 'BEAM', 'CABLE', 'RELAY', 'DIPLEXER', 'DOWNLEAD',
+        'OFCOM', 'FREELY', 'SCART', 'ORBIT', 'SKEW', 'BRACKET', 'SPLITTER', 'SATELLITE', 'TRANSMITTER', 'TRANSPONDER',
+        'MULTISWITCH', 'BROADCAST', 'AMPLIFIER', 'ATTENUATOR', 'CONNECTOR', 'COAXIAL', 'FREQUENCY', 'MULTIPLEX',
+        'BANDWIDTH', 'RECEIVER', 'ELEVATION', 'AZIMUTH', 'POLARISATION', 'INTERFERENCE', 'WALLPLATE', 'FLYLEAD',
+        'DIGITAL', 'SWITCHOVER', 'GAIN', 'EPG', 'TELEVISION', 'REFLECTOR', 'DIPOLE', 'YAGI', 'SPECTRUM', 'HIGHGAIN'];
+
+      function buildWordSearch(size = 16, target = 20, terms = WS_TERMS) {
+        const dirs = [[0,1],[1,0],[1,1],[-1,1],[0,-1],[-1,0],[-1,-1],[1,-1]];
+        for (let attempt = 0; attempt < 50; attempt++) {
+          const grid = Array.from({ length: size }, () => Array(size).fill(''));
+          const pool = [...new Set(terms)].filter(w => /^[A-Z]+$/.test(w)).sort(() => Math.random() - 0.5);
+          const placed = [];
+          const cells = new Set();
+          for (const word of pool) {
+            if (placed.length >= target) break;
+            if (word.length > size) continue;
+            // Keep a spread of lengths: at most 3 words of 3-4 letters
+            if (word.length <= 4 && placed.filter(w => w.length <= 4).length >= Math.ceil(target / 5)) continue;
+            let ok = false;
+            for (let t = 0; t < 150 && !ok; t++) {
+              const [dr, dc] = dirs[Math.floor(Math.random() * (placed.length < 3 ? 2 : dirs.length))];
+              const r0 = Math.floor(Math.random() * size), c0 = Math.floor(Math.random() * size);
+              const r1 = r0 + dr * (word.length - 1), c1 = c0 + dc * (word.length - 1);
+              if (r1 < 0 || r1 >= size || c1 < 0 || c1 >= size) continue;
+              let fits = true;
+              for (let i = 0; i < word.length; i++) {
+                const ch = grid[r0 + dr * i][c0 + dc * i];
+                if (ch && ch !== word[i]) { fits = false; break; }
+              }
+              if (!fits) continue;
+              for (let i = 0; i < word.length; i++) { grid[r0 + dr * i][c0 + dc * i] = word[i]; cells.add((r0 + dr * i) * size + c0 + dc * i); }
+              ok = true;
+            }
+            if (ok) placed.push(word);
+          }
+          if (placed.length < target) continue;
+          const letters = 'ABCDEFGHIKLMNOPRSTUVWY';
+          for (const row of grid) for (let c = 0; c < size; c++) if (!row[c]) row[c] = letters[Math.floor(Math.random() * letters.length)];
+          // Each word must appear exactly once (palindromes aside)
+          const count = w => {
+            let hits = 0;
+            for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) for (const [dr, dc] of dirs) {
+              let m = true;
+              for (let i = 0; i < w.length; i++) {
+                const rr = r + dr * i, cc = c + dc * i;
+                if (rr < 0 || rr >= size || cc < 0 || cc >= size || grid[rr][cc] !== w[i]) { m = false; break; }
+              }
+              if (m) hits++;
+            }
+            return w === [...w].reverse().join('') ? hits / 2 : hits;
+          };
+          if (placed.some(w => count(w) !== 1)) continue;
+          return { grid, words: placed.sort(), cells };
+        }
+        return null;
+      }
+
+      function gridHtml(ws, cell, font, solution) {
+        const n = ws.grid.length;
+        const cellsHtml = ws.grid.flat().map((ch, i) => {
+          const edge = `${(i + 1) % n === 0 ? 'border-right:0;' : ''}${i >= n * (n - 1) ? 'border-bottom:0;' : ''}`;
+          const hit = solution && ws.cells.has(i) ? ' class="hit"' : '';
+          return `<div${hit} style="${edge}${solution ? '' : `font-size:${font}px;`}">${ch}</div>`;
+        }).join('');
+        return `<div class="np-ws-grid" style="grid-template-columns:repeat(${n},${cell}px);grid-auto-rows:${cell}px">${cellsHtml}</div>`;
+      }
+
+      const WS_STOP = new Set(('THAT,THIS,WITH,FROM,HAVE,WILL,BEEN,THEY,THEIR,THEM,THERE,THESE,THOSE,WHICH,WHAT,WHEN,WHERE,WHILE,WOULD,COULD,SHOULD,' +
+        'ABOUT,AFTER,ALSO,SAID,SAYS,INTO,OVER,THAN,THEN,SOME,SUCH,ONLY,OTHER,JUST,LIKE,MANY,MOST,MUCH,VERY,YOUR,BEING,BECAUSE,BEFORE,BETWEEN,' +
+        'THROUGH,DURING,UNDER,STILL,BOTH,EACH,HERE,DOES,MADE,MAKE,YEAR,YEARS,WEEK,WEEKS,MONTH,MONTHS,TIME,FIRST,LAST,NEXT,WELL,EVEN,BACK,MORE,' +
+        'WERE,WHO,WHOM,WHOSE,ANOTHER,AGAINST,AROUND,ACROSS,ALREADY,ALTHOUGH,ANYONE,ANYTHING,EVERY,FURTHER,HOWEVER,LATER,LESS,MIGHT,MUST,NEAR,' +
+        'NEVER,ONCE,PART,SAME,SINCE,TAKE,TAKES,THING,THINGS,THOUGH,TODAY,UNTIL,UPON,USED,USING,WANT,WAYS,WITHIN,WITHOUT,YESTERDAY,THEREFORE,' +
+        'ITSELF,COME,COMES,GOING,GIVE,GIVEN,GOES,HELP,KEEP,KNOW,LOOK,NEED,NEEDS,PLEASE,SHOW,SEEN,TOLD,WENT,WORK,WORKS,ABLE,AWAY,DOWN,FULL,' +
+        'GOOD,GREAT,HIGH,LARGE,LONG,LOW,NEWS,OPEN,REAL,RIGHT,SMALL,SURE,TRUE,BEST,BETTER,LATEST,EXPECTED,INCLUDING,ACCORDING,FOLLOWING,READ,POST,' +
+        'APPEARED,CLICK,HTTPS,HTTP,WWW,HTML,ARTICLE,STORY,REPORT,REPORTS,REPORTED,MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY,' +
+        'JANUARY,FEBRUARY,MARCH,APRIL,JUNE,JULY,AUGUST,SEPTEMBER,OCTOBER,NOVEMBER,DECEMBER,YOURSELF,WHETHER,EITHER,OTHERS,AMONG,ALONG').split(','));
+
+      // Words for the puzzle, taken from the articles themselves (domain terms ranked first)
+      function articleWords(arts, scrubTerms) {
+        const banned = new Set(scrubTerms.flatMap(t => t.toUpperCase().split(/[^A-Z]+/)).filter(Boolean));
+        const counts = new Map();
+        for (const a of arts) {
+          const text = `${a.title} ${a.description || ''} ${a.content || ''}`.toUpperCase();
+          const uniq = new Set(text.match(/(?<![A-Z'’-])[A-Z]{4,12}(?![A-Z'’-])/g) || []);
+          for (const w of uniq) if (!WS_STOP.has(w) && !banned.has(w)) counts.set(w, (counts.get(w) || 0) + 1);
+        }
+        const domain = /CHANNEL|TRANSMIT|SATELLIT|AERIAL|SIGNAL|BROADBAND|STREAM|FIBRE|MULTIPLEX|FREQUEN|DISH|TUNER|RETUNE|MAST|DIGITAL|NETWORK|VIEWER|SPECTRUM|FREEVIEW|FREESAT|FREELY|RADIO|TELEVISION|BROADCAST|RECEIVER|DECODER|PLATFORM|ARQIVA|OFCOM|ASTRA|AMPLIF|CABLE|ROUTER|ENGINEER|HOUSEHOLD|SERVICE/;
+        return [...counts].map(([w, c]) => ({ w, score: c + (domain.test(w) ? 6 : 0) + (WS_TERMS.includes(w) ? 4 : 0) }))
+          .sort((x, y) => y.score - x.score || y.w.length - x.w.length).map(x => x.w);
+      }
+
+      function buildPuzzleBlock(arts, scrubTerms) {
+        const fromArticles = articleWords(arts, scrubTerms).slice(0, 30);
+        const pool = fromArticles.length >= 16 ? fromArticles : [...fromArticles, ...WS_TERMS.filter(w => w.length <= 12)];
+        let ws = null;
+        for (const target of [12, 11, 10, 9, 8]) { ws = buildWordSearch(12, target, pool); if (ws) break; }
+        if (!ws) return '';
+        return `<div class="np-puzzle">
+            <div class="np-puzzle-title">Word Finder</div>
+            <div class="np-puzzle-sub">All ${ws.words.length} words appear in this issue. They run in any direction.</div>
+            ${gridHtml(ws, 27, 15, false)}
+            <div class="np-puzzle-foot">
+              <div class="np-puzzle-words">${ws.words.map(w => `<span>${w}</span>`).join('')}</div>
+              <div class="np-ws-solution">${gridHtml(ws, 9, 0, true)}<div class="np-ws-sol-label">Solution</div></div>
+            </div>
+          </div>`;
+      }
+
+      function buildPuzzlePageHtml(month) {
+        const ws = buildWordSearch(16, 20);
+        if (!ws) return '';
+        return `
+          <div class="np-page" id="np-page2">
+            <div class="np-rules"></div>
+            <div class="np-dateline"><span>${npEsc(month)} Edition</span><span>Puzzle Page</span></div>
+            <div class="np-mast-sm">THE <span>RIGGER</span></div>
+            <div class="np-nav">Puzzles &bull; Word Search &bull; TV &amp; Satellite Terms &bull; ${npEsc(month)}</div>
+            <div class="np-ws-head">
+              <div class="np-ws-title">Word Search</div>
+              <div class="np-ws-sub">Find all ${ws.words.length} words. They run in any direction.</div>
+            </div>
+            ${gridHtml(ws, 38, 22, false)}
+            <div class="np-ws-foot">
+              <div class="np-ws-words">${ws.words.map(w => `<span>${w}</span>`).join('')}</div>
+              <div class="np-ws-solution">
+                ${gridHtml(ws, 12, 0, true)}
+                <div class="np-ws-sol-label">Solution</div>
+              </div>
+            </div>
+            <div class="np-bottom"></div>
+          </div>`;
+      }
+
+      // ===== Remove every reference to where a story came from =====
+      function sourceTerms() {
+        const terms = new Set(['Cord Busters', 'cordbusters']);
+        for (const f of FEEDS.combined.urls) {
+          if (f.source) {
+            terms.add(f.source);
+            const core = f.source.replace(/\s+(Freeview|Freesat|Alert|Notice)$/i, '').trim();
+            if (core.length >= 4 && !/^(terrestrial|satellite|freeview|freesat)$/i.test(core)) terms.add(core);
+          }
+          try {
+            const host = new URL(f.url).hostname.replace(/^www\./, '');
+            terms.add(host);
+            terms.add(host.split('.')[0]);
+          } catch (e) { /* ignore */ }
+        }
+        return [...terms].filter(t => t.length >= 3).sort((a, b) => b.length - a.length);
+      }
+
+      function termRegex(terms) {
+        const esc = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'));
+        return new RegExp(`(^|[^A-Za-z0-9])(${esc.join('|')})(?=$|[^A-Za-z0-9])`, 'i');
+      }
+
+      // Drop whole sentences that name a source
+      function scrubText(text, re) {
+        return String(text || '').split(/\n\s*\n/).map(para =>
+          para.split(/(?<=[.!?])\s+/).filter(sen => !re.test(sen)).join(' ').trim()
+        ).filter(Boolean).join('\n\n');
+      }
+
+      // Remove source names, "Site:" prefixes and "- Site" / "| Site" suffixes from headlines
+      function scrubTitle(title, terms) {
+        let t = String(title || '');
+        for (const term of terms) {
+          const e = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+          t = t.replace(new RegExp(`\\s*[|–-]\\s*${e}\\s*$`, 'i'), '')
+               .replace(new RegExp(`^\\s*${e}('s)?\\s*[:|–-]?\\s*`, 'i'), '')
+               .replace(new RegExp(`(^|[^A-Za-z0-9])${e}('s)?(?=$|[^A-Za-z0-9])`, 'gi'), '$1');
+        }
+        t = t.replace(/\s+[|–-]\s*(?=[(\[]|$)/g, ' ').replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').replace(/^[\s:|–-]+|[\s:|–-]+$/g, '').trim();
+        return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+      }
+
+      function shortCaption(headline) {
+        const words = headline.split(/\s+/);
+        return words.length <= 6 ? headline : words.slice(0, 5).join(' ').replace(/[,:;]+$/, '') + '…';
+      }
+
+      // ===== Grounded rewriting (Gemini) =====
+      const GEMINI_MODEL = 'gemini-flash-latest';
+
+      // The company's own key is used by the server; nobody types one in. (The value only means "AI is available".)
+      function getGeminiKey() { return 'server'; }
+
+      async function fetchArticleText(article) {
+        if (article.content && article.content.split(/\s+/).length > 120) return article.content;
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 12000);
+          const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(article.link)}`, { signal: ctrl.signal });
+          clearTimeout(t);
+          const html = (await r.json()).contents || '';
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          doc.querySelectorAll('script,style,nav,header,footer,aside,form,figure,.comments,#comments,.related,.share').forEach(n => n.remove());
+          const root = doc.querySelector('article .entry-content, .entry-content, .post-content, article, main') || doc.body;
+          const text = [...root.querySelectorAll('p')].map(p => p.textContent.trim()).filter(t => t.length > 40).join('\n\n');
+          if (text.split(/\s+/).length > 60) return text;
+        } catch (e) { /* use excerpt */ }
+        return article.content || article.description || '';
+      }
+
+      // Reject any rewrite introducing numbers or proper nouns absent from the source
+      function isGrounded(output, source) {
+        const src = source.toLowerCase();
+        const nums = output.match(/\d+(?:[.,]\d+)*/g) || [];
+        for (const n of nums) if (!src.includes(n.toLowerCase())) return { ok: false, bad: n };
+        const sentences = output.split(/(?<=[.!?])\s+|\n+/);
+        for (const sen of sentences) {
+          const words = sen.split(/\s+/).slice(1);
+          for (const w of words) {
+            const clean = w.replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '');
+            if (clean.length > 1 && /^[A-Z]/.test(clean) && !src.includes(clean.toLowerCase())) return { ok: false, bad: clean };
+          }
+        }
+        return { ok: true };
+      }
+
+      async function rewriteStory(article, sourceText, targetWords, key, scrub) {
+        const source = `${article.title}\n\n${sourceText}`.slice(0, 12000);
+        const sys = 'You are a sub-editor on a UK TV and broadcast trade newspaper. Rewrite the supplied source article in full as original newspaper copy in British English. ' +
+          'Strict rules: use ONLY facts stated in the source. Do not add any name, number, date, place, product, quote, cause, consequence or claim that is not in the source. ' +
+          'Do not speculate or give advice the source does not give. Do not quote more than 8 consecutive words from the source. ' +
+          'Never name or refer to the publication, website, blog, author, newsletter or RSS feed the source came from, and never write phrases such as "according to the site" or "reports". ' +
+          'Every number and proper noun you use must appear in the source exactly as written. ' +
+          'Write in inverted-pyramid style: the most important facts first, each later paragraph less essential, so the story can be cut from the bottom at any paragraph. ' +
+          'Use short paragraphs of 2 to 4 sentences. Plain text only: no headings, lists or markdown. ' +
+          'Use all of the relevant material in the source to reach the target length; if the source has less, write less rather than pad. ' +
+          'Also write a newspaper headline of at most 12 words and a photo caption of 2 to 6 words, both using only facts from the source. ' +
+          'Return JSON only: {"headline": "...", "caption": "...", "body": "paragraph one\\n\\nparagraph two"}';
+        const user = `Target length: about ${targetWords} words.\n\nSOURCE:\n${source}`;
+        try {
+          let r;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: sys }] },
+                contents: [{ role: 'user', parts: [{ text: user }] }],
+                generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+              })
+            });
+            if (r.status !== 429 && r.status !== 503) break;
+            await new Promise(res => setTimeout(res, 2000 * 2 ** attempt));
+          }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          const raw = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').replace(/```json|```/g, '').trim();
+          const out = JSON.parse(raw);
+          const body = scrubText(String(out.body || '').trim(), scrub.re);
+          if (!body) return null;
+          const check = isGrounded(body, source);
+          if (!check.ok) { console.warn(`Rewrite rejected for "${article.title}": ungrounded "${check.bad}"`); return null; }
+          const clean = v => {
+            const t = String(v || '').replace(/\s+/g, ' ').trim();
+            return t && !scrub.re.test(t) && isGrounded(t, source).ok ? t : '';
+          };
+          return { body, headline: clean(out.headline), caption: clean(out.caption) };
+        } catch (e) {
+          console.warn('Rewrite failed', e);
+          return null;
+        }
+      }
+
+      // Words of body text a box can hold
+      function measureCapacity(box) {
+        const filler = 'the new channel will move to a different multiplex from next week across the network ';
+        const words = filler.repeat(80).trim().split(' ');
+        const p = document.createElement('p');
+        box.appendChild(p);
+        let lo = 0, hi = words.length;
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi) / 2);
+          p.textContent = words.slice(0, mid).join(' ');
+          if (overflows(box)) hi = mid - 1; else lo = mid;
+        }
+        box.removeChild(p);
+        return lo;
+      }
+
+      function toBlocks(title, body, a) {
+        const paras = String(body).split(/\n\s*\n|\n/).map(t => t.trim()).filter(Boolean);
+        return paras.map((text, i) => (i === 0 && title ? { title, text, a } : { text, a }));
+      }
+
+      function innerPageHtml(n, month, section) {
+        return `
+          <div class="np-page" id="np-p${n}">
+            <div class="np-rules"></div>
+            <div class="np-inner-head"><span class="t">THE <span>RIGGER</span></span><span class="d">${npEsc(month)} Edition</span></div>
+            <div class="np-section">${section}</div>
+            <div class="np-inner-h1" id="p${n}-h1"></div>
+            <div class="np-inner-top">
+              ${photoHtml(null, '')}
+              <div class="np-col np-text" id="p${n}-c0"></div>
+            </div>
+            <div class="np-thin"></div>
+            <div class="np-cols3">
+              <div class="np-col np-text" id="p${n}-c1"></div>
+              <div class="np-col np-text" id="p${n}-c2"></div>
+              <div class="np-col np-text" id="p${n}-c3"></div>
+            </div>
+            <div class="np-bottom"></div>
+            <div class="np-folio"><span>The Rigger</span><span>${n}</span><span>${npEsc(month)}</span></div>
+          </div>`;
+      }
+
+      async function createNewspaper(evt) {
+        if (state.isLoading || !state.articles.length) {
+          showToast('Wait for the feeds to finish loading', false);
+          return;
+        }
+        if (!window.html2canvas || !window.jspdf) {
+          showToast('PDF libraries failed to load. Check your connection.', false);
+          return;
+        }
+        const key = getGeminiKey(evt && evt.shiftKey);
+        setNewspaperBtn(false, 'Building...');
+
+        try {
+          const scrub = { terms: sourceTerms() };
+          scrub.re = termRegex(scrub.terms);
+
+          // Every article goes in; identical headlines count once
+          const seenHeads = new Set();
+          const articles = state.articles
+            .map(a => ({ ...a, title: npClean(a.title), description: npClean(a.description) }))
+            .filter(a => a.title)
+            .filter(a => { const k = scrubTitle(a.title, scrub.terms).toLowerCase(); if (seenHeads.has(k)) return false; seenHeads.add(k); return true; });
+
+          // Page leads: prefer recent stories with photos
+          const leads = articles.slice(0, 30).filter(a => a.thumbnail).slice(0, 4);
+          for (const a of articles) if (leads.length < 4 && !leads.includes(a)) leads.push(a);
+          const [lead, second, lead2, lead3] = leads;
+          let queue = articles.filter(a => !leads.includes(a));
+
+          const now = new Date();
+          const month = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+          const thumbs = await Promise.all(leads.map(a => loadImageData(a.thumbnail)));
+
+          let stage = document.getElementById('np-stage');
+          if (stage) stage.remove();
+          stage = document.createElement('div');
+          stage.id = 'np-stage';
+          stage.innerHTML = `
+            <div class="np-page" id="np-page">
+              <div class="np-rules"></div>
+              <div class="np-dateline"><span>${npEsc(month)} Edition</span><span>UK TV, Freeview &amp; Broadcast News</span></div>
+              <div class="np-mast" id="np-mast">THE <span>RIGGER</span></div>
+              <div class="np-nav">Freeview &bull; Freesat &bull; Streaming &bull; Broadband &bull; Transmitters &bull; Regulation &bull; ${npEsc(month)}</div>
+              <div class="np-h1" id="np-h1"></div>
+              <div class="np-lead">
+                <div class="np-lead-text np-text" id="np-lead-text"></div>
+                ${photoHtml(null, '')}
+              </div>
+              <div class="np-divider"></div>
+              <div class="np-second">
+                <div class="np-second-left">
+                  <div class="np-h2" id="np-h2"></div>
+                  ${photoHtml(null, '')}
+                </div>
+                <div class="np-col np-text" id="np-col-a"></div>
+                <div class="np-col np-text" id="np-col-b"></div>
+              </div>
+              <div class="np-bottom"></div>
+            </div>
+            ${lead2 ? innerPageHtml(2, month, 'News') : ''}
+            ${lead3 ? innerPageHtml(3, month, 'More News') : ''}
+            <div class="np-page" id="np-p4">
+              <div class="np-rules"></div>
+              <div class="np-dateline"><span>${npEsc(month)} Edition</span><span>Back Page</span></div>
+              <div class="np-mast-sm">THE <span>RIGGER</span></div>
+              <div class="np-nav">News in Brief &bull; Word Finder &bull; ${npEsc(month)}</div>
+              <div class="np-back">
+                <div class="np-briefs" id="p4-b1"></div>
+                <div class="np-briefs" id="p4-b2"></div>
+                <div class="np-back-right">
+                  <div class="np-back-row">
+                    <div class="np-briefs" id="p4-b3"></div>
+                    <div class="np-briefs" id="p4-b4"></div>
+                  </div>
+                  ${buildPuzzleBlock(articles, scrub.terms)}
+                </div>
+              </div>
+              <div class="np-bottom"></div>
+              <div class="np-folio"><span>The Rigger</span><span>4</span><span>${npEsc(month)}</span></div>
+            </div>`;
+          document.body.appendChild(stage);
+          thumbs.forEach((img, i) => {
+            const el = document.querySelectorAll('#np-stage .np-photo')[i];
+            if (img && el) { el.style.backgroundImage = `url('${img}')`; el.querySelector('.np-photo-ph')?.remove(); }
+          });
+
+          await document.fonts.ready;
+          await Promise.all([
+            document.fonts.load('112px "Abril Fatface"'),
+            document.fonts.load('700 30px "Federo"'),
+            document.fonts.load('13px "Alegreya"'),
+            document.fonts.load('700 11px "Alegreya"')
+          ]).catch(() => {});
+
+          const mast = document.getElementById('np-mast');
+          let ms = 112;
+          while (mast.scrollWidth > mast.clientWidth + 1 && ms > 60) { ms -= 2; mast.style.fontSize = ms + 'px'; }
+
+          const $ = id => document.getElementById(id);
+          const leadBox = $('np-lead-text'), colA = $('np-col-a'), colB = $('np-col-b');
+          const inner = n => [0, 1, 2, 3].map(i => $(`p${n}-c${i}`)).filter(Boolean);
+          const capLead = measureCapacity(leadBox);
+          const capCols = measureCapacity(colA) + measureCapacity(colB);
+          const cap2 = inner(2).reduce((t, b) => t + measureCapacity(b), 0);
+          const cap3 = inner(3).reduce((t, b) => t + measureCapacity(b), 0);
+
+          // Plan which stories get full rewrites (front page and both inside pages)
+          const secondTarget = Math.round(capCols * 0.4);
+          const n1 = Math.min(queue.length, Math.ceil((capCols - secondTarget) / 110) + 1);
+          const each1 = Math.round((capCols - secondTarget) / Math.max(1, n1 - 1)) - 15;
+          const pageLeadTarget = cap => Math.round(cap * 0.3);
+          const n2 = lead2 ? Math.max(0, Math.round((cap2 - pageLeadTarget(cap2)) / 170)) : 0;
+          const n3 = lead3 ? Math.max(0, Math.round((cap3 - pageLeadTarget(cap3)) / 170)) : 0;
+          const plan1 = queue.slice(0, n1), plan2 = queue.slice(n1, n1 + n2), plan3 = queue.slice(n1 + n2, n1 + n2 + n3);
+
+          const rewrites = new Map();
+          if (key) {
+            setNewspaperBtn(false, 'Rewriting...');
+            const jobs = [
+              [lead, Math.round(capLead * 1.2)],
+              [second, Math.round(secondTarget * 1.2)],
+              ...plan1.map(a => [a, Math.max(80, Math.round(each1 * 1.2))]),
+              ...(lead2 ? [[lead2, Math.round(pageLeadTarget(cap2) * 1.2)]] : []),
+              ...plan2.map(a => [a, 180]),
+              ...(lead3 ? [[lead3, Math.round(pageLeadTarget(cap3) * 1.2)]] : []),
+              ...plan3.map(a => [a, 180])
+            ].filter(([a]) => a);
+            let done = 0;
+            const results = await runLimited(jobs.map(([a, n]) => async () => {
+              const src = await fetchArticleText(a);
+              const r = await rewriteStory(a, src, n, key, scrub);
+              setNewspaperBtn(false, `Rewriting ${++done}/${jobs.length}`);
+              return [a, r];
+            }), 4);
+            results.forEach(([a, r]) => { if (r) rewrites.set(a, r); });
+            if (!rewrites.size) showToast('Rewrite unavailable, using feed excerpts', false);
+          }
+          const headOf = a => rewrites.get(a)?.headline || scrubTitle(a.title, scrub.terms) || 'News in brief';
+          const capOf = a => rewrites.get(a)?.caption || shortCaption(headOf(a));
+          const bodyOf = a => rewrites.get(a)?.body || scrubText(a.description, scrub.re) || '';
+          const storyBlocks = (a, withTitle) => toBlocks(withTitle ? headOf(a) : null, bodyOf(a) || headOf(a), a);
+          const queueBlocks = () => queue.filter(a => bodyOf(a)).flatMap(a => storyBlocks(a, true));
+          const take = placed => { queue = queue.filter(a => !placed.has(a)); };
+
+          // Headlines and captions
+          const heads = [[$('np-h1'), lead, 2, 18], [$('np-h2'), second, 5, 20], [$('p2-h1'), lead2, 2, 22], [$('p3-h1'), lead3, 2, 22]];
+          for (const [el, a, lines, min] of heads) { if (el && a) { el.textContent = headOf(a); fitHeadline(el, lines, min); } }
+          const caps = document.querySelectorAll('#np-stage .np-cap');
+          leads.forEach((a, i) => { if (caps[i] && a) caps[i].textContent = capOf(a); });
+
+          // Missing photos: generated image of the story's subject
+          const firstSentences = a => (bodyOf(a) || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
+          const aspects = ['16:9', '3:4', '4:3', '4:3'];
+          const needs = leads.map((a, i) => [i, a]).filter(([i, a]) => a && !thumbs[i]);
+          if (needs.length) {
+            setNewspaperBtn(false, 'Creating images...');
+            const made = await runLimited(needs.map(([i, a]) => () => illustrationFor(headOf(a), firstSentences(a), aspects[i], key)), 2);
+            needs.forEach(([i], n) => setPhoto(i, made[n]));
+          }
+
+          // Front page
+          setNewspaperBtn(false, 'Laying out...');
+          take(flowText([leadBox], [...storyBlocks(lead, false), ...queueBlocks()]));
+          take(flowText([colA, colB], [...storyBlocks(second, false), ...queueBlocks()]));
+          if (boxGap(leadBox) > 2 * 17) {
+            let lo = 13.5, hi = 16;
+            for (let i = 0; i < 8; i++) {
+              const mid = (lo + hi) / 2;
+              leadBox.style.fontSize = mid + 'px';
+              leadBox.style.lineHeight = (mid * 17 / 13.5) + 'px';
+              if (overflows(leadBox)) hi = mid; else lo = mid;
+            }
+            leadBox.style.fontSize = lo + 'px';
+            leadBox.style.lineHeight = (lo * 17 / 13.5) + 'px';
+          }
+          // Inside pages
+          if (lead2) take(flowText(inner(2), [...storyBlocks(lead2, false), ...queueBlocks()]));
+          if (lead3) take(flowText(inner(3), [...storyBlocks(lead3, false), ...queueBlocks()]));
+          [leadBox, colA, colB, ...inner(2), ...inner(3)].forEach(verticalJustify);
+
+          // Back page: every remaining story as a brief, shrinking until all fit
+          const briefBoxes = ['p4-b1', 'p4-b2', 'p4-b3', 'p4-b4'].map($);
+          const firstSentence = a => {
+            const t = (bodyOf(a) || '').split(/(?<=[.!?])\s+/)[0] || '';
+            const w = t.split(' ');
+            return w.length > 30 ? w.slice(0, 28).join(' ') + '…' : t;
+          };
+          const items = queue.map(a => ({ a, head: headOf(a), text: firstSentence(a) }));
+          let left = items;
+          const attempts = [
+            ...[1, 0.94, 0.88, 0.82, 0.76].map(sc => ['full', sc]),
+            ...[0.9, 0.84, 0.78, 0.72].map(sc => ['short', sc]),
+            ...[1, 0.92, 0.84, 0.78].map(sc => ['headline', sc]),
+            ...[0.9, 0.84, 0.78, 0.72, 0.66, 0.6, 0.55, 0.5].map(sc => ['runin', sc])
+          ];
+          let briefMode = '';
+          const tried = [];
+          for (const [mode, scale] of attempts) {
+            briefBoxes.forEach(b => b.style.setProperty('--bs', scale));
+            left = fillBriefs(briefBoxes, items, mode);
+            tried.push(`${mode}@${scale}:${left.length}`);
+            briefMode = `${mode}@${scale}`;
+            if (!left.length) break;
+          }
+          const placedCount = articles.length - left.length;
+          window.__npReport = { total: articles.length, placed: placedCount, missing: left.map(x => x.head), briefs: items.length, tried, boxH: briefBoxes.map(b => b.clientHeight) };
+          if (left.length) showToast(`${left.length} stories did not fit`, false);
+
+          // Render the four A4 pages and impose them on a double-sided A3 sheet
+          const renderPage = async el => {
+            try {
+              return await renderNative(el, 2.5);
+            } catch (e) {
+              console.warn('Native render failed, using html2canvas', e);
+              return await html2canvas(el, { scale: 2.5, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: 1200, scrollX: 0, scrollY: 0 });
+            }
+          };
+          setNewspaperBtn(false, 'Rendering...');
+          const blank = () => { const c = document.createElement('canvas'); c.width = 1985; c.height = 2808; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); return c; };
+          const pageEls = [$('np-page'), $('np-p2'), $('np-p3'), $('np-p4')];
+          const canvases = [];
+          for (const el of pageEls) canvases.push(el ? await renderPage(el) : blank());
+          const jpg = c => c.toDataURL('image/jpeg', 0.92);
+
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+          pdf.setProperties({ title: `The Rigger - ${month}`, creator: 'The Rigger' });
+          // Outside: back page | front page. Inside: page 2 | page 3. Fold in half to read.
+          pdf.addImage(jpg(canvases[3]), 'JPEG', 0, 0, 210, 297);
+          pdf.addImage(jpg(canvases[0]), 'JPEG', 210, 0, 210, 297);
+          pdf.addPage('a3', 'landscape');
+          pdf.addImage(jpg(canvases[1]), 'JPEG', 0, 0, 210, 297);
+          pdf.addImage(jpg(canvases[2]), 'JPEG', 210, 0, 210, 297);
+          pdf.save(`The-Rigger-${month.replace(/\s+/g, '-')}-A3.pdf`);
+
+          stage.remove();
+          showToast(`Newspaper created: ${placedCount} of ${articles.length} stories. Print A3 double-sided, flip on short edge.`);
+        } catch (err) {
+          console.error(err);
+          showToast('Newspaper could not be created', false);
+        } finally {
+          setNewspaperBtn(!state.isLoading && state.articles.length > 0, 'Create Newspaper');
+        }
+      }
+
+      async function setFeed(feedKey) {
+        if (state.isLoading) return;
+        state.activeFeed = feedKey;
+
+        // UI Tabs Styling
+        ['combined', 'freeview-alerts', 'rxtv-terrestrial', 'rxtv-satellite', 'cb-freeview', 'ispreview', 'bookmarks'].forEach(key => {
+          const btn = document.getElementById(`tab-${key}`);
+          if (!btn) return;
+          if (key === feedKey) {
+            btn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-white bg-slate-800 shadow-sm whitespace-nowrap";
+          } else {
+            btn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-slate-200 whitespace-nowrap";
+          }
+        });
+
+        const heading = document.getElementById('active-feed-heading');
+        const tag = document.getElementById('active-feed-tag');
+        const subtext = document.getElementById('active-feed-subtext');
+
+        heading.textContent = FEEDS[feedKey].title;
+        tag.textContent = FEEDS[feedKey].path;
+        subtext.textContent = FEEDS[feedKey].desc;
+
+        if (feedKey === 'bookmarks') {
+          state.articles = [...state.bookmarks];
+          applyFilters();
+          setNewspaperBtn(state.articles.length > 0);
+          return;
+        }
+
+        await refresh();
+      }
+
+      async function refresh() {
+        const refreshIcon = document.getElementById('refresh-icon');
+        const lastUpdated = document.getElementById('last-updated-badge');
+        
+        refreshIcon.classList.add('animate-spin');
+        state.isLoading = true;
+        setNewspaperBtn(false);
+        renderSkeletons();
+
+        try {
+          const posts = await fetchActiveFeeds();
+          state.articles = posts;
+          applyFilters();
+          lastUpdated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          showToast('Feed refreshed successfully');
+        } catch (error) {
+          console.error(error);
+          state.articles = FALLBACK_ARTICLES;
+          applyFilters();
+          showToast('Loaded cached feed articles', false);
+        } finally {
+          refreshIcon.classList.remove('animate-spin');
+          state.isLoading = false;
+          setNewspaperBtn(state.articles.length > 0);
+        }
+      }
+
+      function onSearchChange(val) {
+        state.searchQuery = val;
+        const clearBtn = document.getElementById('clear-search-btn');
+        clearBtn.classList.toggle('hidden', !val);
+        applyFilters();
+      }
+
+      function clearSearch() {
+        const input = document.getElementById('search-input');
+        input.value = '';
+        state.searchQuery = '';
+        document.getElementById('clear-search-btn').classList.add('hidden');
+        applyFilters();
+      }
+
+      function setCategoryFilter(cat) {
+        state.categoryFilter = cat;
+        document.querySelectorAll('.cat-pill').forEach(btn => {
+          const matches = btn.getAttribute('data-cat') === cat;
+          if (matches) {
+            btn.className = "cat-pill px-2.5 py-1 rounded-lg border border-brand-500/40 bg-brand-500/10 text-brand-400 font-medium whitespace-nowrap transition-colors";
+          } else {
+            btn.className = "cat-pill px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap transition-colors";
+          }
+        });
+        applyFilters();
+      }
+
+      function setSort(order) {
+        state.sortOrder = order;
+        applyFilters();
+      }
+
+      function setViewMode(mode) {
+        state.viewMode = mode;
+        const gridBtn = document.getElementById('view-grid-btn');
+        const listBtn = document.getElementById('view-list-btn');
+
+        if (mode === 'grid') {
+          gridBtn.className = "p-1.5 rounded-md text-brand-400 bg-slate-800 transition-colors";
+          listBtn.className = "p-1.5 rounded-md text-slate-400 hover:text-slate-200 transition-colors";
+        } else {
+          listBtn.className = "p-1.5 rounded-md text-brand-400 bg-slate-800 transition-colors";
+          gridBtn.className = "p-1.5 rounded-md text-slate-400 hover:text-slate-200 transition-colors";
+        }
+        renderArticles();
+      }
+
+      function resetFilters() {
+        clearSearch();
+        setCategoryFilter('all');
+        document.getElementById('sort-select').value = 'newest';
+        state.sortOrder = 'newest';
+        applyFilters();
+      }
+
+      // Initialize
+      document.addEventListener('DOMContentLoaded', () => {
+        setFeed('combined');
+      });
+
+      // Keyboard escape to close modal
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeReader();
+      });
+
+      return {
+        setFeed,
+        refresh,
+        onSearchChange,
+        clearSearch,
+        setCategoryFilter,
+        setSort,
+        setViewMode,
+        resetFilters,
+        toggleBookmark,
+        openReader,
+        closeReader,
+        copyArticleUrl,
+        openAddFeedModal,
+        closeAddFeedModal,
+        saveCustomFeed,
+        generateBroadcastBriefing,
+        closeBriefingModal,
+        createNewspaper,
+        buildWordSearch
+      };
+    })();
+  </script>
+</body>
+</html>
