@@ -46,6 +46,7 @@ class SharePage
         if (!$share) return self::notice(404, 'This link is not valid', 'The address may be incomplete, or the link may have been replaced. Please use the whole link you were sent, or ask for a new one.');
         $self = '/s.php/' . (int)$share['id'] . '/' . $m[2];       // rebuilt from the verified values, never echoed from the request
 
+        if (!empty($share['purged_at'])) return self::notice(410, 'These files have been removed', 'They were deleted automatically after the sharing period ended.');
         $state = Shares::state($share);
         if ($state === 'revoked') return self::notice(410, 'This link has been withdrawn', 'The files are no longer shared.');
         if ($state === 'not_yet') return self::notice(403, 'This link is not available yet', 'It opens on ' . Shares::ukTime((int)$share['available_from']) . ' (UK time).');

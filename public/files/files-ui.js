@@ -17,7 +17,12 @@
       var done = false; try { done = document.execCommand('copy'); } catch (e) {} document.body.removeChild(t); done ? ok() : no();
     });
   }
-  var STATE = { open: ['Active', 'fs-open'], not_yet: ['Not yet open', 'fs-warn'], expired: ['Expired', 'fs-off'], revoked: ['Withdrawn', 'fs-off'] };
+  var STATE = { open: ['Active', 'fs-open'], not_yet: ['Not yet open', 'fs-warn'], expired: ['Expired', 'fs-off'], revoked: ['Withdrawn', 'fs-off'], purged: ['Files deleted', 'fs-off'] };
+  function autoDeleteText(s) {
+    if (s.purged_at) return '<div class="fs-small">Files deleted automatically on ' + fmtDate(s.purged_at) + '</div>';
+    if (!s.auto_delete || s.state === 'revoked') return '';
+    return '<div class="fs-small">&#128465; ' + (s.delete_at ? 'Files delete on ' + fmtDate(s.delete_at) : 'Files delete ' + s.retention_days + ' days after the first download') + '</div>';
+  }
 
   var TEMPLATE =
     '<div class="fs-modes"><button type="button" class="fs-mode fs-on" data-f="tabMine">My files</button><button type="button" class="fs-mode" data-f="tabWith">Shared with me</button><button type="button" class="fs-mode" data-f="tabShares">My shares</button></div>' +
@@ -101,7 +106,7 @@
     function load(parent) {
       if (parent !== undefined) cur.parent = parent;
       return get('list', { parent: cur.parent || '' }).then(function (d) {
-        cur.path = d.path; cur.items = d.items; sel.clear(); lastIdx = -1; render();
+        cur.path = d.path; cur.items = d.items; cur.retention = d.retention_days; sel.clear(); lastIdx = -1; render();
         $('usage').textContent = 'Using ' + fmtSize(d.usage.total) + ' of ' + fmtSize(d.usage.quota) + ' in total';
       }).catch(fail);
     }
@@ -313,6 +318,8 @@
               '<div class="fs-link-box"><input type="text" data-m="pw" placeholder="At least 6 characters" autocomplete="off"><button type="button" class="fs-alt" data-m="gen">Generate</button></div><div class="fs-small">Send the password to them separately, for example by phone. It is not put in the email.</div></div>' +
             '<div class="fs-grid2"><div><label>Available from</label><input type="datetime-local" data-m="from" value="' + esc(editing ? existing.from_input : '') + '"></div><div><label>Available until</label><input type="datetime-local" data-m="to" value="' + esc(editing ? existing.to_input : '') + '"></div></div>' +
             '<div class="fs-small">UK time. Leave a box empty for no limit. Until: <a href="#" data-q="1">+1 day</a> &middot; <a href="#" data-q="7">+1 week</a> &middot; <a href="#" data-q="30">+1 month</a></div>' +
+            '<label class="fs-inline" style="margin-top:.7rem"><input type="checkbox" data-m="autoDel"' + (editing && existing.auto_delete ? ' checked' : '') + (editing && existing.purged_at ? ' disabled' : '') + '> <span><strong>Delete the files automatically</strong></span></label>' +
+            '<div class="fs-small" style="margin-left:1.5rem">They are deleted from <em>My files</em> ' + (cur.retention || 7) + ' days after the link ends, or ' + (cur.retention || 7) + ' days after it is first downloaded, whichever comes first. A file that is also shared another way is kept until that share ends too. Withdrawing the share cancels it. <strong>Deleted files cannot be recovered.</strong></div>' +
           '</div>' +
           '<div data-m="staffOpts" hidden><label class="fs-inline"><input type="checkbox" data-m="all"' + (editing && existing.all_staff ? ' checked' : '') + '> All staff</label><div class="fs-staff" data-m="staffList">' + staffHtml + '</div><div class="fs-small">They will see it under <strong>Shared with me</strong>. They can read and download, not change.</div></div>' +
           '<div class="fs-note fs-err" data-m="err" hidden></div><div class="fs-actions"><button type="button" class="fs-alt" data-m="no">Cancel</button><button type="button" data-m="ok">' + (editing ? 'Save changes' : 'Create share') + '</button></div>', function (d) {
@@ -331,7 +338,7 @@
           m('ok').onclick = function () {
             err(''); var body = { title: m('title').value, message: m('message').value };
             if (kind === 'link') {
-              body.from = m('from').value; body.to = m('to').value;
+              body.from = m('from').value; body.to = m('to').value; body.auto_delete = m('autoDel').checked;
               if (editing) { var pm = d.el.querySelector('input[name=pwmode]:checked'); if (existing.has_password) { if (pm && pm.value === 'remove') body.clear_password = true; else if (pm && pm.value === 'change') body.password = m('pw').value; } else if (up && up.checked) body.password = m('pw').value; }
               else if (up && up.checked) { body.password = m('pw').value; if (!body.password) return err('Type a password, or press Generate.'); }
             } else {
@@ -388,12 +395,12 @@
         var box = $('shareList');
         if (!d.shares.length) { box.innerHTML = '<div class="fs-empty">You have not shared anything yet.<br>Right-click a file or folder in <strong>My files</strong> and choose <strong>Share</strong>.</div>'; return; }
         box.innerHTML = '<table><thead><tr><th>Share</th><th>Type</th><th>Status</th><th>Available</th><th style="text-align:right">Downloads</th><th></th></tr></thead><tbody>' + d.shares.map(function (s) {
-          var st = STATE[s.state] || ['', ''];
+          var st = STATE[s.purged_at ? 'purged' : s.state] || ['', ''];
           return '<tr data-id="' + s.id + '"><td class="fs-name"><strong>' + esc(s.title) + '</strong><div class="fs-small">' + s.items.slice(0, 3).map(function (i) { return esc(i.name); }).join(', ') + (s.items.length > 3 ? ' +' + (s.items.length - 3) + ' more' : '') + (s.owner_name && $('allShares').checked ? ' \u00b7 by ' + esc(s.owner_name) : '') + '</div></td>' +
             '<td>' + (s.kind === 'link' ? '&#128279; Link' + (s.has_password ? ' &#128274;' : '') : '&#128101; ' + (s.all_staff ? 'All staff' : esc(s.users.join(', ')))) + '</td><td><span class="fs-badge ' + st[1] + '">' + st[0] + '</span></td>' +
-            '<td class="fs-small">' + (s.available_from ? 'from ' + fmtDate(s.available_from) + '<br>' : '') + (s.available_to ? 'until ' + fmtDate(s.available_to) : (s.available_from ? '' : 'No limit')) + '</td><td class="fs-n">' + s.downloads + '</td>' +
-            '<td class="fs-actions-cell">' + (s.kind === 'link' && s.state !== 'revoked' ? '<button type="button" data-a="copy">Copy link</button><button type="button" class="fs-alt" data-a="mail">Email</button>' : '') +
-            (s.state !== 'revoked' ? '<button type="button" class="fs-alt" data-a="edit">Edit</button>' + (s.kind === 'link' ? '<button type="button" class="fs-alt" data-a="reset" title="Gives it a new address. Every link already sent stops working.">New link</button>' : '') + '<button type="button" class="fs-danger" data-a="revoke">Withdraw</button>' : '') + '</td></tr>';
+            '<td class="fs-small">' + (s.available_from ? 'from ' + fmtDate(s.available_from) + '<br>' : '') + (s.available_to ? 'until ' + fmtDate(s.available_to) : (s.available_from ? '' : 'No limit')) + autoDeleteText(s) + '</td><td class="fs-n">' + s.downloads + '</td>' +
+            '<td class="fs-actions-cell">' + (s.kind === 'link' && s.state !== 'revoked' && !s.purged_at ? '<button type="button" data-a="copy">Copy link</button><button type="button" class="fs-alt" data-a="mail">Email</button>' : '') +
+            (s.state !== 'revoked' && !s.purged_at ? '<button type="button" class="fs-alt" data-a="edit">Edit</button>' + (s.kind === 'link' ? '<button type="button" class="fs-alt" data-a="reset" title="Gives it a new address. Every link already sent stops working.">New link</button>' : '') + '<button type="button" class="fs-danger" data-a="revoke">Withdraw</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table>';
         box.onclick = function (e) {
           var b = e.target.closest('button[data-a]'); if (!b) return; var id = +b.closest('tr').dataset.id, s = d.shares.filter(function (x) { return x.id === id; })[0], a = b.dataset.a;

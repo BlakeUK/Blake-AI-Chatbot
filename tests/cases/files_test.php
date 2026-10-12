@@ -456,3 +456,128 @@ test('the largest allowed share still fits the classic zip format, even in the w
     $worst = (int)(Store::MAX_ZIP * 1.001) + $entries * (30 + 16 + 46 + 2 * $longestName) + 22;
     assert_true($worst < 0xFFFFFFFE, "worst case {$worst} bytes must stay under 4 GiB");
 });
+
+suite('Files: automatic deletion');
+
+use Files\Retention;
+
+function fs_set(int $shareId, array $cols): void
+{
+    foreach ($cols as $c => $v) db()->prepare("UPDATE fs_shares SET {$c} = ? WHERE id = ?")->execute([$v, $shareId]);
+}
+function fs_auto(int $owner, array $nodeIds, array $o = []): array
+{
+    return Shares::create($owner, 'link', $nodeIds, $o + ['auto_delete' => true, 'to' => date('Y-m-d\TH:i', time() + 86400 * 30)]);
+}
+function fs_gone(array $node): bool { return Store::get((int)$node['id']) === null && !is_file(Store::blobPath($node['blob'])); }
+function fs_clear_retention(): void { db()->exec("DELETE FROM settings WHERE key = 'fs_retention_days'"); }
+
+test('the delete date is the retention period after the link ends or after its first download, whichever is sooner, and only if asked for', function () {
+    [$ann] = fs_reset(); fs_clear_retention();
+    $f = fs_put($ann, null, 'a.txt', 'a'); $day = 86400;
+    $plain = Shares::create($ann, 'link', [(int)$f['id']], ['to' => date('Y-m-d\TH:i', time() + $day * 3)]);
+    assert_null(Shares::deleteAt($plain), 'not ticked: never deleted');
+    $a = fs_auto($ann, [(int)$f['id']], ['to' => date('Y-m-d\TH:i', time() + $day * 3)]);
+    assert_equal((int)Shares::get((int)$a['id'])['available_to'] + 7 * $day, Shares::deleteAt(Shares::get((int)$a['id'])), 'seven days after the end');
+    $none = Shares::create($ann, 'link', [(int)$f['id']], ['auto_delete' => true]); assert_null(Shares::deleteAt($none), 'no end date and no download: nothing has started the clock');
+    Shares::log((int)$none['id'], 'view'); Shares::log((int)$none['id'], 'unlock'); Shares::log((int)$none['id'], 'password_fail'); assert_null(Shares::deleteAt(Shares::get((int)$none['id'])), 'looking at the page does not start it');
+    Shares::log((int)$none['id'], 'download', 'a.txt'); $row = Shares::get((int)$none['id']); $first = (int)$row['first_download_at'];
+    assert_true(abs($first - time()) < 5); assert_equal($first + 7 * $day, Shares::deleteAt($row), 'seven days after the first download');
+    fs_set((int)$none['id'], ['first_download_at' => $first - 3600]); Shares::log((int)$none['id'], 'zip');
+    assert_equal($first - 3600, (int)Shares::get((int)$none['id'])['first_download_at'], 'a later download does not restart the clock');
+    // both triggers: the sooner one wins
+    Shares::log((int)$a['id'], 'download'); $both = Shares::get((int)$a['id']);
+    assert_equal(min((int)$both['available_to'], (int)$both['first_download_at']) + 7 * $day, Shares::deleteAt($both));
+    assert_true((int)$both['first_download_at'] + 7 * $day < (int)$both['available_to'] + 7 * $day, 'here the download came first');
+    // the period is a setting; nonsense falls back to seven days
+    foreach ([['3', 3], ['30', 30], ['0', 7], ['400', 7], ['abc', 7], ['', 7]] as [$v, $want]) { db()->prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('fs_retention_days', ?)")->execute([$v]); assert_equal($want, Retention::days(), "setting {$v}"); }
+    db()->exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('fs_retention_days', '2')"); assert_equal($first - 3600 + 2 * $day, Shares::deleteAt(Shares::get((int)$none['id'])));
+    fs_clear_retention();
+    Shares::revoke($ann, (int)$a['id']); assert_null(Shares::deleteAt(Shares::get((int)$a['id'])), 'withdrawing cancels the deletion');
+    assert_equal(0, (int)Shares::create($ann, 'staff', [(int)$f['id']], ['all_staff' => true, 'auto_delete' => true])['auto_delete'], 'colleague shares cannot auto-delete');
+});
+
+test('nothing is deleted before the date; after it the file, its stored bytes and the share entry go, once, and the share is marked finished', function () {
+    [$ann, $bob] = fs_reset(); fs_clear_retention();
+    $f = fs_put($ann, null, 'old.pdf', 'pdf'); $keep = fs_put($ann, null, 'keep.pdf', 'keep'); $theirs = fs_put($bob, null, 'bob.pdf', 'bob');
+    $s = fs_auto($ann, [(int)$f['id']]); $id = (int)$s['id']; $now = time(); $day = 86400;
+    fs_set($id, ['available_to' => $now + $day * 6]);   // ends in 6 days: due in 13
+    assert_equal(['shares' => 0, 'items' => 0, 'waiting' => 0], Retention::purgeDue($now)); assert_true(Store::get((int)$f['id']) !== null);
+    fs_set($id, ['available_to' => $now - $day * 6]);   // ended 6 days ago: due tomorrow
+    assert_equal(0, Retention::purgeDue($now)['items'], 'six days after it ended is too soon');
+    fs_set($id, ['available_to' => $now - $day * 7 - 60]);
+    $blob = Store::blobPath($f['blob']); assert_true(is_file($blob));
+    $r = Retention::purgeDue($now); assert_equal(['shares' => 1, 'items' => 1, 'waiting' => 0], $r);
+    assert_true(fs_gone($f) && !is_file($blob), 'the file and its stored bytes are gone');
+    assert_true(Store::get((int)$keep['id']) !== null && Store::get((int)$theirs['id']) !== null, 'nobody else\'s files, and no unshared files, are touched');
+    assert_true(Shares::get($id)['purged_at'] !== null); assert_equal([], Shares::items($id));
+    assert_equal(['shares' => 0, 'items' => 0, 'waiting' => 0], Retention::purgeDue($now + $day * 30), 'it only ever happens once');
+    $audit = db()->query("SELECT detail FROM audit_log WHERE action = 'file_share_autodelete' ORDER BY id DESC LIMIT 1")->fetchColumn(); assert_str_contains('1 item(s)', (string)$audit);
+});
+
+test('a first download starts the clock even with no end date; folders go with everything inside; unticked and withdrawn shares are never touched', function () {
+    [$ann] = fs_reset(); fs_clear_retention(); $now = time(); $day = 86400;
+    $dir = Store::mkdir($ann, null, 'Pack'); $in = fs_put($ann, $dir, 'in.txt', 'in'); $deep = Store::mkdir($ann, $dir, 'Deep'); $d2 = fs_put($ann, $deep, 'd2.txt', 'd2'); $other = fs_put($ann, null, 'other.txt', 'o');
+    $s = Shares::create($ann, 'link', [$dir], ['auto_delete' => true]);
+    assert_equal(0, Retention::purgeDue($now + $day * 100)['items'], 'never downloaded and no end date: it waits for ever');
+    Shares::log((int)$s['id'], 'download', 'in.txt'); fs_set((int)$s['id'], ['first_download_at' => $now - $day * 7 - 5]);
+    $r = Retention::purgeDue($now); assert_equal(1, $r['shares']); assert_equal(4, $r['items'], 'the folder, its sub-folder and both files');
+    assert_true(fs_gone($in) && fs_gone($d2) && Store::get($dir) === null && Store::get($deep) === null); assert_true(Store::get((int)$other['id']) !== null);
+    // not ticked
+    $f = fs_put($ann, null, 'plain.txt', 'p'); $p = Shares::create($ann, 'link', [(int)$f['id']], []); Shares::log((int)$p['id'], 'download'); fs_set((int)$p['id'], ['first_download_at' => $now - $day * 99, 'available_to' => $now - $day * 99]);
+    assert_equal(0, Retention::purgeDue($now)['items'], 'a share that did not ask is never deleted'); assert_true(Store::get((int)$f['id']) !== null);
+    // withdrawn
+    $g = fs_put($ann, null, 'withdrawn.txt', 'w'); $w = fs_auto($ann, [(int)$g['id']]); fs_set((int)$w['id'], ['available_to' => $now - $day * 99]); Shares::revoke($ann, (int)$w['id']);
+    assert_equal(0, Retention::purgeDue($now)['items'], 'withdrawing a share cancels its deletion'); assert_true(Store::get((int)$g['id']) !== null);
+});
+
+test('a file that is still shared another way is kept, and deleted only once that share has ended too', function () {
+    [$ann, $bob] = fs_reset(); fs_clear_retention(); $now = time(); $day = 86400;
+    $f = fs_put($ann, null, 'master.dwg', 'm');
+    $a = fs_auto($ann, [(int)$f['id']]); fs_set((int)$a['id'], ['available_to' => $now - $day * 8]);
+    $b = Shares::create($ann, 'link', [(int)$f['id']], []);                                         // another link, open for ever
+    $r = Retention::purgeDue($now); assert_equal(['shares' => 0, 'items' => 0, 'waiting' => 1], $r); assert_true(Store::get((int)$f['id']) !== null, 'kept: still shared');
+    assert_true(Shares::get((int)$a['id'])['purged_at'] === null, 'and it keeps waiting rather than giving up');
+    fs_set((int)$b['id'], ['available_to' => $now - 60]);                                           // the other link ends
+    assert_equal(['shares' => 1, 'items' => 1, 'waiting' => 0], Retention::purgeDue($now), 'now it can go');
+    assert_true(fs_gone($f));
+    // a colleague share, and a link that has not opened yet, also hold a file back; an ended or withdrawn one does not
+    foreach (['staff' => fn($id) => Shares::create($ann, 'staff', [$id], ['staff' => [$bob]]), 'not yet open' => fn($id) => Shares::create($ann, 'link', [$id], ['from' => date('Y-m-d\TH:i', time() + $day * 5)])] as $label => $mk) {
+        $x = fs_put($ann, null, "held-{$label}.txt", 'x'); $xa = fs_auto($ann, [(int)$x['id']]); fs_set((int)$xa['id'], ['available_to' => $now - $day * 8]); $holder = $mk((int)$x['id']);
+        assert_equal(1, Retention::purgeDue($now)['waiting'], "held back by a {$label} share"); assert_true(Store::get((int)$x['id']) !== null);
+        Shares::revoke($ann, (int)$holder['id']); assert_equal(1, Retention::purgeDue($now)['items'], "released when the {$label} share is withdrawn"); assert_true(fs_gone($x));
+    }
+    $y = fs_put($ann, null, 'in-shared-folder.txt', 'y'); $dir = Store::mkdir($ann, null, 'Held'); Store::move($ann, [(int)$y['id']], $dir);
+    $ya = fs_auto($ann, [(int)$y['id']]); fs_set((int)$ya['id'], ['available_to' => $now - $day * 8]); Shares::create($ann, 'link', [$dir], []);
+    assert_equal(1, Retention::purgeDue($now)['waiting'], 'being inside a folder that is shared another way also holds it back');
+});
+
+test('after deletion the customer is told the files were removed, and the owner can see what happened; it cannot be switched on afterwards', function () {
+    [$ann] = fs_reset(); fs_clear_retention(); $now = time(); $day = 86400;
+    $f = fs_put($ann, null, 'gone.txt', 'g'); $s = fs_auto($ann, [(int)$f['id']]); $path = fs_path($s);
+    $d = Shares::decorate(Shares::get((int)$s['id'])); assert_true($d['auto_delete']); assert_equal(7, $d['retention_days']); assert_equal((int)Shares::get((int)$s['id'])['available_to'] + 7 * $day, $d['delete_at']); assert_null($d['purged_at']);
+    fs_set((int)$s['id'], ['available_to' => $now - $day * 8]);
+    assert_equal(410, fs_page($path)['status'], 'it has ended, so it says so'); Retention::purgeDue($now);
+    $p = fs_page($path); assert_equal(410, $p['status']); assert_str_contains('have been removed', $p['body']); assert_str_contains('deleted automatically', $p['body']); assert_true(!str_contains($p['body'], 'gone.txt'));
+    assert_equal(410, fs_page($path, 'GET', [], ['d' => (int)$f['id']])['status']); assert_true(!isset(fs_page($path, 'GET', [], ['d' => (int)$f['id']])['stream']));
+    $d = Shares::decorate(Shares::get((int)$s['id'])); assert_true($d['purged_at'] !== null);
+    // on an open share it can be switched on and off, but not once the files have gone
+    $g = fs_put($ann, null, 'live.txt', 'l'); $t = Shares::create($ann, 'link', [(int)$g['id']], []);
+    assert_equal(1, (int)Shares::update($ann, (int)$t['id'], ['auto_delete' => true])['auto_delete']); assert_equal(0, (int)Shares::update($ann, (int)$t['id'], ['auto_delete' => false])['auto_delete']);
+    assert_equal(0, (int)Shares::update($ann, (int)$t['id'], ['title' => 'renamed'])['auto_delete'], 'other edits leave it alone');
+    assert_equal(1, (int)Shares::update($ann, (int)$s['id'], ['auto_delete' => false])['auto_delete'], 'a share that has already deleted its files is left as it was');
+});
+
+test('files already deleted by hand do not stop a share finishing, and an empty run does nothing', function () {
+    [$ann] = fs_reset(); fs_clear_retention(); $now = time();
+    assert_equal(['shares' => 0, 'items' => 0, 'waiting' => 0], Retention::purgeDue($now));
+    $f = fs_put($ann, null, 'manual.txt', 'm'); $s = fs_auto($ann, [(int)$f['id']]); fs_set((int)$s['id'], ['available_to' => $now - 86400 * 9]); Store::delete($ann, [(int)$f['id']]);
+    assert_equal(['shares' => 1, 'items' => 0, 'waiting' => 0], Retention::purgeDue($now)); assert_true(Shares::get((int)$s['id'])['purged_at'] !== null);
+});
+
+test('the minute-by-minute worker runs the automatic deletion', function () {
+    $w = (string)file_get_contents(dirname(__DIR__, 2) . '/scripts/process_support.php');
+    assert_str_contains('\\Files\\Retention::purgeDue()', $w);
+    $deploy = (string)file_get_contents(dirname(__DIR__, 2) . '/scripts/deploy_remote.sh');
+    assert_str_contains('schema_files_retention.sql', $deploy); assert_str_contains('PRAGMA table_info(fs_shares)', $deploy);
+});

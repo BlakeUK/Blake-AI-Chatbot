@@ -11,5 +11,9 @@ if ($n) echo date('c') . " moved {$n} unanswered chat(s) to ticket intake\n";
 // the government's bank holiday list, refreshed about weekly (it does nothing on the other minutes)
 if (\Support\BankHolidays::refreshIfStale()) echo date('c') . " bank holiday list refreshed\n";
 
+// shared files that are due to be deleted automatically (only shares that asked for it)
+$p = \Files\Retention::purgeDue();
+if ($p['items'] || $p['shares']) echo date('c') . " file sharing: deleted {$p['items']} item(s) from {$p['shares']} share(s)\n";
+
 $r = \Mail\Outbox::process();
 if (($r['sent'] ?? 0) || ($r['failed'] ?? 0)) echo date('c') . " email: sent {$r['sent']}, failed {$r['failed']}\n";

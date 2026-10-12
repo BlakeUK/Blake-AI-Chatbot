@@ -393,6 +393,12 @@ if ! sqlite3 "$WEBROOT/data/chatbot.db" "SELECT name FROM sqlite_master WHERE ty
 else
     warn "File sharing schema already applied — skipping."
 fi
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(fs_shares);" | grep -q auto_delete; then
+    info "Applying file sharing retention migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_files_retention.sql"
+else
+    warn "File sharing retention schema already applied — skipping."
+fi
 # Where shared files are kept: outside the website folder, owned by the web user, not readable by anyone else.
 mkdir -p "$WEBROOT/data/files/tmp"
 chown -R www-data:www-data "$WEBROOT/data/files"

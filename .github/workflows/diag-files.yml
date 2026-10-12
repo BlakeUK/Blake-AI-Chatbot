@@ -19,6 +19,8 @@ jobs:
           script: |
             cd /var/www/chat
             ls -ld data/files data/files/tmp 2>&1 | sed 's/^/  /'
+            echo "== the every-minute worker that runs the automatic deletion"
+            (crontab -l -u www-data 2>/dev/null; cat /etc/cron.d/* 2>/dev/null) | grep -i process_support | head -2 | sed 's/^/  /'
             runuser -u www-data -- php scripts/diag/files_check.php
       - name: What a stranger sees on the live site
         run: |

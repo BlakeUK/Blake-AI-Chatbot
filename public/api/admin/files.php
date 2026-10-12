@@ -41,7 +41,7 @@ try {
                 $map = [];
                 foreach ($q->fetchAll() as $r) $map[(int)$r['node_id']][$r['kind']] = (int)$r['c'];
                 json_out(['path' => Store::path($parent), 'items' => array_map(fn($n) => $nodeOut($n, $map), Store::children($uid, $parent)),
-                          'usage' => ['mine' => Store::usedBy($uid), 'total' => Store::totalUsed(), 'quota' => Store::quotaBytes()]]);
+                          'usage' => ['mine' => Store::usedBy($uid), 'total' => Store::totalUsed(), 'quota' => Store::quotaBytes()], 'retention_days' => \Files\Retention::days()]);
             }
             case 'tree': {
                 $q = db()->prepare("SELECT id, parent_id, name FROM fs_nodes WHERE owner_id = ? AND kind = 'folder' ORDER BY LOWER(name)");

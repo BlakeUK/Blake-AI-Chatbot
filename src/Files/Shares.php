@@ -104,7 +104,7 @@ class Shares
         if ($v['title'] === '') $v['title'] = count($nodes) === 1 ? (string)$nodes[0]['name'] : count($nodes) . ' items';
         self::checkWindow($v['available_from'], $v['available_to']);
 
-        $hash = null; $staff = []; $all = 0;
+        $hash = null; $staff = []; $all = 0; $auto = ($kind === 'link' && !empty($o['auto_delete'])) ? 1 : 0;
         if ($kind === 'link') {
             $pw = (string)($o['password'] ?? '');
             if ($pw !== '') {
@@ -121,8 +121,8 @@ class Shares
             if (!$all && !$staff) throw new \InvalidArgumentException('Choose which colleagues to share with, or share with all staff.');
         }
         $pdo = db();
-        $pdo->prepare('INSERT INTO fs_shares (owner_id, kind, title, message, salt, password_hash, available_from, available_to, all_staff, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-            ->execute([$owner, $kind, $v['title'], $v['message'], bin2hex(random_bytes(16)), $hash, $v['available_from'], $v['available_to'], $all, time()]);
+        $pdo->prepare('INSERT INTO fs_shares (owner_id, kind, title, message, salt, password_hash, available_from, available_to, all_staff, created_at, auto_delete) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+            ->execute([$owner, $kind, $v['title'], $v['message'], bin2hex(random_bytes(16)), $hash, $v['available_from'], $v['available_to'], $all, time(), $auto]);
         $id = (int)$pdo->lastInsertId();
         foreach ($nodeIds as $n) $pdo->prepare('INSERT OR IGNORE INTO fs_share_items (share_id, node_id) VALUES (?,?)')->execute([$id, $n]);
         foreach ($staff as $a) $pdo->prepare('INSERT OR IGNORE INTO fs_share_users (share_id, admin_id) VALUES (?,?)')->execute([$id, $a]);
@@ -158,6 +158,7 @@ class Shares
         $from = array_key_exists('available_from', $v) ? $v['available_from'] : ($s['available_from'] !== null ? (int)$s['available_from'] : null);
         $to   = array_key_exists('available_to', $v) ? $v['available_to'] : ($s['available_to'] !== null ? (int)$s['available_to'] : null);
         if (array_key_exists('available_to', $v) || array_key_exists('available_from', $v)) self::checkWindow($from, $to);
+        if ($s['kind'] === 'link' && array_key_exists('auto_delete', $o) && empty($s['purged_at'])) $v['auto_delete'] = !empty($o['auto_delete']) ? 1 : 0;
         if ($s['kind'] === 'link') {
             if (!empty($o['clear_password'])) $v['password_hash'] = null;
             elseif (($pw = (string)($o['password'] ?? '')) !== '') {
@@ -249,6 +250,8 @@ class Shares
             'state' => self::state($s), 'has_password' => !empty($s['password_hash']), 'all_staff' => (bool)$s['all_staff'], 'users' => $users,
             'available_from' => $s['available_from'] !== null ? (int)$s['available_from'] : null, 'available_to' => $s['available_to'] !== null ? (int)$s['available_to'] : null,
             'from_input' => self::toLocalInput($s['available_from'] !== null ? (int)$s['available_from'] : null), 'to_input' => self::toLocalInput($s['available_to'] !== null ? (int)$s['available_to'] : null),
+            'auto_delete' => (bool)($s['auto_delete'] ?? 0), 'delete_at' => self::deleteAt($s), 'first_download_at' => ($s['first_download_at'] ?? null) !== null ? (int)$s['first_download_at'] : null,
+            'purged_at' => ($s['purged_at'] ?? null) !== null ? (int)$s['purged_at'] : null, 'retention_days' => Retention::days(),
             'created_at' => (int)$s['created_at'], 'downloads' => (int)$s['downloads'], 'last_access' => $s['last_access'] !== null ? (int)$s['last_access'] : null,
             'url' => $s['kind'] === 'link' ? self::url($s) : null,
             'items' => array_map(fn($n) => ['id' => (int)$n['id'], 'kind' => $n['kind'], 'name' => $n['name']], $items),
@@ -265,6 +268,16 @@ class Shares
         $q = db()->prepare("SELECT DISTINCT s.* FROM fs_shares s JOIN fs_share_items i ON i.share_id = s.id WHERE s.owner_id = ? AND s.kind = 'link' AND s.revoked_at IS NULL AND i.node_id IN ({$in}) ORDER BY s.id DESC");
         $q->execute([$owner, ...$ids]);
         return array_values(array_filter(array_map([self::class, 'decorate'], $q->fetchAll()), fn($d) => in_array($d['state'], ['open', 'not_yet'], true)));
+    }
+
+    /** When this share's files are due to be deleted: the retention period after the link ends or after its first download, whichever is sooner. Null if it is not set to delete, or nothing has started the clock. */
+    public static function deleteAt(array $s): ?int
+    {
+        if (empty($s['auto_delete']) || !empty($s['revoked_at'])) return null;
+        $r = Retention::days() * 86400; $c = [];
+        if (!empty($s['available_to'])) $c[] = (int)$s['available_to'] + $r;
+        if (!empty($s['first_download_at'])) $c[] = (int)$s['first_download_at'] + $r;
+        return $c ? min($c) : null;
     }
 
     // ---- passwords and access --------------------------------------------------------------------------------------------
@@ -296,7 +309,7 @@ class Shares
     public static function log(int $shareId, string $event, string $detail = '', ?string $ip = null): void
     {
         db()->prepare('INSERT INTO fs_access (share_id, at, event, detail, ip_hash) VALUES (?,?,?,?,?)')->execute([$shareId, time(), $event, mb_substr($detail, 0, 200), $ip ? hash('sha256', $ip) : null]);
-        $bump = in_array($event, ['download', 'zip'], true) ? ', downloads = downloads + 1' : '';
+        $bump = in_array($event, ['download', 'zip'], true) ? ', downloads = downloads + 1, first_download_at = COALESCE(first_download_at, ' . time() . ')' : '';
         db()->prepare("UPDATE fs_shares SET last_access = ?{$bump} WHERE id = ?")->execute([time(), $shareId]);
     }
 }

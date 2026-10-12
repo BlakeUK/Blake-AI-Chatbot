@@ -19,6 +19,8 @@ echo "  disk free: " . round($free / 1073741824, 1) . " GB;  storage cap: " . ro
 $say('there is room for the storage cap, with a margin', $free > Store::quotaBytes() * 1.2, 'lower fs_quota_mb if not');
 echo "  post_max_size " . ini_get('post_max_size') . ", upload_max_filesize " . ini_get('upload_max_filesize') . " (uploads are sent in 1 MB pieces, so these only need to exceed that)\n";
 $say('uploads of 1 MB pieces fit the PHP limits', (int)ini_get('post_max_size') >= 2 || str_ends_with(strtoupper(ini_get('post_max_size')), 'G'));
+$cols = array_column(db()->query('PRAGMA table_info(fs_shares)')->fetchAll(), 'name');
+$say('automatic deletion columns exist (auto_delete, first_download_at, purged_at)', !array_diff(['auto_delete', 'first_download_at', 'purged_at'], $cols), implode(',', $cols));
 foreach (['fs_nodes', 'fs_shares', 'fs_share_items', 'fs_share_users', 'fs_uploads', 'fs_access'] as $t) $say("table {$t} exists", (bool)db()->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$t}'")->fetchColumn());
 
 $O = 999999;
@@ -51,7 +53,16 @@ try {
     $dl = SharePage::handle($path, 'GET', [], ['z' => $dir], ['fsu_' . $s['id'] => $m[1] ?? ''], '127.0.0.1');
     ob_start(); $bytes = 0; Zip::write(Store::collect($dl['stream']['nodes']), function ($b) use (&$bytes) { $bytes += strlen($b); }); ob_end_clean();
     $say('the folder downloads as a zip', isset($dl['stream']) && $dl['stream']['kind'] === 'zip' && $bytes > 1000);
-    $row = Shares::get((int)$s['id']); $say('the download was counted', (int)$row['downloads'] === 1);
+    $row = Shares::get((int)$s['id']); $say('the download was counted, and started the deletion clock', (int)$row['downloads'] === 1 && $row['first_download_at'] !== null);
+    // automatic deletion: a share that asked for it, ended 8 days ago, is deleted, with its stored bytes
+    $u2 = Store::beginUpload($O, null, 'auto-delete-me.txt', 5); Store::chunk($u2, $O, 0, 'hello'); $victim = Store::finishUpload($u2, $O);
+    $vs = Shares::create($O, 'link', [(int)$victim['id']], ['auto_delete' => true, 'to' => (new DateTimeImmutable('+30 days', new DateTimeZone('Europe/London')))->format('Y-m-d\TH:i')]);
+    $vblob = Store::blobPath($victim['blob']);
+    $say('before its time, nothing is deleted', \Files\Retention::purgeDue()['items'] === 0 && is_file($vblob));
+    db()->prepare('UPDATE fs_shares SET available_to = ? WHERE id = ?')->execute([time() - 8 * 86400, $vs['id']]);
+    $pr = \Files\Retention::purgeDue();
+    $say('8 days after it ended, the file and its stored bytes are deleted', $pr['items'] >= 1 && Store::get((int)$victim['id']) === null && !is_file($vblob), json_encode($pr));
+    $say('the customer link then says the files were removed', str_contains(SharePage::handle('/' . $vs['id'] . '/' . basename(Shares::url($vs)), 'GET', [], [], [], '127.0.0.1')['body'], 'have been removed'));
 } catch (\Throwable $e) {
     $say('the smoke test ran to the end', false, get_class($e) . ': ' . $e->getMessage());
 } finally {
