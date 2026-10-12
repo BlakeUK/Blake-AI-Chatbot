@@ -1,0 +1,36 @@
+name: Diagnose Newsroom and QR sign-in on the server
+
+# Against the real, live site: real news feeds fetched and cleaned by the server, the internal-address protections tried for real, the AI
+# helper with the company's own key, and the full QR sign-in (one-time code, session cookie, framing headers, roles, refusals).
+# Uses throw-away staff accounts that are removed at the end, even if a check fails.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 10m
+          script: |
+            cd /var/www/chat
+            cleanup() {
+              echo "== cleaning up"
+              runuser -u www-data -- php scripts/diag/newsroom_qr_check.php cleanup
+              QRDB=$(grep '^DB_PATH=' /var/www/qrcode/qrtrack.env | cut -d= -f2-)
+              [ -n "$QRDB" ] && sqlite3 "$QRDB" "DELETE FROM users WHERE username IN ('sso.diag-sso','sso.diag-ro');" && echo "  QR test accounts removed"
+            }
+            trap cleanup EXIT
+            echo "== QR tool settings on the server"
+            grep -E '^(SSO_VERIFY_URL|FRAME_ANCESTORS)=' /var/www/qrcode/qrtrack.env | sed 's/^/  /'
+            OUT=$(runuser -u www-data -- php scripts/diag/newsroom_qr_check.php prepare) || { echo "PREPARE FAILED: $OUT"; exit 1; }
+            PASS=$(echo "$OUT" | grep '^NEWS_PASS=' | cut -d= -f2-); CODE=$(echo "$OUT" | grep '^SSO_CODE=' | cut -d= -f2-); RO=$(echo "$OUT" | grep '^SSO_CODE_RO=' | cut -d= -f2-)
+            rc=0
+            echo "######## QR SIGN-IN"; python3 scripts/diag/qr_sso_live.py "$CODE" "$RO" || rc=1
+            echo "######## NEWSROOM"; python3 scripts/diag/newsroom_live.py "$PASS" || rc=1
+            [ $rc -eq 0 ] && echo "RESULT: EVERYTHING PASSED" || { echo "RESULT: SOMETHING FAILED"; exit 1; }
