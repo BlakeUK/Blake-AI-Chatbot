@@ -9,9 +9,14 @@ jobs:
   scans:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Prepare the check script for the server
+        run: echo "SCRIPT_B64=$(base64 -w0 scripts/diag/qr_scan_check.py)" >> "$GITHUB_ENV"
       - name: Run on the VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
+          envs: SCRIPT_B64
           host: ${{ secrets.SSH_SERVER }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
@@ -27,4 +32,5 @@ jobs:
             trap cleanup EXIT
             OUT=$(runuser -u www-data -- php scripts/diag/newsroom_qr_check.php prepare) || { echo "PREPARE FAILED: $OUT"; exit 1; }
             CODE=$(echo "$OUT" | grep '^SSO_CODE=' | cut -d= -f2-)
-            python3 scripts/diag/qr_scan_check.py "$CODE"
+            echo "$SCRIPT_B64" | base64 -d > /tmp/qr_scan_check.py
+            python3 /tmp/qr_scan_check.py "$CODE"; rc=$?; rm -f /tmp/qr_scan_check.py; exit $rc
