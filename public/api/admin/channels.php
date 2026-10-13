@@ -3,7 +3,7 @@
 //   GET                      my chats, with last message, unread count, muted
 //   GET ?id=X[&after=N]      one chat: members and messages (the latest 200, or only those after message N)
 //   POST {dm_with}           open (or start) a one-to-one chat
-//   POST {channel_id, content, reply_to_id?}   send a message
+//   POST {channel_id, content, reply_to_id?}   send a message (a message containing @ai is answered by the AI, after this reply has been sent)
 //   POST {name, member_ids[], description?}    make a group
 //   PUT  {id, mark_read | mute:bool | rename | description | add_member_ids[] | add_member_id | remove_member_id | leave}
 //   DELETE {id}              delete a group (owner or administrator)
@@ -39,8 +39,18 @@ if ($method === 'POST') {
     }
     if (!empty($body['channel_id'])) {
         rate_limit('chat_post', 180);
-        $id = $guard(fn() => Channels::post((int)$body['channel_id'], $me, (string)($body['content'] ?? ''), !empty($body['reply_to_id']) ? (int)$body['reply_to_id'] : null));
-        json_out(['ok' => true, 'id' => $id]);
+        $cid = (int)$body['channel_id'];
+        $id = $guard(fn() => Channels::post($cid, $me, (string)($body['content'] ?? ''), !empty($body['reply_to_id']) ? (int)$body['reply_to_id'] : null));
+        if (!Channels::mentionsAi((string)($body['content'] ?? ''))) json_out(['ok' => true, 'id' => $id]);
+        rate_limit('chat_ai', 30);
+        // Answer the person first, then let the AI think: the page must not wait for Gemini, and the session lock must not hold up their other requests.
+        $out = (string)json_encode(['ok' => true, 'id' => $id, 'ai' => true]);
+        session_write_close(); ignore_user_abort(true); set_time_limit(90);
+        http_response_code(200); header('Content-Type: application/json; charset=utf-8'); header('Content-Length: ' . strlen($out)); header('Connection: close');
+        echo $out;
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request(); else { @ob_end_flush(); @flush(); }
+        try { \Chat\TeamAi::answer($cid, $id); } catch (\Throwable $e) { error_log('TeamAi: ' . $e->getMessage()); }
+        exit;
     }
     rate_limit('chat_create', 30);
     $id = $guard(fn() => Channels::create($me, (string)($body['name'] ?? ''), is_array($body['member_ids'] ?? null) ? $body['member_ids'] : [], (string)($body['description'] ?? '')));

@@ -17,7 +17,7 @@
 
   // ---------------------------------------------------------------- the store
   function createStore(deps) {
-    var S = { chats: [], activeId: null, active: null, filter: 'all', query: '', replyTo: null, drafts: {}, unread: 0, loaded: false, toast: '' };
+    var S = { chats: [], activeId: null, active: null, filter: 'all', query: '', replyTo: null, drafts: {}, unread: 0, loaded: false, toast: '', aiWait: null };
     var subs = [], views = {}, msgMark = null, evMark = 0, busy = false, timer = null;
     function emit(what) { subs.forEach(function (f) { try { f(what); } catch (e) { if (window.console) console.error(e); } }); }
     function me() { return deps.me() || {}; }
@@ -55,14 +55,14 @@
       var id = S.activeId; if (!id || !visible() || !focused()) return Promise.resolve();
       var c = S.chats.filter(function (x) { return x.id === id; })[0], a = S.active;
       var mine = a && a.members.filter(function (m) { return m.id === me().id; })[0];
-      var needs = (c && c.unread_count > 0) || (a && mine && a.max_id > mine.last_read_id && a.messages.some(function (m) { return m.id > mine.last_read_id && m.admin_id !== me().id && m.kind === 'message'; }));
+      var needs = (c && c.unread_count > 0) || (a && mine && a.max_id > mine.last_read_id && a.messages.some(function (m) { return m.id > mine.last_read_id && (m.admin_id !== me().id || m.is_ai) && m.kind === 'message'; }));
       if (!needs) return Promise.resolve();
       if (c) c.unread_count = 0;
       return send('PUT', API, { id: id, mark_read: true }).then(function () { if (mine) mine.last_read_id = a.max_id; return refreshList(); }).catch(function () {});
     }
-    function sendMessage(text) {
-      var id = S.activeId, body = { channel_id: id, content: text }; if (S.replyTo) body.reply_to_id = S.replyTo.id;
-      return send('POST', API, body).then(function (r) { fail(r, 'The message could not be sent.'); S.replyTo = null; S.drafts[id] = ''; return loadActive(false); }).then(function () { return refreshList(); });
+    function sendMessage(text, replyToId) {   // replyToId: answer that message (used by the thread panel) instead of the one picked in the main box
+      var id = S.activeId, body = { channel_id: id, content: text }, own = !replyToId; if (replyToId) body.reply_to_id = replyToId; else if (S.replyTo) body.reply_to_id = S.replyTo.id;
+      return send('POST', API, body).then(function (r) { fail(r, 'The message could not be sent.'); if (own) { S.replyTo = null; S.drafts[id] = ''; } if (r.ai) S.aiWait = { chat: id, after: r.id, until: Date.now() + 60000 }; return loadActive(false); }).then(function () { return refreshList(); });
     }
     function createGroup(o) { return send('POST', API, { name: o.name, description: o.description || '', member_ids: o.memberIds || [] }).then(function (r) { fail(r); return refreshList().then(function () { return open(r.id); }).then(function () { return r.id; }); }); }
     function openDM(adminId) { return send('POST', API, { dm_with: adminId }).then(function (r) { fail(r, 'Could not open that chat.'); return refreshList().then(function () { return open(r.id); }); }); }
@@ -131,7 +131,7 @@
   function avatar(name, size, status) { var a = h('div', { class: 'tc-avatar' + (size ? ' ' + size : ''), style: 'background:' + colour(name) }, initials(name)); if (status) a.appendChild(h('span', { class: 'tc-dot ' + status })); return a; }
 
   function linkify(text, members, openExternal) {
-    var frag = document.createDocumentFragment(), names = (members || []).map(function (m) { return m.username; }).sort(function (a, b) { return b.length - a.length; });
+    var frag = document.createDocumentFragment(), names = (members || []).map(function (m) { return m.username; }).concat(['ai']).sort(function (a, b) { return b.length - a.length; });
     var esc = names.map(function (n) { return n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
     var re = new RegExp('(https?:\\/\\/[^\\s<>"\']+)' + (esc.length ? '|(@(?:' + esc.join('|') + ')(?![A-Za-z0-9_]))' : ''), 'gi'), last = 0, m;
     while ((m = re.exec(text))) {
@@ -157,14 +157,20 @@
     var headEl = h('div', { class: 'tc-head' }, backBtn, headAvatar, headInfo, menuBtn);
     var msgsEl = h('div', { class: 'tc-msgs', 'data-tc': 'msgs' }), downBtn = svg('down', 'tc-down'); downBtn.setAttribute('data-tc', 'down');
     var replyEl = h('div', { class: 'tc-reply', 'data-tc': 'reply' });
-    var inputEl = h('textarea', { class: 'tc-input', rows: '1', placeholder: 'Write a message...', 'aria-label': 'Message', 'data-tc': 'input', maxlength: '4000' });
+    var inputEl = h('textarea', { class: 'tc-input', rows: '1', placeholder: 'Write a message... (@ai asks Max)', 'aria-label': 'Message', 'data-tc': 'input', maxlength: '4000' });
     var sendBtn = svg('send', 'tc-send'); sendBtn.title = 'Send'; sendBtn.setAttribute('data-tc', 'send'); sendBtn.setAttribute('aria-label', 'Send'); sendBtn.disabled = true;
     var composeEl = h('div', { class: 'tc-compose' }, inputEl, sendBtn), noteEl = h('div', { class: 'tc-note', style: 'display:none' });
     var infoEl = h('div', { class: 'tc-info', 'data-tc': 'info' });
-    var convEl = h('div', { class: 'tc-conv', 'data-tc': 'conv' }, headEl, msgsEl, downBtn, replyEl, composeEl, noteEl, infoEl);
+    var threadHeadTitle = h('span', { text: 'Thread' }), threadClose = svg('close'), threadList = h('div', { class: 'tc-infoscroll tc-tlist', 'data-tc': 'thread-list' });
+    var threadInput = h('textarea', { class: 'tc-input', rows: '1', placeholder: 'Reply in thread... (@ai asks Max)', 'aria-label': 'Reply in thread', 'data-tc': 'thread-input', maxlength: '4000' });
+    var threadSend = svg('send', 'tc-send'); threadSend.title = 'Send'; threadSend.setAttribute('data-tc', 'thread-send'); threadSend.setAttribute('aria-label', 'Send reply'); threadSend.disabled = true;
+    threadClose.setAttribute('data-tc', 'thread-close'); threadClose.setAttribute('aria-label', 'Close thread');
+    var threadCompose = h('div', { class: 'tc-compose' }, threadInput, threadSend);
+    var threadEl = h('div', { class: 'tc-info tc-thread', 'data-tc': 'thread' }, h('div', { class: 'tc-infohead' }, threadHeadTitle, threadClose), threadList, threadCompose);
+    var convEl = h('div', { class: 'tc-conv', 'data-tc': 'conv' }, headEl, msgsEl, downBtn, replyEl, composeEl, noteEl, infoEl, threadEl);
     var tc = h('div', { class: 'tc' }, listEl, convEl); root.innerHTML = ''; root.appendChild(tc);
 
-    var layer = null, menuEl = null, sig = '', lastChat = null, newBelow = 0, toastTimer = null, infoOpen = false;
+    var layer = null, menuEl = null, sig = '', lastChat = null, newBelow = 0, toastTimer = null, infoOpen = false, threadRoot = null, threadSig = '';
     function me() { return store.me(); }
     function chatById(id) { return S.chats.filter(function (c) { return c.id === id; })[0]; }
     function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
@@ -222,7 +228,9 @@
     }
     function renderMsgs() {
       var a = S.active; if (!a) { msgsEl.innerHTML = ''; return; }
-      var s = [a.id, a.max_id, a.messages.length, a.members.map(function (m) { return m.id + ':' + m.last_read_id; }).join(','), a.display_name].join('|'); if (s === sig) return; sig = s;
+      var waiting = aiWaiting(a), s = [a.id, a.max_id, a.messages.length, a.members.map(function (m) { return m.id + ':' + m.last_read_id; }).join(','), a.display_name, waiting ? 'w' : ''].join('|'); if (s === sig) return; sig = s;
+      var counts = {}; a.messages.forEach(function (m) { if (m.thread_root_id) counts[m.thread_root_id] = (counts[m.thread_root_id] || 0) + 1; });
+      function replies(n) { return n + (n === 1 ? ' reply' : ' replies'); }
       var near = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 90, changed = lastChat !== a.id, prevLast = msgsEl.getAttribute('data-last') || '0';
       msgsEl.innerHTML = '';
       if (!a.messages.length) msgsEl.appendChild(h('div', { class: 'tc-blank' }, h('b', { text: 'No messages here yet' }), h('div', { text: 'Say hello.' })));
@@ -231,31 +239,69 @@
         var d = new Date(m.created_at * 1000), dk = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
         if (dk !== lastDay) { msgsEl.appendChild(h('div', { class: 'tc-day', text: dayLabel(m.created_at) })); lastDay = dk; prev = null; }
         if (m.kind === 'system') { msgsEl.appendChild(h('div', { class: 'tc-sys', 'data-tc': 'system', text: m.content })); prev = null; return; }
-        var mine = m.admin_id === me().id, first = !prev || prev.admin_id !== m.admin_id || m.created_at - prev.created_at > 300, lastOfRun = true;
+        var mine = m.admin_id === me().id && !m.is_ai, first = !prev || prev.admin_id !== m.admin_id || !!prev.is_ai !== !!m.is_ai || m.created_at - prev.created_at > 300, lastOfRun = true;
         var bubble = h('div', { class: 'tc-bubble' });
-        if (first && !mine && !a.is_dm) bubble.appendChild(h('div', { class: 'tc-who', style: 'color:' + colour(m.username), text: m.username }));
-        if (m.reply_to) { var q = h('div', { class: 'tc-quote' }, h('b', { text: m.reply_to.username }), h('span', { text: m.reply_to.text })); q.addEventListener('click', function () { var t = msgsEl.querySelector('[data-id="' + m.reply_to.id + '"]'); if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('tc-flash'); setTimeout(function () { t.classList.remove('tc-flash'); }, 1300); } }); bubble.appendChild(q); }
+        if (first && !mine && (!a.is_dm || m.is_ai)) bubble.appendChild(h('div', { class: 'tc-who', style: 'color:' + colour(m.username) }, m.username, m.is_ai ? h('span', { class: 'tc-aitag', text: 'AI' }) : null));
+        if (m.reply_to) { var q = h('div', { class: 'tc-quote' }, h('b', { text: m.reply_to.username }), h('span', { text: m.reply_to.text }));
+          var tn = m.thread_root_id ? counts[m.thread_root_id] : 0; if (tn) { var tl = h('a', { class: 'tc-threadlink', href: '#', 'data-tc': 'thread-link', text: replies(tn) }); tl.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openThread(m.thread_root_id); }); q.appendChild(tl); }
+          q.addEventListener('click', function () { var t = msgsEl.querySelector('[data-id="' + m.reply_to.id + '"]'); if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('tc-flash'); setTimeout(function () { t.classList.remove('tc-flash'); }, 1300); } }); bubble.appendChild(q); }
         var text = h('span', { class: 'tc-text', 'data-tc': 'text' }); text.appendChild(linkify(m.content, a.members, openExternal)); bubble.appendChild(text);
+        if (counts[m.id]) { var rl = h('a', { class: 'tc-threadlink root', href: '#', 'data-tc': 'thread-root-link', text: replies(counts[m.id]) }); rl.addEventListener('click', function (e) { e.preventDefault(); openThread(m.id); }); bubble.appendChild(rl); }
         bubble.appendChild(h('span', { class: 'tc-meta' }, h('span', { text: clock(m.created_at) }), mine ? tickFor(m, a) : null));
         var rb = h('button', { class: 'tc-replybtn', type: 'button', title: 'Reply', 'aria-label': 'Reply', 'data-tc': 'reply-btn', text: '\u21A9' });
         rb.addEventListener('click', function () { S.replyTo = { id: m.id, username: m.username, text: m.content.slice(0, 120) }; renderReply(); inputEl.focus(); });
-        var row = h('div', { class: 'tc-msg' + (mine ? ' mine' : '') + (first ? ' first' : ' mid'), 'data-tc': 'msg', 'data-id': String(m.id), 'data-mine': mine ? '1' : '0' }, mine ? rb : null, bubble, mine ? null : rb);
+        var row = h('div', { class: 'tc-msg' + (mine ? ' mine' : '') + (m.is_ai ? ' ai' : '') + (first ? ' first' : ' mid'), 'data-tc': 'msg', 'data-id': String(m.id), 'data-mine': mine ? '1' : '0' }, mine ? rb : null, bubble, mine ? null : rb);
         msgsEl.appendChild(row); prev = m;
       });
+      if (waiting) msgsEl.appendChild(h('div', { class: 'tc-msg tc-typing ai', 'data-tc': 'ai-typing' }, h('div', { class: 'tc-bubble' }, h('div', { class: 'tc-who', style: 'color:' + colour('Max') }, 'Max', h('span', { class: 'tc-aitag', text: 'AI' })), h('span', { class: 'tc-text' }, 'is thinking...'))));
       msgsEl.setAttribute('data-last', String(a.max_id));
-      var fresh = a.messages.filter(function (m) { return m.id > Number(prevLast) && m.admin_id !== me().id && m.kind === 'message'; }).length;
+      var fresh = a.messages.filter(function (m) { return m.id > Number(prevLast) && (m.admin_id !== me().id || m.is_ai) && m.kind === 'message'; }).length;
       if (changed || near) { msgsEl.scrollTop = msgsEl.scrollHeight; newBelow = 0; } else if (fresh) newBelow += fresh;
       downBtn.classList.toggle('show', !near && !changed); downBtn.innerHTML = ICON.down + (newBelow ? '<b>' + newBelow + '</b>' : ''); lastChat = a.id;
     }
+    function aiWaiting(a) {   // asked for the AI and its answer has not arrived yet (gives up after a minute)
+      var w = S.aiWait; if (!w || !a || w.chat !== a.id) return false;
+      if (Date.now() > w.until || a.messages.some(function (m) { return m.is_ai && m.id > w.after; })) { S.aiWait = null; return false; }
+      return true;
+    }
+    // ---- the thread panel: the first message and everything said in reply to it, with its own reply box
+    function threadMessages(a, root) { return a.messages.filter(function (m) { return m.kind === 'message' && (m.id === root || m.thread_root_id === root); }); }
+    function openThread(root) { infoOpen = false; renderInfo(); if (threadRoot !== root) { threadInput.value = ''; threadSig = ''; } threadRoot = root; renderThread(true); setTimeout(function () { threadInput.focus(); }, 0); }
+    function closeThread() { threadRoot = null; threadSig = ''; renderThread(); }
+    function renderThread(force) {
+      var a = S.active, list = (threadRoot != null && a) ? threadMessages(a, threadRoot) : [];
+      if (!list.length) { threadRoot = null; threadEl.classList.remove('show'); return; }
+      threadEl.classList.add('show');
+      var n = list.length - 1, s = list.map(function (m) { return m.id; }).join(',') + '|' + (aiWaiting(a) ? 'w' : ''); threadHeadTitle.textContent = 'Thread' + (n ? ' (' + (n === 1 ? '1 reply' : n + ' replies') + ')' : '');
+      if (s === threadSig && !force) return; threadSig = s;
+      var near = threadList.scrollHeight - threadList.scrollTop - threadList.clientHeight < 90 || force; threadList.innerHTML = '';
+      list.forEach(function (m, i) {
+        var body = h('div', { class: 'tc-text' }); body.appendChild(linkify(m.content, a.members, openExternal));
+        threadList.appendChild(h('div', { class: 'tc-tmsg' + (m.is_ai ? ' ai' : '') + (i === 0 ? ' root' : ''), 'data-tc': 'thread-msg', 'data-id': String(m.id) },
+          h('div', { class: 'tc-who', style: 'color:' + colour(m.username) }, m.username, m.is_ai ? h('span', { class: 'tc-aitag', text: 'AI' }) : null, h('span', { class: 'tc-ttime', text: clock(m.created_at) })), body));
+        if (i === 0) threadList.appendChild(h('div', { class: 'tc-section', text: n ? (n === 1 ? '1 reply' : n + ' replies') : 'No replies yet' }));
+      });
+      if (aiWaiting(a)) threadList.appendChild(h('div', { class: 'tc-tmsg ai tc-typing', 'data-tc': 'thread-typing' }, h('div', { class: 'tc-who', style: 'color:' + colour('Max') }, 'Max', h('span', { class: 'tc-aitag', text: 'AI' })), h('div', { class: 'tc-text', text: 'is thinking...' })));
+      if (near) threadList.scrollTop = threadList.scrollHeight;
+    }
+    function growThread() { threadInput.style.height = 'auto'; threadInput.style.height = Math.min(threadInput.scrollHeight, 120) + 'px'; threadSend.disabled = !threadInput.value.trim(); }
+    function sendThread() {
+      var text = threadInput.value.trim(), root = threadRoot; if (!text || root == null || !S.activeId) return; threadSend.disabled = true;
+      store.send(text, root).then(function () { if (threadRoot === root) { threadInput.value = ''; growThread(); threadList.scrollTop = threadList.scrollHeight; } }, function (e) { showToast(e.message); growThread(); });
+    }
+    threadInput.addEventListener('input', growThread);
+    threadInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendThread(); } });
+    threadSend.addEventListener('click', sendThread); threadClose.addEventListener('click', closeThread);
+
     function renderReply() {
       replyEl.innerHTML = ''; replyEl.classList.toggle('show', !!S.replyTo); if (!S.replyTo) return;
       var x = svg('close', 'tc-iconbtn'); x.setAttribute('aria-label', 'Cancel reply'); x.setAttribute('data-tc', 'reply-cancel'); x.addEventListener('click', function () { S.replyTo = null; renderReply(); });
       replyEl.appendChild(h('div', { class: 'tc-quote' }, h('b', { text: 'Reply to ' + S.replyTo.username }), h('span', { text: S.replyTo.text }))); replyEl.appendChild(x);
     }
     function renderConv() {
-      var none = !S.activeId; headEl.style.display = none ? 'none' : ''; composeEl.style.display = none ? 'none' : ''; if (none) { replyEl.classList.remove('show'); noteEl.style.display = 'none'; infoEl.classList.remove('show'); }
+      var none = !S.activeId; headEl.style.display = none ? 'none' : ''; composeEl.style.display = none ? 'none' : ''; if (none) { replyEl.classList.remove('show'); noteEl.style.display = 'none'; infoEl.classList.remove('show'); threadRoot = null; threadEl.classList.remove('show'); }
       if (none) { msgsEl.innerHTML = ''; msgsEl.appendChild(h('div', { class: 'tc-blank', 'data-tc': 'blank' }, h('b', { text: 'Select a chat to start messaging' }), h('div', { text: 'Or press the pencil to start a chat or make a group.' }))); sig = ''; lastChat = null; downBtn.classList.remove('show'); return; }
-      renderHead(); renderMsgs(); renderReply(); if (infoOpen) renderInfo();
+      renderHead(); renderMsgs(); renderReply(); if (infoOpen) renderInfo(); renderThread();
     }
 
     // ---- dialogs
@@ -340,7 +386,7 @@
     function leaveDialog() { var a = S.active; confirmBox('Leave group?', 'You will stop getting messages from ' + a.display_name + '.' + (a.owner_id === me().id && a.members.length > 1 ? ' The group will pass to the person who joined first.' : '') + (a.members.length === 1 ? ' You are the last person, so the group will be deleted.' : ''), 'Leave', true, function () { infoOpen = false; return store.leave(); }); }
     function deleteDialog() { var a = S.active; confirmBox('Delete group?', 'This deletes ' + a.display_name + ' and all of its messages for everyone. It cannot be undone.', 'Delete group', true, function () { infoOpen = false; return store.deleteGroup(); }); }
     function renderInfo() {
-      var a = S.active; infoEl.classList.toggle('show', infoOpen && !!a); if (!infoOpen || !a) return; infoEl.innerHTML = '';
+      var a = S.active; infoEl.classList.toggle('show', infoOpen && !!a); if (!infoOpen || !a) return; if (threadRoot != null) closeThread(); infoEl.innerHTML = '';
       var close = svg('close'); close.setAttribute('data-tc', 'info-close'); close.setAttribute('aria-label', 'Close'); close.addEventListener('click', function () { infoOpen = false; renderInfo(); });
       infoEl.appendChild(h('div', { class: 'tc-infohead' }, h('span', { text: a.is_dm ? 'Contact info' : 'Group info' }), close));
       var sc = h('div', { class: 'tc-infoscroll' }); infoEl.appendChild(sc);
@@ -383,16 +429,16 @@
     backBtn.addEventListener('click', function () { store.closeActive(); });
     downBtn.addEventListener('click', function () { msgsEl.scrollTop = msgsEl.scrollHeight; newBelow = 0; downBtn.classList.remove('show'); });
     msgsEl.addEventListener('scroll', function () { if (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 90) { newBelow = 0; downBtn.classList.remove('show'); } });
-    tc.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (layer) closeLayer(); else if (menuEl) closeMenu(); else if (infoOpen) { infoOpen = false; renderInfo(); } } });
+    tc.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (layer) closeLayer(); else if (menuEl) closeMenu(); else if (threadRoot != null) closeThread(); else if (infoOpen) { infoOpen = false; renderInfo(); } } });
     window.addEventListener('focus', function () { store.markRead(); });
 
     var lastActive = null;
     var off = store.subscribe(function (what) {
-      if (what === 'open' || what === 'closed') { sig = ''; infoOpen = false; closeLayer(); closeMenu(); }
+      if (what === 'open' || what === 'closed') { sig = ''; infoOpen = false; threadRoot = null; threadSig = ''; threadInput.value = ''; closeLayer(); closeMenu(); }
       if (what === 'toast') { showToast(S.toast); return; }
       if (what === 'open' || (what === 'active' && lastActive !== S.activeId)) { inputEl.value = (S.activeId && S.drafts[S.activeId]) || ''; grow(); if (S.activeId) setTimeout(function () { if (!tc.classList.contains('tc-narrow')) inputEl.focus(); }, 0); }
       lastActive = S.activeId; renderList(); renderConv(); fit();
-      var a = S.active; var notMember = a && !a.members.some(function (m) { return m.id === me().id; }); noteEl.style.display = notMember ? '' : 'none'; composeEl.style.display = (!S.activeId || notMember) ? 'none' : '';
+      var a = S.active; var notMember = a && !a.members.some(function (m) { return m.id === me().id; }); noteEl.style.display = notMember ? '' : 'none'; composeEl.style.display = (!S.activeId || notMember) ? 'none' : ''; threadCompose.style.display = notMember ? 'none' : '';
     });
     renderList(); renderConv(); fit(); store.refreshList();
     return { destroy: function () { off(); root.innerHTML = ''; }, setVisible: function (v) { store.setVisible(key, v); if (v) { fit(); renderList(); } }, focusSearch: function () { searchEl.focus(); }, el: tc };

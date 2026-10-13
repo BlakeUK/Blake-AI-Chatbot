@@ -230,3 +230,55 @@ test('on a system with no messages yet, the starting point is 0 and the very fir
     C::post($g, $u['bob'], 'the very first message');
     $n = C::notifications($u['cat'], $base['max_id'], $base['event_max_id']); assert_equal(['the very first message'], array_map(fn($r) => $r['content'], $n['notifications']), 'a starting point of 0 is a real starting point, not a first look');
 });
+
+suite('Team chat: threads and the AI (@ai)');
+
+test('only a standalone @ai asks the AI: not an address, not another name, not inside a word', function () {
+    foreach (['@ai', '@AI what is a CAT6?', 'hi @ai can you help', 'thanks @ai.', '(@ai) please', "line one\n@ai line two"] as $yes) assert_true(C::mentionsAi($yes), $yes);
+    foreach (['mail me at bob@ai.com', 'ask @aiden', 'ask @ai_bot', 'email@ai', 'no mention here', 'https://x.com/@ai'] as $no) assert_false(C::mentionsAi($no), $no);
+});
+
+test('replies are grouped into one thread whose root is the first message, however deep the replies go', function () {
+    $u = tch_reset(); $g = C::create($u['bob'], 'Parts', [$u['cat']]);
+    $root = C::post($g, $u['bob'], 'which aerial for Sheffield?'); $r1 = C::post($g, $u['cat'], 'a wideband one', $root); $r2 = C::post($g, $u['bob'], 'how many elements?', $r1); $other = C::post($g, $u['cat'], 'unrelated');
+    $m = array_column(tch_msgs($g, $u['bob']), null, 'id');
+    assert_null($m[$root]['thread_root_id']); assert_equal($root, $m[$r1]['thread_root_id']); assert_equal($root, $m[$r2]['thread_root_id'], 'a reply to a reply stays in the same thread'); assert_null($m[$other]['thread_root_id']);
+    assert_equal($root, C::threadRoot($root)); assert_equal($root, C::threadRoot($r2));
+});
+
+test('an AI answer is shown as Max, quotes the question, is in the thread, and counts as new for the person who asked', function () {
+    $u = tch_reset(); $g = C::create($u['bob'], 'Parts', [$u['cat']]); $base = C::notifications($u['bob'], 0, 0, true);
+    $q = C::post($g, $u['bob'], '@ai what is a CAT6 patch lead?'); $a = C::postAi($g, $u['bob'], 'A short Ethernet cable.', $q);
+    $m = array_column(tch_msgs($g, $u['cat']), null, 'id'); assert_equal('Max', $m[$a]['username']); assert_equal(1, $m[$a]['is_ai']); assert_equal(0, $m[$q]['is_ai']);
+    assert_equal(['id' => $q, 'username' => 'tc-bob', 'text' => '@ai what is a CAT6 patch lead?'], $m[$a]['reply_to']); assert_equal($q, $m[$a]['thread_root_id']);
+    $n = C::notifications($u['bob'], $base['max_id'], $base['event_max_id']); assert_equal([['Max', 'reply']], array_map(fn($r) => [$r['username'], $r['reason']], $n['notifications']), 'the asker is told, as a reply to them');
+    $list = array_column(C::listFor($u['bob']), null, 'id'); assert_equal(1, $list[$g]['unread_count']); assert_equal(['text' => 'A short Ethernet cable.', 'kind' => 'message', 'user' => 'Max', 'mine' => false], $list[$g]['last_message']);
+    C::post($g, $u['cat'], 'plain message'); assert_equal(0, C::mentionsAi('plain message') ? 1 : 0);
+});
+
+test('the AI answers only a message that asks for it, once, never answers itself, and says sorry when Gemini fails', function () {
+    $u = tch_reset(); $g = C::create($u['bob'], 'Parts', [$u['cat']]); $seen = [];
+    \Chat\TeamAi::$llm = function (string $system, string $conversation) use (&$seen): string { $seen[] = [$system, $conversation]; return 'Use RG6 for that run.'; };
+    try {
+        $plain = C::post($g, $u['bob'], 'nobody asked the AI'); assert_null(\Chat\TeamAi::answer($g, $plain)); assert_equal([], $seen, 'no @ai, no call');
+        C::post($g, $u['cat'], 'The customer has 40m of cable to the dish, card number 4111 1111 1111 1111');
+        $q = C::post($g, $u['bob'], '@ai what cable should they use?'); $id = \Chat\TeamAi::answer($g, $q); assert_true($id > 0);
+        assert_equal(1, count($seen)); assert_str_contains('tc-cat: The customer has 40m of cable', $seen[0][1], 'it reads the chat'); assert_str_contains('tc-bob: what cable should they use?', $seen[0][1], 'it sees the question without the @ai');
+        assert_false(str_contains($seen[0][1], '4111 1111 1111 1111'), 'card numbers never leave');
+        $last = tch_last($g, $u['bob']); assert_equal([$id, 'Max', 'Use RG6 for that run.', $q], [$last['id'], $last['username'], $last['content'], $last['reply_to']['id']]);
+        assert_null(\Chat\TeamAi::answer($g, $id), 'the AI never answers the AI'); assert_equal(1, count($seen));
+        \Chat\TeamAi::$llm = function () { throw new \RuntimeException('boom'); };
+        $q2 = C::post($g, $u['cat'], '@ai again'); $id2 = \Chat\TeamAi::answer($g, $q2); assert_str_contains('could not answer', tch_last($g, $u['bob'])['content']); assert_true($id2 > $id);
+    } finally { \Chat\TeamAi::$llm = null; }
+});
+
+test('asked inside a thread, the AI reads that thread and not the rest of the chat', function () {
+    $u = tch_reset(); $g = C::create($u['bob'], 'Parts', [$u['cat']]); $seen = '';
+    \Chat\TeamAi::$llm = function (string $s, string $c) use (&$seen): string { $seen = $c; return 'ok'; };
+    try {
+        $root = C::post($g, $u['bob'], 'thread topic about masts'); C::post($g, $u['cat'], 'completely different chat about vans'); $r = C::post($g, $u['cat'], 'it is a 3m mast', $root); $q = C::post($g, $u['bob'], '@ai is that tall enough?', $r);
+        \Chat\TeamAi::answer($g, $q);
+        assert_str_contains('thread topic about masts', $seen); assert_str_contains('it is a 3m mast', $seen); assert_false(str_contains($seen, 'vans'), 'other chat is left out');
+        assert_equal($root, tch_last($g, $u['bob'])['thread_root_id']);
+    } finally { \Chat\TeamAi::$llm = null; }
+});

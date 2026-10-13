@@ -411,6 +411,12 @@ if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(channel_members);" | 
 else
     warn "Team chat groups schema already applied — skipping."
 fi
+if ! sqlite3 "$WEBROOT/data/chatbot.db" "PRAGMA table_info(channel_messages);" | grep -q is_ai; then
+    info "Applying team chat threads and AI migration..."
+    sqlite3 "$WEBROOT/data/chatbot.db" < "$WEBROOT/scripts/schema_channels_v3.sql"
+else
+    warn "Team chat threads schema already applied — skipping."
+fi
 # Where shared files are kept: outside the website folder, owned by the web user, not readable by anyone else.
 mkdir -p "$WEBROOT/data/files/tmp"
 chown -R www-data:www-data "$WEBROOT/data/files"

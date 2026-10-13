@@ -147,3 +147,18 @@
 .tc-toast { position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 50; background: var(--surface-3); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.5); max-width: 80%; }
 .tc-items::-webkit-scrollbar, .tc-msgs::-webkit-scrollbar, .tc-pick::-webkit-scrollbar, .tc-infoscroll::-webkit-scrollbar { width: 8px; }
 .tc-items::-webkit-scrollbar-thumb, .tc-msgs::-webkit-scrollbar-thumb, .tc-pick::-webkit-scrollbar-thumb, .tc-infoscroll::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+
+/* threads and the AI */
+.tc-threadlink { display: block; margin-top: 3px; color: var(--accent-bright); font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.tc-threadlink:hover { text-decoration: underline; }
+.tc-quote .tc-threadlink { margin-top: 1px; }
+.tc-thread .tc-tlist { padding: 6px 0; }
+.tc-tmsg { padding: 7px 14px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tc-tmsg.root { background: rgba(255,255,255,.04); border-bottom: 1px solid var(--border); }
+.tc-tmsg .tc-who { display: flex; gap: 6px; align-items: baseline; font-size: 12px; font-weight: 600; margin-bottom: 1px; }
+.tc-ttime { margin-left: auto; color: var(--text-dim); font-weight: 400; font-size: 11px; }
+.tc-tmsg.ai, .tc-msg.ai .tc-bubble { background: rgba(101,170,221,.14); }
+.tc-msg.ai .tc-bubble { border-left: 3px solid var(--accent-bright); }
+.tc-aitag { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--surface-3); color: var(--text-dim); font-size: 10px; font-weight: 600; vertical-align: middle; }
+.tc-typing .tc-text { color: var(--text-dim); font-style: italic; }
+.tc-thread .tc-compose { border-top: 1px solid var(--border); }

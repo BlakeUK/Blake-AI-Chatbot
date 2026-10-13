@@ -226,7 +226,29 @@ final class Channels
             $q = self::pdo()->prepare('SELECT 1 FROM channel_messages WHERE id = ? AND channel_id = ?'); $q->execute([$replyTo, $channelId]);
             if (!$q->fetchColumn()) throw new \InvalidArgumentException('That message is no longer there.');
         }
-        self::pdo()->prepare("INSERT INTO channel_messages (channel_id, admin_id, content, reply_to_id, kind) VALUES (?,?,?,?, 'message')")->execute([$channelId, $me, $content, $replyTo]);
+        self::pdo()->prepare("INSERT INTO channel_messages (channel_id, admin_id, content, reply_to_id, thread_root_id, kind) VALUES (?,?,?,?,?, 'message')")->execute([$channelId, $me, $content, $replyTo, $replyTo === null ? null : self::threadRoot($replyTo)]);
+        return (int)self::pdo()->lastInsertId();
+    }
+
+    /** The first message of the thread a message belongs to (the message itself when nothing has replied to it as part of a thread yet). */
+    public static function threadRoot(int $messageId): int
+    {
+        $q = self::pdo()->prepare('SELECT COALESCE(thread_root_id, id) FROM channel_messages WHERE id = ?'); $q->execute([$messageId]);
+        return (int)$q->fetchColumn();
+    }
+
+    /** Does this text ask the AI for help: "@ai" as a word of its own, not part of an address or another name. */
+    public static function mentionsAi(string $text): bool
+    {
+        return (bool)preg_match('/(?<![A-Za-z0-9_@.\/-])@ai(?![A-Za-z0-9_@-])/i', $text);
+    }
+
+    /** The AI's answer to a message. Written under the name of the person who asked (the database needs a real person) but marked is_ai, so it is shown as the AI's and counts as new for everyone including the asker. */
+    public static function postAi(int $channelId, int $askedBy, string $content, int $replyTo): int
+    {
+        $content = mb_substr(trim((string)preg_replace('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+/u', '', str_replace("\r\n", "\n", $content))), 0, self::MAX_MESSAGE);
+        if ($content === '') throw new \InvalidArgumentException('Nothing to say.');
+        self::pdo()->prepare("INSERT INTO channel_messages (channel_id, admin_id, content, reply_to_id, thread_root_id, kind, is_ai) VALUES (?,?,?,?,?, 'message', 1)")->execute([$channelId, $askedBy, $content, $replyTo, self::threadRoot($replyTo)]);
         return (int)self::pdo()->lastInsertId();
     }
 
@@ -243,18 +265,18 @@ final class Channels
     {
         $q = self::pdo()->prepare("SELECT c.id, c.name, c.is_dm, c.description, c.created_by AS owner_id, c.created_at, cm.muted, cm.last_read_id,
               (SELECT COUNT(*) FROM channel_members x WHERE x.channel_id = c.id) AS member_count,
-              (SELECT COUNT(*) FROM channel_messages g WHERE g.channel_id = c.id AND g.id > cm.last_read_id AND g.admin_id != ? AND g.kind = 'message') AS unread_count,
+              (SELECT COUNT(*) FROM channel_messages g WHERE g.channel_id = c.id AND g.id > cm.last_read_id AND (g.admin_id != ? OR g.is_ai = 1) AND g.kind = 'message') AS unread_count,
               (SELECT MAX(id) FROM channel_messages z WHERE z.channel_id = c.id) AS last_id
             FROM channels c JOIN channel_members cm ON cm.channel_id = c.id AND cm.admin_id = ?");
         $q->execute([$me, $me]); $rows = $q->fetchAll();
-        $lm = self::pdo()->prepare('SELECT m.content, m.kind, m.created_at, m.admin_id, u.username FROM channel_messages m JOIN admin_users u ON u.id = m.admin_id WHERE m.id = ?');
+        $lm = self::pdo()->prepare('SELECT m.content, m.kind, m.created_at, m.admin_id, m.is_ai, CASE WHEN m.is_ai = 1 THEN \'Max\' ELSE u.username END AS username FROM channel_messages m JOIN admin_users u ON u.id = m.admin_id WHERE m.id = ?');
         $other = self::pdo()->prepare('SELECT u.id, u.username FROM channel_members m JOIN admin_users u ON u.id = m.admin_id WHERE m.channel_id = ? AND m.admin_id != ? LIMIT 1');
         foreach ($rows as &$r) {
             $r['id'] = (int)$r['id']; $r['is_dm'] = (int)$r['is_dm']; $r['muted'] = (int)$r['muted']; $r['unread_count'] = (int)$r['unread_count']; $r['member_count'] = (int)$r['member_count']; $r['owner_id'] = (int)$r['owner_id'];
             $r['display_name'] = $r['name']; $r['other_id'] = null;
             if ($r['is_dm']) { $other->execute([$r['id'], $me]); $o = $other->fetch(); $r['display_name'] = $o ? $o['username'] : self::username($me); $r['other_id'] = $o ? (int)$o['id'] : $me; }
             $r['last_message'] = null; $r['last_at'] = (int)$r['created_at'];
-            if ($r['last_id']) { $lm->execute([$r['last_id']]); if ($m = $lm->fetch()) { $r['last_message'] = ['text' => mb_substr((string)$m['content'], 0, 140), 'kind' => $m['kind'], 'user' => $m['username'], 'mine' => (int)$m['admin_id'] === $me]; $r['last_at'] = (int)$m['created_at']; } }
+            if ($r['last_id']) { $lm->execute([$r['last_id']]); if ($m = $lm->fetch()) { $r['last_message'] = ['text' => mb_substr((string)$m['content'], 0, 140), 'kind' => $m['kind'], 'user' => $m['username'], 'mine' => (int)$m['admin_id'] === $me && !(int)$m['is_ai']]; $r['last_at'] = (int)$m['created_at']; } }
         }
         unset($r);
         usort($rows, fn($a, $b) => [$b['last_at'], $b['id']] <=> [$a['last_at'], $a['id']]);
@@ -272,11 +294,11 @@ final class Channels
         $ch['muted'] = (int)self::pdo()->query('SELECT muted FROM channel_members WHERE channel_id = ' . $channelId . ' AND admin_id = ' . $me)->fetchColumn();
         $ch['display_name'] = $ch['name'];
         if ($ch['is_dm']) { $o = array_values(array_filter($ch['members'], fn($m) => $m['id'] !== $me)); $ch['display_name'] = $o ? $o[0]['username'] : self::username($me); $ch['other_id'] = $o ? $o[0]['id'] : $me; }
-        $sql = 'SELECT m.id, m.content, m.kind, m.reply_to_id, m.created_at, m.admin_id, u.username, r.content AS reply_text, ru.username AS reply_user
+        $sql = 'SELECT m.id, m.content, m.kind, m.reply_to_id, m.thread_root_id, m.is_ai, m.created_at, m.admin_id, CASE WHEN m.is_ai = 1 THEN \'Max\' ELSE u.username END AS username, r.content AS reply_text, CASE WHEN r.is_ai = 1 THEN \'Max\' ELSE ru.username END AS reply_user
                 FROM channel_messages m JOIN admin_users u ON u.id = m.admin_id LEFT JOIN channel_messages r ON r.id = m.reply_to_id LEFT JOIN admin_users ru ON ru.id = r.admin_id WHERE m.channel_id = ?';
         $q = self::pdo()->prepare($after > 0 ? "{$sql} AND m.id > ? ORDER BY m.id ASC LIMIT 500" : "SELECT * FROM ({$sql} ORDER BY m.id DESC LIMIT 200) ORDER BY id ASC");
         $q->execute($after > 0 ? [$channelId, $after] : [$channelId]);
-        $ch['messages'] = array_map(fn($m) => ['id' => (int)$m['id'], 'content' => $m['content'], 'kind' => $m['kind'], 'created_at' => (int)$m['created_at'], 'admin_id' => (int)$m['admin_id'], 'username' => $m['username'],
+        $ch['messages'] = array_map(fn($m) => ['id' => (int)$m['id'], 'content' => $m['content'], 'kind' => $m['kind'], 'created_at' => (int)$m['created_at'], 'admin_id' => (int)$m['admin_id'], 'username' => $m['username'], 'is_ai' => (int)$m['is_ai'], 'thread_root_id' => $m['thread_root_id'] ? (int)$m['thread_root_id'] : null,
             'reply_to' => $m['reply_to_id'] ? ['id' => (int)$m['reply_to_id'], 'username' => (string)$m['reply_user'], 'text' => mb_substr((string)$m['reply_text'], 0, 120)] : null], $q->fetchAll());
         $ch['max_id'] = (int)self::pdo()->query('SELECT COALESCE(MAX(id), 0) FROM channel_messages WHERE channel_id = ' . $channelId)->fetchColumn();
         unset($ch['created_by']);
@@ -292,9 +314,9 @@ final class Channels
         if ($baseline) {       // the first look of a session only sets the starting point: nothing old is replayed as new (asked for explicitly, because 0 is also a real starting point on a system with no messages yet)
             return ['max_id' => (int)$p->query('SELECT COALESCE(MAX(id), 0) FROM channel_messages')->fetchColumn(), 'event_max_id' => (int)$p->query('SELECT COALESCE(MAX(id), 0) FROM channel_events WHERE recipient_id = ' . $me)->fetchColumn(), 'notifications' => [], 'events' => []];
         }
-        $q = $p->prepare("SELECT m.id, m.channel_id, m.content, m.reply_to_id, m.created_at, u.username, c.name AS channel_name, c.is_dm, cm.muted
+        $q = $p->prepare("SELECT m.id, m.channel_id, m.content, m.reply_to_id, m.created_at, CASE WHEN m.is_ai = 1 THEN 'Max' ELSE u.username END AS username, c.name AS channel_name, c.is_dm, cm.muted
             FROM channel_messages m JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.admin_id = ? JOIN admin_users u ON u.id = m.admin_id JOIN channels c ON c.id = m.channel_id
-            WHERE m.id > ? AND m.id > cm.last_read_id AND m.admin_id != ? AND m.kind = 'message' ORDER BY m.id ASC LIMIT 200");
+            WHERE m.id > ? AND m.id > cm.last_read_id AND (m.admin_id != ? OR m.is_ai = 1) AND m.kind = 'message' ORDER BY m.id ASC LIMIT 200");
         $q->execute([$me, $sinceMessage, $me]); $rows = $q->fetchAll();
         $maxId = $rows ? max(array_map('intval', array_column($rows, 'id'))) : $sinceMessage;
         $mineIds = [];
