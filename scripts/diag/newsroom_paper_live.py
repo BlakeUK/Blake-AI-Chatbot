@@ -41,7 +41,7 @@ with sync_playwright() as p:
     rej = sum(1 for w in warns if "rejected" in w); fail = sum(1 for w in warns if "Rewrite failed" in w); print(f"  rewrites rejected by the page's own accuracy check: {rej}; failed: {fail}")
     check("no AI call was refused for going too fast (429)", ai_text.get(429, 0) + ai_img.get(429, 0) == 0, (dict(ai_text), dict(ai_img)))
     check("the AI answered the story rewrites", ai_text.get(200, 0) >= 3, dict(ai_text))
-    snap = frame.evaluate("window.__snap"); n_ai_pics = len(re.findall(r'<img[^>]+src="data:image/(?:png|jpeg);base64,', snap)); print(f"  pictures in the printed pages: {n_ai_pics} (AI drawn: {ai_img.get(200, 0)})")
+    snap = frame.evaluate("window.__snap"); n_ai_pics = len(re.findall(r'<img[^>]+src="data:image/(?:png|jpeg);base64,', snap)) + len(re.findall(r"background-image:\s*url\(['\"]?data:image/", snap))   # the page sets pictures as backgrounds; print(f"  pictures in the printed pages: {n_ai_pics} (AI drawn: {ai_img.get(200, 0)})")
     check("rewritten stories reached the printed pages", ai_text.get(200, 0) - rej - fail >= 1 and len(snap) > 5000, (ai_text.get(200, 0), rej, fail, len(snap)))
     if ai_img.get(200, 0): check("AI pictures reached the printed pages", n_ai_pics >= 1, n_ai_pics)
     report = frame.evaluate("window.__npReport || null"); print("  placed:", json.dumps({k: report.get(k) for k in ("total", "placed")}) if report else None)
