@@ -37,9 +37,9 @@ st, h, form, _, _ = req("GET", "/admin/links/new", cookie=cookie); check("the ne
 fields = {m.group(1): m.group(2) for m in re.finditer(r'<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"', form)}
 fields.update({m.group(2): m.group(1) for m in re.finditer(r'<input[^>]*type="hidden"[^>]*value="([^"]*)"[^>]*name="([^"]+)"', form)})
 TARGET = "https://example.com/qr-scan-check"
-data = dict(fields, kind="dynamic", type="url", label=LABEL, f_url=TARGET)
+data = dict(fields, kind="dynamic", type="url", label=LABEL, f_url=TARGET, window="24h", expiry_mode="show_expired_page", qr_ecc="M")
 st, h, b, _, _ = req("POST", "/admin/links", urllib.parse.urlencode(data), cookie=cookie)
-loc = h.get("location", ""); m = re.match(r"/admin/links/(\d+)", loc); check("a tracked link is created", st == 303 and m, (st, loc, b[:200], sorted(fields)))
+loc = h.get("location", ""); m = re.match(r"/admin/links/(\d+)", loc); why = " | ".join(re.sub(r"<[^>]+>", " ", x).strip() for x in re.findall(r'class="[^"]*(?:error|alert|flash)[^"]*"[^>]*>(.*?)</', b, re.S))[:300]; check("a tracked link is created", st == 303 and m, (st, loc, why, sorted(fields)))
 if not m: print("RESULT: stopped"); sys.exit(1)
 lid = m.group(1); st, h, page, _, _ = req("GET", loc, cookie=cookie); code = re.search(r'/r/([A-Za-z0-9_-]{3,})', page).group(1); print(f"  link {lid}, public address /r/{code}")
 
