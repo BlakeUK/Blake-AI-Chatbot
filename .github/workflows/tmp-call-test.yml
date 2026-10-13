@@ -1,9 +1,0 @@
-name: tmp call test
-on: workflow_dispatch
-jobs:
-  verify:
-    permissions:
-      contents: read
-      issues: write
-    uses: ./.github/workflows/diag-qr-scans.yml
-    secrets: inherit
