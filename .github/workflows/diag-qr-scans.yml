@@ -1,0 +1,30 @@
+name: Diagnose QR scanning and counting on the server
+
+# Checks that public QR scanning still works: service health and recent history (read only), then one throw-away link scanned several ways
+# (desktop, repeat, iPhone, Android, a link-preview bot), checking redirects, counts, the CSV export and the public headers, then deleted.
+on:
+  workflow_dispatch:
+
+jobs:
+  scans:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 6m
+          script: |
+            cd /var/www/chat
+            DB=$(grep '^DB_PATH=' /var/www/qrcode/qrtrack.env | cut -d= -f2- | tr -d '"')
+            cleanup() {
+              runuser -u www-data -- php scripts/diag/newsroom_qr_check.php cleanup >/dev/null
+              sqlite3 "$DB" "PRAGMA foreign_keys=ON; DELETE FROM scans WHERE link_id IN (SELECT id FROM links WHERE label LIKE 'diag-scan-check-%'); DELETE FROM links WHERE label LIKE 'diag-scan-check-%'; DELETE FROM users WHERE username IN ('sso.diag-sso','sso.diag-ro');"
+              echo "== cleaned up: temporary accounts and any test link removed"
+            }
+            trap cleanup EXIT
+            OUT=$(runuser -u www-data -- php scripts/diag/newsroom_qr_check.php prepare) || { echo "PREPARE FAILED: $OUT"; exit 1; }
+            CODE=$(echo "$OUT" | grep '^SSO_CODE=' | cut -d= -f2-)
+            python3 scripts/diag/qr_scan_check.py "$CODE"
