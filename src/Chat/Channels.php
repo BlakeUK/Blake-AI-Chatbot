@@ -286,10 +286,10 @@ final class Channels
     // ---- being told ----
 
     /** What this person should be told about since the two watermarks. Every message in a chat they have not muted, a mention or a reply to them even in a muted one, and the membership events. @return array<string,mixed> */
-    public static function notifications(int $me, int $sinceMessage, int $sinceEvent): array
+    public static function notifications(int $me, int $sinceMessage, int $sinceEvent, bool $baseline = false): array
     {
         $p = self::pdo(); $myName = self::username($me);
-        if ($sinceMessage <= 0) {       // the first look of a session only sets the starting point: nothing old is replayed as new
+        if ($baseline) {       // the first look of a session only sets the starting point: nothing old is replayed as new (asked for explicitly, because 0 is also a real starting point on a system with no messages yet)
             return ['max_id' => (int)$p->query('SELECT COALESCE(MAX(id), 0) FROM channel_messages')->fetchColumn(), 'event_max_id' => (int)$p->query('SELECT COALESCE(MAX(id), 0) FROM channel_events WHERE recipient_id = ' . $me)->fetchColumn(), 'notifications' => [], 'events' => []];
         }
         $q = $p->prepare("SELECT m.id, m.channel_id, m.content, m.reply_to_id, m.created_at, u.username, c.name AS channel_name, c.is_dm, cm.muted

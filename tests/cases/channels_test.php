@@ -189,13 +189,13 @@ suite('Team chat: who gets told');
 
 test('the first look of a session only sets a starting point, even with hundreds of old messages', function () {
     $u = tch_reset(); $g = C::create($u['bob'], 'Busy', [$u['cat']]); for ($i = 0; $i < 260; $i++) C::post($g, $u['bob'], "old {$i}");
-    $r = C::notifications($u['cat'], 0, 0); assert_equal([[], []], [$r['notifications'], $r['events']]); assert_equal(C::detail($g, $u['bob'])['max_id'], $r['max_id'], 'the starting point is the very latest message');
+    $r = C::notifications($u['cat'], 0, 0, true); assert_equal([[], []], [$r['notifications'], $r['events']]); assert_equal(C::detail($g, $u['bob'])['max_id'], $r['max_id'], 'the starting point is the very latest message');
     assert_equal(['notifications' => [], 'max' => $r['max_id']], ['notifications' => C::notifications($u['cat'], $r['max_id'], $r['event_max_id'])['notifications'], 'max' => C::notifications($u['cat'], $r['max_id'], $r['event_max_id'])['max_id']], 'nothing old is replayed as new');
     $sys = db()->query("SELECT MAX(id) FROM channel_events")->fetchColumn(); assert_equal((int)$sys, $r['event_max_id']);
 });
 
 test('every new message pops up for the others, but never your own, never a notice, and never from a chat you are not in', function () {
-    $u = tch_reset(); $g = C::create($u['bob'], 'Team', [$u['cat'], $u['dan']]); $dm = C::dm($u['bob'], $u['cat']); $base = C::notifications($u['cat'], 0, 0); $w = $base['max_id']; $ew = $base['event_max_id'];
+    $u = tch_reset(); $g = C::create($u['bob'], 'Team', [$u['cat'], $u['dan']]); $dm = C::dm($u['bob'], $u['cat']); $base = C::notifications($u['cat'], 0, 0, true); $w = $base['max_id']; $ew = $base['event_max_id'];
     C::post($g, $u['bob'], 'hello team'); C::post($dm, $u['bob'], 'just you'); C::post($g, $u['cat'], 'my own'); C::addMembers($g, $u['bob'], [$u['eve']]);
     $n = C::notifications($u['cat'], $w, $ew); assert_equal([['tc-bob', 'hello team', 'message', 'Team'], ['tc-bob', 'just you', 'dm', '']], array_map(fn($r) => [$r['username'], $r['content'], $r['reason'], $r['channel_name']], $n['notifications']));
     assert_equal([], C::notifications($u['eve'], $w, 0)['notifications'], 'someone who joined afterwards is not told about what was said before');
@@ -207,19 +207,26 @@ test('every new message pops up for the others, but never your own, never a noti
 
 test('a muted chat is silent, except for a mention of you or a reply to you, and muting is personal', function () {
     $u = tch_reset(); $g = C::create($u['bob'], 'Noisy', [$u['cat'], $u['dan']]); $dm = C::dm($u['bob'], $u['cat']); C::mute($g, $u['cat'], true); C::mute($dm, $u['cat'], true);
-    $w = C::notifications($u['cat'], 0, 0)['max_id']; $mine = C::post($g, $u['cat'], 'a question');
+    $w = C::notifications($u['cat'], 0, 0, true)['max_id']; $mine = C::post($g, $u['cat'], 'a question');
     C::post($g, $u['bob'], 'plain chatter'); C::post($g, $u['bob'], 'hey @tc-cat can you see this'); C::post($g, $u['dan'], 'an answer', $mine); C::post($g, $u['bob'], 'about @tc-catherine, not you'); C::post($dm, $u['bob'], 'a muted private message');
     assert_equal([['mention', 'hey @tc-cat can you see this'], ['reply', 'an answer']], array_map(fn($r) => [$r['reason'], $r['content']], C::notifications($u['cat'], $w, 0)['notifications']));
     assert_equal(['plain chatter', 'hey @tc-cat can you see this', 'about @tc-catherine, not you'], array_map(fn($r) => $r['content'], array_values(array_filter(C::notifications($u['dan'], $w, 0)['notifications'], fn($r) => $r['username'] === 'tc-bob'))), 'dan has not muted it');
-    C::mute($g, $u['cat'], false); $w2 = C::notifications($u['cat'], 0, 0)['max_id']; C::post($g, $u['bob'], 'audible again'); assert_equal(['audible again'], array_map(fn($r) => $r['content'], C::notifications($u['cat'], $w2, 0)['notifications']));
+    C::mute($g, $u['cat'], false); $w2 = C::notifications($u['cat'], 0, 0, true)['max_id']; C::post($g, $u['bob'], 'audible again'); assert_equal(['audible again'], array_map(fn($r) => $r['content'], C::notifications($u['cat'], $w2, 0)['notifications']));
 });
 
 test('being added, removed, or having a group deleted is always announced, to the right person, once', function () {
-    $u = tch_reset(); $base = C::notifications($u['cat'], 0, 0); $g = C::create($u['bob'], 'Announce', [$u['cat'], $u['dan']]); C::mute($g, $u['cat'], true);
+    $u = tch_reset(); $base = C::notifications($u['cat'], 0, 0, true); $g = C::create($u['bob'], 'Announce', [$u['cat'], $u['dan']]); C::mute($g, $u['cat'], true);
     $n = C::notifications($u['cat'], 1, $base['event_max_id']); assert_equal([['added', 'tc-bob', 'Announce']], array_map(fn($e) => [$e['kind'], $e['actor_name'], $e['channel_name']], $n['events']), 'even in a chat they muted');
     assert_equal([], C::notifications($u['cat'], 1, $n['event_max_id'])['events'], 'once only'); assert_equal([], C::notifications($u['bob'], 1, 0)['events'], 'not the person who did it');
     C::removeMember($g, $u['bob'], $u['cat']); assert_equal(['removed'], array_column(C::notifications($u['cat'], 1, $n['event_max_id'])['events'], 'kind')); assert_equal([], array_column(C::notifications($u['dan'], 1, 999999)['events'], 'kind'));
     $d = C::notifications($u['dan'], 1, 0)['events']; assert_equal(['added'], array_column($d, 'kind')); C::delete($g, $u['bob']);
     assert_equal(['added', 'deleted'], array_column(C::notifications($u['dan'], 1, 0)['events'], 'kind')); assert_equal(['deleted'], array_column(C::notifications($u['dan'], 1, $d[0]['id'])['events'], 'kind'));
     assert_equal([], array_filter(C::notifications($u['eve'], 1, 0)['events']), 'a person who was never in it is told nothing');
+});
+
+test('on a system with no messages yet, the starting point is 0 and the very first message is still announced', function () {
+    $u = tch_reset(); $g = C::dm($u['bob'], $u['cat']);          // a one-to-one chat writes no notice, so nothing at all has been said yet
+    $base = C::notifications($u['cat'], 0, 0, true); assert_equal(0, $base['max_id'], 'nothing has been said, so the starting point is 0');
+    C::post($g, $u['bob'], 'the very first message');
+    $n = C::notifications($u['cat'], $base['max_id'], $base['event_max_id']); assert_equal(['the very first message'], array_map(fn($r) => $r['content'], $n['notifications']), 'a starting point of 0 is a real starting point, not a first look');
 });

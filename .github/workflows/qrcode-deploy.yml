@@ -97,9 +97,10 @@ jobs:
         env:
           DOMAIN: ${{ github.event.inputs.domain }}
           ADMIN_PASSWORD_B64: ${{ steps.pw.outputs.b64 }}
-          # Sign in through the support desk, and let the support desk's programs show this tool in their own window
+          # Sign in through the support desk, and let the support desk's programs show this tool in their own window. EVERY page in the chain must be
+          # listed, not just the top: the program (tauri) shows the admin, which is served from the Caddyfile's site addresses, which shows this tool.
           SSO_VERIFY_URL: https://blakegroup.uk/api/qr_sso_verify.php
-          FRAME_ANCESTORS: https://blakegroup.uk https://tauri.localhost http://tauri.localhost tauri://localhost
+          FRAME_ANCESTORS: https://blakegroup.uk https://www.blakegroup.uk https://chat.blakegroup.uk https://tauri.localhost http://tauri.localhost tauri://localhost
           STORE_FULL_IP: ${{ steps.opts.outputs.store_full_ip }}
         with:
           host: ${{ secrets.SSH_SERVER }}

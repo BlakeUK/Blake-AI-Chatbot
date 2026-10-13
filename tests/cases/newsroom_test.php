@@ -230,3 +230,15 @@ test('story pictures skip emoji, smileys, avatars, tracking pixels and tiny icon
     $media = '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><item><title>x</title><link>https://n.example/x</link><media:thumbnail url="https://s.w.org/images/core/emoji/x.png"/><description><![CDATA[<img src="https://img.example/body.jpg">]]></description></item></channel></rss>';
     assert_equal('https://img.example/body.jpg', Feed::parse($media)['items'][0]['thumbnail'], 'an emoji given as the thumbnail is passed over for a real picture');
 });
+
+test('every address your admin is served from may show the QR tool, because a browser checks every page in the chain, not only the top one', function () {
+    $root = dirname(__DIR__, 2);
+    $caddy = (string)file_get_contents($root . '/Caddyfile'); $wf = (string)file_get_contents($root . '/.github/workflows/qrcode-deploy.yml');
+    preg_match('/FRAME_ANCESTORS:\s*(.+)/', $wf, $m); $allowed = preg_split('/\s+/', trim($m[1] ?? ''));
+    preg_match_all('/^([a-z0-9][a-z0-9.-]*(?:, [a-z0-9.-]+)*) \{\s*$/mi', $caddy, $blocks);
+    $hosts = []; foreach ($blocks[1] as $line) foreach (explode(', ', $line) as $h) $hosts[] = strtolower(trim($h));
+    assert_true(count($hosts) >= 3, 'the Caddyfile lists the site addresses: ' . json_encode($hosts));
+    foreach ($hosts as $h) assert_true(in_array('https://' . $h, $allowed, true), "https://{$h} serves the admin but is missing from FRAME_ANCESTORS, so the QR tab would say 'refused to connect' for people using it");
+    foreach (['https://tauri.localhost', 'http://tauri.localhost', 'tauri://localhost'] as $app) assert_true(in_array($app, $allowed, true), "the program's own address {$app} must be allowed");
+    foreach ($allowed as $o) assert_true((bool)preg_match('~\A(https?://[a-z0-9.-]+|tauri://localhost)\z~', $o) && !str_contains($o, '*'), "no wildcard or odd origin: {$o}");
+});
