@@ -1,0 +1,42 @@
+name: Diagnose a real newspaper on the live Newsroom
+
+# Makes a real newspaper through the live Newsroom in a real browser (real feeds, real article pages, the real AI), then downloads it and fetches
+# the saved link. Costs a few pence of AI use. The PDF is kept as a download of this run so it can be looked at.
+on:
+  workflow_dispatch:
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Get a Newsroom pass from the server
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          sudo apt-get install -y -qq sshpass >/dev/null
+          OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          OUT=$(sshpass -e ssh $OPTS "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}" "cd /var/www/chat && runuser -u www-data -- php scripts/diag/newsroom_qr_check.php prepare")
+          echo "NEWS_PASS=$(echo "$OUT" | grep '^NEWS_PASS=' | cut -d= -f2-)" >> "$GITHUB_ENV"
+      - name: Install a browser
+        run: |
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium >/dev/null
+      - name: Make the newspaper
+        run: python3 scripts/diag/newsroom_paper_live.py "$NEWS_PASS" /tmp/paper
+      - name: Keep the newspaper
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newspaper
+          path: /tmp/paper
+          if-no-files-found: ignore
+      - name: Remove the temporary accounts
+        if: always()
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          sshpass -e ssh $OPTS "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }}" "cd /var/www/chat && runuser -u www-data -- php scripts/diag/newsroom_qr_check.php cleanup"

@@ -1952,6 +1952,61 @@ ${sampleArticles}`;
           </div>`;
       }
 
+      // ---- The finished newspaper: a panel with a Download button (it works on your click, which is what browsers and the program insist on, rather than
+      // an automatic save minutes after the click) and a link kept on the server for two days, for when a download does not happen where you are.
+      function npMk(tag, attrs, ...kids) {
+        const e = document.createElement(tag);
+        Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'text') e.textContent = v; else if (k === 'style') e.style.cssText = v; else e.setAttribute(k, v); });
+        kids.forEach(c => c && e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+        return e;
+      }
+      function showPaperReady(blob, name, placed, total) {
+        const old = document.getElementById('np-ready'); if (old) old.remove();
+        const href = URL.createObjectURL(blob), mb = (blob.size / 1048576).toFixed(1);
+        const btn = 'display:inline-block;border:0;border-radius:10px;padding:11px 20px;font:600 14px system-ui,sans-serif;cursor:pointer;text-decoration:none;';
+        const status = npMk('div', { 'data-np': 'status', style: 'min-height:20px;font-size:13px;color:#94a3b8;margin-top:10px' });
+        const linkArea = npMk('div', { 'data-np': 'linkarea', style: 'margin-top:4px' });
+        const dl = npMk('a', { 'data-np': 'download', href, download: name, style: btn + 'background:#f97316;color:#fff', text: 'Download PDF' });
+        dl.addEventListener('click', () => { status.textContent = 'Downloading. Look in your Downloads folder for ' + name + '.'; });
+        const get = npMk('button', { 'data-np': 'getlink', type: 'button', style: btn + 'background:#1e293b;color:#e2e8f0;border:1px solid #475569', text: 'Get a link' });
+        const close = npMk('button', { 'data-np': 'close', type: 'button', 'aria-label': 'Close', style: 'position:absolute;top:10px;right:12px;background:none;border:0;color:#94a3b8;font-size:22px;cursor:pointer', text: '\u00D7' });
+        const card = npMk('div', { style: 'position:relative;width:480px;max-width:100%;background:#0f172a;border:1px solid #334155;border-radius:16px;padding:24px 24px 20px;color:#e2e8f0;font-family:system-ui,sans-serif;box-shadow:0 24px 60px rgba(0,0,0,.6)' },
+          close, npMk('div', { style: 'font:700 20px system-ui,sans-serif;margin-bottom:4px', text: 'Your newspaper is ready' }),
+          npMk('div', { 'data-np': 'info', style: 'font-size:13px;color:#94a3b8;margin-bottom:16px', text: name + '  \u00B7  ' + mb + ' MB  \u00B7  ' + placed + ' of ' + total + ' stories' }),
+          npMk('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, dl, get), status, linkArea,
+          npMk('div', { style: 'margin-top:14px;font-size:12px;color:#64748b;line-height:1.5', text: 'Print on A3, double-sided, flipping on the short edge. If nothing downloads where you are, press Get a link and open the link in your web browser.' }));
+        const wrap = npMk('div', { id: 'np-ready', 'data-np': 'ready', role: 'dialog', 'aria-label': 'Newspaper ready', style: 'position:fixed;inset:0;z-index:99999;background:rgba(2,6,23,.78);display:flex;align-items:center;justify-content:center;padding:16px' }, card);
+        const shut = () => { wrap.remove(); URL.revokeObjectURL(href); document.removeEventListener('keydown', onKey); };
+        const onKey = e => { if (e.key === 'Escape') shut(); };
+        close.addEventListener('click', shut); document.addEventListener('keydown', onKey); wrap.addEventListener('mousedown', e => { if (e.target === wrap) shut(); });
+        get.addEventListener('click', async () => {
+          get.disabled = true; get.style.opacity = '.6'; linkArea.textContent = '';
+          try {
+            const say = t => { status.textContent = t; };
+            say('Saving a copy...');
+            let r = await window.newsFetch('paper_begin', null, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ size: blob.size, name }) });
+            let j = await r.json(); if (!r.ok) throw new Error(j.error || 'Could not save a copy.');
+            const id = j.id, STEP = 1500000;
+            for (let off = 0; off < blob.size; off += STEP) {
+              say('Saving a copy... ' + Math.min(100, Math.round(off / blob.size * 100)) + '%');
+              r = await window.newsFetch('paper_chunk', { id, offset: off }, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await blob.slice(off, off + STEP).arrayBuffer() });
+              j = await r.json(); if (!r.ok) throw new Error(j.error || 'Could not save a copy.');
+            }
+            r = await window.newsFetch('paper_finish', null, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+            j = await r.json(); if (!r.ok) throw new Error(j.error || 'Could not save a copy.');
+            say('Ready. This link works for 48 hours and needs no sign-in, so anyone you send it to can open it.');
+            const box = npMk('input', { 'data-np': 'linkbox', type: 'text', readonly: 'readonly', value: j.url, style: 'width:100%;box-sizing:border-box;margin:8px 0;padding:9px 10px;border-radius:8px;border:1px solid #475569;background:#020617;color:#e2e8f0;font:12px ui-monospace,monospace' });
+            box.addEventListener('focus', () => box.select());
+            const open = npMk('a', { 'data-np': 'open', href: j.url, target: '_blank', rel: 'noopener noreferrer', style: btn + 'background:#1e293b;color:#e2e8f0;border:1px solid #475569;padding:8px 16px;margin-right:8px', text: 'Open' });
+            const copy = npMk('button', { 'data-np': 'copy', type: 'button', style: btn + 'background:#1e293b;color:#e2e8f0;border:1px solid #475569;padding:8px 16px', text: 'Copy link' });
+            copy.addEventListener('click', async () => { box.select(); try { await navigator.clipboard.writeText(j.url); copy.textContent = 'Copied'; } catch (e) { try { document.execCommand('copy'); copy.textContent = 'Copied'; } catch (e2) { copy.textContent = 'Press Ctrl+C'; } } });
+            linkArea.appendChild(box); linkArea.appendChild(open); linkArea.appendChild(copy);
+          } catch (err) { status.textContent = err.message || 'Could not save a copy.'; get.disabled = false; get.style.opacity = '1'; }
+        });
+        document.body.appendChild(wrap);
+        return wrap;
+      }
+
       async function createNewspaper(evt) {
         if (state.isLoading || !state.articles.length) {
           showToast('Wait for the feeds to finish loading', false);
@@ -2185,9 +2240,11 @@ ${sampleArticles}`;
           pdf.addPage('a3', 'landscape');
           pdf.addImage(jpg(canvases[1]), 'JPEG', 0, 0, 210, 297);
           pdf.addImage(jpg(canvases[2]), 'JPEG', 210, 0, 210, 297);
-          pdf.save(`The-Rigger-${month.replace(/\s+/g, '-')}-A3.pdf`);
+          const paperName = `The-Rigger-${month.replace(/\s+/g, '-')}-A3.pdf`;
+          const paperBlob = pdf.output('blob');
 
           stage.remove();
+          showPaperReady(paperBlob, paperName, placedCount, articles.length);
           showToast(`Newspaper created: ${placedCount} of ${articles.length} stories. Print A3 double-sided, flip on short edge.`);
         } catch (err) {
           console.error(err);
