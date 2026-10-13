@@ -2266,7 +2266,7 @@
             briefBoxes.forEach(b => b.style.setProperty('--bs', best));
             left = fillBriefs(briefBoxes, items, m); briefMode = `${m}@${best}`;
           }
-          const fills = briefBoxes.map(b => { const e = b.lastElementChild; return e ? +(((e.offsetTop + e.offsetHeight) / b.clientHeight)).toFixed(2) : 0; });
+          const fills = briefBoxes.map(b => { const e = b.lastElementChild; if (!e) return 0; return +Math.min(1.5, Math.max(0, (e.getBoundingClientRect().bottom - b.getBoundingClientRect().top) / b.clientHeight)).toFixed(2); });   // how full each column is (0 to 1)
           const placedCount = articles.length - left.length;
           window.__npReport = { retune: !!retune, mode: briefMode, fill: fills, empty: fills.filter(f => f < 0.05).length, total: articles.length, placed: placedCount, missing: left.map(x => x.head), briefs: items.length, tried, boxH: briefBoxes.map(b => b.clientHeight) };
           if (left.length) showToast(`${left.length} stories did not fit`, false);
