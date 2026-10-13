@@ -1,0 +1,21 @@
+name: Diagnose team chat on the server
+
+# Three throw-away staff accounts go through the whole life of a group on the real database: make it, message, mute, mention, add, remove, leave,
+# owner passes on, delete. Checks the new columns are there. Everything is removed afterwards.
+on:
+  workflow_dispatch:
+
+jobs:
+  chat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_SERVER }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          command_timeout: 4m
+          script: |
+            cd /var/www/chat
+            runuser -u www-data -- php scripts/diag/channels_check.php
