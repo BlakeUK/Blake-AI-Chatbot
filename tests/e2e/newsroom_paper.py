@@ -31,7 +31,7 @@ def api(route):
             stats["brief"] = stats.get("brief", 0) + 1; mode = state["brief"]
             if mode == "error": return js(500, {"error": "boom"})
             good = ["The new channel will move to a different multiplex from next Tuesday.", "Viewers on the Crystal Palace transmitter will need to retune their Freeview boxes."]
-            secs = {"good": [good, [], ["Engineers will carry out the change early in the morning."]], "invented": [["Freesat services report no transponder alterations this week 1234.", "Viewers should tune to Astra 28.2 now."] + good[:1], [], []], "empty": [[], [], []]}[mode]
+            secs = {"good": [good, [], ["Engineers will carry out the change early in the morning."]], "invented": [["Freesat services report no transponder alterations this week 1234.", "Viewers should tune to Astra 28.2 now."] + good[:1], [], []], "empty": [[], [], []], "long": [[SENT[i] + " " + SENT[(i + 1) % 5] for i in range(4)] for _ in range(3)]}[mode]
             return js(200, {"candidates": [{"content": {"parts": [{"text": json.dumps({"sections": [{"title": t, "items": i} for t, i in zip("abc", secs)]})}]}}]})
         stats["ai_text"] += 1; time.sleep(1.6); src = b["contents"][0]["parts"][0]["text"].split("SOURCE:", 1)[-1].strip(); sents = re.split(r"(?<=\.)\s+", src.split("\n\n", 1)[-1])
         out = {"headline": "Freeview channel to move multiplex", "caption": "Crystal Palace transmitter", "body": "\n\n".join(" ".join(sents[i:i + 2]) for i in range(0, 6, 2))}
@@ -101,6 +101,12 @@ with sync_playwright() as p:
     ok("Open goes to the link in a new window without sharing the page, and Copy is offered", fr.locator("[data-np=open]").get_attribute("href") == url and fr.locator("[data-np=open]").get_attribute("target") == "_blank" and "noopener" in fr.locator("[data-np=open]").get_attribute("rel") and fr.locator("[data-np=copy]").is_visible())
     pg.screenshot(path="/tmp/np_ready.png")
     fr.locator("[data-np=close]").click(); ok("the panel closes", fr.locator("[data-np=ready]").count() == 0)
+    print("== a newspaper with a very long brief")
+    brief("long"); done(); frame.evaluate("window.__snap = ''"); btn.click(); fr.locator("[data-np=ready]").wait_for(timeout=200000); pg.wait_for_timeout(500)
+    rpt3 = frame.evaluate("window.__npReport"); rt = rpt3["rt"]
+    ok("a brief too long for its box is trimmed to fit, and still has all three headings", rt and rt["fits"] and rt["headings"] == 3 and 3 <= rt["items"] < 12, rpt3["rt"])
+    ok("the stories are all still placed and no column is empty", rpt3["placed"] == rpt3["total"] and rpt3["empty"] == 0, rpt3)
+    fr.locator("[data-np=close]").click()
     print("== a second newspaper when the AI cannot write the brief")
     brief("error"); done(); frame.evaluate("window.__snap = ''"); btn.click(); fr.locator("[data-np=ready]").wait_for(timeout=200000); pg.wait_for_timeout(500)
     rpt2 = frame.evaluate("window.__npReport"); snap2 = frame.evaluate("window.__snap")
