@@ -1,0 +1,149 @@
+/* Team chat, styled after Telegram Desktop (chat list with avatars, previews, times and unread badges on the left; bubbles with ticks on the
+   right), in the console's own colours. Used in the Team page and in the floating panel. */
+.tc { --tc-own: #3b3470; --tc-own-seen: #9285ff; --tc-other: var(--surface-2); display: grid; grid-template-columns: 340px minmax(0, 1fr); height: 100%; width: 100%; background: var(--surface); color: var(--text); font-size: 14px; position: relative; overflow: hidden; border-radius: inherit; }
+.tc * { box-sizing: border-box; }
+.tc button { font-family: inherit; cursor: pointer; }
+.tc-narrow { grid-template-columns: 1fr; }
+.tc-narrow .tc-conv { display: none; }
+.tc-narrow.tc-show-conv .tc-list { display: none; }
+.tc-narrow.tc-show-conv .tc-conv { display: flex; }
+.tc:not(.tc-narrow) .tc-back { display: none; }
+
+/* ---- left: the list of chats ---- */
+.tc-list { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); background: var(--surface); }
+.tc-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; }
+.tc-search { flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid transparent; color: var(--text); border-radius: 20px; padding: 8px 14px; font-size: 13px; outline: none; }
+.tc-search:focus { border-color: var(--accent); }
+.tc-iconbtn { width: 34px; height: 34px; flex: none; border-radius: 50%; border: none; background: transparent; color: var(--text-dim); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; }
+.tc-iconbtn:hover { background: var(--surface-2); color: var(--text); }
+.tc-iconbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tc-filters { display: flex; gap: 6px; padding: 4px 12px 8px; overflow-x: auto; }
+.tc-chip { border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 16px; padding: 4px 11px; font-size: 12px; white-space: nowrap; }
+.tc-chip:hover { color: var(--text); }
+.tc-chip.on { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+.tc-chip b { margin-left: 5px; background: var(--accent); color: #fff; border-radius: 9px; padding: 0 6px; font-size: 11px; font-weight: 600; }
+.tc-items { flex: 1; overflow-y: auto; min-height: 0; }
+.tc-item { display: flex; gap: 11px; align-items: center; padding: 8px 12px; cursor: pointer; border-radius: 10px; margin: 1px 6px; }
+.tc-item:hover { background: var(--surface-2); }
+.tc-item.active { background: var(--accent); color: #fff; }
+.tc-item.active .tc-sub, .tc-item.active .tc-time, .tc-item.active .tc-prefix { color: rgba(255,255,255,.82); }
+.tc-avatar { flex: none; width: 48px; height: 48px; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 17px; position: relative; user-select: none; }
+.tc-avatar.sm { width: 36px; height: 36px; font-size: 13px; }
+.tc-avatar.lg { width: 84px; height: 84px; font-size: 30px; }
+.tc-dot { position: absolute; right: 0; bottom: 0; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--surface); background: #6b7480; }
+.tc-dot.online { background: var(--ok); } .tc-dot.busy { background: var(--warn); }
+.tc-item.active .tc-dot { border-color: var(--accent); }
+.tc-body { flex: 1; min-width: 0; }
+.tc-row { display: flex; align-items: baseline; gap: 6px; }
+.tc-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-time { flex: none; font-size: 12px; color: var(--text-dim); }
+.tc-sub { flex: 1; min-width: 0; color: var(--text-dim); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.tc-sub i { font-style: italic; }
+.tc-prefix { color: var(--accent-bright); }
+.tc-badge { flex: none; min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; margin-top: 2px; }
+.tc-item.active .tc-badge { background: #fff; color: var(--accent); }
+.tc-badge.muted { background: #6b7480; }
+.tc-mute { font-size: 12px; opacity: .7; }
+.tc-empty { padding: 28px 18px; text-align: center; color: var(--text-dim); font-size: 13px; line-height: 1.5; }
+
+/* ---- right: the conversation ---- */
+.tc-conv { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); position: relative; }
+.tc-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); min-height: 58px; }
+.tc-headinfo { flex: 1; min-width: 0; cursor: pointer; }
+.tc-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-status { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-status.on { color: var(--accent-bright); }
+.tc-msgs { flex: 1; overflow-y: auto; min-height: 0; padding: 12px 14px 8px; display: flex; flex-direction: column; gap: 3px; scroll-behavior: auto; }
+.tc-day { align-self: center; background: rgba(255,255,255,.08); color: var(--text-dim); border-radius: 12px; padding: 3px 12px; font-size: 12px; margin: 10px 0 6px; }
+.tc-sys { align-self: center; max-width: 80%; text-align: center; background: rgba(255,255,255,.06); color: var(--text-dim); border-radius: 12px; padding: 4px 12px; font-size: 12px; margin: 4px 0; }
+.tc-msg { display: flex; max-width: 100%; position: relative; }
+.tc-msg.mine { justify-content: flex-end; }
+.tc-msg.first { margin-top: 7px; }
+.tc-bubble { max-width: min(78%, 560px); background: var(--tc-other); border-radius: 14px 14px 14px 4px; padding: 6px 10px 5px; position: relative; word-wrap: break-word; overflow-wrap: anywhere; }
+.tc-msg.mine .tc-bubble { background: var(--tc-own); border-radius: 14px 14px 4px 14px; }
+.tc-msg.mid .tc-bubble { border-radius: 14px; }
+.tc-who { font-size: 13px; font-weight: 600; margin-bottom: 1px; }
+.tc-text { white-space: pre-wrap; line-height: 1.38; }
+.tc-text a { color: #8ab4ff; }
+.tc-mention { color: var(--accent-bright); font-weight: 600; }
+.tc-meta { float: right; margin: 5px 0 -2px 10px; font-size: 11px; color: var(--text-dim); display: inline-flex; align-items: center; gap: 3px; user-select: none; }
+.tc-msg.mine .tc-meta { color: rgba(255,255,255,.62); }
+.tc-tick { font-size: 12px; letter-spacing: -3px; margin-right: 3px; }
+.tc-tick.seen { color: var(--tc-own-seen); }
+.tc-quote { border-left: 3px solid var(--accent-bright); background: rgba(255,255,255,.06); border-radius: 4px; padding: 3px 8px; margin: 1px 0 4px; font-size: 12px; cursor: pointer; }
+.tc-quote b { display: block; color: var(--accent-bright); font-size: 12px; }
+.tc-quote span { color: var(--text-dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 380px; }
+.tc-replybtn { position: absolute; top: 50%; transform: translateY(-50%); display: none; width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-3); color: var(--text-dim); font-size: 14px; }
+.tc-msg:not(.mine) .tc-replybtn { right: 4px; } .tc-msg.mine .tc-replybtn { left: 4px; }
+.tc-msg:hover .tc-replybtn { display: block; }
+.tc-flash .tc-bubble { animation: tcflash 1.2s; }
+@keyframes tcflash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent-bright); } 100% { box-shadow: none; } }
+.tc-down { position: absolute; right: 16px; bottom: 76px; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-3); color: var(--text); display: none; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.tc-down.show { display: flex; }
+.tc-down b { position: absolute; top: -8px; right: -4px; background: var(--accent); color: #fff; border-radius: 9px; font-size: 11px; padding: 0 6px; font-weight: 600; }
+.tc-blank { margin: auto; text-align: center; color: var(--text-dim); max-width: 280px; line-height: 1.5; }
+.tc-blank b { display: inline-block; background: rgba(255,255,255,.08); border-radius: 12px; padding: 3px 12px; font-weight: 500; margin-bottom: 8px; }
+
+/* ---- composer ---- */
+.tc-reply { display: none; align-items: center; gap: 10px; padding: 6px 12px; background: var(--surface); border-top: 1px solid var(--border); font-size: 12px; }
+.tc-reply.show { display: flex; }
+.tc-reply .tc-quote { flex: 1; margin: 0; cursor: default; }
+.tc-compose { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 10px; background: var(--surface); border-top: 1px solid var(--border); }
+.tc-reply.show + .tc-compose { border-top: none; }
+.tc-input { flex: 1; resize: none; background: var(--surface-2); border: 1px solid transparent; color: var(--text); border-radius: 20px; padding: 9px 14px; font: inherit; font-size: 14px; line-height: 1.35; max-height: 140px; outline: none; }
+.tc-input:focus { border-color: var(--accent); }
+.tc-send { width: 40px; height: 40px; flex: none; border-radius: 50%; border: none; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.tc-send:hover { background: var(--accent-bright); } .tc-send:disabled { background: var(--surface-3); color: var(--text-dim); cursor: default; }
+.tc-send svg { width: 19px; height: 19px; fill: currentColor; }
+.tc-note { padding: 14px; text-align: center; color: var(--text-dim); background: var(--surface); border-top: 1px solid var(--border); font-size: 13px; }
+
+/* ---- menus, the info panel and dialogs ---- */
+.tc-menu { position: absolute; z-index: 30; min-width: 210px; background: var(--surface-3); border: 1px solid var(--border); border-radius: 12px; padding: 6px; box-shadow: 0 12px 34px rgba(0,0,0,.5); }
+.tc-menu button { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 13px; }
+.tc-menu button:hover { background: var(--accent-dim); }
+.tc-menu .danger { color: var(--err); }
+.tc-menu hr { border: none; border-top: 1px solid var(--border); margin: 5px 4px; }
+.tc-info { position: absolute; top: 0; right: 0; bottom: 0; width: 340px; max-width: 100%; z-index: 20; background: var(--surface); border-left: 1px solid var(--border); display: none; flex-direction: column; box-shadow: -12px 0 30px rgba(0,0,0,.35); }
+.tc-info.show { display: flex; }
+.tc-infohead { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.tc-infoscroll { flex: 1; overflow-y: auto; padding-bottom: 14px; }
+.tc-hero { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 14px 10px; text-align: center; }
+.tc-hero .tc-title { font-size: 18px; max-width: 100%; white-space: normal; }
+.tc-desc { color: var(--text-dim); font-size: 13px; padding: 0 18px 8px; text-align: center; white-space: pre-wrap; }
+.tc-edit { display: flex; gap: 6px; padding: 0 14px 8px; }
+.tc-edit input, .tc-edit textarea { flex: 1; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; }
+.tc-section { padding: 8px 14px 2px; color: var(--accent-bright); font-size: 13px; font-weight: 600; }
+.tc-line { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; font-size: 14px; gap: 10px; }
+.tc-switch { width: 38px; height: 22px; border-radius: 11px; background: var(--surface-3); border: none; position: relative; flex: none; }
+.tc-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+.tc-switch.on { background: var(--accent); } .tc-switch.on::after { left: 19px; }
+.tc-member { display: flex; align-items: center; gap: 10px; padding: 6px 14px; }
+.tc-member .tc-body { flex: 1; }
+.tc-tag { font-size: 11px; color: var(--accent-bright); border: 1px solid var(--accent-dim); border-radius: 9px; padding: 0 7px; margin-left: 6px; }
+.tc-linkbtn { background: none; border: none; color: var(--accent-bright); padding: 9px 14px; text-align: left; font-size: 14px; width: 100%; }
+.tc-linkbtn:hover { background: var(--surface-2); }
+.tc-linkbtn.danger { color: var(--err); }
+.tc-x { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: var(--text-dim); font-size: 16px; }
+.tc-x:hover { background: rgba(234,95,95,.18); color: var(--err); }
+.tc-overlay { position: absolute; inset: 0; z-index: 40; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.tc-dialog { width: 400px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.tc-dialog h3 { margin: 0; padding: 16px 18px 6px; font-size: 17px; }
+.tc-dialog p { margin: 0; padding: 4px 18px 10px; color: var(--text-dim); font-size: 13px; line-height: 1.45; }
+.tc-field { padding: 6px 18px; }
+.tc-field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+.tc-field input, .tc-field textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 14px; }
+.tc-field input:focus, .tc-field textarea:focus { outline: none; border-color: var(--accent); }
+.tc-pick { overflow-y: auto; min-height: 90px; max-height: 280px; margin: 4px 8px; }
+.tc-pickrow { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 10px; cursor: pointer; }
+.tc-pickrow:hover { background: var(--surface-2); }
+.tc-pickrow input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.tc-err { color: var(--err); font-size: 13px; padding: 2px 18px 6px; min-height: 18px; }
+.tc-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px 14px; }
+.tc-btn { border-radius: 8px; border: 1px solid var(--border); background: var(--surface-3); color: var(--text); padding: 8px 16px; font-size: 13px; }
+.tc-btn:hover { border-color: var(--accent); }
+.tc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; } .tc-btn.primary:hover { background: var(--accent-bright); }
+.tc-btn.danger { background: var(--err); border-color: var(--err); color: #fff; font-weight: 500; }
+.tc-btn:disabled { opacity: .5; cursor: default; }
+.tc-toast { position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 50; background: var(--surface-3); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.5); max-width: 80%; }
+.tc-items::-webkit-scrollbar, .tc-msgs::-webkit-scrollbar, .tc-pick::-webkit-scrollbar, .tc-infoscroll::-webkit-scrollbar { width: 8px; }
+.tc-items::-webkit-scrollbar-thumb, .tc-msgs::-webkit-scrollbar-thumb, .tc-pick::-webkit-scrollbar-thumb, .tc-infoscroll::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }

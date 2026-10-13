@@ -200,27 +200,11 @@
   #chat-bubble { position: fixed; bottom: 22px; right: 22px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #fff; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.4); z-index: 30; }
   #chat-bubble:hover { background: var(--accent-bright); }
   #chat-bubble .dot { position: absolute; top: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--err); border: 2px solid var(--bg); }
-  #chat-panel { position: fixed; bottom: 84px; right: 22px; width: 360px; height: 500px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); display: flex; z-index: 31; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
-  #chat-channel-list { width: 130px; border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; }
-  .chan-item { padding: 10px 10px; font-size: 12px; cursor: pointer; border-bottom: 1px solid var(--border); position: relative; }
-  .chan-item:hover { background: var(--surface-2); }
-  .chan-item.active { background: var(--accent-dim); color: var(--accent-bright); }
-  .chan-item .unread-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-bright); margin-right: 4px; }
-  #chat-new-btn { width: 100%; padding: 8px; font-size: 16px; border: none; background: none; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-  #chat-new-btn:hover { color: var(--text); background: var(--surface-2); }
-  #chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  #chat-header { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-  #chat-messages { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-  .chat-msg { font-size: 12px; }
-  .chat-msg .who { font-weight: 600; color: var(--accent-bright); }
-  .chat-msg .when { color: var(--text-dim); font-size: 10px; margin-left: 4px; }
-  .chat-msg .reply-ref { font-size: 10px; color: var(--text-dim); border-left: 2px solid var(--border); padding-left: 6px; margin-bottom: 2px; }
-  .chat-msg-body { cursor: pointer; }
-  .chat-msg-body:hover { text-decoration: underline dotted; }
-  #chat-compose { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
-  #chat-compose input { flex: 1; }
-  #chat-reply-banner { font-size: 11px; color: var(--text-dim); padding: 4px 12px; background: var(--surface-2); display: flex; justify-content: space-between; }
-  #chat-members-btn { font-size: 11px; color: var(--text-dim); background: none; border: none; cursor: pointer; }
+  #chat-panel { position: fixed; bottom: 84px; right: 22px; width: min(860px, calc(100vw - 44px)); height: min(640px, calc(100vh - 110px)); z-index: 31; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.55); background: var(--surface); }
+  #chat-panel.hidden { display: none; }
+  .team-tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+  .team-tabs .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #team-chat-mount { height: calc(100vh - 200px); min-height: 460px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
 
   /* ── Project detail extras ── */
   input[type="range"] { padding: 0; }
@@ -334,6 +318,7 @@
   #conv-panel .conv-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
   #conv-status { font-size:12px; color:var(--text-dim); }
 </style>
+<link rel="stylesheet" href="teamchat.css">
 </head>
 <body>
 
@@ -482,8 +467,15 @@
           <h1>Team</h1>
           <button class="btn btn-primary" id="team-manage" onclick="openAdminTab('users')" style="display:none">Manage users (add, edit, departments, 2FA reset)</button>
         </div>
-        <div class="page-meta">Who is online and which departments they cover. Click a colleague to message them.</div>
-        <div class="card-grid" id="team-grid"></div>
+        <div class="team-tabs">
+          <button class="btn on" data-team-tab="chats" id="team-tab-btn-chats">Chats</button>
+          <button class="btn" data-team-tab="staff" id="team-tab-btn-staff">Staff</button>
+        </div>
+        <div id="team-tab-chats"><div id="team-chat-mount"></div></div>
+        <div id="team-tab-staff" style="display:none">
+          <div class="page-meta">Who is online and which departments they cover. Click a colleague to message them.</div>
+          <div class="card-grid" id="team-grid"></div>
+        </div>
       </div>
 
       <div class="page" id="page-admin" style="padding:0">
@@ -523,20 +515,6 @@
   </div>
 </div>
 
-<div id="new-channel-modal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <h2>New channel</h2>
-    <label for="nc-name">Name</label>
-    <input id="nc-name" placeholder="e.g. Sales Team">
-    <label>Members</label>
-    <div id="nc-members" style="max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px"></div>
-    <div class="err" id="nc-err"></div>
-    <div class="modal-actions">
-      <button class="btn" id="nc-cancel">Cancel</button>
-      <button class="btn btn-primary" id="nc-submit">Create</button>
-    </div>
-  </div>
-</div>
 
 
 <div id="transfer-modal" class="modal-overlay hidden">
@@ -592,22 +570,9 @@
   <svg class="icon" viewBox="0 0 24 24" style="stroke:#fff;width:22px;height:22px"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5Z"/></svg>
   <span class="dot hidden" id="chat-bubble-dot"></span>
 </button>
-<div id="chat-panel" class="hidden">
-  <div id="chat-channel-list">
-    <button id="chat-new-btn" title="New channel">+</button>
-    <div id="chan-items"></div>
-  </div>
-  <div id="chat-main">
-    <div id="chat-header"><span id="chat-header-name">Select a channel</span><button id="chat-members-btn" class="hidden">Members</button></div>
-    <div id="chat-messages"><div class="empty-note">No channel selected.</div></div>
-    <div id="chat-reply-banner" class="hidden"><span id="chat-reply-text"></span><span id="chat-reply-cancel" style="cursor:pointer">✕</span></div>
-    <div id="chat-compose">
-      <input id="chat-input" placeholder="Message… (@name to mention)" disabled>
-      <button class="btn btn-sm btn-primary" id="chat-send" disabled>Send</button>
-    </div>
-  </div>
-</div>
+<div id="chat-panel" class="hidden"><div id="chat-dock-mount" style="height:100%"></div></div>
 
+<script src="teamchat.js"></script>
 <script>
 // ── Config / state ──────────────────────────────────────────────────────────
 const DEFAULT_SERVER = 'https://chat.blakegroup.uk';
@@ -1091,12 +1056,14 @@ function showPage(name) {
   document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
   document.getElementById('content').classList.toggle('full', name === 'chats' || name === 'admin');
   if (name === 'team') {
-    loadTeam();
+    if (teamTab === 'staff') loadTeam();
     const btn = document.getElementById('team-manage');
     if (btn) btn.style.display = myRole === 'admin' ? '' : 'none';
   }
   if (name === 'chats') loadChatQueue();
   if (name === 'admin') loadAdminFrame();
+  if (window.TC_PAGE) window.TC_PAGE.setVisible(name === 'team' && teamTab === 'chats');
+  if (typeof syncChatBubble === 'function') syncChatBubble();
 }
 document.getElementById('bell').onclick = () => goToTickets('');
 
@@ -1581,168 +1548,46 @@ async function saveNote(id) {
 }
 
 // ── Team chat ────────────────────────────────────────────────────────────────
-let channels = [];
-let activeChannelId = null;
-let replyToId = null;
-let chatNotifyWatermark = null; // null until first check, so we never notify on message history
-
-document.getElementById('chat-bubble').onclick = () => {
-  const panel = document.getElementById('chat-panel');
-  panel.classList.toggle('hidden');
-  if (!panel.classList.contains('hidden')) loadChannels();
-};
-
+const teamChatStore = TeamChat.createStore({
+  get: apiGet, send: apiSend, csrf: () => csrf, staff: () => agents,
+  me: () => ({ id: myAdminId, name: myUsername, role: myRole }),
+  notify: (title, body) => notify(title, body),
+  onUnread: n => document.getElementById('chat-bubble-dot').classList.toggle('hidden', !n)
+});
+const dockView = TeamChat.mountView(teamChatStore, document.getElementById('chat-dock-mount'), { mode: 'dock', key: 'dock', openExternal, onClose: () => setDock(false) });
+const pageView = TeamChat.mountView(teamChatStore, document.getElementById('team-chat-mount'), { mode: 'page', key: 'page', openExternal });
+window.TC_PAGE = pageView;
+let teamTab = 'chats';
+function setDock(open) { document.getElementById('chat-panel').classList.toggle('hidden', !open); dockView.setVisible(open); }
+document.getElementById('chat-bubble').onclick = () => setDock(document.getElementById('chat-panel').classList.contains('hidden'));
+// On the Team page the chats are already on screen, so the floating chat button (which would sit on top of the Send button) and the panel step aside.
+function syncChatBubble() {
+  const onTeamChats = document.getElementById('page-team').classList.contains('active') && teamTab === 'chats';
+  document.getElementById('chat-bubble').style.display = onTeamChats ? 'none' : '';
+  if (onTeamChats) setDock(false);
+}
+function switchTeamTab(tab) {
+  teamTab = tab;
+  document.getElementById('team-tab-chats').style.display = tab === 'chats' ? '' : 'none';
+  document.getElementById('team-tab-staff').style.display = tab === 'staff' ? '' : 'none';
+  document.querySelectorAll('[data-team-tab]').forEach(b => b.classList.toggle('on', b.dataset.teamTab === tab));
+  pageView.setVisible(tab === 'chats' && document.getElementById('page-team').classList.contains('active'));
+  if (tab === 'staff') loadTeam();
+  syncChatBubble();
+}
+document.querySelectorAll('[data-team-tab]').forEach(b => { b.onclick = () => switchTeamTab(b.dataset.teamTab); });
+// A colleague's name was clicked (Team page staff cards): open the chat with them, in the Team page if that is where you are, otherwise in the floating panel.
 async function openDM(adminId, username) {
-  if (adminId === myAdminId) return; // clicking your own name is a no-op, not an error
-  const r = await apiSend('POST', '/api/admin/channels.php', { dm_with: adminId, csrf });
-  if (!r.ok) { alert(r.error || 'Could not open chat'); return; }
-  document.getElementById('chat-panel').classList.remove('hidden');
-  await loadChannels();
-  selectChannel(r.id);
-}
-
-async function loadChannels() {
+  if (adminId === myAdminId) return;
   try {
-    channels = await apiGet('/api/admin/channels.php');
-    if (!Array.isArray(channels)) channels = [];
-  } catch (e) { channels = []; }
-  const anyUnread = channels.some(c => c.unread_count > 0);
-  document.getElementById('chat-bubble-dot').classList.toggle('hidden', !anyUnread);
-  const list = document.getElementById('chan-items');
-  list.innerHTML = channels.map(c => `
-    <div class="chan-item ${c.id === activeChannelId ? 'active' : ''}" onclick="selectChannel(${c.id})">
-      ${c.unread_count > 0 ? '<span class="unread-dot"></span>' : ''}${c.is_dm ? '@' : '#'} ${esc(c.display_name || c.name)}
-    </div>`).join('') || '<div class="empty-note" style="padding:10px">No channels yet.</div>';
+    if (document.getElementById('page-team').classList.contains('active')) { switchTeamTab('chats'); await teamChatStore.openDM(adminId); }
+    else { setDock(true); await teamChatStore.openDM(adminId); }
+  } catch (e) { teamChatStore.toast(e.message); }
 }
-
-async function selectChannel(id) {
-  activeChannelId = id;
-  replyToId = null;
-  document.getElementById('chat-reply-banner').classList.add('hidden');
-  loadChannels();
-  document.getElementById('chat-input').disabled = false;
-  document.getElementById('chat-send').disabled = false;
-
-  let channel;
-  try { channel = await apiGet('/api/admin/channels.php?id=' + id); } catch (e) { return; }
-  document.getElementById('chat-header-name').textContent = (channel.is_dm ? '@ ' : '# ') + (channel.display_name || channel.name);
-  const membersBtn = document.getElementById('chat-members-btn');
-  membersBtn.classList.toggle('hidden', !!channel.is_dm);
-  membersBtn.onclick = () => manageMembers(channel);
-  renderChatMessages(channel.messages);
-  await apiSend('PUT', '/api/admin/channels.php', { id, mark_read: true, csrf });
-  loadChannels();
-}
-
-function renderChatMessages(messages) {
-  const el = document.getElementById('chat-messages');
-  const byId = Object.fromEntries(messages.map(m => [m.id, m]));
-  el.innerHTML = messages.length ? messages.map(m => {
-    const replySrc = m.reply_to_id ? byId[m.reply_to_id] : null;
-    return `
-    <div class="chat-msg">
-      ${replySrc ? `<div class="reply-ref">↳ ${esc(replySrc.username)}: ${esc((replySrc.content||'').slice(0,40))}</div>` : ''}
-      <span class="who" ${m.admin_id !== myAdminId ? `style="cursor:pointer;text-decoration:underline" onclick="openDM(${m.admin_id}, '${esc(m.username)}')"` : ''}>${esc(m.username)}</span><span class="when">${fmtTime(m.created_at)}</span>
-      <div class="chat-msg-body" onclick="setReplyTo(${m.id}, '${esc(m.username)}')">${esc(m.content)}</div>
-    </div>`;
-  }).join('') : '<div class="empty-note">No messages yet — say hello.</div>';
-  el.scrollTop = el.scrollHeight;
-}
-
-function setReplyTo(id, username) {
-  replyToId = id;
-  document.getElementById('chat-reply-text').textContent = 'Replying to ' + username;
-  document.getElementById('chat-reply-banner').classList.remove('hidden');
-  document.getElementById('chat-input').focus();
-}
-document.getElementById('chat-reply-cancel').onclick = () => {
-  replyToId = null;
-  document.getElementById('chat-reply-banner').classList.add('hidden');
-};
-
-async function sendChatMessage() {
-  const input = document.getElementById('chat-input');
-  const content = input.value.trim();
-  if (!content || !activeChannelId) return;
-  input.value = '';
-  const rt = replyToId;
-  replyToId = null;
-  document.getElementById('chat-reply-banner').classList.add('hidden');
-  await apiSend('POST', '/api/admin/channels.php', { channel_id: activeChannelId, content, reply_to_id: rt, csrf });
-  selectChannel(activeChannelId);
-}
-document.getElementById('chat-send').onclick = sendChatMessage;
-document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
-
-document.getElementById('chat-new-btn').onclick = () => {
-  document.getElementById('nc-name').value = '';
-  document.getElementById('nc-err').textContent = '';
-  document.getElementById('nc-members').innerHTML = agents.filter(a => a.id !== myAdminId).map(a =>
-    `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-weight:400"><input type="checkbox" value="${a.id}" style="width:auto"> ${esc(a.username)}</label>`
-  ).join('') || '<div class="empty-note">No other staff to add yet.</div>';
-  document.getElementById('new-channel-modal').classList.remove('hidden');
-  document.getElementById('nc-name').focus();
-};
-document.getElementById('nc-cancel').onclick = () => document.getElementById('new-channel-modal').classList.add('hidden');
-document.getElementById('nc-submit').onclick = async () => {
-  const errEl = document.getElementById('nc-err');
-  const name = document.getElementById('nc-name').value.trim();
-  if (!name) { errEl.textContent = 'Name is required.'; return; }
-  const member_ids = [...document.querySelectorAll('#nc-members input:checked')].map(i => parseInt(i.value, 10));
-  const r = await apiSend('POST', '/api/admin/channels.php', { name, member_ids, csrf });
-  if (!r.ok) { errEl.textContent = r.error || 'Could not create channel'; return; }
-  document.getElementById('new-channel-modal').classList.add('hidden');
-  await loadChannels();
-  selectChannel(r.id);
-};
-
-function manageMembers(channel) {
-  const current = new Set(channel.members.map(m => m.id));
-  const html = agents.map(a => `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-weight:400"><input type="checkbox" value="${a.id}" ${current.has(a.id)?'checked':''} onchange="toggleChannelMember(${channel.id}, ${a.id}, this.checked)"> ${esc(a.username)}${a.id===myAdminId?' (you)':''}</label>`).join('');
-  const box = document.createElement('div');
-  box.className = 'modal-overlay';
-  box.onclick = (e) => { if (e.target === box) box.remove(); };
-  box.innerHTML = `<div class="modal-box"><h2>${esc(channel.name)} members</h2><div style="max-height:220px;overflow-y:auto">${html}</div><div class="modal-actions"><button class="btn" id="mm-close">Close</button></div></div>`;
-  document.body.appendChild(box);
-  box.querySelector('#mm-close').onclick = () => box.remove();
-}
-async function toggleChannelMember(channelId, adminId, add) {
-  const body = add ? { id: channelId, add_member_id: adminId, csrf } : { id: channelId, remove_member_id: adminId, csrf };
-  await apiSend('PUT', '/api/admin/channels.php', body);
-  loadChannels();
-  if (activeChannelId === channelId) selectChannel(channelId);
-}
-
-async function refreshOpenChannel() {
-  if (document.getElementById('chat-panel').classList.contains('hidden') || !activeChannelId) return;
-  try {
-    const channel = await apiGet('/api/admin/channels.php?id=' + activeChannelId);
-    renderChatMessages(channel.messages);
-  } catch (e) {}
-}
-
-async function checkChannelNotifications() {
-  if (chatNotifyWatermark === null) {
-    // First check this session: establish a baseline without notifying on
-    // history, same "isFirstLoad" guard used for the ticket poll.
-    try {
-      const r = await apiGet('/api/admin/channel_notify.php?since=0');
-      chatNotifyWatermark = r.max_id || 0;
-    } catch (e) { chatNotifyWatermark = 0; }
-    return;
-  }
-  try {
-    const r = await apiGet('/api/admin/channel_notify.php?since=' + chatNotifyWatermark);
-    chatNotifyWatermark = r.max_id || chatNotifyWatermark;
-    for (const n of r.notifications) {
-      const title = n.reason === 'dm' ? (n.username + ' sent you a message')
-        : n.reason === 'mention' ? (n.username + ' mentioned you in #' + n.channel_name)
-        : (n.username + ' replied to you in #' + n.channel_name);
-      notify(title, n.content);
-    }
-    if (r.notifications.length) loadChannels();
-  } catch (e) {}
-}
+// kept so the other parts of the console that call these still work: the chat store now runs its own faster timer, started on the first call
+function loadChannels() { return teamChatStore.refreshList(); }
+function refreshOpenChannel() { return Promise.resolve(); }
+function checkChannelNotifications() { teamChatStore.start(3000); }
 
 </script>
 </body>
