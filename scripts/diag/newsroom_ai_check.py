@@ -14,10 +14,13 @@ def call(action, data=None, q=""):
         try: return e.code, json.loads(b), time.time() - t0
         except Exception: return e.code, {"raw": b[:200].decode("utf-8", "replace")}, time.time() - t0
 tiny = {"kind": "text", "body": {"contents": [{"role": "user", "parts": [{"text": "Reply with one word: ok"}]}], "generationConfig": {"maxOutputTokens": 8}}}
-print("== a burst of 60 tiny AI calls, six at a time (a newspaper makes dozens of calls in a minute)")
-t0 = time.time(); res = list(ThreadPoolExecutor(6).map(lambda i: call("ai", tiny)[0], range(60))); dt = time.time() - t0
-from collections import Counter; c = Counter(res); print(f"  {len(res)} calls in {dt:.0f} s: {dict(c)}")
-print("  RESULT:", "REFUSED after the limit: " + str(c.get(429, 0)) + " calls got 429 (rate limited)" if c.get(429) else "none refused")
+from collections import Counter
+print("== 90 tiny AI calls, three at a time, like the page (a newspaper makes dozens of calls in a minute)")
+t0 = time.time(); res = list(ThreadPoolExecutor(3).map(lambda i: call("ai", tiny)[0], range(90))); dt = time.time() - t0; c = Counter(res); print(f"  {len(res)} calls in {dt:.0f} s: {dict(c)}")
+print("  RESULT:", "OK, none refused" if set(c) == {200} else "SOME REFUSED: " + str({k: v for k, v in c.items() if k != 200}))
+print("== the same, ten at a time (more than the server allows at once: it should ask the extra ones to wait, with 503, not fail)")
+t0 = time.time(); res = list(ThreadPoolExecutor(10).map(lambda i: call("ai", tiny)[0], range(40))); c = Counter(res); print(f"  {len(res)} calls in {time.time()-t0:.0f} s: {dict(c)}")
+print("  RESULT:", "no 429s (the per-minute limit is not reached)" if not c.get(429) else "429s seen: " + str(c.get(429)), "| busy answers (503) are the cap working:", c.get(503, 0))
 time.sleep(62)
 print("== a real request to each picture model")
 for m in ["gemini-3.1-flash-image", "gemini-2.5-flash-image"]:

@@ -242,3 +242,60 @@ test('every address your admin is served from may show the QR tool, because a br
     foreach (['https://tauri.localhost', 'http://tauri.localhost', 'tauri://localhost'] as $app) assert_true(in_array($app, $allowed, true), "the program's own address {$app} must be allowed");
     foreach ($allowed as $o) assert_true((bool)preg_match('~\A(https?://[a-z0-9.-]+|tauri://localhost)\z~', $o) && !str_contains($o, '*'), "no wildcard or odd origin: {$o}");
 });
+
+suite('Newsroom: limits, simultaneous AI calls, and saved newspapers');
+
+use Newsroom\Limit;
+use Newsroom\Papers;
+
+test('use is limited per person and per minute, so colleagues behind one office address do not share a limit', function () {
+    db()->exec("DELETE FROM rate_limits"); $now = 1_800_000_000;
+    for ($i = 1; $i <= 400; $i++) assert_true(Limit::hit(11, 'news_ai', 400, $now), "call {$i}"); assert_false(Limit::hit(11, 'news_ai', 400, $now), 'the 401st in the same minute is refused');
+    assert_true(Limit::hit(12, 'news_ai', 400, $now), 'a colleague has a limit of their own'); assert_true(Limit::hit(11, 'news_feed', 400, $now), 'each kind of use is counted separately');
+    assert_true(Limit::hit(11, 'news_ai', 400, $now + 60), 'a new minute starts again');
+    assert_true(400 > 40, 'a newspaper (every story rewritten, pictures drawn) is well inside it: the old limit of 40 a minute refused one call in three');
+});
+
+test('only a few AI calls run at the same time, a place is given back, and one that is never returned is freed when the request ends', function () {
+    $dir = sys_get_temp_dir() . '/slots-' . bin2hex(random_bytes(4)); $a = Limit::acquire('x', 3, $dir); $b = Limit::acquire('x', 3, $dir); $c = Limit::acquire('x', 3, $dir);
+    assert_true($a && $b && $c, 'three places'); assert_null(Limit::acquire('x', 3, $dir), 'a fourth is told the helper is busy');
+    Limit::release($b); $d = Limit::acquire('x', 3, $dir); assert_true((bool)$d, 'a place given back can be taken again'); assert_null(Limit::acquire('x', 3, $dir));
+    assert_true((bool)Limit::acquire('other', 3, $dir), 'a different name has its own places'); foreach ([$a, $c, $d] as $h) Limit::release($h); Limit::release(null);
+    array_map('unlink', glob($dir . '/*') ?: []); @rmdir($dir);
+});
+
+function nr_pdf(int $bytes = 6000): string { return '%PDF-1.4' . "\n" . str_repeat('x', $bytes - 30) . "\n%%EOF\n"; }
+function nr_upload(int $admin, string $data, string $name = 'The-Rigger-October-2026-A3.pdf'): string
+{
+    $id = Papers::begin($admin, strlen($data), $name); $off = 0;
+    foreach (str_split($data, 4000) as $piece) $off = Papers::chunk($id, $admin, $off, $piece);
+    return $id;
+}
+
+test('a newspaper can be saved in pieces and fetched with its signed link, and only as the real, complete PDF that was announced', function () {
+    foreach (glob(Papers::dir() . '/*') ?: [] as $f) @unlink($f); $data = nr_pdf(10000); $now = 1_800_000_000;
+    $id = nr_upload(7, $data); $p = Papers::finish($id, 7, $now);
+    $f = Papers::open($p['id'], $p['exp'], $p['sig'], $now + 10); assert_equal($data, file_get_contents($f['path'])); assert_equal('The-Rigger-October-2026-A3.pdf', $f['name']);
+    assert_equal($now + Papers::TTL, $p['exp'], 'the link lasts 48 hours');
+    // altered or out of date links are refused
+    assert_null(Papers::open($p['id'], $p['exp'] + 1, $p['sig'], $now), 'a longer expiry breaks the signature'); assert_null(Papers::open($p['id'], $p['exp'], substr($p['sig'], 0, -2) . 'AA', $now), 'a changed signature'); assert_null(Papers::open(strrev($p['id']), $p['exp'], $p['sig'], $now), 'another file name');
+    assert_null(Papers::open($p['id'], $p['exp'], $p['sig'], $p['exp'] + 1), 'after 48 hours'); assert_null(Papers::open('../../etc/passwd', $p['exp'], Papers::sign('../../etc/passwd', $p['exp']), $now), 'a path is never a file name'); assert_null(Papers::open($p['id'], $p['exp'], '', $now));
+    // not a PDF, incomplete, wrong order, too big, too small, someone else's
+    foreach (['not a pdf at all ' . str_repeat('y', 500), "%PDF-1.4\n" . str_repeat('z', 500) . "\nno end marker"] as $bad) { $i = nr_upload(7, $bad); tch_bad_pdf(fn() => Papers::finish($i, 7), 'not a PDF'); }
+    $i = Papers::begin(7, 9000, 'a.pdf'); Papers::chunk($i, 7, 0, str_repeat('a', 4000)); tch_bad_pdf(fn() => Papers::finish($i, 7), 'not complete'); tch_bad_pdf(fn() => Papers::chunk($i, 7, 0, 'again'), 'out of order'); tch_bad_pdf(fn() => Papers::chunk($i, 7, 4000, str_repeat('b', 6000)), 'more than was announced');
+    tch_bad_pdf(fn() => Papers::chunk($i, 8, 4000, 'x'), 'not open'); tch_bad_pdf(fn() => Papers::finish($i, 8), 'not open'); tch_bad_pdf(fn() => Papers::chunk($i, 7, 4000, str_repeat('c', Papers::CHUNK_MAX + 1)), 'wrong size'); tch_bad_pdf(fn() => Papers::chunk($i, 7, 4000, ''), 'wrong size');
+    tch_bad_pdf(fn() => Papers::begin(7, Papers::MAX_BYTES + 1, 'big.pdf'), 'too large'); tch_bad_pdf(fn() => Papers::begin(7, 10, 'tiny.pdf'), 'too large or too small'); tch_bad_pdf(fn() => Papers::chunk('nonsense', 7, 0, 'x'), 'not open'); tch_bad_pdf(fn() => Papers::chunk($id, 7, 0, 'x'), 'not open');
+});
+
+function tch_bad_pdf(callable $fn, string $contains): void { try { $fn(); } catch (\InvalidArgumentException $e) { assert_str_contains($contains, $e->getMessage()); return; } assert_true(false, "expected a refusal containing '{$contains}'"); }
+
+test('file names are made safe, each person keeps at most five, and everything is removed after 48 hours', function () {
+    foreach (glob(Papers::dir() . '/*') ?: [] as $f) @unlink($f);
+    foreach (['../../evil.sh' => 'evil.sh.pdf', "a b\"c;d\n.pdf" => 'a-b-c-d.pdf', '' => 'newspaper.pdf', str_repeat('n', 200) . '.pdf' => null] as $in => $want) {
+        $id = Papers::begin(9, 200, (string)$in); $name = json_decode((string)file_get_contents(Papers::dir() . "/{$id}.meta"), true)['name']; assert_true((bool)preg_match('/\A[A-Za-z0-9._-]{5,84}\z/', $name), "safe: {$name}"); if ($want) assert_equal($want, $name, (string)$in);
+        if ($id) @unlink(Papers::dir() . "/{$id}.part"); @unlink(Papers::dir() . "/{$id}.meta");
+    }
+    foreach (glob(Papers::dir() . '/*') ?: [] as $f) @unlink($f); for ($i = 0; $i < Papers::MAX_PER_PERSON; $i++) Papers::begin(5, 500, "p{$i}.pdf");
+    tch_bad_pdf(fn() => Papers::begin(5, 500, 'sixth.pdf'), 'already have'); assert_true((bool)Papers::begin(6, 500, 'someone-else.pdf'), 'the limit is per person');
+    $old = Papers::dir() . '/' . str_repeat('a', 24) . '.pdf'; file_put_contents($old, 'x'); touch($old, time() - Papers::TTL - 60); assert_true(Papers::purge() >= 1 && !is_file($old), 'old files are deleted'); foreach (glob(Papers::dir() . '/*') ?: [] as $f) @unlink($f);
+});

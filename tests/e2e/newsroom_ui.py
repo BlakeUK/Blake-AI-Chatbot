@@ -87,6 +87,25 @@ with sync_playwright() as p:
     ok("signed out, the page itself is refused", b.new_context().request.get(B + "/admin/newsroom.php", headers={"Sec-Fetch-Dest": "iframe"}).status == 401)
     served = frame2.evaluate("document.documentElement.outerHTML")
     ok("the served page has no key prompt and no Gemini key field", all(x not in served for x in ["window.prompt(", "cb_gemini_key'"]) , "")
+    print("== E. saving a finished newspaper")
+    pdf = b"%PDF-1.4\n" + b"x" * 5000 + b"\n%%EOF\n"
+    def raw(q, data, h=None): return rq.post(B + "/api/newsroom.php?" + q, data=data, headers=dict(h if h is not None else H, **{"Content-Type": "application/octet-stream"}))
+    r = P("action=paper_begin", {"size": len(pdf), "name": "The-Rigger-test-A3.pdf"}); ok("a save can be started with a pass", r.status == 200 and re.fullmatch(r"[0-9a-f]{24}", r.json().get("id", "")), r.text()); pid = r.json()["id"]
+    ok("without the pass it cannot", P("action=paper_begin", {"size": 5000, "name": "x.pdf"}, {}).status == 401 and raw("action=paper_chunk&id=" + pid + "&offset=0", pdf[:100], {}).status == 401)
+    ok("pieces must come in order", raw(f"action=paper_chunk&id={pid}&offset=50", pdf[:100]).status == 422)
+    off = 0
+    for i in range(0, len(pdf), 2000): r = raw(f"action=paper_chunk&id={pid}&offset={off}", pdf[i:i + 2000]); off = r.json()["received"]
+    ok("the pieces are accepted and counted", off == len(pdf), off)
+    r = P("action=paper_finish", {"id": pid}); url = r.json().get("url", ""); ok("finishing gives a link on this site", r.status == 200 and "/api/newsroom.php?action=paper&id=" + pid in url and "sig=" in url, r.text())
+    local = url.replace("https://" + url.split("/")[2], B)
+    g = rq.get(local); ok("the link needs no pass or sign-in and serves the PDF as a download, byte for byte", g.status == 200 and g.body() == pdf and g.headers["content-type"] == "application/pdf" and 'attachment; filename="The-Rigger-test-A3.pdf"' in g.headers["content-disposition"], (g.status, g.headers))
+    ok("an altered signature, an altered expiry, or another id is refused", rq.get(local[:-3] + "AAA").status == 404 and rq.get(re.sub(r"exp=(\d+)", lambda m: "exp=" + str(int(m.group(1)) + 5), local)).status == 404 and rq.get(local.replace(pid, "0" * 24)).status == 404)
+    other = P("action=paper_begin", {"size": 100, "name": "n.pdf"}).json()["id"]; raw(f"action=paper_chunk&id={other}&offset=0", b"not a pdf " * 10); r = P("action=paper_finish", {"id": other}); ok("something that is not a PDF is refused", r.status == 422 and "not a PDF" in r.json()["error"], r.text())
+    ok("an upload cannot be finished twice or added to after it is finished", P("action=paper_finish", {"id": pid}).status == 422 and raw(f"action=paper_chunk&id={pid}&offset={len(pdf)}", b"x").status == 422)
+    ok("sizes outside 100 bytes to 40 MB are refused", P("action=paper_begin", {"size": 10, "name": "a.pdf"}).status == 422 and P("action=paper_begin", {"size": 41 * 1024 * 1024, "name": "a.pdf"}).status == 422)
+    codes = [P("action=paper_begin", {"size": 500, "name": f"p{i}.pdf"}).status for i in range(6)]
+    ok("one person can keep at most five at a time", 422 in codes and codes[0] == 200, codes)
+    ok("the AI limit is generous (a newspaper makes dozens of calls): 80 quick calls in a minute are not refused for going too fast", all(rq.get(B + "/api/newsroom.php?action=feed&url=" + quote("http://127.0.0.1/", safe=""), headers=H).status == 422 for _ in range(80)))
     ok("no script errors in the admin", not errs, errs)
     b.close()
 print(f"\n{n} checks, {len(fails)} failed"); sys.exit(1 if fails else 0)
