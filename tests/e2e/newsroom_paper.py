@@ -13,7 +13,7 @@ def png(w, h, rgb):
     return b'\x89PNG\r\n\x1a\n' + ck(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + ck(b'IDAT', zlib.compress(raw)) + ck(b'IEND', b'')
 AI_IMG = base64.b64encode(png(800, 600, (60, 140, 90))).decode()
 SENT = ["The new channel will move to a different multiplex from next Tuesday.", "Viewers on the Crystal Palace transmitter will need to retune their Freeview boxes.", "Engineers will carry out the change early in the morning.", "Ofcom has been told about the timetable for the work.", "Households that use a loft aerial may see the channel return later in the day."]
-stats = {"feed": 0, "article": 0, "ai_text": 0, "ai_image": 0, "begin": 0, "chunks": []}; state = {"fail_begin": False, "received": b"", "begun": None}
+stats = {"feed": 0, "article": 0, "ai_text": 0, "ai_image": 0, "begin": 0, "chunks": []}; state = {"fail_begin": False, "received": b"", "begun": None, "busy": 8}   # the first 8 AI calls are answered "busy, wait" (503), like a server at its limit
 def api(route):
     req = route.request; u = req.url; cors = {"access-control-allow-origin": "*", "access-control-allow-headers": "*"}
     if req.method == "OPTIONS": return route.fulfill(status=204, headers=cors)
@@ -24,6 +24,7 @@ def api(route):
     if a == "article": stats["article"] += 1; return js(200, {"contents": "".join(f"<p>{s}</p>" for s in SENT * 4)})
     if a == "ai":
         body = json.loads(req.post_data or "{}"); b = body.get("body", {})
+        if state["busy"] > 0: state["busy"] -= 1; stats["busy"] = stats.get("busy", 0) + 1; return js(503, {"error": "The AI helper is busy. Please try again."})
         if body.get("kind") == "image": stats["ai_image"] += 1; time.sleep(0.5); return js(200, {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": AI_IMG}}]}}]})
         stats["ai_text"] += 1; time.sleep(1.6); src = b["contents"][0]["parts"][0]["text"].split("SOURCE:", 1)[-1].strip(); sents = re.split(r"(?<=\.)\s+", src.split("\n\n", 1)[-1])
         out = {"headline": "Freeview channel to move multiplex", "caption": "Crystal Palace transmitter", "body": "\n\n".join(" ".join(sents[i:i + 2]) for i in range(0, 6, 2))}
@@ -53,6 +54,7 @@ with sync_playwright() as p:
     print(f"  took {took:.0f} s; AI calls: {stats['ai_text']} rewrites, {stats['ai_image']} pictures")
     snap = frame.evaluate("window.__snap")
     ok("the AI rewrites were put into the printed pages (the AI's headline and copy appear in the layout)", "Freeview channel to move multiplex" in snap and stats["ai_text"] >= 5, (stats["ai_text"], snap.count("Freeview channel to move multiplex")))
+    ok("when the server said 'busy' the page waited and tried again, so nothing was lost", stats.get("busy", 0) == 8 and "Freeview channel to move multiplex" in snap, stats)
     ok("AI pictures were requested for stories without a photo and are in the printed pages", stats["ai_image"] >= 1 and AI_IMG[:60] in snap, (stats["ai_image"], AI_IMG[:30] in snap))
     ok("nothing was downloaded behind your back (no automatic save)", downloads == [], [d.suggested_filename for d in downloads])
     ok("a 'ready' panel appears, naming the file, its size and how many stories went in", re.search(r"The-Rigger-\w+-\d{4}-A3\.pdf\s+·\s+[\d.]+ MB\s+·\s+\d+ of \d+ stories", fr.locator("[data-np=info]").inner_text()) is not None, fr.locator("[data-np=info]").inner_text())

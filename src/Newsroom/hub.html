@@ -26,7 +26,17 @@
     if (r.status === 401) document.title = 'Newsroom: session ended, please reload this tab';
     return r;
   };
-  const ai = (kind, model, body, signal) => window.newsFetch('ai', null, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, model, body }), signal });
+  // When the server says it is busy (only a few AI calls run at once) or that Google is, wait a moment and try again, so the page's own code (which for
+  // pictures would otherwise give up and draw a plain scene) gets its answer. The page's own time limit still applies through the signal.
+  const ai = async (kind, model, body, signal) => {
+    let r;
+    for (let i = 0; i < 12; i++) {
+      r = await window.newsFetch('ai', null, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, model, body }), signal });
+      if (r.status !== 503 && r.status !== 429) return r;
+      await new Promise(res => setTimeout(res, 1200 + Math.random() * 1800));
+    }
+    return r;
+  };
   window.fetch = function (input, init) {
     const u = typeof input === 'string' ? input : (input && input.url) || '';
     let m;
