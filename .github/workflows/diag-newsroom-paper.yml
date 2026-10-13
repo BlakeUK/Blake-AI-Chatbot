@@ -4,6 +4,11 @@ name: Diagnose a real newspaper on the live Newsroom
 # the saved link. Costs a few pence of AI use. The PDF is kept as a download of this run so it can be looked at.
 on:
   workflow_dispatch:
+    inputs:
+      without_photos:
+        description: "Block the stories' own photos, so the page must create pictures with the AI"
+        type: boolean
+        default: false
 
 jobs:
   paper:
@@ -25,6 +30,8 @@ jobs:
           python3 -m pip install --quiet playwright
           python3 -m playwright install --with-deps chromium >/dev/null
       - name: Make the newspaper
+        env:
+          NO_PHOTOS: ${{ inputs.without_photos && '1' || '0' }}
         run: python3 scripts/diag/newsroom_paper_live.py "$NEWS_PASS" /tmp/paper
       - name: Keep the newspaper
         if: always()

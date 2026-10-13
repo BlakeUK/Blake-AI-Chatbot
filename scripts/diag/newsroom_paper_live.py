@@ -16,6 +16,9 @@ with sync_playwright() as p:
     b = p.chromium.launch(); ctx = b.new_context(viewport={"width": 1400, "height": 950}, accept_downloads=True)
     ctx.route("https://top.test/", lambda r: r.fulfill(status=200, content_type="text/html", body='<html><body style="margin:0"><iframe id="nr" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads" src="https://blakegroup.uk/admin/newsroom.php" style="width:100%;height:900px;border:0"></iframe></body></html>'))
     ctx.route("https://blakegroup.uk/admin/newsroom.php", lambda r: r.fulfill(status=200, content_type="text/html", body=page_html))
+    if os.environ.get("NO_PHOTOS") == "1":      # the stories' own photos cannot be loaded, so the page has to make pictures with the AI
+        ctx.route(lambda u: "/api/newsroom.php" in u and "action=image" in u, lambda r: r.fulfill(status=404, content_type="application/json", headers={"access-control-allow-origin": "*"}, body='{"error":"blocked for this test"}'))
+        print("== (the stories' own photos are blocked in this run, to make the page create pictures with the AI)")
     pg = ctx.new_page(); warns = []
     pg.on("console", lambda m: warns.append(m.text[:160]) if m.type == "warning" and ("Rewrite" in m.text or "Image generation" in m.text) else None)
     def on_resp(r):
