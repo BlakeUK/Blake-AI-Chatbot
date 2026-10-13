@@ -183,6 +183,12 @@
     .np-puzzle-title { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: 22px; line-height: 24px; color: #333; }
     .np-puzzle-sub { font-size: 11.5px; line-height: 14px; color: #555; margin: 2px 0 8px; }
     .np-puzzle-foot { display: flex; gap: 12px; margin-top: 8px; align-items: flex-start; }
+.np-retune { flex: 1; min-width: 0; height: 100%; overflow: hidden; border-top: 3px solid #e8521f; padding-top: 7px; font-size: calc(11.5px * var(--bs, 1)); line-height: calc(14.5px * var(--bs, 1)); color: #222; }
+.np-retune h3 { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: calc(21px * var(--bs, 1)); line-height: calc(23px * var(--bs, 1)); margin: 0; color: #333; }
+.np-retune .sub { color: #666; font-size: calc(10.5px * var(--bs, 1)); margin: 1px 0 calc(4px * var(--bs, 1)); }
+.np-retune h4 { font-family: 'Federo', Georgia, serif; font-weight: 700; font-size: calc(12px * var(--bs, 1)); margin: calc(6px * var(--bs, 1)) 0 calc(2px * var(--bs, 1)); color: #e8521f; text-transform: uppercase; letter-spacing: 0.04em; }
+.np-retune ul { margin: 0; padding-left: 1.05em; }
+.np-retune li { margin-bottom: calc(3px * var(--bs, 1)); text-align: left; }
     .np-puzzle-words { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 8px; font-size: 11.5px; line-height: 14px; font-weight: 700; color: #3c3c3c; letter-spacing: 0.5px; }
     .np-mast-sm { font-family: 'Abril Fatface', Georgia, serif; font-size: 64px; height: 80px; line-height: 80px; text-align: center; color: #3a3a3a; margin: 0 0 6px; white-space: nowrap; flex: none; }
     .np-mast-sm span { color: #e8521f; }
@@ -522,7 +528,7 @@
           <span class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/></svg>
           </span>
-          <h3 class="text-base font-bold text-white">Gemini AI: Freeview & Freesat Transmission Brief</h3>
+          <h3 class="text-base font-bold text-white">AI Retune &amp; Transmission Brief</h3>
         </div>
         <button onclick="app.closeBriefingModal()" class="text-slate-400 hover:text-white">✕</button>
       </div>
@@ -1174,73 +1180,84 @@
         refresh();
       }
 
+      // ---- The Retune Brief: what installers and support staff need to know, taken ONLY from the stories on screen ----
+      const BRIEF_SECTIONS = ['Retune alerts and channel changes', 'Satellite and transponder changes', 'Platforms, streaming and regulation'];
+      async function buildRetuneBrief(force) {
+        const c = state.briefCache;
+        if (!force && c && Date.now() - c.at < 600000 && c.count === state.articles.length) return c.data;
+        const arts = (state.articles.length ? state.articles : FALLBACK_ARTICLES).slice(0, 30);
+        const source = arts.map(a => `- ${npClean(a.title)} (${a.source || 'source'}): ${npClean(a.description).slice(0, 220)}`).join('\n');
+        const sys = 'You write a short briefing for UK TV aerial and satellite installers and support staff. ' +
+          'Use ONLY facts stated in the story list you are given. Add nothing from general knowledge. Every name, number, date and place you use must appear in the list exactly as written. ' +
+          'If the stories contain nothing for a heading, leave its items empty. Never say that things are stable, unchanged, normal or quiet, and never give advice the stories do not give. ' +
+          'Each item is one plain sentence of at most 28 words with no markdown. At most 4 items per heading, most useful and most recent first. ' +
+          'Return JSON only: {"sections":[{"title":"' + BRIEF_SECTIONS[0] + '","items":["..."]},{"title":"' + BRIEF_SECTIONS[1] + '","items":[]},{"title":"' + BRIEF_SECTIONS[2] + '","items":[]}]}';
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=server`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: 'STORIES:\n' + source }] }], generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } })
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        const raw = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').replace(/```json|```/g, '').trim();
+        const out = JSON.parse(raw);
+        const sections = (Array.isArray(out.sections) ? out.sections : []).slice(0, 3).map((s, i) => ({
+          title: BRIEF_SECTIONS[i],
+          items: (Array.isArray(s && s.items) ? s.items : []).map(t => String(t || '').replace(/[*#_`]/g, '').replace(/\s+/g, ' ').trim())
+            .filter(t => t && t.length < 260 && isGrounded(t, source).ok).slice(0, 4)     // a sentence with a name or number that is not in the stories is dropped
+        }));
+        const result = sections.some(s => s.items.length) ? { sections, count: arts.length } : null;
+        state.briefCache = { at: Date.now(), count: state.articles.length, data: result };
+        return result;
+      }
+      function retuneToText(brief) {
+        return brief.sections.filter(s => s.items.length).map(s => s.title.toUpperCase() + '\n' + s.items.map(t => '- ' + t).join('\n')).join('\n\n');
+      }
+      function renderRetuneBrief(content, brief, errorText) {
+        content.textContent = '';
+        const n = brief ? brief.count : Math.min(30, state.articles.length);
+        content.appendChild(npMk('div', { 'data-np': 'brief-note', style: 'border:1px solid rgba(99,102,241,.35);background:rgba(30,27,75,.4);border-radius:12px;padding:10px 12px;font-size:12px;color:#a5b4fc;margin-bottom:14px' },
+          'Written by AI from the ' + n + ' latest stories in the feeds, using only what they say. Check anything you pass on to a customer against the original story.'));
+        if (!brief) {
+          content.appendChild(npMk('p', { 'data-np': 'brief-empty', style: 'margin:0 0 10px;color:#cbd5e1' }, errorText || 'None of the latest stories is about retunes, satellite changes or platforms, so there is nothing to brief. The latest headlines are:'));
+          const ul = npMk('ul', { style: 'margin:0;padding-left:1.2em;color:#94a3b8;font-size:13px' });
+          state.articles.slice(0, 8).forEach(a => ul.appendChild(npMk('li', { style: 'margin-bottom:4px' }, npClean(a.title))));
+          content.appendChild(ul); return;
+        }
+        brief.sections.forEach(s => {
+          content.appendChild(npMk('h4', { 'data-np': 'brief-heading', style: 'margin:14px 0 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#a5b4fc' }, s.title));
+          if (!s.items.length) { content.appendChild(npMk('p', { style: 'margin:0;color:#64748b;font-size:13px;font-style:italic' }, 'Nothing in the current stories.')); return; }
+          const ul = npMk('ul', { style: 'margin:0;padding-left:1.2em;list-style:disc;color:#e2e8f0;font-size:14px;line-height:1.5' });
+          s.items.forEach(t => ul.appendChild(npMk('li', { 'data-np': 'brief-item', style: 'margin-bottom:6px' }, t)));
+          content.appendChild(ul);
+        });
+        const copy = npMk('button', { 'data-np': 'brief-copy', type: 'button', style: 'margin-top:16px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:8px;padding:7px 14px;font:600 12px system-ui,sans-serif;cursor:pointer' }, 'Copy brief');
+        copy.addEventListener('click', async () => { const t = retuneToText(brief); try { await navigator.clipboard.writeText(t); copy.textContent = 'Copied'; } catch (e) { const ta = npMk('textarea', { style: 'position:fixed;left:-999px' }); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); copy.textContent = 'Copied'; } catch (e2) { copy.textContent = 'Select the text and press Ctrl+C'; } ta.remove(); } });
+        content.appendChild(copy);
+      }
+      // The brief as a box on the newspaper's back page: shrinks to fit its space, and drops its last items only if it still does not fit
+      function renderRetunePanel(el, brief) {
+        el.appendChild(npMk('h3', {}, 'Retune Brief'));
+        el.appendChild(npMk('div', { class: 'sub' }, 'What viewers and installers need to know, from this month\'s stories.'));
+        brief.sections.filter(s => s.items.length).forEach(s => { el.appendChild(npMk('h4', {}, s.title)); const ul = npMk('ul', {}); s.items.forEach(t => ul.appendChild(npMk('li', {}, t))); el.appendChild(ul); });
+        let sc = 1; el.style.setProperty('--bs', '1');
+        while (overflows(el) && sc > 0.62) { sc -= 0.03; el.style.setProperty('--bs', sc.toFixed(2)); }
+        while (overflows(el)) { const lis = el.querySelectorAll('li'); if (lis.length <= 3) break; lis[lis.length - 1].remove(); }
+        // and grow again if there is spare room, so the box is filled rather than left half empty
+        let g = parseFloat(el.style.getPropertyValue('--bs')) || 1;
+        while (g < 1.4) { const next = +(g + 0.03).toFixed(2); el.style.setProperty('--bs', String(next)); if (overflows(el)) { el.style.setProperty('--bs', String(g)); break; } g = next; }
+      }
       async function generateBroadcastBriefing() {
         const modal = document.getElementById('briefing-modal');
         const content = document.getElementById('briefing-content');
         modal.classList.remove('hidden');
-
         content.innerHTML = `
           <div class="flex items-center justify-center py-12 gap-3 text-brand-400">
             <div class="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></div>
-            <span>Generating AI Broadcast Digest via Gemini...</span>
+            <span>Writing the brief from the latest stories...</span>
           </div>
         `;
-
-        try {
-          const sampleArticles = (state.articles.length > 0 ? state.articles : FALLBACK_ARTICLES)
-            .slice(0, 6)
-            .map(a => `- ${a.title} (${a.source}): ${a.description.slice(0, 140)}...`)
-            .join('\n');
-
-          const userPrompt = `You are a UK broadcast television specialist. Based on the following recent UK news articles regarding Freeview, Freesat, DTT transmitters, and broadband streaming, provide a crisp 3-part bulleted digest for viewers:
-1. Retune Alerts & Channel Shifts (Highlight what viewers need to rescan)
-2. Satellite & Transponder Changes (Freesat/Astra 28.2E notes)
-3. Platform Migration & Streaming Switchover (Freely, Ofcom, IP news)
-
-Articles:
-${sampleArticles}`;
-
-          const apiKey = "";
-          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
-          const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: userPrompt }] }],
-              systemInstruction: {
-                parts: [{ text: "Format with clear markdown headings, bold names, and concise UK consumer advice. Keep it under 220 words." }]
-              }
-            })
-          });
-
-          const result = await response.json();
-          const summaryText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-          if (summaryText) {
-            content.innerHTML = `
-              <div class="bg-indigo-950/40 p-4 rounded-xl border border-indigo-800/60 mb-4 text-xs text-indigo-300">
-                ✨ Live automated synthesis based on active Freeview, Freesat, and Cord Busters syndication feeds.
-              </div>
-              <div class="prose prose-invert text-slate-200 text-sm whitespace-pre-wrap leading-relaxed">
-                ${summaryText.replace(/###/g, '').replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')}
-              </div>
-            `;
-          } else {
-            throw new Error('No briefing generated');
-          }
-        } catch (e) {
-          content.innerHTML = `
-            <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-              <h4 class="font-bold text-white">Broadcast Briefing:</h4>
-              <ul class="list-disc pl-5 space-y-1.5 text-xs text-slate-300">
-                <li><strong>Freeview Multiplex Consolidation:</strong> Routine channel realignments taking place across main relays. If you notice missing LCN slots, initiate a manual channel retune.</li>
-                <li><strong>Astra 28.2°E Transponders:</strong> Freesat boxes will automatically remap new high-definition spotbeam frequencies.</li>
-                <li><strong>Freely IPTV Migration:</strong> Everyone TV continues to expand broadband-delivered linear channels for aerial-free households.</li>
-              </ul>
-            </div>
-          `;
-        }
+        try { renderRetuneBrief(content, await buildRetuneBrief(true)); }
+        catch (e) { console.warn('Retune brief failed', e); state.briefCache = null; renderRetuneBrief(content, null, 'The AI brief could not be made right now, so nothing is shown rather than guessing. Try again in a moment. The latest headlines are:'); }
       }
 
       function closeBriefingModal() {
@@ -2028,6 +2045,7 @@ ${sampleArticles}`;
         }
         const key = getGeminiKey(evt && evt.shiftKey);
         setNewspaperBtn(false, 'Building...');
+        const briefPromise = key ? buildRetuneBrief().catch(e => { console.warn('Retune brief failed', e); return null; }) : Promise.resolve(null);
 
         try {
           const scrub = { terms: sourceTerms() };
@@ -2049,6 +2067,7 @@ ${sampleArticles}`;
           const now = new Date();
           const month = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
           const thumbs = await Promise.all(leads.map(a => loadImageData(a.thumbnail)));
+          const retune = await briefPromise;      // the AI Retune Brief for the back page (null if the AI could not make one)
 
           let stage = document.getElementById('np-stage');
           if (stage) stage.remove();
@@ -2088,9 +2107,10 @@ ${sampleArticles}`;
                 <div class="np-briefs" id="p4-b2"></div>
                 <div class="np-back-right">
                   <div class="np-back-row">
-                    <div class="np-briefs" id="p4-b3"></div>
-                    <div class="np-briefs" id="p4-b4"></div>
-                  </div>
+                     ${retune ? '<div class="np-retune" id="p4-retune"></div>' : ''}
+                     <div class="np-briefs" id="p4-b3"${retune ? ' style="display:none"' : ''}></div>
+                     <div class="np-briefs" id="p4-b4"${retune ? ' style="display:none"' : ''}></div>
+                   </div>
                   ${buildPuzzleBlock(articles, scrub.terms)}
                 </div>
               </div>
@@ -2198,7 +2218,10 @@ ${sampleArticles}`;
           [leadBox, colA, colB, ...inner(2), ...inner(3)].forEach(verticalJustify);
 
           // Back page: every remaining story as a brief, shrinking until all fit
-          const briefBoxes = ['p4-b1', 'p4-b2', 'p4-b3', 'p4-b4'].map($);
+          // Back page: the Retune Brief (if there is one) takes the top right; every remaining story goes in as a brief, shrinking until all fit,
+          // then growing again to use the space, so no part of the page is left empty
+          if (retune) renderRetunePanel($('p4-retune'), retune);
+          let briefBoxes = ['p4-b1', 'p4-b2', ...(retune ? [] : ['p4-b3', 'p4-b4'])].map($);
           const firstSentence = a => {
             const t = (bodyOf(a) || '').split(/(?<=[.!?])\s+/)[0] || '';
             const w = t.split(' ');
@@ -2214,15 +2237,38 @@ ${sampleArticles}`;
           ];
           let briefMode = '';
           const tried = [];
-          for (const [mode, scale] of attempts) {
-            briefBoxes.forEach(b => b.style.setProperty('--bs', scale));
-            left = fillBriefs(briefBoxes, items, mode);
-            tried.push(`${mode}@${scale}:${left.length}`);
-            briefMode = `${mode}@${scale}`;
-            if (!left.length) break;
+          const fitAll = () => {
+            let l = items, mode = '';
+            for (const [m, sc] of attempts) {
+              briefBoxes.forEach(b => b.style.setProperty('--bs', sc));
+              l = fillBriefs(briefBoxes, items, m);
+              tried.push(`${m}@${sc}:${l.length}`);
+              mode = `${m}@${sc}`;
+              if (!l.length) break;
+            }
+            return { left: l, mode };
+          };
+          let res = fitAll();
+          if (res.left.length && retune) {          // the brief took room the stories needed: give it back
+            $('p4-retune').style.display = 'none';
+            ['p4-b3', 'p4-b4'].forEach(id => { $(id).style.display = ''; });
+            briefBoxes = ['p4-b1', 'p4-b2', 'p4-b3', 'p4-b4'].map($);
+            res = fitAll();
           }
+          left = res.left; briefMode = res.mode;
+          if (!left.length) {                       // use up spare room: the largest text that still fits everything
+            const [m, s0] = briefMode.split('@'); let best = parseFloat(s0); const cap = m === 'runin' ? 1.3 : 1;
+            for (let sc = +(best + 0.04).toFixed(2); sc <= cap + 1e-9; sc = +(sc + 0.04).toFixed(2)) {
+              briefBoxes.forEach(b => b.style.setProperty('--bs', sc));
+              if (fillBriefs(briefBoxes, items, m).length) break;
+              best = sc;
+            }
+            briefBoxes.forEach(b => b.style.setProperty('--bs', best));
+            left = fillBriefs(briefBoxes, items, m); briefMode = `${m}@${best}`;
+          }
+          const fills = briefBoxes.map(b => { const e = b.lastElementChild; return e ? +(((e.offsetTop + e.offsetHeight) / b.clientHeight)).toFixed(2) : 0; });
           const placedCount = articles.length - left.length;
-          window.__npReport = { total: articles.length, placed: placedCount, missing: left.map(x => x.head), briefs: items.length, tried, boxH: briefBoxes.map(b => b.clientHeight) };
+          window.__npReport = { retune: !!retune, mode: briefMode, fill: fills, empty: fills.filter(f => f < 0.05).length, total: articles.length, placed: placedCount, missing: left.map(x => x.head), briefs: items.length, tried, boxH: briefBoxes.map(b => b.clientHeight) };
           if (left.length) showToast(`${left.length} stories did not fit`, false);
 
           // Render the four A4 pages and impose them on a double-sided A3 sheet

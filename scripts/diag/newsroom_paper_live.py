@@ -45,6 +45,8 @@ with sync_playwright() as p:
     check("rewritten stories reached the printed pages", ai_text.get(200, 0) - rej - fail >= 1 and len(snap) > 5000, (ai_text.get(200, 0), rej, fail, len(snap)))
     if ai_img.get(200, 0): check("AI pictures reached the printed pages", n_ai_pics >= 1, n_ai_pics)
     report = frame.evaluate("window.__npReport || null"); print("  placed:", json.dumps({k: report.get(k) for k in ("total", "placed")}) if report else None)
+    print("  back page:", json.dumps({k: report.get(k) for k in ("retune", "mode", "fill", "empty")}) if report else None)
+    check("no part of the back page is left empty", bool(report) and report.get("empty") == 0, report)
     check("the panel is offered", fr.locator("[data-np=download]").is_visible())
     with pg.expect_download(timeout=20000) as di: fr.locator("[data-np=download]").click()
     d = di.value; pdf = open(d.path(), "rb").read(); open(os.path.join(OUT, "newspaper.pdf"), "wb").write(pdf); pages = len(re.findall(rb"/Type\s*/Page\b", pdf))
