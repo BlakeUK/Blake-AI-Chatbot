@@ -1,9 +1,24 @@
-name: Diagnose QR scanning and counting on the server
+name: QR health check
 
-# Checks that public QR scanning still works: service health and recent history (read only), then one throw-away link scanned several ways
-# (desktop, repeat, iPhone, Android, a link-preview bot), checking redirects, counts, the CSV export and the public headers, then deleted.
+# Runs every morning, after every QR tool deployment, and on demand. Two jobs:
+#  scans   : service health and history (read only), then one throw-away tracked link scanned several ways (desktop, repeat, iPhone, Android,
+#            a link-preview bot) checking redirects, counts, the CSV export and the public headers, then deleted;
+#  framing : a real browser checks the QR tool still shows inside the program, for every address the admin is served from.
+# If either fails, an issue is opened (one at a time, with a comment each time it fails again), and it closes itself when the checks pass again.
 on:
+  schedule:
+    - cron: '17 6 * * *'
   workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: "Pretend a check failed, to test the alert (the issue is marked as a test)"
+        type: boolean
+        default: false
+  workflow_call:
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   scans:
@@ -34,3 +49,54 @@ jobs:
             CODE=$(echo "$OUT" | grep '^SSO_CODE=' | cut -d= -f2-)
             echo "$SCRIPT_B64" | base64 -d > /tmp/qr_scan_check.py
             python3 /tmp/qr_scan_check.py "$CODE"; rc=$?; rm -f /tmp/qr_scan_check.py; exit $rc
+
+  framing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install a browser
+        run: |
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium >/dev/null
+      - name: The QR tool inside the program
+        run: python3 scripts/diag/qr_frame_check.py
+
+  alert:
+    needs: [scans, framing]
+    if: ${{ always() && (needs.scans.result != 'success' || needs.framing.result != 'success' || inputs.simulate_failure == true) }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Open an issue, or add to the one already open
+        run: |
+          RUN="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          TEST=""; [ "${{ inputs.simulate_failure }}" = "true" ] && TEST="TEST (simulated, nothing is wrong): "
+          BODY="${TEST}The QR health check did not pass.
+
+          - Scanning and counting on the server: **${{ needs.scans.result }}**
+          - The QR tool inside the program: **${{ needs.framing.result }}**
+          - Run: ${RUN}
+          - Time: $(date -u '+%Y-%m-%d %H:%M UTC')
+
+          Open the run and read the failing step. This issue closes itself when the checks next pass."
+          gh label create qr-health --color D93F0B --description "QR health check alert" 2>/dev/null || true
+          N=$(gh issue list --label qr-health --state open --json number --jq '.[0].number // empty')
+          if [ -n "$N" ]; then gh issue comment "$N" --body "$BODY"; else gh issue create --label qr-health --title "${TEST}QR health check failed" --body "$BODY"; fi
+
+  recovered:
+    needs: [scans, framing]
+    if: ${{ always() && needs.scans.result == 'success' && needs.framing.result == 'success' && inputs.simulate_failure != true }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Close the alert if one is open
+        run: |
+          for N in $(gh issue list --label qr-health --state open --json number --jq '.[].number'); do
+            gh issue comment "$N" --body "Both checks passed again: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Closing."
+            gh issue close "$N"
+          done

@@ -112,3 +112,13 @@ jobs:
           script: |
             chmod +x /var/www/qrcode/release/install.sh
             bash /var/www/qrcode/release/install.sh
+
+  # After every deployment, the same health check that runs each morning: scanning and counting, and the QR tool inside the program.
+  # A failure opens an alert issue. (It cannot undo the deployment; it tells you straight away.)
+  verify:
+    needs: deploy
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/diag-qr-scans.yml
+    secrets: inherit
