@@ -24,7 +24,7 @@ $pdo  = db();
 // treatment for free simply by sending no Origin header at all.
 $origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
 $appKey  = $_SERVER['HTTP_X_APP_KEY'] ?? '';
-$isMobileApp  = $origin === '' && $appKey !== '' && hash_equals(CFG['mobile_app_key'], $appKey);
+$isMobileApp  = $origin === '' && $appKey !== '' && hash_equals(CFG['mobile_app_key'] ?? '', $appKey);
 $isFirstParty = is_first_party_origin($origin) || $isMobileApp;
 
 if (!empty($body['token'])) {
