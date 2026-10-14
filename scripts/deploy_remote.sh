@@ -526,13 +526,37 @@ fi
 if [ ! -f "$WEBROOT/config/config.php" ]; then
     info "Generating config..."
     ENC_KEY=$(php -r "echo bin2hex(random_bytes(32));")
-    sed "s/CHANGE_ME_32_BYTE_HEX_KEY/$ENC_KEY/" "$WEBROOT/config/config.example.php" \
-        > "$WEBROOT/config/config.php"
+    APP_KEY=$(php -r "echo bin2hex(random_bytes(24));")
+    sed -e "s/CHANGE_ME_32_BYTE_HEX_KEY/$ENC_KEY/" \
+        -e "s/CHANGE_ME_MOBILE_APP_KEY/$APP_KEY/" \
+        "$WEBROOT/config/config.example.php" > "$WEBROOT/config/config.php"
     chown www-data:www-data "$WEBROOT/config/config.php"
     chmod 640 "$WEBROOT/config/config.php"
-    info "Config written. Encryption key auto-generated."
+    info "Config written. Encryption key and mobile app key auto-generated."
+    info "If you build mobile/customer_app, set its MOBILE_APP_KEY repo secret to: $APP_KEY"
 else
     warn "Config already exists — skipping."
+
+    # config.php predates the mobile_app_key setting (added after the initial
+    # config was generated on this server) or still has the placeholder from a
+    # plain copy of config.example.php — either way session.php's hash_equals()
+    # check needs a real value to recognise the mobile apps as first-party.
+    HAS_REAL_APP_KEY=$(php -r "
+        \$cfg = include '$WEBROOT/config/config.php';
+        echo (isset(\$cfg['mobile_app_key']) && \$cfg['mobile_app_key'] !== 'CHANGE_ME_MOBILE_APP_KEY') ? '1' : '0';
+    ")
+    if [ "$HAS_REAL_APP_KEY" != "1" ]; then
+        APP_KEY=$(php -r "echo bin2hex(random_bytes(24));")
+        if grep -q "mobile_app_key" "$WEBROOT/config/config.php"; then
+            sed -i "s/CHANGE_ME_MOBILE_APP_KEY/$APP_KEY/" "$WEBROOT/config/config.php"
+        else
+            sed -i "s/\('encrypt_key'[^,]*,\)/\1\n    'mobile_app_key' => '$APP_KEY',/" "$WEBROOT/config/config.php"
+        fi
+        info "Mobile app key added to existing config: $APP_KEY"
+        info "Set this as the MOBILE_APP_KEY repo secret (Settings > Secrets and variables > Actions), then re-run the Build Android APKs workflow, so the customer app can start chat sessions."
+    else
+        warn "Mobile app key already configured — skipping."
+    fi
 fi
 
 # ── Caddyfile ─────────────────────────────────────────────────────────────────
