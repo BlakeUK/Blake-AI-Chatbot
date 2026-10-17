@@ -240,6 +240,36 @@ test('a question that finds nothing is rewritten into catalogue terms and search
     }
 });
 
+test('retrievalIsWeak: a hit must cover at least half the question words; short questions are never graded', function () {
+    $hit = [['chunk_text' => 'A masthead amplifier boosts weak UHF input levels.']];
+    assert_false(\Chat\Responder::retrievalIsWeak('masthead amplifier weak signal', $hit, []), '3 of 4 words covered');
+    assert_true(\Chat\Responder::retrievalIsWeak('how do I fix flurble wobble masthead', $hit, []), '1 word covered, 3 not');
+    assert_false(\Chat\Responder::retrievalIsWeak('flurble wobble', $hit, []), 'two words: not graded');
+    assert_true(\Chat\Responder::retrievalIsWeak('flurble wobble masthead', [], []), 'nothing found is weak');
+    assert_false(\Chat\Responder::retrievalIsWeak('amplifiers for weak signals', $hit, []), 'plurals match');
+    $prod = [['name' => '4-Way Splitter', 'title' => '4 way satellite splitter', 'product_code' => 'BLASPL4', 'category_path' => '["Distribution"]']];
+    assert_false(\Chat\Responder::retrievalIsWeak('4 way satellite splitter', [], $prod), 'product text counts');
+});
+
+test('hits that do not cover the question are graded weak, so the question is rewritten and searched again', function () {
+    db()->prepare("INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES ('manual', 88811, 'Zqxv flurble notes about unrelated cable colours.')")->execute();
+    db()->prepare("INSERT INTO knowledge_chunks (source_type, source_id, chunk_text) VALUES ('manual', 88812, 'A zqxvmast preamplifier restores a weak UHF signal on long cable runs.')")->execute();
+    $asked = [];
+    \Chat\Responder::$queryRewriter = function (string $q) use (&$asked) { $asked[] = $q; return "zqxvmast preamplifier\nweak UHF signal"; };
+    try {
+        $ctx = \Chat\Responder::buildContext('zqxv fix wobble gizmo thingamajig', null, '');
+        assert_equal(1, count($asked), 'one hit found (zqxv) but it covers 1 of 4 words: rewrite once');
+        $texts = implode(' | ', array_column($ctx['knowledge_hits'], 'chunk_text'));
+        assert_true(str_contains($texts, 'zqxvmast preamplifier'), 'the better chunk from the rewritten query is added: ' . $texts);
+        assert_true(str_contains($texts, 'unrelated cable colours'), 'the original hit is kept');
+        $asked = [];
+        \Chat\Responder::buildContext('zqxvmast preamplifier weak signal', null, '');
+        assert_equal(0, count($asked), 'a good first search is not rewritten');
+    } finally {
+        \Chat\Responder::$queryRewriter = null;
+    }
+});
+
 test('rewriteQueries cleans numbering/bullets and caps at 3', function () {
     \Chat\Responder::$queryRewriter = fn($q) => "1. masthead amplifier\n- \"setback amp\"\n* weak signal fix\nfourth one\n";
     try {

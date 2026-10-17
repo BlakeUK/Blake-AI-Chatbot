@@ -43,6 +43,38 @@ class Responder
         return array_slice(array_values(array_filter($lines, fn($l) => mb_strlen($l) >= 3 && mb_strlen($l) <= 80)), 0, 3);
     }
 
+    private const STOP_WORDS = ['the', 'and', 'you', 'have', 'how', 'much', 'what', 'does', 'can', 'any', 'this', 'that', 'one', 'ones', 'got', 'for', 'with', 'about', 'there', 'they', 'them', 'its', 'too', 'also', 'please', 'thanks', 'thank', 'yes', 'yeah', 'okay', 'are', 'was', 'not', 'but', 'from', 'would', 'could', 'should', 'need', 'want', 'which', 'when', 'where', 'who', 'why', 'will', 'your', 'our', 'my', 'me', 'get', 'use', 'using', 'some', 'into', 'than', 'then', 'just', 'like'];
+
+    // The words of a question worth matching against what was retrieved.
+    public static function contentWords(string $text): array
+    {
+        $w = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY);
+        return array_values(array_unique(array_filter($w, fn($x) => mb_strlen($x) > 2 && !in_array($x, self::STOP_WORDS, true))));
+    }
+
+    // Corrective step: grade what retrieval found before trusting it. The search
+    // returns "something" for nearly any question (one shared word is enough), so
+    // a hit only counts as relevant when it covers at least half of the question's
+    // content words. Weak when no knowledge chunk or product does. Questions of
+    // fewer than 3 content words are never graded: too little to judge.
+    public static function retrievalIsWeak(string $question, array $knowledgeHits, array $productHits): bool
+    {
+        $words = self::contentWords($question);
+        if (count($words) < 3) return false;
+        $texts = [];
+        foreach ($knowledgeHits as $h) $texts[] = (string)($h['chunk_text'] ?? '');
+        foreach ($productHits as $p) $texts[] = implode(' ', [$p['name'] ?? '', $p['title'] ?? '', $p['product_code'] ?? '', $p['summary_bullets'] ?? '', mb_substr((string)($p['description'] ?? ''), 0, 800), $p['tech_specs'] ?? '', $p['category_path'] ?? '']);
+        foreach ($texts as $t) {
+            $t = mb_strtolower($t); $hit = 0;
+            foreach ($words as $w) {
+                $stem = mb_strlen($w) > 5 ? preg_replace('/(ing|es|s)$/u', '', $w) : $w;   // "amplifiers" matches "amplifier"
+                if (str_contains($t, $stem)) $hit++;
+            }
+            if ($hit / count($words) >= 0.5) return false;
+        }
+        return true;
+    }
+
     private static function mergeHits(array $a, array $b, string $key, int $limit): array
     {
         $seen = array_flip(array_map(fn($r) => (string)$r[$key], $a));
@@ -370,7 +402,10 @@ class Responder
         // terms and search again (multi-query / RAG-fusion, "Unlocking Data
         // with Generative AI and RAG" ch.14). Costs one small model call, only
         // on misses.
-        if (!$knowledgeHits && !$productHits && !self::isSmallTalk($message)) {
+        // Corrective RAG: the same retry also runs when hits were found but none
+        // of them covers the question (retrievalIsWeak). The original hits stay;
+        // rewritten-query hits are added after them.
+        if ((!$knowledgeHits && !$productHits || self::retrievalIsWeak($searchText, $knowledgeHits, $productHits)) && !self::isSmallTalk($message)) {
             foreach (self::rewriteQueries($searchText) as $q) {
                 $knowledgeHits = self::mergeHits($knowledgeHits, \Knowledge\Search::query($q, 5, $categoryHint), 'id', 5);
                 $productHits   = self::mergeHits($productHits, \Knowledge\Search::products($q, 3, $categoryHint), 'product_code', 3);
